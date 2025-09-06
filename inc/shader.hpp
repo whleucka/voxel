@@ -7,6 +7,12 @@
 #include <sstream>
 #include <string>
 
+/**
+ * shader.hpp
+ *
+ * This shader is based on learnopengl.com example
+ *
+ */
 class Shader {
 public:
   unsigned int ID;

@@ -3,35 +3,49 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <string>
+#include "block.hpp"
+#include "shader.hpp"
+#include "texture.hpp"
+#include "camera.hpp"
+#include "game_state.hpp"
 
-enum GameState {
-  INTRO = 0,
-  MENU,
-  START,
-  GAME_OVER,
-};
-
+/**
+ * engine.hpp
+ *
+ * The 3D game engine created by Will Hleucka
+ *
+ */
 class Engine {
 public:
-  Engine(int w, int h, const std::string &title);
-  ~Engine();
+  Engine(int w, int h, const std::string &t)
+      : window(nullptr), width(w), height(h), title(t) {}
+
+  Engine() { cleanup(); }
 
   bool init();
   void run();
+  Shader* blockShader = nullptr;
+  Block*  testBlock   = nullptr;
+  Texture atlasTex;
 
 private:
   GameState gameState = GameState::START;
 
+  static void framebufferSizeCallback(GLFWwindow* window, int w, int h);
   void processInput();
   void update(float deltaTime);
   void render();
   void cleanup();
-  static void framebufferSizeCallback(GLFWwindow *window, int w, int h);
 
   GLFWwindow *window;
-  int width, height;
+  int width = 800, height = 600;
   std::string title;
 
   float lastFrame = 0.0f;
   float deltaTime = 0.0f;
+
+  Camera camera;
+  float lastX = width / 2.0f;
+  float lastY = height / 2.0f;
+  bool firstMouse = true;
 };

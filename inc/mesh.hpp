@@ -3,57 +3,43 @@
 #include <glad/glad.h>
 
 #include "shader.hpp"
+#include "texture.hpp"
+#include "vertex.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <string>
 #include <vector>
 
 using namespace std;
 
-#define MAX_BONE_INFLUENCE 4
-
-struct Vertex {
-  glm::vec3 Position;
-  glm::vec3 Normal;
-  glm::vec2 TexCoords;
-};
-
-struct Texture {
-  unsigned int id;
-  string type;
-  string path;
-};
-
+/**
+ * mesh.hpp
+ *
+ * This mesh class is based on learnopengl.com example
+ * Abstract mesh class to draw vertices with GPU
+ *
+ */
 class Mesh {
 public:
-  // mesh Data
   vector<Vertex> vertices;
   vector<unsigned int> indices;
   vector<Texture> textures;
   unsigned int VAO;
 
-  // constructor
-  Mesh(vector<Vertex> vertices, vector<unsigned int> indices,
-       vector<Texture> textures) {
-    this->vertices = vertices;
-    this->indices = indices;
-    this->textures = textures;
+  Mesh() {} // empty/default mesh
 
-    // now that we have all the required data, set the vertex buffers and its
-    // attribute pointers.
+  Mesh(vector<Vertex> v, vector<unsigned int> i, vector<Texture> t)
+      : vertices(v), indices(i), textures(t) {
     setupMesh();
   }
 
-  // render the mesh
-  void Draw(Shader &shader) {
+  void draw(Shader &shader) {
     // bind appropriate textures
     unsigned int diffuseNr = 1;
     unsigned int specularNr = 1;
     unsigned int normalNr = 1;
     unsigned int heightNr = 1;
     for (unsigned int i = 0; i < textures.size(); i++) {
-      glActiveTexture(GL_TEXTURE0 +
-                      i); // active proper texture unit before binding
+      glActiveTexture(GL_TEXTURE0 + i);
       // retrieve texture number (the N in diffuse_textureN)
       string number;
       string name = textures[i].type;
@@ -83,43 +69,39 @@ public:
     glActiveTexture(GL_TEXTURE0);
   }
 
-private:
-  // render data
-  unsigned int VBO, EBO;
-
-  // initializes all the buffer objects/arrays
   void setupMesh() {
-    // create buffers/arrays
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
     glGenBuffers(1, &EBO);
 
     glBindVertexArray(VAO);
-    // load data into vertex buffers
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    // A great thing about structs is that their memory layout is sequential for
-    // all its items. The effect is that we can simply pass a pointer to the
-    // struct and it translates perfectly to a glm::vec3/2 array which again
-    // translates to 3/2 floats which translates to a byte array.
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex),
-                 &vertices[0], GL_STATIC_DRAW);
 
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex),
+                 vertices.data(), GL_STATIC_DRAW);
+
+    // ⚠️ EBO must be bound while VAO is bound (and NEVER unbound afterward)
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int),
-                 &indices[0], GL_STATIC_DRAW);
+                 indices.data(), GL_STATIC_DRAW);
 
-    // set the vertex attribute pointers
-    // vertex positions
+    // attributes (match vertex.hpp layout)
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)0);
-    // vertex normals
+
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
-                          (void *)offsetof(Vertex, Normal));
-    // vertex texture coords
+                          (void *)offsetof(Vertex, normal));
+
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
-                          (void *)offsetof(Vertex, TexCoords));
-    glBindVertexArray(0);
+                          (void *)offsetof(Vertex, texCoord));
+
+    glBindVertexArray(0); // ✅ unbind the VAO
+    // DO NOT: glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);  ❌ leave EBO bound to
+    // the VAO
   }
+
+private:
+  unsigned int VBO, EBO;
 };
