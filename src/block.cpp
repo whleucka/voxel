@@ -119,11 +119,15 @@ BlockFaceTiles Block::tilesFor(BlockType t) {
     return f;
   }
   case BlockType::DIRT:
-    return all(0, 1);
+    return all(2, 0);
   case BlockType::STONE:
-    return all(0, 0);
+    return all(3, 0);
   case BlockType::BEDROCK:
-    return all(1, 1);
+    return all(4, 0);
+  case BlockType::SAND:
+    return all(5, 0);
+  case BlockType::COBBLESTONE:
+    return all(6, 0);
   default:
     return all(15, 15); // obvious "missing" tile in bottom-right
   }

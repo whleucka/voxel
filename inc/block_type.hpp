@@ -12,5 +12,7 @@ enum BlockType {
   GRASS,
   DIRT,
   STONE,
-  BEDROCK
+  BEDROCK,
+  SAND,
+  COBBLESTONE,
 };

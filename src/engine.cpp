@@ -65,7 +65,7 @@ bool Engine::init() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   blockShader = new Shader("shaders/block.vert", "shaders/block.frag");
-  testBlock = new Block(BlockType::GRASS, glm::vec3(0.0f), 16);
+  testBlock = new Block(BlockType::SAND, glm::vec3(0.0f), 16);
 
   {
     int w, h, channels;
@@ -137,6 +137,10 @@ void Engine::processInput() {
     camera.processKeyboard(LEFT, deltaTime);
   if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
     camera.processKeyboard(RIGHT, deltaTime);
+  if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+    camera.processKeyboard(UP, deltaTime);
+  if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+    camera.processKeyboard(DOWN, deltaTime);
 }
 
 void Engine::update(float dt) {
