@@ -3,7 +3,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <string>
-#include "block.hpp"
+#include "world.hpp"
 #include "shader.hpp"
 #include "texture.hpp"
 #include "camera.hpp"
@@ -25,7 +25,7 @@ public:
   bool init();
   void run();
   Shader* blockShader = nullptr;
-  Block*  testBlock   = nullptr;
+  World* world = nullptr;
   Texture atlasTex;
 
 private:
@@ -33,6 +33,7 @@ private:
 
   static void framebufferSizeCallback(GLFWwindow* window, int w, int h);
   void processInput();
+  void loadAtlas(std::string path);
   void update(float deltaTime);
   void render();
   void cleanup();

@@ -25,22 +25,14 @@ public:
   Mesh mesh;
   BlockType type;
 
-  /**
-   * @param type        Block type (used to pick per-face tiles)
-   * @param position    World position of the block's center
-   * @param tilesPerAxis Number of tiles along one atlas dimension (e.g., 16 for 512/32)
-   */
   Block(BlockType type,
         const glm::vec3& position = glm::vec3(0.0f),
         int tilesPerAxis = 16);
 
   // Regenerates the cube geometry/UVs based on type/atlas settings
   void generate();
-
   // Configure which tile each face should use for a given type.
-  // Customize this mapping to your atlas layout.
   static BlockFaceTiles tilesFor(BlockType t);
-
   // Atlas grid size accessors
   int tilesPerAxis() const { return m_tilesPerAxis; }
 

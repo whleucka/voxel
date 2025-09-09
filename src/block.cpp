@@ -6,9 +6,6 @@ using V3 = glm::vec3;
 using V2 = glm::vec2;
 
 // ------ Face vertex templates for a unit cube centered at the origin ------
-// We'll generate a 1x1x1 cube centered on m_pos. If you prefer 1 unit per block
-// with min corner at (0,0,0), shift these accordingly.
-
 // +X face (right)
 static const V3 FACE_PX[4] = {V3(0.5f, -0.5f, -0.5f), V3(0.5f, -0.5f, 0.5f),
                               V3(0.5f, 0.5f, 0.5f), V3(0.5f, 0.5f, -0.5f)};
