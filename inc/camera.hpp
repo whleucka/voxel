@@ -12,14 +12,14 @@ public:
   float zoom            = 45.0f;
 
   // state
-  glm::vec3 position {0.0f, 0.0f, 3.0f};
+  glm::vec3 position {8.0f, 135.0f, 24.0f};
   glm::vec3 front    {0.0f, 0.0f,-1.0f};
   glm::vec3 up       {0.0f, 1.0f, 0.0f};
   glm::vec3 right    {1.0f, 0.0f, 0.0f};
   glm::vec3 worldUp  {0.0f, 1.0f, 0.0f};
 
   float yaw   = -90.0f; // -Z
-  float pitch =   0.0f;
+  float pitch = -30.0f;
 
   Camera() { updateCameraVectors(); }
 

@@ -71,7 +71,7 @@ bool Engine::init() {
   // Load assets/world
   loadAtlas("res/block_atlas.png");
   blockShader = new Shader("shaders/block.vert", "shaders/block.frag");
-  world = new World(5, 5, 5, atlasTex);
+  world = new World(atlasTex);
 
   return true;
 }
