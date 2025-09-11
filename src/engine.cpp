@@ -67,6 +67,9 @@ bool Engine::init() {
   glDepthRange(0.0, 1.0);
   glClearDepth(1.0);
   glEnable(GL_DEPTH_TEST); // enable depth so faces don’t z-fight
+  //glEnable(GL_CULL_FACE);
+  //glCullFace(GL_BACK);
+  //glFrontFace(GL_CCW);
   glfwSwapInterval(0); // 0 = disable vsync, 1 = enable vsync
   // Wireframe
   // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
