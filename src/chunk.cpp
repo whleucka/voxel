@@ -4,21 +4,23 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/noise.hpp>
 
-Chunk::Chunk(const int w, const int l, const int h, const Texture &atlas)
-    : width(w), length(l) {
+Chunk::Chunk(const int w, const int l, const int h, const Texture &atlas,
+             const int world_x, const int world_z)
+    : width(w), length(l), world_x(world_x), world_z(world_z) {
   mesh.textures.push_back(atlas);
 
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
-      const double height_noise = glm::perlin(glm::vec2(x * 0.03, z * 0.03));
+      const double height_noise = glm::perlin(
+          glm::vec2((world_x * width + x) * 0.01, (world_z * length + z) * 0.01));
       height = static_cast<int>(height_noise * h) + h;
 
       for (int y = 0; y < height; y++) {
         BlockType type = BlockType::AIR;
-        const double stone_noise = 
-            glm::perlin(glm::vec3(x * 0.55, y * 0.25, z * 0.25));
-        const double bedrock_noise = 
-            glm::perlin(glm::vec3(x * 0.05, y * 0.05, z * 0.05));
+        const double stone_noise = glm::perlin(glm::vec3(
+            (world_x * width + x) * 0.55, y * 0.25, (world_z * length + z) * 0.25));
+        const double bedrock_noise = glm::perlin(glm::vec3(
+            (world_x * width + x) * 0.05, y * 0.05, (world_z * length + z) * 0.05));
 
         if (y == height - 1) {
           type = BlockType::GRASS;
@@ -45,7 +47,6 @@ Chunk::Chunk(const int w, const int l, const int h, const Texture &atlas)
       }
     }
   }
-
   mesh.setupMesh();
 }
 

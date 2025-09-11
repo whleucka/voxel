@@ -16,7 +16,7 @@
 class Chunk {
 public:
   Chunk(const int width, const int length, const int height,
-        const Texture &atlas);
+        const Texture &atlas, const int world_x, const int world_z);
   ~Chunk();
 
   void draw(Shader &shader);
@@ -27,4 +27,6 @@ private:
   const int width;
   const int length;
   int height;
+  const int world_x;
+  const int world_z;
 };

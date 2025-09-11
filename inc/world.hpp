@@ -2,6 +2,7 @@
 
 #include "chunk.hpp"
 #include "render_ctx.hpp"
+#include <vector>
 
 /**
  * world.hpp
@@ -17,5 +18,5 @@ public:
   void draw(renderCtx &ctx);
 
 private:
-  Chunk *chunk = nullptr;
+  std::vector<Chunk *> chunks;
 };
