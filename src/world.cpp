@@ -3,7 +3,6 @@
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include <iostream>
 
 World::World(const Texture &atlas) {
   for (int i = 0; i < width; i++) {
