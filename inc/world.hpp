@@ -3,6 +3,12 @@
 #include "chunk.hpp"
 #include "render_ctx.hpp"
 
+/**
+ * world.hpp
+ *
+ * A 3d world for my voxel game
+ *
+ */
 class World {
 public:
   World(const Texture &atlas);
@@ -11,5 +17,5 @@ public:
   void draw(renderCtx &ctx);
 
 private:
-  Chunk *m_chunk = nullptr;
+  Chunk *chunk = nullptr;
 };

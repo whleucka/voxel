@@ -1,18 +1,20 @@
 #include "chunk.hpp"
+#include "block.hpp"
 #include "block_type.hpp"
 #include "perlin_noise.hpp"
 #include <glm/glm.hpp>
 
-Chunk::Chunk(const Texture &atlas) {
-  m_mesh.textures.push_back(atlas);
+Chunk::Chunk(const int w, const int l, const Texture &atlas)
+    : width(w), length(l) {
+  mesh.textures.push_back(atlas);
 
   const std::uint32_t seed = 123456u;
   const siv::PerlinNoise perlin{seed};
 
-  for (int x = 0; x < CHUNK_WIDTH; x++) {
-    for (int z = 0; z < CHUNK_LENGTH; z++) {
+  for (int x = 0; x < width; x++) {
+    for (int z = 0; z < length; z++) {
       const double noise = perlin.octaveNoise0_1(x * 0.01, z * 0.01, 4);
-      const int height = static_cast<int>(noise * 64) + 64;
+      height = static_cast<int>(noise * 64) + 64;
 
       for (int y = 0; y < height; y++) {
         BlockType type = BlockType::AIR;
@@ -26,23 +28,23 @@ Chunk::Chunk(const Texture &atlas) {
 
         if (type != BlockType::AIR) {
           Block block(type, glm::vec3(x, y, z));
+          blocks.push_back(block);
 
-          unsigned int offset = m_mesh.vertices.size();
-          m_mesh.vertices.insert(m_mesh.vertices.end(),
-                                 block.mesh.vertices.begin(),
-                                 block.mesh.vertices.end());
+          unsigned int offset = mesh.vertices.size();
+          mesh.vertices.insert(mesh.vertices.end(), block.mesh.vertices.begin(),
+                               block.mesh.vertices.end());
 
           for (auto index : block.mesh.indices) {
-            m_mesh.indices.push_back(index + offset);
+            mesh.indices.push_back(index + offset);
           }
         }
       }
     }
   }
 
-  m_mesh.setupMesh();
+  mesh.setupMesh();
 }
 
 Chunk::~Chunk() {}
 
-void Chunk::draw(Shader &shader) { m_mesh.draw(shader); }
+void Chunk::draw(Shader &shader) { mesh.draw(shader); }

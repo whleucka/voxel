@@ -4,6 +4,12 @@
 
 enum Camera_Movement { FORWARD, BACKWARD, LEFT, RIGHT, UP, DOWN };
 
+/**
+ * camera.hpp
+ *
+ * A simple camera
+ * 
+ */
 class Camera {
 public:
   // config

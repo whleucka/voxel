@@ -3,11 +3,11 @@
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-World::World(const Texture &atlas) { m_chunk = new Chunk(atlas); }
+World::World(const Texture &atlas) { chunk = new Chunk(16, 16, atlas); }
 
 World::~World() {
-  delete m_chunk;
-  m_chunk = nullptr;
+  delete chunk;
+  chunk = nullptr;
 }
 
 void World::update(float dt) {}
@@ -18,10 +18,10 @@ void World::draw(renderCtx &ctx) {
   glm::mat4 model(1.0f); // identity
   glUniformMatrix4fv(glGetUniformLocation(ctx.blockShader.ID, "model"), 1,
                      GL_FALSE, glm::value_ptr(model));
-  glUniformMatrix4fv(glGetUniformLocation(ctx.blockShader.ID, "view"), 1, GL_FALSE,
-                     glm::value_ptr(ctx.view));
+  glUniformMatrix4fv(glGetUniformLocation(ctx.blockShader.ID, "view"), 1,
+                     GL_FALSE, glm::value_ptr(ctx.view));
   glUniformMatrix4fv(glGetUniformLocation(ctx.blockShader.ID, "projection"), 1,
                      GL_FALSE, glm::value_ptr(ctx.proj));
 
-  m_chunk->draw(ctx.blockShader);
+  chunk->draw(ctx.blockShader);
 }
