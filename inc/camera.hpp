@@ -29,6 +29,10 @@ public:
 
   Camera() { updateCameraVectors(); }
 
+  glm::vec3 getPos() {
+    return position;
+  }
+
   glm::mat4 getViewMatrix() const {
     return glm::lookAt(position, position + front, up);
   }

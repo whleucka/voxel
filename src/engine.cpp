@@ -1,8 +1,12 @@
 #include "engine.hpp"
+#include <glm/ext/vector_float3.hpp>
 #include <iostream>
 #define STB_IMAGE_IMPLEMENTATION
 #include "render_ctx.hpp"
 #include "stb_image.h"
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 
 bool Engine::init() {
   if (!glfwInit()) {
@@ -63,6 +67,7 @@ bool Engine::init() {
   glDepthRange(0.0, 1.0);
   glClearDepth(1.0);
   glEnable(GL_DEPTH_TEST); // enable depth so faces don’t z-fight
+  glfwSwapInterval(0); // 0 = disable vsync, 1 = enable vsync
   // Wireframe
   // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
@@ -72,6 +77,18 @@ bool Engine::init() {
   loadAtlas("res/block_atlas.png");
   blockShader = new Shader("shaders/block.vert", "shaders/block.frag");
   world = new World(atlasTex);
+
+  // ImGui
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  ImGuiIO& io = ImGui::GetIO();
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+  ImGui::StyleColorsDark();
+
+  // Platform/Renderer bindings
+  ImGui_ImplGlfw_InitForOpenGL(window, true);
+  ImGui_ImplOpenGL3_Init("#version 330"); // or "#version 130" depending on context
 
   return true;
 }
@@ -141,6 +158,10 @@ void Engine::update(float dt) {
 }
 
 void Engine::render() {
+  // Per frame updates
+  ImGui_ImplOpenGL3_NewFrame();
+  ImGui_ImplGlfw_NewFrame();
+  ImGui::NewFrame();
   glClearColor(0.0f, 11.0f / 255.0f, 28.0f / 255.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -150,9 +171,24 @@ void Engine::render() {
 
   renderCtx ctx{*blockShader, view, proj};
   world->draw(ctx);
+
+  ImGui::Begin("Debug");
+  ImGuiIO& io = ImGui::GetIO();
+  ImGui::Text("FPS: %.1f", io.Framerate);
+  ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
+  const glm::vec3 pos = camera.getPos();
+  ImGui::Text("Camera Pos: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
+  ImGui::End();
+
+  ImGui::Render();
+  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 void Engine::cleanup() {
+  ImGui_ImplOpenGL3_Shutdown();
+  ImGui_ImplGlfw_Shutdown();
+  ImGui::DestroyContext();
+
   if (atlasTex.id) {
     glDeleteTextures(1, &atlasTex.id);
     atlasTex.id = 0;

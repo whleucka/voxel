@@ -10,7 +10,7 @@ Chunk::Chunk(const int w, const int l, const int h, const Texture &atlas)
 
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
-      const double height_noise = glm::perlin(glm::vec2(x * 0.02, z * 0.02));
+      const double height_noise = glm::perlin(glm::vec2(x * 0.03, z * 0.03));
       height = static_cast<int>(height_noise * h) + h;
 
       for (int y = 0; y < height; y++) {
@@ -22,10 +22,10 @@ Chunk::Chunk(const int w, const int l, const int h, const Texture &atlas)
 
         if (y == height - 1) {
           type = BlockType::GRASS;
-        } else if ((stone_noise > 0.5) || (y >= 5 && y < 15)) {
-          type = BlockType::STONE;
-        } else if ((bedrock_noise > 0.3 && y >= 0 && y < 25) || (y >= 0 && y < 5)) {
+        } else if ((bedrock_noise > 0.1 && y >= 0 && y <= 10) || (y >= 0 && y < 5)) {
           type = BlockType::BEDROCK;
+        } else if ((stone_noise > 0.4) || (y >= 5 && y <= 15)) {
+          type = BlockType::STONE;
         } else {
           type = BlockType::DIRT;
         }
