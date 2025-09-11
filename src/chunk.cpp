@@ -1,13 +1,39 @@
 #include "chunk.hpp"
+#include "world.hpp"
 #include "block.hpp"
 #include "block_type.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/noise.hpp>
 
-Chunk::Chunk(const int w, const int l, const int h, const Texture &atlas,
-             const int world_x, const int world_z)
-    : width(w), length(l), world_x(world_x), world_z(world_z) {
-  mesh.textures.push_back(atlas);
+// Convenient alias
+using V3 = glm::vec3;
+using V2 = glm::vec2;
+
+// ------ Face vertex templates for a unit cube centered at the origin ------
+// +X face (right)
+static const V3 FACE_PX[4] = {V3(0.5f, -0.5f, -0.5f), V3(0.5f, -0.5f, 0.5f),
+                              V3(0.5f, 0.5f, 0.5f), V3(0.5f, 0.5f, -0.5f)};
+// -X face (left)
+static const V3 FACE_NX[4] = {V3(-0.5f, -0.5f, 0.5f), V3(-0.5f, -0.5f, -0.5f),
+                              V3(-0.5f, 0.5f, -0.5f), V3(-0.5f, 0.5f, 0.5f)};
+// +Y face (top)
+static const V3 FACE_PY[4] = {V3(-0.5f, 0.5f, -0.5f), V3(0.5f, 0.5f, -0.5f),
+                              V3(0.5f, 0.5f, 0.5f), V3(-0.5f, 0.5f, 0.5f)};
+// -Y face (bottom)
+static const V3 FACE_NY[4] = {V3(-0.5f, -0.5f, 0.5f), V3(0.5f, -0.5f, 0.5f),
+                              V3(0.5f, -0.5f, -0.5f), V3(-0.5f, -0.5f, -0.5f)};
+// +Z face (front)
+static const V3 FACE_PZ[4] = {V3(0.5f, -0.5f, 0.5f), V3(-0.5f, -0.5f, 0.5f),
+                              V3(-0.5f, 0.5f, 0.5f), V3(0.5f, 0.5f, 0.5f)};
+// -Z face (back)
+static const V3 FACE_NZ[4] = {V3(-0.5f, -0.5f, -0.5f), V3(0.5f, -0.5f, -0.5f),
+                              V3(0.5f, 0.5f, -0.5f), V3(-0.5f, 0.5f, -0.5f)};
+
+Chunk::Chunk(const int w, const int l, const int h,
+             const int world_x, const int world_z, World *world)
+    : width(w), length(l), world_x(world_x), world_z(world_z), world(world) {
+  blocks.resize(width, std::vector<std::vector<BlockType>>(
+                           length, std::vector<BlockType>(256, BlockType::AIR)));
 
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
@@ -31,18 +57,42 @@ Chunk::Chunk(const int w, const int l, const int h, const Texture &atlas,
         } else {
           type = BlockType::DIRT;
         }
+        blocks[x][z][y] = type;
+      }
+    }
+  }
+}
 
-        if (type != BlockType::AIR) {
-          Block block(type, glm::vec3(x, y, z));
-          blocks.push_back(block);
+void Chunk::generate_mesh(const Texture &atlas) {
+  mesh.textures.push_back(atlas);
+  for (int x = 0; x < width; x++) {
+    for (int z = 0; z < length; z++) {
+      for (int y = 0; y < 256; y++) {
+        if (blocks[x][z][y] == BlockType::AIR) {
+          continue;
+        }
 
-          unsigned int offset = mesh.vertices.size();
-          mesh.vertices.insert(mesh.vertices.end(), block.mesh.vertices.begin(),
-                               block.mesh.vertices.end());
+        const BlockType type = blocks[x][z][y];
+        const auto map = Block::tilesFor(type);
+        Block block(type, glm::vec3(x, y, z));
 
-          for (auto index : block.mesh.indices) {
-            mesh.indices.push_back(index + offset);
-          }
+        if (is_face_visible(x, y, z, 0)) { // +X
+          block.emitFace(FACE_PX, V3(1, 0, 0), map.px, mesh);
+        }
+        if (is_face_visible(x, y, z, 1)) { // -X
+          block.emitFace(FACE_NX, V3(-1, 0, 0), map.nx, mesh);
+        }
+        if (is_face_visible(x, y, z, 2)) { // +Y
+          block.emitFace(FACE_PY, V3(0, 1, 0), map.py, mesh);
+        }
+        if (is_face_visible(x, y, z, 3)) { // -Y
+          block.emitFace(FACE_NY, V3(0, -1, 0), map.ny, mesh);
+        }
+        if (is_face_visible(x, y, z, 4)) { // +Z
+          block.emitFace(FACE_PZ, V3(0, 0, 1), map.pz, mesh);
+        }
+        if (is_face_visible(x, y, z, 5)) { // -Z
+          block.emitFace(FACE_NZ, V3(0, 0, -1), map.nz, mesh);
         }
       }
     }
@@ -53,3 +103,39 @@ Chunk::Chunk(const int w, const int l, const int h, const Texture &atlas,
 Chunk::~Chunk() {}
 
 void Chunk::draw(Shader &shader) { mesh.draw(shader); }
+
+BlockType Chunk::get_block(int x, int y, int z) const {
+  if (x < 0 || x >= width || y < 0 || y >= 256 || z < 0 || z >= length) {
+    return BlockType::AIR;
+  }
+  return blocks[x][z][y];
+}
+
+bool Chunk::is_face_visible(int x, int y, int z, int face) {
+  int check_x = x;
+  int check_y = y;
+  int check_z = z;
+
+  switch (face) {
+  case 0: // +X
+    check_x++;
+    break;
+  case 1: // -X
+    check_x--;
+    break;
+  case 2: // +Y
+    check_y++;
+    break;
+  case 3: // -Y
+    check_y--;
+    break;
+  case 4: // +Z
+    check_z++;
+    break;
+  case 5: // -Z
+    check_z--;
+    break;
+  }
+
+  return world->get_block(world_x * width + check_x, check_y, world_z * length + check_z) == BlockType::AIR;
+}

@@ -4,49 +4,34 @@
 #include "mesh.hpp"
 #include "block_type.hpp"
 
-/**
- * block.hpp
- *
- * A single voxel block that owns a Mesh. It generates one cube worth of
- * vertices/indices using a texture atlas.
- *
- */
 struct AtlasTile {
-  int x; // tile column (0..tiles-1)
-  int y; // tile row    (0..tiles-1)
+  int x;
+  int y;
 };
 
 struct BlockFaceTiles {
-  AtlasTile px, nx, py, ny, pz, nz; // per-face tiles (+X, -X, +Y, -Y, +Z, -Z)
+  AtlasTile px, nx, py, ny, pz, nz;
 };
 
 class Block {
 public:
-  Mesh mesh;
   BlockType type;
 
   Block(BlockType type,
         const glm::vec3& position = glm::vec3(0.0f),
         int tilesPerAxis = 16);
 
-  // Regenerates the cube geometry/UVs based on type/atlas settings
-  void generate();
-  // Configure which tile each face should use for a given type.
   static BlockFaceTiles tilesFor(BlockType t);
-  // Atlas grid size accessors
   int tilesPerAxis() const { return m_tilesPerAxis; }
+
+  void emitFace(const glm::vec3 (&verts)[4],
+                const glm::vec3& faceNormal,
+                const AtlasTile& tile, Mesh& mesh);
+  void appendQuadIndices(Mesh& mesh);
 
 private:
   glm::vec3 m_pos;
   int m_tilesPerAxis;
 
-  // Helpers
-  void emitFace(const glm::vec3 (&verts)[4],
-                const glm::vec3& faceNormal,
-                const AtlasTile& tile);
-  void appendQuadIndices();
-
-  // Converts an atlas tile (tx,ty) to the 4 UVs (bottom-left origin).
-  // Returns UVs in order: (0) bl, (1) br, (2) tr, (3) tl
   void tileUVs(const AtlasTile& tile, glm::vec2 (&uv)[4]) const;
 };

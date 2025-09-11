@@ -4,19 +4,16 @@
 #include "render_ctx.hpp"
 #include <vector>
 
-/**
- * world.hpp
- *
- * A 3d world for my voxel game
- *
- */
 class World {
 public:
   World(const Texture &atlas);
   ~World();
-  void update(float dt);
+  void update(float);
   void draw(renderCtx &ctx);
+  BlockType get_block(int x, int y, int z);
 
 private:
   std::vector<Chunk *> chunks;
+  int width = 10;
+  int length = 10;
 };

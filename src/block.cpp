@@ -5,58 +5,14 @@
 using V3 = glm::vec3;
 using V2 = glm::vec2;
 
-// ------ Face vertex templates for a unit cube centered at the origin ------
-// +X face (right)
-static const V3 FACE_PX[4] = {V3(0.5f, -0.5f, -0.5f), V3(0.5f, -0.5f, 0.5f),
-                              V3(0.5f, 0.5f, 0.5f), V3(0.5f, 0.5f, -0.5f)};
-// -X face (left)
-static const V3 FACE_NX[4] = {V3(-0.5f, -0.5f, 0.5f), V3(-0.5f, -0.5f, -0.5f),
-                              V3(-0.5f, 0.5f, -0.5f), V3(-0.5f, 0.5f, 0.5f)};
-// +Y face (top)
-static const V3 FACE_PY[4] = {V3(-0.5f, 0.5f, -0.5f), V3(0.5f, 0.5f, -0.5f),
-                              V3(0.5f, 0.5f, 0.5f), V3(-0.5f, 0.5f, 0.5f)};
-// -Y face (bottom)
-static const V3 FACE_NY[4] = {V3(-0.5f, -0.5f, 0.5f), V3(0.5f, -0.5f, 0.5f),
-                              V3(0.5f, -0.5f, -0.5f), V3(-0.5f, -0.5f, -0.5f)};
-// +Z face (front)
-static const V3 FACE_PZ[4] = {V3(0.5f, -0.5f, 0.5f), V3(-0.5f, -0.5f, 0.5f),
-                              V3(-0.5f, 0.5f, 0.5f), V3(0.5f, 0.5f, 0.5f)};
-// -Z face (back)
-static const V3 FACE_NZ[4] = {V3(-0.5f, -0.5f, -0.5f), V3(0.5f, -0.5f, -0.5f),
-                              V3(0.5f, 0.5f, -0.5f), V3(-0.5f, 0.5f, -0.5f)};
-
 Block::Block(BlockType t, const glm::vec3 &position, int tilesPerAxis)
-    : type(t), m_pos(position), m_tilesPerAxis(tilesPerAxis) {
-  generate();
-}
-
-void Block::generate() {
-  mesh.vertices.clear();
-  mesh.indices.clear();
-
-  const auto map = tilesFor(type);
-
-  // Emit six faces
-  emitFace(FACE_PX, V3(1, 0, 0), map.px);
-  emitFace(FACE_NX, V3(-1, 0, 0), map.nx);
-  emitFace(FACE_PY, V3(0, 1, 0), map.py);
-  emitFace(FACE_NY, V3(0, -1, 0), map.ny);
-  emitFace(FACE_PZ, V3(0, 0, 1), map.pz);
-  emitFace(FACE_NZ, V3(0, 0, -1), map.nz);
-
-  // Upload to GPU (assumes Mesh has this method).
-  mesh.setupMesh();
-}
+    : type(t), m_pos(position), m_tilesPerAxis(tilesPerAxis) {}
 
 void Block::emitFace(const V3 (&verts)[4], const V3 &normal,
-                     const AtlasTile &tile) {
-  // Compute UVs for this face
+                     const AtlasTile &tile, Mesh &mesh) {
   V2 uv[4];
   tileUVs(tile, uv);
 
-  const uint32_t base = static_cast<uint32_t>(mesh.vertices.size());
-
-  // Push 4 vertices (with position offset by m_pos)
   for (int i = 0; i < 4; ++i) {
     Vertex v;
     v.position = verts[i] + m_pos;
@@ -65,11 +21,10 @@ void Block::emitFace(const V3 (&verts)[4], const V3 &normal,
     mesh.vertices.push_back(v);
   }
 
-  appendQuadIndices();
+  appendQuadIndices(mesh);
 }
 
-void Block::appendQuadIndices() {
-  // Two triangles per quad: (0,1,2) (0,2,3) in local-quad space
+void Block::appendQuadIndices(Mesh &mesh) {
   const uint32_t base = static_cast<uint32_t>(mesh.vertices.size() - 4);
   mesh.indices.push_back(base + 0);
   mesh.indices.push_back(base + 1);
@@ -82,24 +37,19 @@ void Block::appendQuadIndices() {
 void Block::tileUVs(const AtlasTile &tile, glm::vec2 (&uv)[4]) const {
   const float step = 1.0f / float(m_tilesPerAxis);
 
-  // atlas is top-left origin (since STB flip is OFF), so flip V:
   const float u0 = tile.x * step;
   const float u1 = u0 + step;
 
-  // flip V: bottom-left UV should sample from (1 - (y+1)*step) .. (1 - y*step)
   const float v0 = 1.0f - (tile.y * step + step);
   const float v1 = v0 + step;
 
-  uv[0] = {u0, v0}; // bl
-  uv[1] = {u1, v0}; // br
-  uv[2] = {u1, v1}; // tr
-  uv[3] = {u0, v1}; // tl
+  uv[0] = {u0, v0};
+  uv[1] = {u1, v0};
+  uv[2] = {u1, v1};
+  uv[3] = {u0, v1};
 }
 
-// Pick tiles per face for each block type.
-// Adjust these indices to match your block_atlas.png layout.
 BlockFaceTiles Block::tilesFor(BlockType t) {
-  // Default all faces to the same tile (e.g., "stone" at 1,0)
   auto all = [](int x, int y) {
     BlockFaceTiles f{};
     f.px = f.nx = f.py = f.ny = f.pz = f.nz = AtlasTile{x, y};
@@ -108,11 +58,10 @@ BlockFaceTiles Block::tilesFor(BlockType t) {
 
   switch (t) {
   case BlockType::GRASS: {
-    // Example: grass top (2,0), dirt bottom (0,1), grass side (1,0)
     BlockFaceTiles f{};
-    f.py = AtlasTile{0, 0};             // +Y top
-    f.px = f.nx = f.pz = f.nz = {1, 0}; // sides
-    f.ny = AtlasTile{2, 0};             // -Y bottom (dirt)
+    f.py = AtlasTile{0, 0};
+    f.px = f.nx = f.pz = f.nz = {1, 0};
+    f.ny = AtlasTile{2, 0};
     return f;
   }
   case BlockType::DIRT:
@@ -126,6 +75,6 @@ BlockFaceTiles Block::tilesFor(BlockType t) {
   case BlockType::COBBLESTONE:
     return all(6, 0);
   default:
-    return all(15, 15); // obvious "missing" tile in bottom-right
+    return all(15, 15);
   }
 }
