@@ -1,29 +1,33 @@
 #include "chunk.hpp"
 #include "block.hpp"
 #include "block_type.hpp"
-#include "perlin_noise.hpp"
 #include <glm/glm.hpp>
+#include <glm/gtc/noise.hpp>
 
-Chunk::Chunk(const int w, const int l, const Texture &atlas)
+Chunk::Chunk(const int w, const int l, const int h, const Texture &atlas)
     : width(w), length(l) {
   mesh.textures.push_back(atlas);
 
-  const std::uint32_t seed = 123456u;
-  const siv::PerlinNoise perlin{seed};
-
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
-      const double noise = perlin.octaveNoise0_1(x * 0.01, z * 0.01, 4);
-      height = static_cast<int>(noise * 64) + 64;
+      const double height_noise = glm::perlin(glm::vec2(x * 0.02, z * 0.02));
+      height = static_cast<int>(height_noise * h) + h;
 
       for (int y = 0; y < height; y++) {
         BlockType type = BlockType::AIR;
+        const double stone_noise = 
+            glm::perlin(glm::vec3(x * 0.55, y * 0.25, z * 0.25));
+        const double bedrock_noise = 
+            glm::perlin(glm::vec3(x * 0.05, y * 0.05, z * 0.05));
+
         if (y == height - 1) {
           type = BlockType::GRASS;
-        } else if (y > height - 5) {
-          type = BlockType::DIRT;
-        } else {
+        } else if ((stone_noise > 0.5) || (y >= 5 && y < 15)) {
           type = BlockType::STONE;
+        } else if ((bedrock_noise > 0.3 && y >= 0 && y < 25) || (y >= 0 && y < 5)) {
+          type = BlockType::BEDROCK;
+        } else {
+          type = BlockType::DIRT;
         }
 
         if (type != BlockType::AIR) {

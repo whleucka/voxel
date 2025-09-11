@@ -3,7 +3,7 @@
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-World::World(const Texture &atlas) { chunk = new Chunk(16, 16, atlas); }
+World::World(const Texture &atlas) { chunk = new Chunk(16, 16, 64, atlas); }
 
 World::~World() {
   delete chunk;

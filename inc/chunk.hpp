@@ -1,10 +1,10 @@
 #pragma once
 
-#include <vector>
 #include "block.hpp"
+#include "mesh.hpp"
 #include "shader.hpp"
 #include "texture.hpp"
-#include "mesh.hpp"
+#include <vector>
 
 /**
  * chunk.hpp
@@ -15,7 +15,8 @@
  */
 class Chunk {
 public:
-  Chunk(const int width, const int length, const Texture &atlas);
+  Chunk(const int width, const int length, const int height,
+        const Texture &atlas);
   ~Chunk();
 
   void draw(Shader &shader);

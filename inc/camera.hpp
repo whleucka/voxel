@@ -13,12 +13,12 @@ enum Camera_Movement { FORWARD, BACKWARD, LEFT, RIGHT, UP, DOWN };
 class Camera {
 public:
   // config
-  float movementSpeed   = 2.5f;
+  float movementSpeed   = 5.0f;
   float mouseSensitivity= 0.1f;
   float zoom            = 45.0f;
 
   // state
-  glm::vec3 position {8.0f, 135.0f, 24.0f};
+  glm::vec3 position {8.0f, 64.0f, 24.0f};
   glm::vec3 front    {0.0f, 0.0f,-1.0f};
   glm::vec3 up       {0.0f, 1.0f, 0.0f};
   glm::vec3 right    {1.0f, 0.0f, 0.0f};
