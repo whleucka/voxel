@@ -10,7 +10,7 @@ public:
   ~World();
   void update(float);
   void draw(renderCtx &ctx);
-  BlockType get_block(int x, int y, int z);
+  BlockType getBlock(int x, int y, int z);
 
 private:
   std::vector<Chunk *> chunks;

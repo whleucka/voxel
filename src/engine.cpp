@@ -170,7 +170,7 @@ void Engine::render() {
 
   glm::mat4 view = camera.getViewMatrix();
   glm::mat4 proj = glm::perspective(glm::radians(camera.zoom),
-                                    float(width) / float(height), 0.1f, 100.0f);
+                                    float(width) / float(height), 0.1f, 10000.0f);
 
   renderCtx ctx{*blockShader, view, proj};
   world->draw(ctx);

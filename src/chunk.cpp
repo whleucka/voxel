@@ -1,7 +1,7 @@
 #include "chunk.hpp"
-#include "world.hpp"
 #include "block.hpp"
 #include "block_type.hpp"
+#include "world.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/noise.hpp>
 
@@ -29,28 +29,35 @@ static const V3 FACE_PZ[4] = {V3(0.5f, -0.5f, 0.5f), V3(-0.5f, -0.5f, 0.5f),
 static const V3 FACE_NZ[4] = {V3(-0.5f, -0.5f, -0.5f), V3(0.5f, -0.5f, -0.5f),
                               V3(0.5f, 0.5f, -0.5f), V3(-0.5f, 0.5f, -0.5f)};
 
-Chunk::Chunk(const int w, const int l, const int h,
-             const int world_x, const int world_z, World *world)
-    : width(w), length(l), world_x(world_x), world_z(world_z), world(world) {
-  blocks.resize(width, std::vector<std::vector<BlockType>>(
-                           length, std::vector<BlockType>(256, BlockType::AIR)));
+Chunk::Chunk(const int w, const int l, const int h, const int world_x,
+             const int world_z, World *world)
+    : width(w), length(l), height(h), world_x(world_x), world_z(world_z), world(world) {
+  blocks.resize(width,
+                std::vector<std::vector<BlockType>>(
+                    length, std::vector<BlockType>(height, BlockType::AIR)));
 
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
-      const double height_noise = glm::perlin(
-          glm::vec2((world_x * width + x) * 0.01, (world_z * length + z) * 0.01));
-      height = static_cast<int>(height_noise * h) + h;
+      glm::vec2 pos(
+          (world_x * width + x) * 0.03f,
+          (world_z * length + z) * 0.03f
+          );
+      double hNoise = glm::perlin(pos) * 0.5 + 0.5; // normalize to [0,1]
+      int perlin_height = static_cast<int>(hNoise * 30) + 40; // tweak 30/40
 
-      for (int y = 0; y < height; y++) {
+      for (int y = 0; y < perlin_height; y++) {
         BlockType type = BlockType::AIR;
-        const double stone_noise = glm::perlin(glm::vec3(
-            (world_x * width + x) * 0.55, y * 0.25, (world_z * length + z) * 0.25));
-        const double bedrock_noise = glm::perlin(glm::vec3(
-            (world_x * width + x) * 0.05, y * 0.05, (world_z * length + z) * 0.05));
+        const double stone_noise =
+            glm::perlin(glm::vec3((world_x * width + x) * 0.55, y * 0.25,
+                                  (world_z * length + z) * 0.25));
+        const double bedrock_noise =
+            glm::perlin(glm::vec3((world_x * width + x) * 0.05, y * 0.05,
+                                  (world_z * length + z) * 0.05));
 
-        if (y == height - 1) {
+        if (y == perlin_height - 1) {
           type = BlockType::GRASS;
-        } else if ((bedrock_noise > 0.1 && y >= 0 && y <= 10) || (y >= 0 && y < 5)) {
+        } else if ((bedrock_noise > 0.1 && y >= 0 && y <= 10) ||
+                   (y >= 0 && y < 5)) {
           type = BlockType::BEDROCK;
         } else if ((stone_noise > 0.4) || (y >= 5 && y <= 15)) {
           type = BlockType::STONE;
@@ -63,11 +70,11 @@ Chunk::Chunk(const int w, const int l, const int h,
   }
 }
 
-void Chunk::generate_mesh(const Texture &atlas) {
+void Chunk::generateMesh(const Texture &atlas) {
   mesh.textures.push_back(atlas);
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
-      for (int y = 0; y < 256; y++) {
+      for (int y = 0; y < height; y++) {
         if (blocks[x][z][y] == BlockType::AIR) {
           continue;
         }
@@ -76,22 +83,22 @@ void Chunk::generate_mesh(const Texture &atlas) {
         const auto map = Block::tilesFor(type);
         Block block(type, glm::vec3(x, y, z));
 
-        if (is_face_visible(x, y, z, 0)) { // +X
+        if (faceVisible(x, y, z, 0)) { // +X
           block.emitFace(FACE_PX, V3(1, 0, 0), map.px, mesh);
         }
-        if (is_face_visible(x, y, z, 1)) { // -X
+        if (faceVisible(x, y, z, 1)) { // -X
           block.emitFace(FACE_NX, V3(-1, 0, 0), map.nx, mesh);
         }
-        if (is_face_visible(x, y, z, 2)) { // +Y
+        if (faceVisible(x, y, z, 2)) { // +Y
           block.emitFace(FACE_PY, V3(0, 1, 0), map.py, mesh);
         }
-        if (is_face_visible(x, y, z, 3)) { // -Y
+        if (faceVisible(x, y, z, 3)) { // -Y
           block.emitFace(FACE_NY, V3(0, -1, 0), map.ny, mesh);
         }
-        if (is_face_visible(x, y, z, 4)) { // +Z
+        if (faceVisible(x, y, z, 4)) { // +Z
           block.emitFace(FACE_PZ, V3(0, 0, 1), map.pz, mesh);
         }
-        if (is_face_visible(x, y, z, 5)) { // -Z
+        if (faceVisible(x, y, z, 5)) { // -Z
           block.emitFace(FACE_NZ, V3(0, 0, -1), map.nz, mesh);
         }
       }
@@ -104,14 +111,14 @@ Chunk::~Chunk() {}
 
 void Chunk::draw(Shader &shader) { mesh.draw(shader); }
 
-BlockType Chunk::get_block(int x, int y, int z) const {
-  if (x < 0 || x >= width || y < 0 || y >= 256 || z < 0 || z >= length) {
+BlockType Chunk::getBlock(int x, int y, int z) const {
+  if (x < 0 || x >= width || y < 0 || y >= height || z < 0 || z >= length) {
     return BlockType::AIR;
   }
   return blocks[x][z][y];
 }
 
-bool Chunk::is_face_visible(int x, int y, int z, int face) {
+bool Chunk::faceVisible(int x, int y, int z, int face) {
   int check_x = x;
   int check_y = y;
   int check_z = z;
@@ -137,5 +144,6 @@ bool Chunk::is_face_visible(int x, int y, int z, int face) {
     break;
   }
 
-  return world->get_block(world_x * width + check_x, check_y, world_z * length + check_z) == BlockType::AIR;
+  return world->getBlock(world_x * width + check_x, check_y,
+                          world_z * length + check_z) == BlockType::AIR;
 }
