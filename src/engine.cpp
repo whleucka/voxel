@@ -188,12 +188,13 @@ void Engine::render() {
 }
 
 void Engine::stats() {
-  ImGui::Begin("Stats");
+  ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
   ImGuiIO& io = ImGui::GetIO();
   ImGui::Text("FPS: %.1f", io.Framerate);
   ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
   const glm::vec3 pos = camera.getPos();
-  ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
+  ImGui::Text("Camera: (x %.2f, y %.2f, z %.2f)", pos.x, pos.y, pos.z);
+  ImGui::Text("Chunks: %i", world->getChunkCount());
   ImGui::End();
   ImGui::Render();
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

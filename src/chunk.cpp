@@ -5,7 +5,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/noise.hpp>
 
-// Convenient alias
+// alias
 using V3 = glm::vec3;
 using V2 = glm::vec2;
 
@@ -69,7 +69,7 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
 
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
-      glm::vec2 pos(
+      V2 pos(
           (world_x * width + x) * 0.03f,
           (world_z * length + z) * 0.03f);
       double hNoise = glm::perlin(pos) * 0.5 + 0.5; // [0,1]
@@ -79,11 +79,14 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
       for (int y = 0; y < perlin_height; y++) {
         BlockType type = BlockType::AIR;
         const double stone_noise =
-          glm::perlin(glm::vec3((world_x * width + x) * 0.55, y * 0.25,
+          glm::perlin(V3((world_x * width + x) * 0.55, y * 0.25,
                 (world_z * length + z) * 0.25));
         const double bedrock_noise =
-          glm::perlin(glm::vec3((world_x * width + x) * 0.05, y * 0.05,
+          glm::perlin(V3((world_x * width + x) * 0.05, y * 0.05,
                 (world_z * length + z) * 0.05));
+        const double water_noise =
+          glm::perlin(V3((world_x * width + x) * 0.02, y * 0.02,
+                (world_z * length + z) * 0.02));
 
         if (y == perlin_height - 1) {
           type = BlockType::GRASS;
@@ -91,6 +94,8 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
           type = BlockType::BEDROCK;
         } else if ((stone_noise > 0.4) || (y >= 5 && y <= 15)) {
           type = BlockType::STONE;
+        } else if (water_noise > 0.4 && y <= 40) {
+          type = BlockType::WATER;
         } else {
           type = BlockType::DIRT;
         }
@@ -118,7 +123,7 @@ void Chunk::generateMesh(const Texture &atlas) {
 
         const BlockType type = blocks[x][z][y];
         const auto map = Block::tilesFor(type);
-        Block block(type, glm::vec3(x, y, z));
+        Block block(type, V3(x, y, z));
 
         if (faceVisible(x, y, z, 0)) { // +X
           block.emitFace(FACE_PX, V3(1, 0, 0), map.px, mesh);

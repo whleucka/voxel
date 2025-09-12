@@ -17,6 +17,7 @@ public:
   void update(float);
   void draw(renderCtx &ctx);
   BlockType getBlock(int x, int y, int z);
+  int getChunkCount() const;
 
 private:
   std::vector<Chunk *> chunks;

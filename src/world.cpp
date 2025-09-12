@@ -27,6 +27,10 @@ World::~World() {
   chunks.clear();
 }
 
+int World::getChunkCount() const {
+  return chunks.size();
+}
+
 void World::update(float) {}
 
 void World::draw(renderCtx &ctx) {
