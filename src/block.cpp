@@ -10,18 +10,27 @@ Block::Block(BlockType t, const glm::vec3 &position, int tilesPerAxis)
 
 void Block::emitFace(const V3 (&verts)[4], const V3 &normal,
                      const AtlasTile &tile, Mesh &mesh) {
-  V2 uv[4];
-  tileUVs(tile, uv);
+    V2 uv[4];
+    tileUVs(tile, uv);
 
-  for (int i = 0; i < 4; ++i) {
-    Vertex v;
-    v.position = verts[i] + m_pos;
-    v.normal = normal;
-    v.texCoord = uv[i];
-    mesh.vertices.push_back(v);
-  }
+    // Base index before adding new vertices
+    uint32_t base = static_cast<uint32_t>(mesh.vertices.size());
 
-  appendQuadIndices(mesh);
+    for (int i = 0; i < 4; ++i) {
+        Vertex v;
+        v.position = verts[i] + m_pos;
+        v.normal   = normal;
+        v.texCoord = uv[i];
+        mesh.vertices.push_back(v);
+    }
+
+    // Two triangles, CCW
+    mesh.indices.push_back(base + 0);
+    mesh.indices.push_back(base + 1);
+    mesh.indices.push_back(base + 2);
+    mesh.indices.push_back(base + 0);
+    mesh.indices.push_back(base + 2);
+    mesh.indices.push_back(base + 3);
 }
 
 void Block::appendQuadIndices(Mesh &mesh) {

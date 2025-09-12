@@ -51,13 +51,13 @@ const std::array<Vertex, 4> faceVertices[6] = {
     }},
 };
 
-// indices for each face (two triangles per quad)
+// indices for each face (two triangles per quad, CCW winding)
 const std::array<unsigned int, 6> faceIndices[6] = {
-    std::array<unsigned int, 6>{{0, 1, 2, 2, 3, 0}}, // front
-    std::array<unsigned int, 6>{{0, 1, 2, 2, 3, 0}}, // back
-    std::array<unsigned int, 6>{{0, 1, 2, 2, 3, 0}}, // left
-    std::array<unsigned int, 6>{{0, 1, 2, 2, 3, 0}}, // right
-    std::array<unsigned int, 6>{{0, 1, 2, 2, 3, 0}}, // top
-    std::array<unsigned int, 6>{{0, 1, 2, 2, 3, 0}}, // bottom
+    {0, 1, 2, 0, 2, 3}, // front
+    {0, 1, 2, 0, 2, 3}, // back
+    {0, 1, 2, 0, 2, 3}, // left
+    {0, 1, 2, 0, 2, 3}, // right
+    {0, 1, 2, 0, 2, 3}, // top
+    {0, 1, 2, 0, 2, 3}, // bottom
 };
 } // namespace Cube

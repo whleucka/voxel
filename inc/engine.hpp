@@ -36,6 +36,7 @@ private:
   void loadAtlas(std::string path);
   void update(float deltaTime);
   void render();
+  void stats();
   void cleanup();
 
   GLFWwindow *window;

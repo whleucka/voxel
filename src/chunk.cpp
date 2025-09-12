@@ -10,24 +10,53 @@ using V3 = glm::vec3;
 using V2 = glm::vec2;
 
 // ------ Face vertex templates for a unit cube centered at the origin ------
-// +X face (right)
-static const V3 FACE_PX[4] = {V3(0.5f, -0.5f, -0.5f), V3(0.5f, -0.5f, 0.5f),
-                              V3(0.5f, 0.5f, 0.5f), V3(0.5f, 0.5f, -0.5f)};
-// -X face (left)
-static const V3 FACE_NX[4] = {V3(-0.5f, -0.5f, 0.5f), V3(-0.5f, -0.5f, -0.5f),
-                              V3(-0.5f, 0.5f, -0.5f), V3(-0.5f, 0.5f, 0.5f)};
-// +Y face (top)
-static const V3 FACE_PY[4] = {V3(-0.5f, 0.5f, -0.5f), V3(0.5f, 0.5f, -0.5f),
-                              V3(0.5f, 0.5f, 0.5f), V3(-0.5f, 0.5f, 0.5f)};
-// -Y face (bottom)
-static const V3 FACE_NY[4] = {V3(-0.5f, -0.5f, 0.5f), V3(0.5f, -0.5f, 0.5f),
-                              V3(0.5f, -0.5f, -0.5f), V3(-0.5f, -0.5f, -0.5f)};
-// +Z face (front)
-static const V3 FACE_PZ[4] = {V3(0.5f, -0.5f, 0.5f), V3(-0.5f, -0.5f, 0.5f),
-                              V3(-0.5f, 0.5f, 0.5f), V3(0.5f, 0.5f, 0.5f)};
-// -Z face (back)
-static const V3 FACE_NZ[4] = {V3(-0.5f, -0.5f, -0.5f), V3(0.5f, -0.5f, -0.5f),
-                              V3(0.5f, 0.5f, -0.5f), V3(-0.5f, 0.5f, -0.5f)};
+// +X face (right)  CCW: bottom-front → bottom-back → top-back → top-front
+static const V3 FACE_PX[4] = {
+    V3(0.5f, -0.5f,  0.5f),
+    V3(0.5f, -0.5f, -0.5f),
+    V3(0.5f,  0.5f, -0.5f),
+    V3(0.5f,  0.5f,  0.5f)
+};
+
+// -X face (left)   CCW: bottom-back → bottom-front → top-front → top-back
+static const V3 FACE_NX[4] = {
+    V3(-0.5f, -0.5f, -0.5f),
+    V3(-0.5f, -0.5f,  0.5f),
+    V3(-0.5f,  0.5f,  0.5f),
+    V3(-0.5f,  0.5f, -0.5f)
+};
+
+// +Y face (top)    CCW: front-left → front-right → back-right → back-left
+static const V3 FACE_PY[4] = {
+    V3(-0.5f,  0.5f,  0.5f),
+    V3( 0.5f,  0.5f,  0.5f),
+    V3( 0.5f,  0.5f, -0.5f),
+    V3(-0.5f,  0.5f, -0.5f)
+};
+
+// -Y face (bottom) CCW: back-left → back-right → front-right → front-left
+static const V3 FACE_NY[4] = {
+    V3(-0.5f, -0.5f, -0.5f),
+    V3( 0.5f, -0.5f, -0.5f),
+    V3( 0.5f, -0.5f,  0.5f),
+    V3(-0.5f, -0.5f,  0.5f)
+};
+
+// +Z face (front)  CCW: bottom-left → bottom-right → top-right → top-left
+static const V3 FACE_PZ[4] = {
+    V3(-0.5f, -0.5f,  0.5f),
+    V3( 0.5f, -0.5f,  0.5f),
+    V3( 0.5f,  0.5f,  0.5f),
+    V3(-0.5f,  0.5f,  0.5f)
+};
+
+// -Z face (back)   CCW: bottom-right → bottom-left → top-left → top-right
+static const V3 FACE_NZ[4] = {
+    V3( 0.5f, -0.5f, -0.5f),
+    V3(-0.5f, -0.5f, -0.5f),
+    V3(-0.5f,  0.5f, -0.5f),
+    V3( 0.5f,  0.5f, -0.5f)
+};
 
 Chunk::Chunk(const int w, const int l, const int h, const int world_x,
              const int world_z, World *world)

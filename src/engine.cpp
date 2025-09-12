@@ -69,7 +69,7 @@ bool Engine::init() {
   glEnable(GL_DEPTH_TEST); // enable depth so faces don’t z-fight
   glEnable(GL_CULL_FACE);
   glCullFace(GL_BACK);
-  glFrontFace(GL_CW);
+  glFrontFace(GL_CCW);
   glfwSwapInterval(0); // 0 = disable vsync, 1 = enable vsync
   // Wireframe
   // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -169,20 +169,32 @@ void Engine::render() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   glm::mat4 view = camera.getViewMatrix();
-  glm::mat4 proj = glm::perspective(glm::radians(camera.zoom),
-                                    float(width) / float(height), 0.1f, 10000.0f);
+  glm::mat4 proj = glm::perspective(
+    glm::radians(camera.zoom),
+    float(width) / float(height),
+    0.5f,   // near plane (don’t keep at 0.1 unless you need it)
+    1024.0f // far plane (match your chunk render distance)
+  );
 
   renderCtx ctx{*blockShader, view, proj};
   world->draw(ctx);
 
-  ImGui::Begin("Debug");
+  GLenum error = glGetError();
+  if (error != GL_NO_ERROR) {
+      fprintf(stderr, "OpenGL Error after world->draw: 0x%x\n", error);
+  }
+
+  stats();
+}
+
+void Engine::stats() {
+  ImGui::Begin("Stats");
   ImGuiIO& io = ImGui::GetIO();
   ImGui::Text("FPS: %.1f", io.Framerate);
   ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
   const glm::vec3 pos = camera.getPos();
-  ImGui::Text("Camera Pos: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
+  ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
   ImGui::End();
-
   ImGui::Render();
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
