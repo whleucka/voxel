@@ -65,28 +65,29 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
                 std::vector<std::vector<BlockType>>(
                     length, std::vector<BlockType>(height, BlockType::AIR)));
 
+  const int SEA_LEVEL = 50;
+
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
       glm::vec2 pos(
           (world_x * width + x) * 0.03f,
-          (world_z * length + z) * 0.03f
-          );
-      double hNoise = glm::perlin(pos) * 0.5 + 0.5; // normalize to [0,1]
-      int perlin_height = static_cast<int>(hNoise * 30) + 40; // tweak 30/40
+          (world_z * length + z) * 0.03f);
+      double hNoise = glm::perlin(pos) * 0.5 + 0.5; // [0,1]
+      int perlin_height = static_cast<int>(hNoise * 30) + 40;
 
+      // --- terrain generation ---
       for (int y = 0; y < perlin_height; y++) {
         BlockType type = BlockType::AIR;
         const double stone_noise =
-            glm::perlin(glm::vec3((world_x * width + x) * 0.55, y * 0.25,
-                                  (world_z * length + z) * 0.25));
+          glm::perlin(glm::vec3((world_x * width + x) * 0.55, y * 0.25,
+                (world_z * length + z) * 0.25));
         const double bedrock_noise =
-            glm::perlin(glm::vec3((world_x * width + x) * 0.05, y * 0.05,
-                                  (world_z * length + z) * 0.05));
+          glm::perlin(glm::vec3((world_x * width + x) * 0.05, y * 0.05,
+                (world_z * length + z) * 0.05));
 
         if (y == perlin_height - 1) {
           type = BlockType::GRASS;
-        } else if ((bedrock_noise > 0.1 && y >= 0 && y <= 10) ||
-                   (y >= 0 && y < 5)) {
+        } else if ((bedrock_noise > 0.1 && y <= 10) || (y < 5)) {
           type = BlockType::BEDROCK;
         } else if ((stone_noise > 0.4) || (y >= 5 && y <= 15)) {
           type = BlockType::STONE;
@@ -94,6 +95,13 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
           type = BlockType::DIRT;
         }
         blocks[x][z][y] = type;
+      }
+
+      // --- water filling pass ---
+      for (int y = perlin_height; y < SEA_LEVEL; y++) {
+        if (blocks[x][z][y] == BlockType::AIR) {
+          blocks[x][z][y] = BlockType::WATER;
+        }
       }
     }
   }

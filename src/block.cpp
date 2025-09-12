@@ -83,6 +83,8 @@ BlockFaceTiles Block::tilesFor(BlockType t) {
     return all(5, 0);
   case BlockType::COBBLESTONE:
     return all(6, 0);
+  case BlockType::WATER:
+    return all(7, 0);
   default:
     return all(15, 15);
   }
