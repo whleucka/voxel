@@ -82,8 +82,8 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
           glm::perlin(V3((world_x * width + x) * 0.55, y * 0.25,
                 (world_z * length + z) * 0.25));
         const double bedrock_noise =
-          glm::perlin(V3((world_x * width + x) * 0.05, y * 0.05,
-                (world_z * length + z) * 0.05));
+          glm::perlin(V3((world_x * width + x) * 0.42, y * 0.02,
+                (world_z * length + z) * 0.42));
         const double water_noise =
           glm::perlin(V3((world_x * width + x) * 0.02, y * 0.02,
                 (world_z * length + z) * 0.02));

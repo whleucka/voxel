@@ -50,15 +50,15 @@ bool Engine::init() {
         auto *eng = static_cast<Engine *>(glfwGetWindowUserPointer(win));
         if (!eng)
           return;
-        if (eng->firstMouse) {
-          eng->lastX = xpos;
-          eng->lastY = ypos;
-          eng->firstMouse = false;
+        if (eng->first_mouse) {
+          eng->last_x = xpos;
+          eng->last_y = ypos;
+          eng->first_mouse = false;
         }
-        float dx = float(xpos - eng->lastX);
-        float dy = float(eng->lastY - ypos);
-        eng->lastX = xpos;
-        eng->lastY = ypos;
+        float dx = float(xpos - eng->last_x);
+        float dy = float(eng->last_y - ypos);
+        eng->last_x = xpos;
+        eng->last_y = ypos;
         eng->camera.processMouseMovement(dx, dy);
       });
 
@@ -78,8 +78,8 @@ bool Engine::init() {
 
   // Load assets/world
   loadAtlas("res/block_atlas.png");
-  blockShader = new Shader("shaders/block.vert", "shaders/block.frag");
-  world = new World(atlasTex);
+  block_shader = new Shader("shaders/block.vert", "shaders/block.frag");
+  world = new World(atlas_texture);
 
   // ImGui
   IMGUI_CHECKVERSION();
@@ -118,18 +118,18 @@ void Engine::loadAtlas(std::string path) {
   glGenerateMipmap(GL_TEXTURE_2D);
   stbi_image_free(data);
 
-  atlasTex.id = texId;
-  atlasTex.type = "texture_diffuse"; // Mesh::draw expects this exact string
+  atlas_texture.id = texId;
+  atlas_texture.type = "texture_diffuse"; // Mesh::draw expects this exact string
 }
 
 void Engine::run() {
   while (!glfwWindowShouldClose(window)) {
     float currentFrame = glfwGetTime();
-    deltaTime = currentFrame - lastFrame;
-    lastFrame = currentFrame;
+    delta_time = currentFrame - last_frame;
+    last_frame = currentFrame;
 
     processInput();
-    update(deltaTime);
+    update(delta_time);
     render();
 
     glfwSwapBuffers(window);
@@ -142,17 +142,17 @@ void Engine::processInput() {
     glfwSetWindowShouldClose(window, true);
 
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-    camera.processKeyboard(FORWARD, deltaTime);
+    camera.processKeyboard(FORWARD, delta_time);
   if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-    camera.processKeyboard(BACKWARD, deltaTime);
+    camera.processKeyboard(BACKWARD, delta_time);
   if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-    camera.processKeyboard(LEFT, deltaTime);
+    camera.processKeyboard(LEFT, delta_time);
   if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-    camera.processKeyboard(RIGHT, deltaTime);
+    camera.processKeyboard(RIGHT, delta_time);
   if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
-    camera.processKeyboard(UP, deltaTime);
+    camera.processKeyboard(UP, delta_time);
   if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
-    camera.processKeyboard(DOWN, deltaTime);
+    camera.processKeyboard(DOWN, delta_time);
 }
 
 void Engine::update(float dt) {
@@ -176,7 +176,7 @@ void Engine::render() {
     1024.0f // far plane (match your chunk render distance)
   );
 
-  renderCtx ctx{*blockShader, view, proj};
+  renderCtx ctx{*block_shader, view, proj};
   world->draw(ctx);
 
   GLenum error = glGetError();
@@ -205,12 +205,12 @@ void Engine::cleanup() {
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
 
-  if (atlasTex.id) {
-    glDeleteTextures(1, &atlasTex.id);
-    atlasTex.id = 0;
+  if (atlas_texture.id) {
+    glDeleteTextures(1, &atlas_texture.id);
+    atlas_texture.id = 0;
   }
-  delete blockShader;
-  blockShader = nullptr;
+  delete block_shader;
+  block_shader = nullptr;
 
   if (window) {
     glfwDestroyWindow(window);

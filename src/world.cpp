@@ -34,20 +34,20 @@ int World::getChunkCount() const {
 void World::update(float) {}
 
 void World::draw(renderCtx &ctx) {
-  glUseProgram(ctx.blockShader.ID);
+  glUseProgram(ctx.block_shader.ID);
 
-  glUniformMatrix4fv(glGetUniformLocation(ctx.blockShader.ID, "view"), 1,
+  glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "view"), 1,
                      GL_FALSE, glm::value_ptr(ctx.view));
-  glUniformMatrix4fv(glGetUniformLocation(ctx.blockShader.ID, "projection"), 1,
+  glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "projection"), 1,
                      GL_FALSE, glm::value_ptr(ctx.proj));
 
   for (int i = 0; i < width; i++) {
     for (int j = 0; j < length; j++) {
       glm::mat4 model = glm::mat4(1.0f);
       model = glm::translate(model, glm::vec3(i * chunk_width, 0, j * chunk_length));
-      glUniformMatrix4fv(glGetUniformLocation(ctx.blockShader.ID, "model"), 1,
+      glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "model"), 1,
                          GL_FALSE, glm::value_ptr(model));
-      chunks[i * length + j]->draw(ctx.blockShader);
+      chunks[i * length + j]->draw(ctx.block_shader);
     }
   }
 }

@@ -10,7 +10,7 @@
  *
  */
 struct renderCtx {
-  Shader &blockShader;
+  Shader &block_shader;
   const glm::mat4 &view;
   const glm::mat4 &proj;
 };

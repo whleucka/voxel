@@ -95,11 +95,9 @@ public:
 
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
-                          (void *)offsetof(Vertex, texCoord));
+                          (void *)offsetof(Vertex, text_coord));
 
     glBindVertexArray(0); // ✅ unbind the VAO
-    // DO NOT: glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);  ❌ leave EBO bound to
-    // the VAO
   }
 
 private:

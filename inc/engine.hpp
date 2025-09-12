@@ -24,12 +24,12 @@ public:
 
   bool init();
   void run();
-  Shader* blockShader = nullptr;
+  Shader* block_shader = nullptr;
   World* world = nullptr;
-  Texture atlasTex;
+  Texture atlas_texture;
 
 private:
-  GameState gameState = GameState::START;
+  GameState game_state = GameState::START;
 
   static void framebufferSizeCallback(GLFWwindow* window, int w, int h);
   void processInput();
@@ -43,11 +43,11 @@ private:
   int width = 800, height = 600;
   std::string title;
 
-  float lastFrame = 0.0f;
-  float deltaTime = 0.0f;
+  float last_frame = 0.0f;
+  float delta_time = 0.0f;
 
   Camera camera;
-  float lastX = width / 2.0f;
-  float lastY = height / 2.0f;
-  bool firstMouse = true;
+  float last_x = width / 2.0f;
+  float last_y = height / 2.0f;
+  bool first_mouse = true;
 };

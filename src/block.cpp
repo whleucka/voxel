@@ -6,7 +6,7 @@ using V3 = glm::vec3;
 using V2 = glm::vec2;
 
 Block::Block(BlockType t, const glm::vec3 &position, int tilesPerAxis)
-    : type(t), m_pos(position), m_tilesPerAxis(tilesPerAxis) {}
+    : type(t), pos(position), tiles_per_axis(tilesPerAxis) {}
 
 void Block::emitFace(const V3 (&verts)[4], const V3 &normal,
                      const AtlasTile &tile, Mesh &mesh) {
@@ -18,9 +18,9 @@ void Block::emitFace(const V3 (&verts)[4], const V3 &normal,
 
     for (int i = 0; i < 4; ++i) {
         Vertex v;
-        v.position = verts[i] + m_pos;
+        v.position = verts[i] + pos;
         v.normal   = normal;
-        v.texCoord = uv[i];
+        v.text_coord = uv[i];
         mesh.vertices.push_back(v);
     }
 
@@ -44,7 +44,7 @@ void Block::appendQuadIndices(Mesh &mesh) {
 }
 
 void Block::tileUVs(const AtlasTile &tile, glm::vec2 (&uv)[4]) const {
-  const float step = 1.0f / float(m_tilesPerAxis);
+  const float step = 1.0f / float(tiles_per_axis);
 
   const float u0 = tile.x * step;
   const float u1 = u0 + step;

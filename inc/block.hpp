@@ -28,7 +28,7 @@ public:
         int tilesPerAxis = 16);
 
   static BlockFaceTiles tilesFor(BlockType t);
-  int tilesPerAxis() const { return m_tilesPerAxis; }
+  int tilesPerAxis() const { return tiles_per_axis; }
 
   void emitFace(const glm::vec3 (&verts)[4],
                 const glm::vec3& faceNormal,
@@ -36,8 +36,8 @@ public:
   void appendQuadIndices(Mesh& mesh);
 
 private:
-  glm::vec3 m_pos;
-  int m_tilesPerAxis;
+  glm::vec3 pos;
+  int tiles_per_axis;
 
   void tileUVs(const AtlasTile& tile, glm::vec2 (&uv)[4]) const;
 };
