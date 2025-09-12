@@ -8,6 +8,12 @@
 
 class World;
 
+/**
+ * chunk.hpp
+ *
+ * A chunk for the 3d world
+ *
+ */
 class Chunk {
 public:
   Chunk(const int width, const int length, const int height, const int world_x,

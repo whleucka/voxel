@@ -4,6 +4,12 @@
 #include "render_ctx.hpp"
 #include <vector>
 
+/*
+ * world.hpp
+ *
+ * 3d minecraft-like voxel game world
+ * 
+ */
 class World {
 public:
   World(const Texture &atlas);

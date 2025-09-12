@@ -13,6 +13,12 @@ struct BlockFaceTiles {
   AtlasTile px, nx, py, ny, pz, nz;
 };
 
+/**
+ * block.hpp
+ *
+ * Block class
+ *
+ */
 class Block {
 public:
   BlockType type;
