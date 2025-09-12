@@ -158,7 +158,6 @@ void Engine::processInput() {
 }
 
 void Engine::update(float dt) {
-  // TODO: Game logic / world updates
   world->update(dt, camera.getPos());
 }
 
