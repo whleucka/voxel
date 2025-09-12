@@ -2,6 +2,7 @@
 
 #include "chunk.hpp"
 #include "render_ctx.hpp"
+#include "texture.hpp"
 #include <vector>
 
 /*
@@ -12,12 +13,15 @@
  */
 class World {
 public:
-  World(const Texture &atlas);
+  World(Texture &atlas);
   ~World();
   void update(float);
   void draw(renderCtx &ctx);
   BlockType getBlock(int x, int y, int z);
   int getChunkCount() const;
+  void loadChunk(glm::vec2 pos);
+  void unloadChunk();
+  Texture& atlas;
 
 private:
   std::vector<Chunk *> chunks;

@@ -80,6 +80,7 @@ bool Engine::init() {
   loadAtlas("res/block_atlas.png");
   block_shader = new Shader("shaders/block.vert", "shaders/block.frag");
   world = new World(atlas_texture);
+  world->loadChunk(glm::vec2{20,20});
 
   // ImGui
   IMGUI_CHECKVERSION();
