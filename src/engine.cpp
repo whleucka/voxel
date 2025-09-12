@@ -80,7 +80,8 @@ bool Engine::init() {
   loadAtlas("res/block_atlas.png");
   block_shader = new Shader("shaders/block.vert", "shaders/block.frag");
   world = new World(atlas_texture);
-  world->loadChunk(glm::vec2{20,20});
+  // Load initial chunk
+  world->update(0.0f, camera.getPos());
 
   // ImGui
   IMGUI_CHECKVERSION();
@@ -158,7 +159,7 @@ void Engine::processInput() {
 
 void Engine::update(float dt) {
   // TODO: Game logic / world updates
-  world->update(dt);
+  world->update(dt, camera.getPos());
 }
 
 void Engine::render() {

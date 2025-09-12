@@ -8,80 +8,100 @@
 const int chunk_width = 16;
 const int chunk_length = 16;
 const int chunk_height = 256;
-const int render_distance = 1;
+const int render_distance = 5;
+
+inline int worldToChunkCoord(int pos, int chunkSize) {
+    // works for negatives too
+    return (pos >= 0) ? (pos / chunkSize) : ((pos + 1) / chunkSize - 1);
+}
 
 World::World(Texture &a) : atlas(a) {
 }
 
 World::~World() {
-  for (auto chunk : chunks) {
-    delete chunk;
+}
+
+void World::loadChunk(int chunk_x, int chunk_z) {
+  ChunkKey key{chunk_x, chunk_z};
+  if (chunks.find(key) == chunks.end()) {
+    Chunk* chunk = new Chunk(chunk_width, chunk_length, chunk_height, chunk_x, chunk_z, this);
+    chunk->generateMesh(atlas);
+    chunks[key] = chunk;
   }
-  chunks.clear();
 }
 
-void World::loadChunk(glm::vec2 pos) {
-    // x,y is actually x,z
-    Chunk* chunk = new Chunk(chunk_width, chunk_length, chunk_height, pos.x, pos.y, this);
-    chunks.push_back(chunk);
-    chunk->generateMesh(atlas);
-    chunk->generateMesh(atlas);
-}
-
-void World::unloadChunk() {
-
+void World::unloadChunk(const ChunkKey &key) {
+  auto it = chunks.find(key);
+  if (it != chunks.end()) {
+    delete it->second;
+    chunks.erase(it);
+  }
 }
 
 int World::getChunkCount() const {
   return chunks.size();
 }
 
-void World::update(float) {}
+void World::update(float dt, glm::vec3 camera_pos) {
+  int cam_cx = worldToChunkCoord(static_cast<int>(camera_pos.x), chunk_width);
+  int cam_cz = worldToChunkCoord(static_cast<int>(camera_pos.z), chunk_length);
+
+  // Load any missing chunks in render distance
+  for (int dx = -render_distance; dx <= render_distance; dx++) {
+    for (int dz = -render_distance; dz <= render_distance; dz++) {
+      int cx = cam_cx + dx;
+      int cz = cam_cz + dz;
+
+      ChunkKey key{cx, cz};
+      if (chunks.find(key) == chunks.end()) {
+        loadChunk(cx, cz);
+      }
+    }
+  }
+
+  // Unload chunks that are too far away
+  std::vector<ChunkKey> toUnload;
+  for (auto &[key, chunk] : chunks) {
+    int distX = key.x - cam_cx;
+    int distZ = key.z - cam_cz;
+    if (std::abs(distX) > render_distance || std::abs(distZ) > render_distance) {
+      toUnload.push_back(key);
+    }
+  }
+
+  for (auto &key : toUnload) {
+    unloadChunk(key);
+  }
+}
 
 void World::draw(renderCtx &ctx) {
-  if (chunks.size() > 0) {
-    glUseProgram(ctx.block_shader.ID);
+  if (chunks.empty()) return;
 
-    glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "view"), 1,
-                       GL_FALSE, glm::value_ptr(ctx.view));
-    glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "projection"), 1,
-                       GL_FALSE, glm::value_ptr(ctx.proj));
+  glUseProgram(ctx.block_shader.ID);
 
-    for (auto chunk : chunks) {
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(chunk_width, 0, chunk_length));
-        glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "model"), 1,
-                           GL_FALSE, glm::value_ptr(model));
-        chunk->draw(ctx.block_shader);
-    }
+  glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "view"), 1,
+      GL_FALSE, glm::value_ptr(ctx.view));
+  glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "projection"), 1,
+      GL_FALSE, glm::value_ptr(ctx.proj));
+
+  for (auto &[key, chunk] : chunks) {
+    glm::mat4 model = glm::mat4(1.0f);
+    // place chunk in world based on its (x,z) indices
+    model = glm::translate(model, glm::vec3(key.x * chunk_width, 0, key.z * chunk_length));
+
+    glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "model"), 1,
+        GL_FALSE, glm::value_ptr(model));
+    chunk->draw(ctx.block_shader);
   }
 }
 
 BlockType World::getBlock(int x, int y, int z) {
-  int chunk_x = x / chunk_width;
-  int chunk_z = z / chunk_width;
-  int block_x = x % chunk_width;
-  int block_z = z % chunk_width;
+    int chunk_x = x / chunk_width;
+    int chunk_z = z / chunk_length;
 
-  if (x < 0) {
-    chunk_x = (x + 1) / chunk_width - 1;
-    block_x = x - chunk_x * chunk_width;
-  } else {
-    chunk_x = x / chunk_width;
-    block_x = x % chunk_width;
-  }
+    ChunkKey key{chunk_x, chunk_z};
+    auto it = chunks.find(key);
+    if (it == chunks.end()) return BlockType::AIR;
 
-  if (z < 0) {
-    chunk_z = (z + 1) / chunk_width - 1;
-    block_z = z - chunk_z * chunk_width;
-  } else {
-    chunk_z = z / chunk_width;
-    block_z = z % chunk_width;
-  }
-
-  if (chunk_x < 0 || chunk_x >= width || chunk_z < 0 || chunk_z >= length) {
-    return BlockType::AIR;
-  }
-
-  return chunks[chunk_x * length + chunk_z]->getBlock(block_x, y, block_z);
+    return it->second->getBlock(x % chunk_width, y, z % chunk_length);
 }
