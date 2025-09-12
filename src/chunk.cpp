@@ -160,32 +160,29 @@ BlockType Chunk::getBlock(int x, int y, int z) const {
   return blocks[x][z][y];
 }
 
-bool Chunk::faceVisible(int x, int y, int z, int face) {
-  int check_x = x;
-  int check_y = y;
-  int check_z = z;
-
-  switch (face) {
-  case 0: // +X
-    check_x++;
-    break;
-  case 1: // -X
-    check_x--;
-    break;
-  case 2: // +Y
-    check_y++;
-    break;
-  case 3: // -Y
-    check_y--;
-    break;
-  case 4: // +Z
-    check_z++;
-    break;
-  case 5: // -Z
-    check_z--;
-    break;
+bool Chunk::faceVisible(int x, int y, int z, int dir) const {
+  int nx = x, ny = y, nz = z;
+  switch (dir) {
+    case 0: nx++; break; // +X
+    case 1: nx--; break; // -X
+    case 2: ny++; break; // +Y
+    case 3: ny--; break; // -Y
+    case 4: nz++; break; // +Z
+    case 5: nz--; break; // -Z
   }
 
-  return world->getBlock(world_x * width + check_x, check_y,
-                          world_z * length + check_z) == BlockType::AIR;
+  // 1) If neighbor is inside this chunk, use local data (fast + robust)
+  if (nx >= 0 && nx < width &&
+      ny >= 0 && ny < height &&
+      nz >= 0 && nz < length) {
+    return blocks[nx][nz][ny] == BlockType::AIR;
+  }
+
+  // 2) Otherwise, query the world using GLOBAL coords derived from chunk indices.
+  //    NOTE: in your ctor, world_x/world_z are *chunk indices*, not block offsets.
+  const int gx = world_x * width  + nx;
+  const int gy = ny;
+  const int gz = world_z * length + nz;
+
+  return world->getBlock(gx, gy, gz) == BlockType::AIR;
 }

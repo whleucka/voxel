@@ -25,8 +25,7 @@ public:
   BlockType getBlock(int x, int y, int z) const;
 
 private:
-  bool faceVisible(int x, int y, int z, int face);
-
+  bool faceVisible(int x, int y, int z, int dir) const;
   std::vector<std::vector<std::vector<BlockType>>> blocks;
   Mesh mesh;
   const int width;

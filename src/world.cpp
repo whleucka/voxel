@@ -1,4 +1,5 @@
 #include "world.hpp"
+#include "coord.hpp"
 #include "render_ctx.hpp"
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/vector_float3.hpp>
@@ -20,7 +21,7 @@ World::~World() {}
 
 void World::loadChunk(int x, int z) {
   ChunkKey key{x, z};
-  std::cout << "LOAD CHUNK (x " << key.x << ", z " << key.z << ")" << std::endl;
+  std::cout << "LOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
 
   // Already active
   if (chunks.find(key) != chunks.end())
@@ -41,7 +42,7 @@ void World::loadChunk(int x, int z) {
 }
 
 void World::unloadChunk(const ChunkKey &key) {
-  std::cout << "LOAD CHUNK (x " << key.x << ", z " << key.z << ")" << std::endl;
+  std::cout << "LOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
   auto it = chunks.find(key);
   if (it != chunks.end()) {
     cache[key] = it->second; // move into cache
@@ -122,13 +123,19 @@ void World::draw(renderCtx &ctx) {
 }
 
 BlockType World::getBlock(int x, int y, int z) {
-  int chunk_x = x / chunk_width;
-  int chunk_z = z / chunk_length;
+  const int cx = worldToChunk(x, chunk_width);
+  const int cz = worldToChunk(z, chunk_length);
 
-  ChunkKey key{chunk_x, chunk_z};
-  auto it = chunks.find(key);
-  if (it == chunks.end())
+  auto it = chunks.find(ChunkKey{cx, cz});
+  if (it == chunks.end()) {
+    // TEMP debug to prove whether the miss is here
+    // std::cout << "MISS: world (" << x << "," << y << "," << z
+    //           << ") -> chunk (" << cx << "," << cz << ")\n";
     return BlockType::AIR;
+  }
 
-  return it->second->getBlock(x % chunk_width, y, z % chunk_length);
+  const int lx = worldToLocal(x, chunk_width);
+  const int lz = worldToLocal(z, chunk_length);
+
+  return it->second->getBlock(lx, y, lz);
 }
