@@ -11,7 +11,13 @@
 const int chunk_width = 16;
 const int chunk_length = 16;
 const int chunk_height = 256;
-const int render_distance = 6;
+const int render_distance = 8;
+
+static std::vector<std::pair<int,int>> spiralOffsets(int radius);
+namespace {
+    // Precompute spiral order once for the fixed render_distance
+    const auto spiral_order = spiralOffsets(render_distance);
+}
 
 inline int worldToChunkCoord(int pos, int chunkSize) {
   return (pos >= 0) ? (pos / chunkSize) : ((pos + 1) / chunkSize - 1);
@@ -48,6 +54,44 @@ void World::loadChunk(int x, int z) {
   _load_q_cv.notify_one();
 }
 
+// Generate spiral offsets within given radius
+static std::vector<std::pair<int,int>> spiralOffsets(int radius) {
+    std::vector<std::pair<int,int>> offsets;
+    offsets.reserve((2*radius+1) * (2*radius+1));
+
+    int x = 0, z = 0;
+    offsets.push_back({0,0});
+
+    int dx = 1, dz = 0; // start moving east
+    int segmentLength = 1;
+    int steps = 0;
+    int segmentPassed = 0;
+
+    while ((int)offsets.size() < (2*radius+1) * (2*radius+1)) {
+        x += dx;
+        z += dz;
+        if (std::abs(x) <= radius && std::abs(z) <= radius) {
+            offsets.push_back({x,z});
+        }
+
+        steps++;
+        if (steps == segmentLength) {
+            steps = 0;
+            // rotate direction: right -> up -> left -> down
+            int tmp = dx;
+            dx = -dz;
+            dz = tmp;
+
+            segmentPassed++;
+            if (segmentPassed % 2 == 0) {
+                segmentLength++; // increase leg length every 2 turns
+            }
+        }
+    }
+
+    return offsets;
+}
+
 void World::unloadChunk(const ChunkKey &key) {
   std::cout << "UNLOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
   auto it = chunks.find(key);
@@ -72,17 +116,15 @@ void World::update(glm::vec3 camera_pos) {
   int cam_cx = worldToChunkCoord(static_cast<int>(camera_pos.x), chunk_width);
   int cam_cz = worldToChunkCoord(static_cast<int>(camera_pos.z), chunk_length);
 
-  // Load any missing activeChunks in render distance
-  for (int dx = -render_distance; dx <= render_distance; dx++) {
-    for (int dz = -render_distance; dz <= render_distance; dz++) {
-      int cx = cam_cx + dx;
-      int cz = cam_cz + dz;
+  // Load chunks in spiral order around camera
+  for (auto [dx, dz] : spiral_order) {
+    int cx = cam_cx + dx;
+    int cz = cam_cz + dz;
 
-      ChunkKey key{cx, cz};
-      if (chunks.find(key) == chunks.end() &&
-          _loading_q.find(key) == _loading_q.end()) {
-        loadChunk(cx, cz);
-      }
+    ChunkKey key{cx, cz};
+    if (chunks.find(key) == chunks.end() &&
+        _loading_q.find(key) == _loading_q.end()) {
+      loadChunk(cx, cz);
     }
   }
 
