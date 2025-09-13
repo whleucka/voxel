@@ -150,7 +150,7 @@ void Chunk::generateMesh(const Texture &atlas) {
       }
     }
   }
-  mesh.setupMesh();
+  
 }
 
 Chunk::~Chunk() {}
@@ -190,3 +190,5 @@ bool Chunk::faceVisible(int x, int y, int z, int dir) const {
 
   return world->getBlock(gx, gy, gz) == BlockType::AIR;
 }
+
+ChunkKey Chunk::getChunkKey() const { return {world_x, world_z}; }

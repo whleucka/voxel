@@ -81,7 +81,7 @@ bool Engine::init() {
   block_shader = new Shader("shaders/block.vert", "shaders/block.frag");
   world = new World(atlas_texture);
   // Load initial chunk
-  world->update(0.0f, camera.getPos());
+  world->update(camera.getPos());
 
   // ImGui
   IMGUI_CHECKVERSION();
@@ -131,7 +131,7 @@ void Engine::run() {
     last_frame = currentFrame;
 
     processInput();
-    update(delta_time);
+    update();
     render();
 
     glfwSwapBuffers(window);
@@ -157,8 +157,8 @@ void Engine::processInput() {
     camera.processKeyboard(DOWN, delta_time);
 }
 
-void Engine::update(float dt) {
-  world->update(dt, camera.getPos());
+void Engine::update() {
+  world->update(camera.getPos());
 }
 
 void Engine::render() {

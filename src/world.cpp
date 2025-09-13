@@ -11,19 +11,19 @@
 const int chunk_width = 16;
 const int chunk_length = 16;
 const int chunk_height = 256;
-const int render_distance = 2;
+const int render_distance = 8;
 
 inline int worldToChunkCoord(int pos, int chunkSize) {
   return (pos >= 0) ? (pos / chunkSize) : ((pos + 1) / chunkSize - 1);
 }
 
-World::World(Texture &a) : block_atlas(a) {}
+World::World(Texture &a) : block_atlas(a) { start_threads(); }
 
-World::~World() {}
+World::~World() { stop_threads(); }
 
 void World::loadChunk(int x, int z) {
   ChunkKey key{x, z};
-  std::cout << "LOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
+  // std::cout << "LOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
 
   // Already active
   if (chunks.find(key) != chunks.end())
@@ -37,14 +37,16 @@ void World::loadChunk(int x, int z) {
     return;
   }
 
-  // Fresh generate
-  Chunk *chunk = new Chunk(chunk_width, chunk_length, chunk_height, x, z, this);
-  chunk->generateMesh(block_atlas);
-  chunks[key] = chunk;
+  // Enqueue for threaded generation
+  {
+    std::lock_guard<std::mutex> lock(_load_q_mutex);
+    _load_q.push(key);
+  }
+  _load_q_cv.notify_one();
 }
 
 void World::unloadChunk(const ChunkKey &key) {
-  std::cout << "UNLOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
+  // std::cout << "UNLOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
   auto it = chunks.find(key);
   if (it != chunks.end()) {
     cache[key] = it->second; // move into cache
@@ -63,14 +65,11 @@ Chunk *World::getChunk(int chunk_x, int chunk_z) {
   return nullptr; // not loaded
 }
 
-void World::update(float dt, glm::vec3 camera_pos) {
+void World::update(glm::vec3 camera_pos) {
   int cam_cx = worldToChunkCoord(static_cast<int>(camera_pos.x), chunk_width);
   int cam_cz = worldToChunkCoord(static_cast<int>(camera_pos.z), chunk_length);
 
   // Load any missing activeChunks in render distance
-  int chunksBuiltThisFrame = 0;
-  const int maxChunksPerFrame = 1;
-
   for (int dx = -render_distance; dx <= render_distance; dx++) {
     for (int dz = -render_distance; dz <= render_distance; dz++) {
       int cx = cam_cx + dx;
@@ -79,11 +78,6 @@ void World::update(float dt, glm::vec3 camera_pos) {
       ChunkKey key{cx, cz};
       if (chunks.find(key) == chunks.end()) {
         loadChunk(cx, cz);
-        chunksBuiltThisFrame++;
-
-        if (chunksBuiltThisFrame >= maxChunksPerFrame) {
-          return; // bail early, do the rest next frame
-        }
       }
     }
   }
@@ -101,6 +95,17 @@ void World::update(float dt, glm::vec3 camera_pos) {
 
   for (auto &key : toUnload) {
     unloadChunk(key);
+  }
+
+  // Process generated chunks
+  {
+    std::lock_guard<std::mutex> lock(_generated_q_mutex);
+    while (!_generated_q.empty()) {
+      Chunk *chunk = _generated_q.front();
+      _generated_q.pop();
+      chunk->mesh.setupMesh();
+      chunks[chunk->getChunkKey()] = chunk;
+    }
   }
 }
 
@@ -145,9 +150,6 @@ BlockType World::getBlock(int x, int y, int z) {
 
   auto it = chunks.find(ChunkKey{cx, cz});
   if (it == chunks.end()) {
-    // TEMP debug to prove whether the miss is here
-    // std::cout << "MISS: world (" << x << "," << y << "," << z
-    //           << ") -> chunk (" << cx << "," << cz << ")\n";
     return BlockType::AIR;
   }
 
@@ -155,4 +157,48 @@ BlockType World::getBlock(int x, int y, int z) {
   const int lz = worldToLocal(z, chunk_length);
 
   return it->second->getBlock(lx, y, lz);
+}
+
+// --- Thread Management ---
+
+void World::start_threads() {
+  const unsigned int num_threads = std::thread::hardware_concurrency();
+  for (unsigned int i = 0; i < num_threads; ++i) {
+    _threads.emplace_back(&World::thread_loop, this);
+  }
+}
+
+void World::stop_threads() {
+  {
+    std::lock_guard<std::mutex> lock(_load_q_mutex);
+    _should_stop = true;
+  }
+  _load_q_cv.notify_all();
+  for (auto &t : _threads) {
+    t.join();
+  }
+}
+
+void World::thread_loop() {
+  while (true) {
+    ChunkKey key;
+    {
+      std::unique_lock<std::mutex> lock(_load_q_mutex);
+      _load_q_cv.wait(lock, [this] { return _should_stop || !_load_q.empty(); });
+      if (_should_stop) {
+        return;
+      }
+      key = _load_q.front();
+      _load_q.pop();
+    }
+
+    // Fresh generate
+    Chunk *chunk = new Chunk(chunk_width, chunk_length, chunk_height, key.x, key.z, this);
+    chunk->generateMesh(block_atlas);
+
+    {
+      std::lock_guard<std::mutex> lock(_generated_q_mutex);
+      _generated_q.push(chunk);
+    }
+  }
 }

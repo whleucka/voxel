@@ -8,6 +8,7 @@
 #include <vector>
 
 class World;
+struct ChunkKey;
 
 /**
  * chunk.hpp
@@ -24,17 +25,18 @@ public:
   void generateMesh(const Texture &atlas);
   void draw(Shader &shader);
   BlockType getBlock(int x, int y, int z) const;
+  ChunkKey getChunkKey() const;
+
+  Mesh mesh;
+  AABB m_aabb; // Add AABB member
 
 private:
   bool faceVisible(int x, int y, int z, int dir) const;
   std::vector<std::vector<std::vector<BlockType>>> blocks;
-  Mesh mesh;
   const int width;
   const int length;
   int height;
   const int world_x;
   const int world_z;
   World *world;
-  public:
-  AABB m_aabb; // Add AABB member
 };
