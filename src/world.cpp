@@ -40,7 +40,10 @@ void World::loadChunk(int x, int z) {
   // Enqueue for threaded generation
   {
     std::lock_guard<std::mutex> lock(_load_q_mutex);
+    if (_loading_q.count(key))
+      return;
     _load_q.push(key);
+    _loading_q.insert(key);
   }
   _load_q_cv.notify_one();
 }
@@ -76,7 +79,7 @@ void World::update(glm::vec3 camera_pos) {
       int cz = cam_cz + dz;
 
       ChunkKey key{cx, cz};
-      if (chunks.find(key) == chunks.end()) {
+      if (chunks.find(key) == chunks.end() && _loading_q.find(key) == _loading_q.end()) {
         loadChunk(cx, cz);
       }
     }
@@ -105,6 +108,7 @@ void World::update(glm::vec3 camera_pos) {
       _generated_q.pop();
       chunk->mesh.setupMesh();
       chunks[chunk->getChunkKey()] = chunk;
+      _loading_q.erase(chunk->getChunkKey());
     }
   }
 }

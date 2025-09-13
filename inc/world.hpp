@@ -8,6 +8,7 @@
 #include <queue>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 struct ChunkKey {
@@ -48,6 +49,9 @@ private:
       chunks; // currently rendered
   std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash>
       cache; // inactive but saved
+
+  std::unordered_set<ChunkKey, ChunkKeyHash> _loading_q; // being generated
+
   Texture &block_atlas;
   void loadChunk(int chunk_x, int chunk_z);
   void unloadChunk(const ChunkKey &key);
