@@ -154,7 +154,14 @@ BlockType World::getBlock(int x, int y, int z) {
 
   auto it = chunks.find(ChunkKey{cx, cz});
   if (it == chunks.end()) {
-    return BlockType::STONE;
+    // Heuristic: if chunk is not loaded, assume solid below a certain height, and air above.
+    // This prevents internal faces from showing, and allows grass blocks at the edge to render.
+    const int SEA_LEVEL = 53; // This should ideally be a global constant or passed in
+    if (y < SEA_LEVEL) {
+        return BlockType::STONE;
+    } else {
+        return BlockType::AIR;
+    }
   }
 
   const int lx = worldToLocal(x, chunk_width);
