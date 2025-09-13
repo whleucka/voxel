@@ -18,7 +18,24 @@ bool Engine::init() {
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-  window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
+  GLFWmonitor* primaryMonitor = glfwGetPrimaryMonitor();
+  if (!primaryMonitor) {
+    std::cerr << "Failed to get primary monitor\n";
+    return false;
+  }
+
+  const GLFWvidmode* mode = glfwGetVideoMode(primaryMonitor);
+  if (!mode) {
+    std::cerr << "Failed to get video mode of primary monitor\n";
+    return false;
+  }
+
+  width = mode->width;
+  height = mode->height;
+  last_x = width / 2.0f;
+  last_y = height / 2.0f;
+
+  window = glfwCreateWindow(width, height, title.c_str(), primaryMonitor, nullptr);
   if (!window) {
     std::cerr << "Failed to create GLFW window\n";
     glfwTerminate();
