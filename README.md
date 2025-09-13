@@ -82,6 +82,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
+*   [LearnOpenGL.com](https://learnopengl.com/): Learning OpenGL resource
 *   [GLFW](https://www.glfw.org/): For window and input management.
 *   [GLAD](https://glad.dav1d.de/): For loading OpenGL function pointers.
 *   [Dear ImGui](https://github.com/ocornut/imgui): For the immediate-mode GUI used for debugging.
