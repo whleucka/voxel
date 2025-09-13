@@ -47,10 +47,6 @@ sudo apt install build-essential libglfw3-dev libgl-dev libx11-dev libxrandr-dev
 After successful compilation, you can run the game using:
 
 ```bash
-make run
-```
-Alternatively, you can execute the binary directly:
-```bash
 ./bin/voxel
 ```
 
