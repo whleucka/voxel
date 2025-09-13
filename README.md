@@ -56,7 +56,7 @@ After successful compilation, you can run the game using:
 *   **Q:** Move camera down.
 *   **E:** Move camera up.
 *   **Mouse:** Look around.
-*   **ESC:** Exit program
+*   **ESC:** Exit program.
 
 ## Project Structure
 
