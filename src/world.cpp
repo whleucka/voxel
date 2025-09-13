@@ -1,8 +1,8 @@
 #include "world.hpp"
+#include "aabb.hpp"   // Include AABB header
+#include "camera.hpp" // Include Camera header
 #include "coord.hpp"
 #include "render_ctx.hpp"
-#include "aabb.hpp" // Include AABB header
-#include "camera.hpp" // Include Camera header
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -17,9 +17,9 @@ inline int worldToChunkCoord(int pos, int chunkSize) {
   return (pos >= 0) ? (pos / chunkSize) : ((pos + 1) / chunkSize - 1);
 }
 
-World::World(Texture &a) : block_atlas(a) { start_threads(); }
+World::World(Texture &a) : block_atlas(a) { startThreads(); }
 
-World::~World() { stop_threads(); }
+World::~World() { stopThreads(); }
 
 void World::loadChunk(int x, int z) {
   ChunkKey key{x, z};
@@ -79,7 +79,8 @@ void World::update(glm::vec3 camera_pos) {
       int cz = cam_cz + dz;
 
       ChunkKey key{cx, cz};
-      if (chunks.find(key) == chunks.end() && _loading_q.find(key) == _loading_q.end()) {
+      if (chunks.find(key) == chunks.end() &&
+          _loading_q.find(key) == _loading_q.end()) {
         loadChunk(cx, cz);
       }
     }
@@ -126,9 +127,9 @@ void World::draw(renderCtx &ctx) {
 
   // Get frustum planes from the camera
   glm::vec4 frustumPlanes[6];
-  // Assuming aspect, near, far are available from the camera or context
   // For now, using hardcoded values from Engine::render()
-  float aspect = ctx.proj[1][1] / ctx.proj[0][0]; // Extract aspect from projection matrix
+  float aspect =
+      ctx.proj[1][1] / ctx.proj[0][0]; // Extract aspect from projection matrix
   float near = 0.5f;
   float far = 1024.0f;
   ctx.camera.getFrustumPlanes(frustumPlanes, aspect, near, far);
@@ -154,13 +155,15 @@ BlockType World::getBlock(int x, int y, int z) {
 
   auto it = chunks.find(ChunkKey{cx, cz});
   if (it == chunks.end()) {
-    // Heuristic: if chunk is not loaded, assume solid below a certain height, and air above.
-    // This prevents internal faces from showing, and allows grass blocks at the edge to render.
-    const int SEA_LEVEL = 53; // This should ideally be a global constant or passed in
+    // Heuristic: if chunk is not loaded, assume solid below a certain height,
+    // and air above. This prevents internal faces from showing, and allows
+    // grass blocks at the edge to render.
+    const int SEA_LEVEL =
+        52; // This should ideally be a global constant or passed in
     if (y < SEA_LEVEL) {
-        return BlockType::STONE;
+      return BlockType::STONE;
     } else {
-        return BlockType::AIR;
+      return BlockType::AIR;
     }
   }
 
@@ -170,16 +173,15 @@ BlockType World::getBlock(int x, int y, int z) {
   return it->second->getBlock(lx, y, lz);
 }
 
-// --- Thread Management ---
-
-void World::start_threads() {
+// Thread stuff
+void World::startThreads() {
   const unsigned int num_threads = std::thread::hardware_concurrency();
   for (unsigned int i = 0; i < num_threads; ++i) {
-    _threads.emplace_back(&World::thread_loop, this);
+    _threads.emplace_back(&World::threadLoop, this);
   }
 }
 
-void World::stop_threads() {
+void World::stopThreads() {
   {
     std::lock_guard<std::mutex> lock(_load_q_mutex);
     _should_stop = true;
@@ -190,12 +192,13 @@ void World::stop_threads() {
   }
 }
 
-void World::thread_loop() {
+void World::threadLoop() {
   while (true) {
     ChunkKey key;
     {
       std::unique_lock<std::mutex> lock(_load_q_mutex);
-      _load_q_cv.wait(lock, [this] { return _should_stop || !_load_q.empty(); });
+      _load_q_cv.wait(lock,
+                      [this] { return _should_stop || !_load_q.empty(); });
       if (_should_stop) {
         return;
       }
@@ -203,8 +206,9 @@ void World::thread_loop() {
       _load_q.pop();
     }
 
-    // Fresh generate
-    Chunk *chunk = new Chunk(chunk_width, chunk_length, chunk_height, key.x, key.z, this);
+    // Fresh generate chunk
+    Chunk *chunk =
+        new Chunk(chunk_width, chunk_length, chunk_height, key.x, key.z, this);
     chunk->generateMesh(block_atlas);
 
     {

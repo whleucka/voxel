@@ -1,13 +1,13 @@
 #pragma once
 
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
-#include <string>
-#include "world.hpp"
-#include "shader.hpp"
-#include "texture.hpp"
 #include "camera.hpp"
 #include "game_state.hpp"
+#include "shader.hpp"
+#include "texture.hpp"
+#include "world.hpp"
+#include <GLFW/glfw3.h>
+#include <glad/glad.h>
+#include <string>
 
 /**
  * engine.hpp
@@ -24,20 +24,20 @@ public:
 
   bool init();
   void run();
-  Shader* block_shader = nullptr;
-  World* world = nullptr;
+  Shader *block_shader = nullptr;
+  World *world = nullptr;
   Texture atlas_texture;
 
 private:
-  GameState game_state = GameState::START;
-
-  static void framebufferSizeCallback(GLFWwindow* window, int w, int h);
+  static void framebufferSizeCallback(GLFWwindow *window, int w, int h);
   void processInput();
   void loadAtlas(std::string path);
   void update();
   void render();
   void stats();
   void cleanup();
+
+  GameState game_state = GameState::START;
 
   GLFWwindow *window;
   int width = 800, height = 600;

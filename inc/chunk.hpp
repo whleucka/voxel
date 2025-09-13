@@ -32,6 +32,7 @@ public:
 
 private:
   bool faceVisible(int x, int y, int z, int dir) const;
+  // blocks[x][y][z]
   std::vector<std::vector<std::vector<BlockType>>> blocks;
   const int width;
   const int length;

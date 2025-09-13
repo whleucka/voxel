@@ -41,29 +41,22 @@ public:
   int getChunkCount() const;
 
 private:
-  void start_threads();
-  void stop_threads();
-  void thread_loop();
-
-  std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash>
-      chunks; // currently rendered
-  std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash>
-      cache; // inactive but saved
-
+  std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash> chunks; // currently rendered
+  std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash> cache; // inactive but saved
   std::unordered_set<ChunkKey, ChunkKeyHash> _loading_q; // being generated
-
   Texture &block_atlas;
-  void loadChunk(int chunk_x, int chunk_z);
-  void unloadChunk(const ChunkKey &key);
-
-  // --- thread management ---
+  // Thread stuff
   std::vector<std::thread> _threads;
   std::queue<ChunkKey> _load_q;
   std::mutex _load_q_mutex;
   std::condition_variable _load_q_cv;
-
   std::queue<Chunk *> _generated_q;
   std::mutex _generated_q_mutex;
-
   bool _should_stop = false;
+
+  void loadChunk(int chunk_x, int chunk_z);
+  void unloadChunk(const ChunkKey &key);
+  void startThreads();
+  void stopThreads();
+  void threadLoop();
 };

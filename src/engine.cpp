@@ -2,11 +2,11 @@
 #include <glm/ext/vector_float3.hpp>
 #include <iostream>
 #define STB_IMAGE_IMPLEMENTATION
-#include "render_ctx.hpp"
-#include "stb_image.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "render_ctx.hpp"
+#include "stb_image.h"
 
 bool Engine::init() {
   if (!glfwInit()) {
@@ -86,14 +86,15 @@ bool Engine::init() {
   // ImGui
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
-  ImGuiIO& io = ImGui::GetIO();
+  ImGuiIO &io = ImGui::GetIO();
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
   ImGui::StyleColorsDark();
 
   // Platform/Renderer bindings
   ImGui_ImplGlfw_InitForOpenGL(window, true);
-  ImGui_ImplOpenGL3_Init("#version 330"); // or "#version 130" depending on context
+  ImGui_ImplOpenGL3_Init(
+      "#version 330"); // or "#version 130" depending on context
 
   return true;
 }
@@ -121,7 +122,8 @@ void Engine::loadAtlas(std::string path) {
   stbi_image_free(data);
 
   atlas_texture.id = texId;
-  atlas_texture.type = "texture_diffuse"; // Mesh::draw expects this exact string
+  atlas_texture.type =
+      "texture_diffuse"; // Mesh::draw expects this exact string
 }
 
 void Engine::run() {
@@ -157,9 +159,7 @@ void Engine::processInput() {
     camera.processKeyboard(DOWN, delta_time);
 }
 
-void Engine::update() {
-  world->update(camera.getPos());
-}
+void Engine::update() { world->update(camera.getPos()); }
 
 void Engine::render() {
   // Per frame updates
@@ -171,10 +171,9 @@ void Engine::render() {
 
   glm::mat4 view = camera.getViewMatrix();
   glm::mat4 proj = glm::perspective(
-    glm::radians(camera.zoom),
-    float(width) / float(height),
-    0.5f,   // near plane (don’t keep at 0.1 unless you need it)
-    1024.0f // far plane (match your chunk render distance)
+      glm::radians(camera.zoom), float(width) / float(height),
+      0.5f,   // near plane (don’t keep at 0.1 unless you need it)
+      1024.0f // far plane (match your chunk render distance)
   );
 
   renderCtx ctx{*block_shader, view, proj, camera};
@@ -182,7 +181,7 @@ void Engine::render() {
 
   GLenum error = glGetError();
   if (error != GL_NO_ERROR) {
-      fprintf(stderr, "OpenGL Error after world->draw: 0x%x\n", error);
+    fprintf(stderr, "OpenGL Error after world->draw: 0x%x\n", error);
   }
 
   stats();
@@ -190,7 +189,7 @@ void Engine::render() {
 
 void Engine::stats() {
   ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-  ImGuiIO& io = ImGui::GetIO();
+  ImGuiIO &io = ImGui::GetIO();
   ImGui::Text("FPS: %.1f", io.Framerate);
   ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
   const glm::vec3 pos = camera.getPos();
