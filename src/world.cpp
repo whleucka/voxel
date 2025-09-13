@@ -11,7 +11,7 @@
 const int chunk_width = 16;
 const int chunk_length = 16;
 const int chunk_height = 256;
-const int render_distance = 8;
+const int render_distance = 6;
 
 inline int worldToChunkCoord(int pos, int chunkSize) {
   return (pos >= 0) ? (pos / chunkSize) : ((pos + 1) / chunkSize - 1);
