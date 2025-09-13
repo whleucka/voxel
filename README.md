@@ -52,11 +52,11 @@ After successful compilation, you can run the game using:
 
 ## Controls
 
-*   **W, A, S, D:** Move forward, left, backward, right.
-*   **Space:** Jump.
-*   **Left Shift:** Sprint (if implemented).
+*   **W, A, S, D:** Move camera forward, left, backward, right.
+*   **Q:** Move camera down.
+*   **E:** Move camera up.
 *   **Mouse:** Look around.
-*   **ESC:** (Typically) Release mouse cursor or pause game.
+*   **ESC:** Exit program
 
 ## Project Structure
 
