@@ -174,15 +174,15 @@ void Engine::processInput() {
     camera.processKeyboard(UP, delta_time);
   if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
     camera.processKeyboard(DOWN, delta_time);
+  if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS) {
+    show_stats = !show_stats;
+    return;
+  }
 }
 
 void Engine::update() { world->update(camera.getPos()); }
 
 void Engine::render() {
-  // Per frame updates
-  ImGui_ImplOpenGL3_NewFrame();
-  ImGui_ImplGlfw_NewFrame();
-  ImGui::NewFrame();
   glClearColor(0.0f, 11.0f / 255.0f, 28.0f / 255.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -205,16 +205,22 @@ void Engine::render() {
 }
 
 void Engine::stats() {
-  ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-  ImGuiIO &io = ImGui::GetIO();
-  ImGui::Text("FPS: %.1f", io.Framerate);
-  ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
-  const glm::vec3 pos = camera.getPos();
-  ImGui::Text("Camera: (x %.2f, y %.2f, z %.2f)", pos.x, pos.y, pos.z);
-  ImGui::Text("Chunks: %i", world->getChunkCount());
-  ImGui::End();
-  ImGui::Render();
-  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+  if (show_stats) {
+    // Per frame updates
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+    ImGuiIO &io = ImGui::GetIO();
+    ImGui::Text("FPS: %.1f", io.Framerate);
+    ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
+    const glm::vec3 pos = camera.getPos();
+    ImGui::Text("Camera: (x %.2f, y %.2f, z %.2f)", pos.x, pos.y, pos.z);
+    ImGui::Text("Chunks: %i", world->getChunkCount());
+    ImGui::End();
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+  }
 }
 
 void Engine::cleanup() {

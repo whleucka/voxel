@@ -38,6 +38,7 @@ private:
   void cleanup();
 
   GameState game_state = GameState::START;
+  bool show_stats = false;
 
   GLFWwindow *window;
   int width = 800, height = 600;

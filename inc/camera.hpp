@@ -14,7 +14,7 @@ class Camera {
 public:
   // config
   float movement_speed = 10.0f;
-  float mouse_sensitivity = 0.05f;
+  float mouse_sensitivity = 0.01f;
   float zoom = 45.0f;
 
   // state
