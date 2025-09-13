@@ -12,10 +12,11 @@ const int chunk_width = 16;
 const int chunk_length = 16;
 const int chunk_height = 256;
 const int render_distance = 8;
+const int sea_level = 52; // This should ideally be a global constant or passed in
 
 static std::vector<std::pair<int,int>> spiralOffsets(int radius);
 namespace {
-    // Precompute spiral order once for the fixed render_distance
+    // Spiral order once for the fixed render_distance
     const auto spiral_order = spiralOffsets(render_distance);
 }
 
@@ -200,9 +201,7 @@ BlockType World::getBlock(int x, int y, int z) {
     // Heuristic: if chunk is not loaded, assume solid below a certain height,
     // and air above. This prevents internal faces from showing, and allows
     // grass blocks at the edge to render.
-    const int SEA_LEVEL =
-        52; // This should ideally be a global constant or passed in
-    if (y < SEA_LEVEL) {
+    if (y < sea_level) {
       return BlockType::STONE;
     } else {
       return BlockType::AIR;

@@ -8,6 +8,13 @@
 #include "render_ctx.hpp"
 #include "stb_image.h"
 
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
+        Engine* engine = reinterpret_cast<Engine*>(glfwGetWindowUserPointer(window));
+        engine->show_stats = !engine->show_stats;
+    }
+}
+
 bool Engine::init() {
   if (!glfwInit()) {
     std::cerr << "Failed to initialize GLFW\n";
@@ -44,6 +51,7 @@ bool Engine::init() {
 
   glfwMakeContextCurrent(window);
   glfwSetWindowUserPointer(window, this);
+  glfwSetKeyCallback(window, keyCallback);
 
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
     std::cerr << "Failed to initialize GLAD\n";
@@ -174,10 +182,6 @@ void Engine::processInput() {
     camera.processKeyboard(UP, delta_time);
   if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
     camera.processKeyboard(DOWN, delta_time);
-  if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS) {
-    show_stats = !show_stats;
-    return;
-  }
 }
 
 void Engine::update() { world->update(camera.getPos()); }

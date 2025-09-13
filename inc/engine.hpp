@@ -27,6 +27,7 @@ public:
   Shader *block_shader = nullptr;
   World *world = nullptr;
   Texture atlas_texture;
+  bool show_stats = false;
 
 private:
   static void framebufferSizeCallback(GLFWwindow *window, int w, int h);
@@ -38,7 +39,6 @@ private:
   void cleanup();
 
   GameState game_state = GameState::START;
-  bool show_stats = false;
 
   GLFWwindow *window;
   int width = 800, height = 600;
