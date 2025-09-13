@@ -7,7 +7,7 @@ void glfw_error_callback(int error, const char* description) {
 
 int main() {
   glfwSetErrorCallback(glfw_error_callback);
-  Engine engine(1280, 720, "Blocks");
+  Engine engine(800, 600, "Voxel 3D");
   if (!engine.init())
     return -1;
   engine.run();

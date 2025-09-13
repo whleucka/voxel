@@ -4,7 +4,7 @@
 CC          := g++
 
 # The Target Binary Program
-TARGET      := blocks
+TARGET      := voxel
 
 # The Directories, Source, Includes, Objects, Binary and Resources
 SRCDIR      := src
