@@ -25,7 +25,7 @@ For Debian/Ubuntu-based systems, you might need (I use arch btw):
 
 ```bash
 sudo apt update
-sudo apt install build-essential libglfw3-dev libgl-dev libx11-dev libxrandr-dev libxi-dev
+sudo apt install build-essential libglfw3-dev libgl-dev libx11-dev libxrandr-dev libxi-dev libglm-dev
 ```
 
 ### Building
