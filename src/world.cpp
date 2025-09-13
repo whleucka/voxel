@@ -1,6 +1,8 @@
 #include "world.hpp"
 #include "coord.hpp"
 #include "render_ctx.hpp"
+#include "aabb.hpp" // Include AABB header
+#include "camera.hpp" // Include Camera header
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -112,7 +114,22 @@ void World::draw(renderCtx &ctx) {
                      GL_FALSE, glm::value_ptr(ctx.view));
   glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "projection"), 1,
                      GL_FALSE, glm::value_ptr(ctx.proj));
+
+  // Get frustum planes from the camera
+  glm::vec4 frustumPlanes[6];
+  // Assuming aspect, near, far are available from the camera or context
+  // For now, using hardcoded values from Engine::render()
+  float aspect = ctx.proj[1][1] / ctx.proj[0][0]; // Extract aspect from projection matrix
+  float near = 0.5f;
+  float far = 1024.0f;
+  ctx.camera.getFrustumPlanes(frustumPlanes, aspect, near, far);
+
   for (auto &[key, chunk] : chunks) {
+    // Perform frustum culling
+    if (!chunk->m_aabb.intersectsFrustum(frustumPlanes)) {
+      continue; // Skip rendering this chunk if it's outside the frustum
+    }
+
     glm::mat4 model =
         glm::translate(glm::mat4(1.0f),
                        glm::vec3(key.x * chunk_width, 0, key.z * chunk_length));

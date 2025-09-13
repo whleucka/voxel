@@ -47,18 +47,9 @@ public:
     if (dir == DOWN)     position += up * v;
   }
 
-  void processMouseMovement(float xoffset, float yoffset, bool constrainPitch = true) {
-    xoffset *= mouse_sensitivity;
-    yoffset *= mouse_sensitivity;
-    yaw   += xoffset;       // turn head left/right
-    pitch += yoffset;       // look up/down
+  void processMouseMovement(float xoffset, float yoffset, bool constrainPitch = true);
 
-    if (constrainPitch) {
-      if (pitch >  89.0f) pitch =  89.0f;
-      if (pitch < -89.0f) pitch = -89.0f;
-    }
-    updateCameraVectors();
-  }
+  void getFrustumPlanes(glm::vec4 planes[6], float aspect, float near, float far) const;
 
 private:
   void updateCameraVectors() {

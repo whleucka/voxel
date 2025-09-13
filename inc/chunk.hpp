@@ -4,6 +4,7 @@
 #include "mesh.hpp"
 #include "shader.hpp"
 #include "texture.hpp"
+#include "aabb.hpp" // Include AABB header
 #include <vector>
 
 class World;
@@ -34,4 +35,6 @@ private:
   const int world_x;
   const int world_z;
   World *world;
+  public:
+  AABB m_aabb; // Add AABB member
 };

@@ -177,7 +177,7 @@ void Engine::render() {
     1024.0f // far plane (match your chunk render distance)
   );
 
-  renderCtx ctx{*block_shader, view, proj};
+  renderCtx ctx{*block_shader, view, proj, camera};
   world->draw(ctx);
 
   GLenum error = glGetError();

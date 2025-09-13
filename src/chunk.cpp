@@ -61,6 +61,9 @@ static const V3 FACE_NZ[4] = {
 Chunk::Chunk(const int w, const int l, const int h, const int world_x,
              const int world_z, World *world)
     : width(w), length(l), height(h), world_x(world_x), world_z(world_z), world(world) {
+  // Calculate AABB for the chunk
+  m_aabb.min = glm::vec3(world_x * width, 0, world_z * length);
+  m_aabb.max = glm::vec3(world_x * width + width, height, world_z * length + length);
   blocks.resize(width,
                 std::vector<std::vector<BlockType>>(
                     length, std::vector<BlockType>(height, BlockType::AIR)));
