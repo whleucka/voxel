@@ -154,7 +154,7 @@ BlockType World::getBlock(int x, int y, int z) {
 
   auto it = chunks.find(ChunkKey{cx, cz});
   if (it == chunks.end()) {
-    return BlockType::AIR;
+    return BlockType::STONE;
   }
 
   const int lx = worldToLocal(x, chunk_width);
