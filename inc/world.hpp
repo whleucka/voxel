@@ -11,6 +11,8 @@
 #include <unordered_set>
 #include <vector>
 
+const int render_distance = 20;
+
 struct ChunkKey {
   int x, z;
   bool operator==(const ChunkKey &other) const {
@@ -39,6 +41,10 @@ public:
   BlockType getBlock(int x, int y, int z);
   Chunk *getChunk(int chunk_x, int chunk_y);
   int getChunkCount() const;
+  const int chunk_width = 16;
+  const int chunk_length = 16;
+  const int chunk_height = 256;
+  const int sea_level = 42;
 
 private:
   std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash> chunks; // currently rendered

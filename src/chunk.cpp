@@ -68,16 +68,15 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
                 std::vector<std::vector<BlockType>>(
                     length, std::vector<BlockType>(height, BlockType::AIR)));
 
-  // I dunno, 53 looks pretty good
-  const int SEA_LEVEL = 53;
-
+  const int h_mod = 35; // Determines height of terrain
+  const float h_freq = 0.02f;
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
       V2 pos(
-          (world_x * width + x) * 0.05f,
-          (world_z * length + z) * 0.05f);
+          (world_x * width + x) * h_freq,
+          (world_z * length + z) * h_freq);
       double hNoise = glm::perlin(pos) * 0.5 + 0.5; // [0,1]
-      int perlin_height = static_cast<int>(hNoise * 30) + 40;
+      int perlin_height = static_cast<int>(hNoise * 20) + h_mod;
 
       // --- terrain generation ---
       for (int y = 0; y < perlin_height; y++) {
@@ -94,7 +93,7 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
 
         if (y == perlin_height - 1) {
           type = BlockType::GRASS;
-        } else if ((bedrock_noise > 0.1 && y <= 10) || (y < 5)) {
+        } else if ((bedrock_noise > 0.1 && y <= 6) || (y < 5)) {
           type = BlockType::BEDROCK;
         } else if ((stone_noise > 0.4) || (y >= 5 && y <= 15)) {
           type = BlockType::STONE;
@@ -107,7 +106,7 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
       }
 
       // --- water filling pass ---
-      for (int y = perlin_height; y < SEA_LEVEL; y++) {
+      for (int y = perlin_height; y < world->sea_level; y++) {
         if (blocks[x][z][y] == BlockType::AIR) {
           blocks[x][z][y] = BlockType::WATER;
         }

@@ -8,11 +8,15 @@
 #include "render_ctx.hpp"
 #include "stb_image.h"
 
-void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
-        Engine* engine = reinterpret_cast<Engine*>(glfwGetWindowUserPointer(window));
-        engine->show_stats = !engine->show_stats;
-    }
+void keyCallback(GLFWwindow *window, int key, int scancode, int action,
+                 int mods) {
+  // This is better than processInput, because I don't have to worry about key
+  // held vs key pressed, etc
+  if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
+    Engine *engine =
+        reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
+    engine->show_stats = !engine->show_stats;
+  }
 }
 
 bool Engine::init() {
@@ -25,13 +29,13 @@ bool Engine::init() {
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-  GLFWmonitor* primaryMonitor = glfwGetPrimaryMonitor();
+  GLFWmonitor *primaryMonitor = glfwGetPrimaryMonitor();
   if (!primaryMonitor) {
     std::cerr << "Failed to get primary monitor\n";
     return false;
   }
 
-  const GLFWvidmode* mode = glfwGetVideoMode(primaryMonitor);
+  const GLFWvidmode *mode = glfwGetVideoMode(primaryMonitor);
   if (!mode) {
     std::cerr << "Failed to get video mode of primary monitor\n";
     return false;
@@ -42,7 +46,8 @@ bool Engine::init() {
   last_x = width / 2.0f;
   last_y = height / 2.0f;
 
-  window = glfwCreateWindow(width, height, title.c_str(), primaryMonitor, nullptr);
+  window =
+      glfwCreateWindow(width, height, title.c_str(), primaryMonitor, nullptr);
   if (!window) {
     std::cerr << "Failed to create GLFW window\n";
     glfwTerminate();
