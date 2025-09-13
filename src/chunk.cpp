@@ -65,13 +65,14 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
                 std::vector<std::vector<BlockType>>(
                     length, std::vector<BlockType>(height, BlockType::AIR)));
 
-  const int SEA_LEVEL = 50;
+  // I dunno, 53 looks pretty good
+  const int SEA_LEVEL = 53;
 
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
       V2 pos(
-          (world_x * width + x) * 0.03f,
-          (world_z * length + z) * 0.03f);
+          (world_x * width + x) * 0.05f,
+          (world_z * length + z) * 0.05f);
       double hNoise = glm::perlin(pos) * 0.5 + 0.5; // [0,1]
       int perlin_height = static_cast<int>(hNoise * 30) + 40;
 

@@ -9,7 +9,7 @@
 const int chunk_width = 16;
 const int chunk_length = 16;
 const int chunk_height = 256;
-const int render_distance = 1;
+const int render_distance = 5;
 
 inline int worldToChunkCoord(int pos, int chunkSize) {
   return (pos >= 0) ? (pos / chunkSize) : ((pos + 1) / chunkSize - 1);
@@ -42,7 +42,7 @@ void World::loadChunk(int x, int z) {
 }
 
 void World::unloadChunk(const ChunkKey &key) {
-  std::cout << "LOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
+  std::cout << "UNLOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
   auto it = chunks.find(key);
   if (it != chunks.end()) {
     cache[key] = it->second; // move into cache

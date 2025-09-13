@@ -13,7 +13,7 @@ enum Camera_Movement { FORWARD, BACKWARD, LEFT, RIGHT, UP, DOWN };
 class Camera {
 public:
   // config
-  float movement_speed   = 5.0f;
+  float movement_speed   = 20.0f;
   float mouse_sensitivity= 0.1f;
   float zoom            = 45.0f;
 
