@@ -1,18 +1,41 @@
 #include "world.hpp"
-#include "aabb.hpp"   // Include AABB header
-#include "camera.hpp" // Include Camera header
+#include "aabb.hpp"
+#include "camera.hpp"
 #include "coord.hpp"
 #include "render_ctx.hpp"
+#include <algorithm>
+#include <cmath>
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <vector>
 
-static std::vector<std::pair<int, int>> spiralOffsets(int radius);
-namespace {
-// Spiral order once for the fixed render_distance
-const auto spiral_order = spiralOffsets(render_distance);
-} // namespace
+std::vector<ChunkKey> getChunkLoadOrder(int camChunkX, int camChunkZ,
+                                        int radius) {
+  std::vector<ChunkKey> result;
+
+  for (int dx = -radius; dx <= radius; dx++) {
+    for (int dz = -radius; dz <= radius; dz++) {
+      // Circle radius (optional). If you want square area, drop this check.
+      if (dx * dx + dz * dz <= radius * radius) {
+        result.push_back({camChunkX + dx, camChunkZ + dz});
+      }
+    }
+  }
+
+  // Sort by squared distance (cheaper than sqrt)
+  std::sort(result.begin(), result.end(),
+            [&](const ChunkKey &a, const ChunkKey &b) {
+              int dax = a.x - camChunkX;
+              int daz = a.z - camChunkZ;
+              int dbx = b.x - camChunkX;
+              int dbz = b.z - camChunkZ;
+              return (dax * dax + daz * daz) < (dbx * dbx + dbz * dbz);
+            });
+
+  return result;
+}
 
 inline int worldToChunkCoord(int pos, int chunkSize) {
   return (pos >= 0) ? (pos / chunkSize) : ((pos + 1) / chunkSize - 1);
@@ -49,44 +72,6 @@ void World::loadChunk(int x, int z) {
   _load_q_cv.notify_one();
 }
 
-// Generate spiral offsets within given radius
-static std::vector<std::pair<int, int>> spiralOffsets(int radius) {
-  std::vector<std::pair<int, int>> offsets;
-  offsets.reserve((2 * radius + 1) * (2 * radius + 1));
-
-  int x = 0, z = 0;
-  offsets.push_back({0, 0});
-
-  int dx = 1, dz = 0; // start moving east
-  int segmentLength = 1;
-  int steps = 0;
-  int segmentPassed = 0;
-
-  while ((int)offsets.size() < (2 * radius + 1) * (2 * radius + 1)) {
-    x += dx;
-    z += dz;
-    if (std::abs(x) <= radius && std::abs(z) <= radius) {
-      offsets.push_back({x, z});
-    }
-
-    steps++;
-    if (steps == segmentLength) {
-      steps = 0;
-      // rotate direction: right -> up -> left -> down
-      int tmp = dx;
-      dx = -dz;
-      dz = tmp;
-
-      segmentPassed++;
-      if (segmentPassed % 2 == 0) {
-        segmentLength++; // increase leg length every 2 turns
-      }
-    }
-  }
-
-  return offsets;
-}
-
 void World::unloadChunk(const ChunkKey &key) {
   std::cout << "UNLOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
   auto it = chunks.find(key);
@@ -111,15 +96,15 @@ void World::update(glm::vec3 camera_pos) {
   int cam_cx = worldToChunkCoord(static_cast<int>(camera_pos.x), chunk_width);
   int cam_cz = worldToChunkCoord(static_cast<int>(camera_pos.z), chunk_length);
 
-  // Load chunks in spiral order around camera
-  for (auto [dx, dz] : spiral_order) {
-    int cx = cam_cx + dx;
-    int cz = cam_cz + dz;
+  auto order = getChunkLoadOrder(cam_cx, cam_cz, render_distance);
 
-    ChunkKey key{cx, cz};
-    if (chunks.find(key) == chunks.end() &&
-        _loading_q.find(key) == _loading_q.end()) {
-      loadChunk(cx, cz);
+  int chunksLoadedThisFrame = 0;
+  int loadBudget = 4; // how many chunks to load per frame
+  for (auto &key : order) {
+    if (chunks.find(key) == chunks.end()) {
+      loadChunk(key.x, key.z);
+      if (++chunksLoadedThisFrame >= loadBudget)
+        break;
     }
   }
 
@@ -128,8 +113,7 @@ void World::update(glm::vec3 camera_pos) {
   for (auto &[key, chunk] : chunks) {
     int distX = key.x - cam_cx;
     int distZ = key.z - cam_cz;
-    if (std::abs(distX) > render_distance ||
-        std::abs(distZ) > render_distance) {
+    if (distX * distX + distZ * distZ > render_distance * render_distance) {
       toUnload.push_back(key);
     }
   }
