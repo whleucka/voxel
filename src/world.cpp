@@ -11,7 +11,7 @@
 #include <vector>
 
 std::vector<ChunkKey> getChunkLoadOrder(int camChunkX, int camChunkZ,
-                                        int radius) {
+    int radius) {
   std::vector<ChunkKey> result;
 
   for (int dx = -radius; dx <= radius; dx++) {
@@ -27,13 +27,13 @@ std::vector<ChunkKey> getChunkLoadOrder(int camChunkX, int camChunkZ,
 
   // Sort by squared distance (cheaper than sqrt)
   std::sort(result.begin(), result.end(),
-            [&](const ChunkKey &a, const ChunkKey &b) {
-              int dax = a.x - camChunkX;
-              int daz = a.z - camChunkZ;
-              int dbx = b.x - camChunkX;
-              int dbz = b.z - camChunkZ;
-              return (dax * dax + daz * daz) < (dbx * dbx + dbz * dbz);
-            });
+      [&](const ChunkKey &a, const ChunkKey &b) {
+      int dax = a.x - camChunkX;
+      int daz = a.z - camChunkZ;
+      int dbx = b.x - camChunkX;
+      int dbz = b.z - camChunkZ;
+      return (dax * dax + daz * daz) < (dbx * dbx + dbz * dbz);
+      });
 
   return result;
 }
@@ -109,7 +109,7 @@ void World::update(glm::vec3 camera_pos) {
   auto order = getChunkLoadOrder(cam_cx, cam_cz, render_distance);
 
   int chunksLoadedThisFrame = 0;
-  int loadBudget = 6; // how many chunks to load per frame
+  int loadBudget = 5; // how many chunks to load per frame
   for (auto &key : order) {
     if (chunks.find(key) == chunks.end()) {
       loadChunk(key.x, key.z);

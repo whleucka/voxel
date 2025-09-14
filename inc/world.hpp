@@ -11,7 +11,7 @@
 #include <unordered_set>
 #include <vector>
 
-const int render_distance = 11;
+const int render_distance = 12;
 const size_t max_cache = 128;
 
 struct ChunkKey {
