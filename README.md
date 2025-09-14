@@ -4,6 +4,7 @@
 
 A simple, Minecraft-inspired voxel game engine and prototype built with C++ and OpenGL. This project aims to explore fundamental voxel rendering techniques, chunk management, and basic game mechanics.
 
+
 ## Features
 
 *   **Chunk-based World:** Efficiently manages and renders large voxel worlds using a chunk system.
@@ -12,6 +13,16 @@ A simple, Minecraft-inspired voxel game engine and prototype built with C++ and 
 *   **Shader-based Rendering:** Utilizes modern OpenGL shaders for rendering blocks and the world.
 *   **Debug UI:** Integrated Dear ImGui for in-game debugging and parameter tweaking.
 *   **Collision Detection:** Basic AABB-based collision detection for player movement.
+
+
+## Voxel Engine Next Steps
+
+*   **Day/night cycle**
+*   **Fog**
+*   **Block face shading**
+*   **Block bounding boxes**
+*   **Biomes**
+
 
 ## Getting Started
 
