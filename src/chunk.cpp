@@ -114,7 +114,11 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
                            (world_z * length + z) * 0.02));
 
         if (y == perlin_height - 1) {
-          type = BlockType::GRASS;
+          if (perlin_height >= world->snow_height) {
+            type = BlockType::SNOW;
+          } else {
+            type = BlockType::GRASS;
+          }
         } else if ((bedrock_noise > 0.1 && y <= 6) || (y < 5)) {
           type = BlockType::BEDROCK;
         } else if ((stone_noise > 0.4) || (y >= 5 && y <= 15)) {
@@ -124,6 +128,8 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
         } else {
           type = BlockType::DIRT;
         }
+        
+
         blocks[x][z][y] = type;
       }
 

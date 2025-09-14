@@ -15,4 +15,5 @@ enum BlockType {
   BEDROCK,
   SAND,
   COBBLESTONE,
+  SNOW,
 };

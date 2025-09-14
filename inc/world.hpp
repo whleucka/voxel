@@ -46,6 +46,7 @@ public:
   const int chunk_length = 16;
   const int chunk_height = 256;
   const int sea_level = 42;
+  const int snow_height = 80;
 
 private:
   std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash> chunks; // currently rendered
