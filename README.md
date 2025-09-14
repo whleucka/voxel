@@ -8,15 +8,15 @@ A simple, Minecraft-inspired voxel game engine and prototype built with C++ and 
 ## Features
 
 *   **Chunk-based World:** Efficiently manages and renders large voxel worlds using a chunk system.
-*   **Basic Block Types:** Supports various block types (e.g., dirt, grass, stone, water) with texture atlasing.
+*   **Basic Block Types:** Supports various block types (e.g., dirt, grass, stone, water, etc) with texture atlasing (using GIMP to build image atlas).
 *   **First-Person Camera:** Implements a standard first-person camera for exploration.
 *   **Shader-based Rendering:** Utilizes modern OpenGL shaders for rendering blocks and the world.
 *   **Debug UI:** Integrated Dear ImGui for in-game debugging and parameter tweaking.
-*   **Collision Detection:** Basic AABB-based collision detection for player movement.
 
 
 ## Voxel Engine Next Steps
 
+*   **Collision detection:**
 *   **Day/night cycle**
 *   **Fog**
 *   **Block face shading**

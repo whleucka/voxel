@@ -9,9 +9,10 @@
 #include "stb_image.h"
 #include <sys/resource.h>
 
-size_t getMemoryUsageKB() {
+size_t getMemoryUsage() {
   struct rusage usage;
   getrusage(RUSAGE_SELF, &usage);
+  // Defaults to KB (long)
   return usage.ru_maxrss / 1024.0; // MB
 }
 
@@ -237,10 +238,9 @@ void Engine::drawCrosshairImGui() {
   float thickness = 2.0f;
   ImU32 color = IM_COL32(255, 255, 255, 255);
 
-  // horizontal
+  // Drawing a crosshair on the screen
   draw_list->AddLine(ImVec2(center.x - size, center.y),
                      ImVec2(center.x + size, center.y), color, thickness);
-  // vertical
   draw_list->AddLine(ImVec2(center.x, center.y - size),
                      ImVec2(center.x, center.y + size), color, thickness);
 }
@@ -258,7 +258,7 @@ void Engine::stats() {
     const glm::vec3 pos = camera.getPos();
     ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
     ImGui::Text("Chunks: %i", world->getChunkCount());
-    ImGui::Text("Memory usage: %zu MB", getMemoryUsageKB());
+    ImGui::Text("Memory usage: %zu MB", getMemoryUsage());
     ImGui::Checkbox("Wireframe mode", &wireframe);
     ImGui::End();
   }
