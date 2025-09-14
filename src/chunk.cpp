@@ -11,85 +11,107 @@ using V2 = glm::vec2;
 
 // ------ Face vertex templates for a unit cube centered at the origin ------
 // +X face (right)  CCW: bottom-front → bottom-back → top-back → top-front
-static const V3 FACE_PX[4] = {
-    V3(0.5f, -0.5f,  0.5f),
-    V3(0.5f, -0.5f, -0.5f),
-    V3(0.5f,  0.5f, -0.5f),
-    V3(0.5f,  0.5f,  0.5f)
-};
+static const V3 FACE_PX[4] = {V3(0.5f, -0.5f, 0.5f), V3(0.5f, -0.5f, -0.5f),
+                              V3(0.5f, 0.5f, -0.5f), V3(0.5f, 0.5f, 0.5f)};
 
 // -X face (left)   CCW: bottom-back → bottom-front → top-front → top-back
-static const V3 FACE_NX[4] = {
-    V3(-0.5f, -0.5f, -0.5f),
-    V3(-0.5f, -0.5f,  0.5f),
-    V3(-0.5f,  0.5f,  0.5f),
-    V3(-0.5f,  0.5f, -0.5f)
-};
+static const V3 FACE_NX[4] = {V3(-0.5f, -0.5f, -0.5f), V3(-0.5f, -0.5f, 0.5f),
+                              V3(-0.5f, 0.5f, 0.5f), V3(-0.5f, 0.5f, -0.5f)};
 
 // +Y face (top)    CCW: front-left → front-right → back-right → back-left
-static const V3 FACE_PY[4] = {
-    V3(-0.5f,  0.5f,  0.5f),
-    V3( 0.5f,  0.5f,  0.5f),
-    V3( 0.5f,  0.5f, -0.5f),
-    V3(-0.5f,  0.5f, -0.5f)
-};
+static const V3 FACE_PY[4] = {V3(-0.5f, 0.5f, 0.5f), V3(0.5f, 0.5f, 0.5f),
+                              V3(0.5f, 0.5f, -0.5f), V3(-0.5f, 0.5f, -0.5f)};
 
 // -Y face (bottom) CCW: back-left → back-right → front-right → front-left
-static const V3 FACE_NY[4] = {
-    V3(-0.5f, -0.5f, -0.5f),
-    V3( 0.5f, -0.5f, -0.5f),
-    V3( 0.5f, -0.5f,  0.5f),
-    V3(-0.5f, -0.5f,  0.5f)
-};
+static const V3 FACE_NY[4] = {V3(-0.5f, -0.5f, -0.5f), V3(0.5f, -0.5f, -0.5f),
+                              V3(0.5f, -0.5f, 0.5f), V3(-0.5f, -0.5f, 0.5f)};
 
 // +Z face (front)  CCW: bottom-left → bottom-right → top-right → top-left
-static const V3 FACE_PZ[4] = {
-    V3(-0.5f, -0.5f,  0.5f),
-    V3( 0.5f, -0.5f,  0.5f),
-    V3( 0.5f,  0.5f,  0.5f),
-    V3(-0.5f,  0.5f,  0.5f)
-};
+static const V3 FACE_PZ[4] = {V3(-0.5f, -0.5f, 0.5f), V3(0.5f, -0.5f, 0.5f),
+                              V3(0.5f, 0.5f, 0.5f), V3(-0.5f, 0.5f, 0.5f)};
 
 // -Z face (back)   CCW: bottom-right → bottom-left → top-left → top-right
-static const V3 FACE_NZ[4] = {
-    V3( 0.5f, -0.5f, -0.5f),
-    V3(-0.5f, -0.5f, -0.5f),
-    V3(-0.5f,  0.5f, -0.5f),
-    V3( 0.5f,  0.5f, -0.5f)
-};
+static const V3 FACE_NZ[4] = {V3(0.5f, -0.5f, -0.5f), V3(-0.5f, -0.5f, -0.5f),
+                              V3(-0.5f, 0.5f, -0.5f), V3(0.5f, 0.5f, -0.5f)};
 
 Chunk::Chunk(const int w, const int l, const int h, const int world_x,
              const int world_z, World *world)
-    : width(w), length(l), height(h), world_x(world_x), world_z(world_z), world(world) {
+    : width(w), length(l), height(h), world_x(world_x), world_z(world_z),
+      world(world) {
   // Calculate AABB for the chunk
   m_aabb.min = glm::vec3(world_x * width, 0, world_z * length);
-  m_aabb.max = glm::vec3(world_x * width + width, height, world_z * length + length);
+  m_aabb.max =
+      glm::vec3(world_x * width + width, height, world_z * length + length);
   blocks.resize(width,
                 std::vector<std::vector<BlockType>>(
                     length, std::vector<BlockType>(height, BlockType::AIR)));
 
-  const int h_mod = 35; // Determines height of terrain
-  const float h_freq = 0.02f;
+  const int h_mod = 29;       // Determines height of terrain
+  const float h_freq = 0.02f; // perlin noise frequency
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
-      V2 pos(
-          (world_x * width + x) * h_freq,
-          (world_z * length + z) * h_freq);
-      double hNoise = glm::perlin(pos) * 0.5 + 0.5; // [0,1]
-      int perlin_height = static_cast<int>(hNoise * 20) + h_mod;
+      // V2 pos(
+      //     (world_x * width + x) * h_freq,
+      //     (world_z * length + z) * h_freq);
+
+      // double hNoise = glm::perlin(pos) * 0.5 + 0.5; // [0,1]
+      // int perlin_height = static_cast<int>(hNoise * 20) + h_mod;
+
+      // --- multi-octave Perlin noise (fBm) ---
+      auto fbm = [](glm::vec2 p, int octaves, double lacunarity, double gain) {
+        double sum = 0.0;
+        double amplitude = 1.0;
+        float frequency = 1.0;
+        double norm = 0.0;
+
+        for (int i = 0; i < octaves; i++) {
+          sum += amplitude * (glm::perlin(p * frequency) * 0.5 + 0.5);
+          norm += amplitude;
+          amplitude *= gain;
+          frequency *= lacunarity;
+        }
+        return sum / norm; // normalize back to [0,1]
+      };
+
+      // Sample noise at world position
+      glm::vec2 pos((world_x * width + x) * h_freq,
+                    (world_z * length + z) * h_freq);
+
+      // 4 octaves, lacunarity=2.0, gain=0.5 → classic smooth fBm
+      double hNoise = fbm(pos, 4, 2.0, 0.5);
+      // // Scale to terrain height
+      // int perlin_height = static_cast<int>(hNoise * 30) + h_mod;
+
+      // --- large scale biome noise ---
+      glm::vec2 biome_pos((world_x * width + x) *
+                              0.001f, // much lower frequency
+                          (world_z * length + z) * 0.001f);
+
+      double biome_noise = glm::perlin(biome_pos) * 0.5 + 0.5; // [0,1]
+
+      // Emphasize mountain regions (smoothstep makes it "rare")
+      double mountain_factor = glm::smoothstep(0.65, 0.85, biome_noise);
+
+      // Final height = base hills + mountains
+      int perlin_height =
+          static_cast<int>(
+              hNoise * 30            // base hills
+              + mountain_factor * 80 // extra mountains only where biome is high
+              ) +
+          h_mod;
 
       // --- terrain generation ---
       for (int y = 0; y < perlin_height; y++) {
         BlockType type = BlockType::AIR;
         const double stone_noise =
-          glm::perlin(V3((world_x * width + x) * 0.55, y * 0.25,
-                (world_z * length + z) * 0.25));
+            glm::perlin(V3((world_x * width + x) * 0.55, y * 0.25,
+                           (world_z * length + z) * 0.25));
         const double bedrock_noise =
-          glm::perlin(V3((world_x * width + x) * 0.42, y * 0.02,
-                (world_z * length + z) * 0.42));
+            glm::perlin(V3((world_x * width + x) * 0.42, y * 0.02,
+                           (world_z * length + z) * 0.42));
         const double water_noise =
-          glm::perlin(V3((world_x * width + x) * 0.02, y * 0.02,
-                (world_z * length + z) * 0.02));
+            glm::perlin(V3((world_x * width + x) * 0.02, y * 0.02,
+                           (world_z * length + z) * 0.02));
 
         if (y == perlin_height - 1) {
           type = BlockType::GRASS;
@@ -149,7 +171,6 @@ void Chunk::generateMesh(const Texture &atlas) {
       }
     }
   }
-  
 }
 
 Chunk::~Chunk() {}
@@ -166,24 +187,37 @@ BlockType Chunk::getBlock(int x, int y, int z) const {
 bool Chunk::faceVisible(int x, int y, int z, int dir) const {
   int nx = x, ny = y, nz = z;
   switch (dir) {
-    case 0: nx++; break; // +X
-    case 1: nx--; break; // -X
-    case 2: ny++; break; // +Y
-    case 3: ny--; break; // -Y
-    case 4: nz++; break; // +Z
-    case 5: nz--; break; // -Z
+  case 0:
+    nx++;
+    break; // +X
+  case 1:
+    nx--;
+    break; // -X
+  case 2:
+    ny++;
+    break; // +Y
+  case 3:
+    ny--;
+    break; // -Y
+  case 4:
+    nz++;
+    break; // +Z
+  case 5:
+    nz--;
+    break; // -Z
   }
 
   // 1) If neighbor is inside this chunk, use local data (fast + robust)
-  if (nx >= 0 && nx < width &&
-      ny >= 0 && ny < height &&
-      nz >= 0 && nz < length) {
+  if (nx >= 0 && nx < width && ny >= 0 && ny < height && nz >= 0 &&
+      nz < length) {
     return blocks[nx][nz][ny] == BlockType::AIR;
   }
 
-  // 2) Otherwise, query the world using GLOBAL coords derived from chunk indices.
-  //    NOTE: in your ctor, world_x/world_z are *chunk indices*, not block offsets.
-  const int gx = world_x * width  + nx;
+  // 2) Otherwise, query the world using GLOBAL coords derived from chunk
+  // indices.
+  //    NOTE: in your ctor, world_x/world_z are *chunk indices*, not block
+  //    offsets.
+  const int gx = world_x * width + nx;
   const int gy = ny;
   const int gz = world_z * length + nz;
 
