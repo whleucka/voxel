@@ -7,6 +7,13 @@
 #include "imgui_impl_opengl3.h"
 #include "render_ctx.hpp"
 #include "stb_image.h"
+#include <sys/resource.h>
+
+size_t getMemoryUsageKB() {
+  struct rusage usage;
+  getrusage(RUSAGE_SELF, &usage);
+  return usage.ru_maxrss / 1024.0; // MB
+}
 
 void keyCallback(GLFWwindow *window, int key, int scancode, int action,
                  int mods) {
@@ -16,6 +23,11 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action,
     Engine *engine =
         reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
     engine->show_stats = !engine->show_stats;
+  }
+  if (key == GLFW_KEY_F4 && action == GLFW_PRESS) {
+    Engine *engine =
+        reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
+    engine->wireframe = !engine->wireframe;
   }
 }
 
@@ -101,8 +113,6 @@ bool Engine::init() {
   glCullFace(GL_BACK);
   glFrontFace(GL_CCW);
   glfwSwapInterval(0); // 0 = disable vsync, 1 = enable vsync
-  // Wireframe
-  // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -192,6 +202,11 @@ void Engine::processInput() {
 void Engine::update() { world->update(camera.getPos()); }
 
 void Engine::render() {
+  if (wireframe) {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+  } else {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+  }
   glClearColor(0.0f, 11.0f / 255.0f, 28.0f / 255.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -213,23 +228,43 @@ void Engine::render() {
   stats();
 }
 
+void Engine::drawCrosshairImGui() {
+  ImVec2 center(ImGui::GetIO().DisplaySize.x * 0.5f,
+                ImGui::GetIO().DisplaySize.y * 0.5f);
+
+  ImDrawList *draw_list = ImGui::GetForegroundDrawList();
+  float size = 10.0f;
+  float thickness = 2.0f;
+  ImU32 color = IM_COL32(255, 255, 255, 255);
+
+  // horizontal
+  draw_list->AddLine(ImVec2(center.x - size, center.y),
+                     ImVec2(center.x + size, center.y), color, thickness);
+  // vertical
+  draw_list->AddLine(ImVec2(center.x, center.y - size),
+                     ImVec2(center.x, center.y + size), color, thickness);
+}
+
 void Engine::stats() {
+  ImGui_ImplOpenGL3_NewFrame();
+  ImGui_ImplGlfw_NewFrame();
+  ImGui::NewFrame();
   if (show_stats) {
     // Per frame updates
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
     ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
     ImGuiIO &io = ImGui::GetIO();
     ImGui::Text("FPS: %.1f", io.Framerate);
     ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
     const glm::vec3 pos = camera.getPos();
-    ImGui::Text("Camera: (x %.2f, y %.2f, z %.2f)", pos.x, pos.y, pos.z);
+    ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
     ImGui::Text("Chunks: %i", world->getChunkCount());
+    ImGui::Text("Memory usage: %zu MB", getMemoryUsageKB());
+    ImGui::Checkbox("Wireframe mode", &wireframe);
     ImGui::End();
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
   }
+  drawCrosshairImGui();
+  ImGui::Render();
+  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 void Engine::cleanup() {

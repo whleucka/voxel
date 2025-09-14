@@ -28,9 +28,11 @@ public:
   World *world = nullptr;
   Texture atlas_texture;
   bool show_stats = false;
+  bool wireframe = false;
 
 private:
   static void framebufferSizeCallback(GLFWwindow *window, int w, int h);
+  void drawCrosshairImGui();
   void processInput();
   void loadAtlas(std::string path);
   void update();

@@ -52,6 +52,8 @@ After successful compilation, you can run the game using:
 
 ## Controls
 
+*   **F3:** Show debug info/stats.
+*   **F4:** Toggle wireframe.
 *   **W, A, S, D:** Move camera forward, left, backward, right.
 *   **Q:** Move camera down.
 *   **E:** Move camera up.
