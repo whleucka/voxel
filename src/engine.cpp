@@ -216,14 +216,17 @@ void Engine::update() {
 
 void Engine::updateSky() {
   float t = game_clock.fractionOfDay(); // 0.0 → 1.0
-  // Compute sun direction with phase shift
+
+  // Phase shift: noon = max elevation
   float angle_deg = 360.0f * (t - 0.25f);
   float angle_rad = glm::radians(angle_deg);
-  glm::vec3 sun_dir = glm::normalize(glm::vec3(
-        std::cos(angle_rad),
-        std::sin(angle_rad),
-        0.3f
-        ));
+
+  glm::vec3 sun_dir =
+      glm::normalize(glm::vec3(std::cos(angle_rad), std::sin(angle_rad), 0.3f));
+
+  // Clamp so the sun never shines "from below"
+  if (sun_dir.y < 0.0f)
+    sun_dir.y = 0.0f;
 
   // Smoothstep helper
   auto smoothstep01 = [](float a, float b, float x) {
@@ -231,32 +234,70 @@ void Engine::updateSky() {
     return v * v * (3.0f - 2.0f * v);
   };
 
-  // Sunrise 06:00–07:00, Sunset 20:00–21:00
-  float sunrise = smoothstep01(0.25f, 0.29f, t);
-  float sunset  = 1.0f - smoothstep01(0.83f, 0.875f, t);
-  float day_factor = sunrise * sunset;
+  float day_factor = 0.0f;
 
-  // Minimum factor so nights aren’t pitch black
+  if (t < 0.25f) {
+    // 0–0.25 → fade in
+    day_factor = smoothstep01(0.20f, 0.25f, t);
+  } else if (t < 0.83f) {
+    // 0.25–0.83 → full day
+    day_factor = 1.0f;
+  } else if (t < 0.88f) {
+    // 0.83–0.88 → fade out
+    day_factor = 1.0f - smoothstep01(0.83f, 0.88f, t);
+  } else {
+    // 0.88–1.0 → night
+    day_factor = 0.0f;
+  }
+
+  // Prevent pitch black nights (optional)
   float min_factor = 0.2f;
   day_factor = glm::max(day_factor, min_factor);
 
-  // Ambient
-  glm::vec3 night_ambient(0.10f, 0.10f, 0.15f);
+  // Ambient color
+  glm::vec3 night_ambient(0.05f, 0.05f, 0.10f);
   glm::vec3 day_ambient(0.35f, 0.35f, 0.35f);
   glm::vec3 ambient_color = glm::mix(night_ambient, day_ambient, day_factor);
 
-  // Sunlight only active during day_factor
-  float sun_strength = day_factor; // drop dependence on raw sun_dir.y
+  // Sun strength follows day factor
+  float sun_strength = day_factor;
 
+  // Push to block shader
   block_shader->use();
   block_shader->setVec3("lightDir", glm::normalize(sun_dir));
   block_shader->setVec3("ambientColor", ambient_color);
   block_shader->setFloat("sunStrength", sun_strength);
 
-  // Sky
-  glm::vec3 night_sky(0.0f, 11.0f / 255.0f, 28.0f / 255.0f);
+  // Sky color sync
+  glm::vec3 night_sky(0.0f, 0.0f, 0.05f);
   glm::vec3 day_sky(0.4f, 0.7f, 1.0f);
+  glm::vec3 sunset_sky(1.0f, 0.5f, 0.2f); // warm orange/pink
   glm::vec3 clear_color = glm::mix(night_sky, day_sky, day_factor);
+
+  if (t < 0.25f) {
+    // sunrise fade-in: night → orange
+    float f = smoothstep01(0.20f, 0.25f, t);
+    clear_color = glm::mix(night_sky, sunset_sky, f);
+  } else if (t < 0.30f) {
+    // sunrise transition: orange → blue sky
+    float f = smoothstep01(0.25f, 0.30f, t);
+    clear_color = glm::mix(sunset_sky, day_sky, f);
+  } else if (t < 0.83f) {
+    // daytime
+    clear_color = day_sky;
+  } else if (t < 0.88f) {
+    // sunset transition: blue sky → orange
+    float f = smoothstep01(0.83f, 0.88f, t);
+    clear_color = glm::mix(day_sky, sunset_sky, f);
+  } else if (t < 0.93f) {
+    // sunset fade-out: orange → night
+    float f = smoothstep01(0.88f, 0.93f, t);
+    clear_color = glm::mix(sunset_sky, night_sky, f);
+  } else {
+    // night
+    clear_color = night_sky;
+  }
+
   glClearColor(clear_color.r, clear_color.g, clear_color.b, 1.0f);
 }
 
@@ -267,7 +308,6 @@ void Engine::render() {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   }
 
-  // Update sun
   updateSky();
 
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
