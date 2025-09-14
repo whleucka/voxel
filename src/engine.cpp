@@ -1,4 +1,5 @@
 #include "engine.hpp"
+#include <GLFW/glfw3.h>
 #include <glm/ext/vector_float3.hpp>
 #include <iostream>
 #define STB_IMAGE_IMPLEMENTATION
@@ -183,9 +184,11 @@ void Engine::run() {
 }
 
 void Engine::processInput() {
+  // Close program
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     glfwSetWindowShouldClose(window, true);
 
+  // Camera controls
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
     camera.processKeyboard(FORWARD, delta_time);
   if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
@@ -202,6 +205,17 @@ void Engine::processInput() {
 
 void Engine::update() { 
   game_clock.update(delta_time);
+  // Compute sun direction once per frame
+  float angle = game_clock.fractionOfDay() * 360.0f;
+  glm::vec3 sunDir = glm::normalize(glm::vec3(
+        cos(glm::radians(angle)),
+        sin(glm::radians(angle)),
+        0.3f
+        ));
+
+  // Pass to world/shader
+  block_shader->use();
+  block_shader->setVec3("lightDir", sunDir);
   world->update(camera.getPos()); 
 }
 
