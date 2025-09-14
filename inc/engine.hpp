@@ -33,6 +33,7 @@ public:
 
 private:
   static void framebufferSizeCallback(GLFWwindow *window, int w, int h);
+  void updateSky();
   void drawCrosshairImGui();
   void processInput();
   void loadAtlas(std::string path);

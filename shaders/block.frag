@@ -9,7 +9,9 @@ out vec4 FragColor;
 uniform sampler2D texture_diffuse1;
 
 // Sun directional light
-uniform vec3 lightDir; // passed from C++
+uniform vec3 lightDir;
+uniform vec3 ambientColor;
+uniform float sunStrength;
 
 void main()
 {
@@ -20,7 +22,14 @@ void main()
 
     //float lambert = max(dot(normalize(vNormal), lightDir), 0.2);
 
-    float lambert = max(dot(normalize(vNormal), normalize(lightDir)), 0.2);
+    // float lambert = max(dot(normalize(vNormal), normalize(lightDir)), 0.2);
 
-    FragColor = vec4(texColor.rgb * lambert, texColor.a);
+    // Diffuse term
+    float diff = max(dot(normalize(vNormal), normalize(lightDir)), 0.0);
+
+    // Combine ambient + sunlight
+    vec3 lighting = ambientColor + diff * sunStrength;
+
+    // Apply to texture
+    FragColor = vec4(texColor.rgb * lighting, texColor.a);
 }

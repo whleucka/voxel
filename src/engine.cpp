@@ -10,6 +10,10 @@
 #include "stb_image.h"
 #include <sys/resource.h>
 
+glm::vec3 night(0.0f, 11.0f / 255.0f, 28.0f / 255.0f);
+glm::vec3 day(0.4f, 0.7f, 1.0f);
+glm::vec3 sunset(1.0f, 0.5f, 0.2f);
+
 size_t getMemoryUsage() {
   struct rusage usage;
   getrusage(RUSAGE_SELF, &usage);
@@ -203,20 +207,57 @@ void Engine::processInput() {
     camera.processKeyboard(DOWN, delta_time);
 }
 
-void Engine::update() { 
+void Engine::update() {
   game_clock.update(delta_time);
-  // Compute sun direction once per frame
-  float angle = game_clock.fractionOfDay() * 360.0f;
-  glm::vec3 sunDir = glm::normalize(glm::vec3(
-        cos(glm::radians(angle)),
-        sin(glm::radians(angle)),
+
+  // Update world
+  world->update(camera.getPos());
+}
+
+void Engine::updateSky() {
+  float t = game_clock.fractionOfDay(); // 0.0 → 1.0
+  // Compute sun direction with phase shift
+  float angle_deg = 360.0f * (t - 0.25f);
+  float angle_rad = glm::radians(angle_deg);
+  glm::vec3 sun_dir = glm::normalize(glm::vec3(
+        std::cos(angle_rad),
+        std::sin(angle_rad),
         0.3f
         ));
 
-  // Pass to world/shader
+  // Smoothstep helper
+  auto smoothstep01 = [](float a, float b, float x) {
+    float v = glm::clamp((x - a) / (b - a), 0.0f, 1.0f);
+    return v * v * (3.0f - 2.0f * v);
+  };
+
+  // Sunrise 06:00–07:00, Sunset 20:00–21:00
+  float sunrise = smoothstep01(0.25f, 0.29f, t);
+  float sunset  = 1.0f - smoothstep01(0.83f, 0.875f, t);
+  float day_factor = sunrise * sunset;
+
+  // Minimum factor so nights aren’t pitch black
+  float min_factor = 0.2f;
+  day_factor = glm::max(day_factor, min_factor);
+
+  // Ambient
+  glm::vec3 night_ambient(0.10f, 0.10f, 0.15f);
+  glm::vec3 day_ambient(0.35f, 0.35f, 0.35f);
+  glm::vec3 ambient_color = glm::mix(night_ambient, day_ambient, day_factor);
+
+  // Sunlight only active during day_factor
+  float sun_strength = day_factor; // drop dependence on raw sun_dir.y
+
   block_shader->use();
-  block_shader->setVec3("lightDir", sunDir);
-  world->update(camera.getPos()); 
+  block_shader->setVec3("lightDir", glm::normalize(sun_dir));
+  block_shader->setVec3("ambientColor", ambient_color);
+  block_shader->setFloat("sunStrength", sun_strength);
+
+  // Sky
+  glm::vec3 night_sky(0.0f, 11.0f / 255.0f, 28.0f / 255.0f);
+  glm::vec3 day_sky(0.4f, 0.7f, 1.0f);
+  glm::vec3 clear_color = glm::mix(night_sky, day_sky, day_factor);
+  glClearColor(clear_color.r, clear_color.g, clear_color.b, 1.0f);
 }
 
 void Engine::render() {
@@ -225,7 +266,10 @@ void Engine::render() {
   } else {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   }
-  glClearColor(0.0f, 11.0f / 255.0f, 28.0f / 255.0f, 1.0f);
+
+  // Update sun
+  updateSky();
+
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   glm::mat4 view = camera.getViewMatrix();
