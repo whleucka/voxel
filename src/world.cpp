@@ -4,7 +4,6 @@
 #include "coord.hpp"
 #include "render_ctx.hpp"
 #include <algorithm>
-#include <cmath>
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -19,6 +18,8 @@ std::vector<ChunkKey> getChunkLoadOrder(int camChunkX, int camChunkZ,
     for (int dz = -radius; dz <= radius; dz++) {
       // Circle radius (optional). If you want square area, drop this check.
       if (dx * dx + dz * dz <= radius * radius) {
+        // (π * r²) render_distance = 18
+        // π * 18² is approx 1,017 chunks
         result.push_back({camChunkX + dx, camChunkZ + dz});
       }
     }
@@ -73,11 +74,20 @@ void World::loadChunk(int x, int z) {
 }
 
 void World::unloadChunk(const ChunkKey &key) {
+
   std::cout << "UNLOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
   auto it = chunks.find(key);
   if (it != chunks.end()) {
-    cache[key] = it->second; // move into cache
-    chunks.erase(it);        // remove from active
+    // Move chunk into cache
+    cache[key] = it->second;
+    chunks.erase(it);
+
+    // Evict oldest if cache too big
+    if (cache.size() > max_cache) {
+      auto oldest = cache.begin(); // naive eviction
+      delete oldest->second;       // free memory
+      cache.erase(oldest);
+    }
   }
 }
 
@@ -99,7 +109,7 @@ void World::update(glm::vec3 camera_pos) {
   auto order = getChunkLoadOrder(cam_cx, cam_cz, render_distance);
 
   int chunksLoadedThisFrame = 0;
-  int loadBudget = 4; // how many chunks to load per frame
+  int loadBudget = 6; // how many chunks to load per frame
   for (auto &key : order) {
     if (chunks.find(key) == chunks.end()) {
       loadChunk(key.x, key.z);
@@ -179,6 +189,8 @@ BlockType World::getBlock(int x, int y, int z) {
     // Heuristic: if chunk is not loaded, assume solid below a certain height,
     // and air above. This prevents internal faces from showing, and allows
     // grass blocks at the edge to render.
+    // FIXME: This fixes a weird glitch, but causes another bug where the top
+    // level grass blocks are visible from within the chunk?
     if (y < sea_level) {
       return BlockType::STONE;
     } else {
