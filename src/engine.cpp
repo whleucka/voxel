@@ -200,7 +200,10 @@ void Engine::processInput() {
     camera.processKeyboard(DOWN, delta_time);
 }
 
-void Engine::update() { world->update(camera.getPos()); }
+void Engine::update() { 
+  game_clock.update(delta_time);
+  world->update(camera.getPos()); 
+}
 
 void Engine::render() {
   if (wireframe) {
@@ -253,6 +256,7 @@ void Engine::stats() {
     // Per frame updates
     ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
     ImGuiIO &io = ImGui::GetIO();
+    ImGui::Text("Game time: %.2d:%.2d", game_clock.hour(), game_clock.minute());
     ImGui::Text("FPS: %.1f", io.Framerate);
     ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
     const glm::vec3 pos = camera.getPos();

@@ -2,6 +2,7 @@
 
 #include "camera.hpp"
 #include "game_state.hpp"
+#include "game_clock.hpp"
 #include "shader.hpp"
 #include "texture.hpp"
 #include "world.hpp"
@@ -49,6 +50,7 @@ private:
   float last_frame = 0.0f;
   float delta_time = 0.0f;
 
+  GameClock game_clock;
   Camera camera;
   float last_x = width / 2.0f;
   float last_y = height / 2.0f;
