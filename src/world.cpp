@@ -54,8 +54,6 @@ void World::loadChunk(int x, int z) {
   if (chunks.find(key) != chunks.end())
     return;
 
-  std::cout << "LOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
-
   // Reactivate from cache
   auto it = cache.find(key);
   if (it != cache.end()) {
@@ -71,15 +69,16 @@ void World::loadChunk(int x, int z) {
       return;
     _load_q.push(key);
     _loading_q.insert(key);
+    std::cout << "LOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
   }
   _load_q_cv.notify_one();
 }
 
 void World::unloadChunk(const ChunkKey &key) {
 
-  std::cout << "UNLOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
   auto it = chunks.find(key);
   if (it != chunks.end()) {
+    std::cout << "UNLOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
     // Move chunk into cache
     cache[key] = it->second;
     chunks.erase(it);
