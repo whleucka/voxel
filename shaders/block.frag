@@ -28,7 +28,7 @@ void main()
     vec3 litColor = texColor.rgb * lighting;
 
     // --- Fog (exponential squared) ---
-    float density = 0.008; // (smaller = farther fog)
+    float density = 0.005; // (smaller = farther fog)
     float dist = length(vWorldPos - cameraPos);
     float fogFactor = exp(-pow(dist * density, 2.0)); 
 
