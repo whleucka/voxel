@@ -49,11 +49,12 @@ World::~World() { stopThreads(); }
 
 void World::loadChunk(int x, int z) {
   ChunkKey key{x, z};
-  std::cout << "LOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
 
   // Already active
   if (chunks.find(key) != chunks.end())
     return;
+
+  std::cout << "LOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
 
   // Reactivate from cache
   auto it = cache.find(key);

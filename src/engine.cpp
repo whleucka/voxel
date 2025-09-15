@@ -30,7 +30,7 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action,
   if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
     Engine *engine =
         reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
-    engine->show_stats = !engine->show_stats;
+    engine->debug = !engine->debug;
   }
   if (key == GLFW_KEY_F4 && action == GLFW_PRESS) {
     Engine *engine =
@@ -329,7 +329,7 @@ void Engine::render() {
     fprintf(stderr, "OpenGL Error after world->draw: 0x%x\n", error);
   }
 
-  stats();
+  imgui();
 }
 
 void Engine::drawCrosshairImGui() {
@@ -348,11 +348,11 @@ void Engine::drawCrosshairImGui() {
                      ImVec2(center.x, center.y + size), color, thickness);
 }
 
-void Engine::stats() {
+void Engine::imgui() {
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplGlfw_NewFrame();
   ImGui::NewFrame();
-  if (show_stats) {
+  if (debug) {
     // Per frame updates
     ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
     ImGuiIO &io = ImGui::GetIO();
@@ -361,7 +361,8 @@ void Engine::stats() {
     ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
     const glm::vec3 pos = camera.getPos();
     ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
-    ImGui::Text("Chunks: %i/%i", world->getChunkCount(), static_cast<int>(world->getMaxChunks()));
+    ImGui::Text("Chunks loaded: %i", world->getChunkCount());
+    ImGui::Text("Max chunks: %i", static_cast<int>(world->getMaxChunks()));
     ImGui::Text("Memory usage: %zu MB", getMemoryUsage());
     ImGui::Checkbox("Wireframe mode", &wireframe);
     ImGui::End();

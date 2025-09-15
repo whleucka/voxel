@@ -28,7 +28,7 @@ public:
   Shader *block_shader = nullptr;
   World *world = nullptr;
   Texture atlas_texture;
-  bool show_stats = false;
+  bool debug = false;
   bool wireframe = false;
 
 private:
@@ -39,7 +39,7 @@ private:
   void loadAtlas(std::string path);
   void update();
   void render();
-  void stats();
+  void imgui();
   void cleanup();
 
   GameState game_state = GameState::START;
