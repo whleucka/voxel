@@ -25,6 +25,7 @@ public:
   void generateMesh(const Texture &atlas);
   void draw(Shader &shader);
   BlockType getBlock(int x, int y, int z) const;
+  void setBlock(int x, int y, int z, BlockType type);
   ChunkKey getChunkKey() const;
 
   Mesh mesh;

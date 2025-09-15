@@ -30,6 +30,7 @@ public:
   Camera() { updateCameraVectors(); }
 
   glm::vec3 getPos() { return position; }
+  glm::vec3 getFront() { return front; }
 
   glm::mat4 getViewMatrix() const {
     return glm::lookAt(position, position + front, up);

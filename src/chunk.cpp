@@ -155,6 +155,9 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
 }
 
 void Chunk::generateMesh(const Texture &atlas) {
+  mesh.vertices.clear();
+  mesh.indices.clear();
+  mesh.textures.clear();
   mesh.textures.push_back(atlas);
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
@@ -240,3 +243,11 @@ bool Chunk::faceVisible(int x, int y, int z, int dir) const {
 }
 
 ChunkKey Chunk::getChunkKey() const { return {world_x, world_z}; }
+
+void Chunk::setBlock(int x, int y, int z, BlockType type) {
+  if (x < 0 || x >= width || y < 0 || y >= height || z < 0 || z >= length) {
+    return;
+  }
+  blocks[x][z][y] = type;
+}
+

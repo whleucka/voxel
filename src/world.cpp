@@ -252,3 +252,157 @@ void World::threadLoop() {
     }
   }
 }
+
+void World::removeBlock(int x, int y, int z) {
+  const int cx = worldToChunk(x, chunk_width);
+  const int cz = worldToChunk(z, chunk_length);
+
+  Chunk *chunk = getChunk(cx, cz);
+  if (!chunk) {
+    return; // chunk not loaded
+  }
+
+  const int lx = worldToLocal(x, chunk_width);
+  const int lz = worldToLocal(z, chunk_length);
+
+  // Removing a block set's the type to AIR
+  chunk->setBlock(lx, y, lz, BlockType::AIR);
+  chunk->generateMesh(block_atlas);
+  chunk->mesh.setupMesh();
+
+  // Check and update neighboring chunks if the block was on a border
+  if (lx == 0) {
+    Chunk *neighbor = getChunk(cx - 1, cz);
+    if (neighbor) {
+      neighbor->generateMesh(block_atlas);
+      neighbor->mesh.setupMesh();
+    }
+  } else if (lx == chunk_width - 1) {
+    Chunk *neighbor = getChunk(cx + 1, cz);
+    if (neighbor) {
+      neighbor->generateMesh(block_atlas);
+      neighbor->mesh.setupMesh();
+    }
+  }
+
+  if (lz == 0) {
+    Chunk *neighbor = getChunk(cx, cz - 1);
+    if (neighbor) {
+      neighbor->generateMesh(block_atlas);
+      neighbor->mesh.setupMesh();
+    }
+  } else if (lz == chunk_length - 1) {
+    Chunk *neighbor = getChunk(cx, cz + 1);
+    if (neighbor) {
+      neighbor->generateMesh(block_atlas);
+      neighbor->mesh.setupMesh();
+    }
+  }
+}
+
+void World::addBlock(int x, int y, int z, BlockType type) {
+  const int cx = worldToChunk(x, chunk_width);
+  const int cz = worldToChunk(z, chunk_length);
+
+  Chunk *chunk = getChunk(cx, cz);
+  if (!chunk) {
+    return; // chunk not loaded
+  }
+
+  const int lx = worldToLocal(x, chunk_width);
+  const int lz = worldToLocal(z, chunk_length);
+
+  chunk->setBlock(lx, y, lz, type);
+  chunk->generateMesh(block_atlas);
+  chunk->mesh.setupMesh();
+
+  // Check and update neighboring chunks if the block was on a border
+  if (lx == 0) {
+    Chunk *neighbor = getChunk(cx - 1, cz);
+    if (neighbor) {
+      neighbor->generateMesh(block_atlas);
+      neighbor->mesh.setupMesh();
+    }
+  } else if (lx == chunk_width - 1) {
+    Chunk *neighbor = getChunk(cx + 1, cz);
+    if (neighbor) {
+      neighbor->generateMesh(block_atlas);
+      neighbor->mesh.setupMesh();
+    }
+  }
+
+  if (lz == 0) {
+    Chunk *neighbor = getChunk(cx, cz - 1);
+    if (neighbor) {
+      neighbor->generateMesh(block_atlas);
+      neighbor->mesh.setupMesh();
+    }
+  } else if (lz == chunk_length - 1) {
+    Chunk *neighbor = getChunk(cx, cz + 1);
+    if (neighbor) {
+      neighbor->generateMesh(block_atlas);
+      neighbor->mesh.setupMesh();
+    }
+  }
+}
+
+// Amanatides and Woo's algorithm for fast voxel traversal
+bool World::raycast(const glm::vec3 &start, const glm::vec3 &dir,
+                    float max_dist, glm::ivec3 &block_pos,
+                    glm::ivec3 &prev_block_pos) {
+  glm::vec3 normalized_dir = glm::normalize(dir);
+  glm::ivec3 current_voxel(floor(start.x), floor(start.y), floor(start.z));
+
+  glm::ivec3 step;
+  step.x = (normalized_dir.x > 0) ? 1 : -1;
+  step.y = (normalized_dir.y > 0) ? 1 : -1;
+  step.z = (normalized_dir.z > 0) ? 1 : -1;
+
+  glm::vec3 tMax;
+  tMax.x = (step.x > 0) ? (ceil(start.x) - start.x) / normalized_dir.x
+                       : (start.x - floor(start.x)) / -normalized_dir.x;
+  tMax.y = (step.y > 0) ? (ceil(start.y) - start.y) / normalized_dir.y
+                       : (start.y - floor(start.y)) / -normalized_dir.y;
+  tMax.z = (step.z > 0) ? (ceil(start.z) - start.z) / normalized_dir.z
+                       : (start.z - floor(start.z)) / -normalized_dir.z;
+
+  glm::vec3 tDelta;
+  tDelta.x = (normalized_dir.x != 0) ? std::abs(1.0f / normalized_dir.x) : max_dist;
+  tDelta.y = (normalized_dir.y != 0) ? std::abs(1.0f / normalized_dir.y) : max_dist;
+  tDelta.z = (normalized_dir.z != 0) ? std::abs(1.0f / normalized_dir.z) : max_dist;
+
+  float dist = 0.0f;
+  while (dist < max_dist) {
+    if (getBlock(current_voxel.x, current_voxel.y, current_voxel.z) !=
+        BlockType::AIR) {
+      block_pos = current_voxel;
+      return true;
+    }
+
+    prev_block_pos = current_voxel;
+
+    if (tMax.x < tMax.y) {
+      if (tMax.x < tMax.z) {
+        current_voxel.x += step.x;
+        dist = tMax.x;
+        tMax.x += tDelta.x;
+      } else {
+        current_voxel.z += step.z;
+        dist = tMax.z;
+        tMax.z += tDelta.z;
+      }
+    } else {
+      if (tMax.y < tMax.z) {
+        current_voxel.y += step.y;
+        dist = tMax.y;
+        tMax.y += tDelta.y;
+      } else {
+        current_voxel.z += step.z;
+        dist = tMax.z;
+        tMax.z += tDelta.z;
+      }
+    }
+  }
+
+  return false;
+}

@@ -51,10 +51,16 @@ public:
   Chunk *getChunk(int chunk_x, int chunk_y);
   int getChunkCount() const;
   float getMaxChunks() const;
+  bool raycast(const glm::vec3 &start, const glm::vec3 &dir, float max_dist,
+               glm::ivec3 &block_pos, glm::ivec3 &prev_block_pos);
+  void removeBlock(int x, int y, int z);
+  void addBlock(int x, int y, int z, BlockType type);
 
 private:
-  std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash> chunks; // currently rendered
-  std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash> cache; // inactive but saved
+  std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash>
+      chunks; // currently rendered
+  std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash>
+      cache; // inactive but saved
   std::unordered_set<ChunkKey, ChunkKeyHash> _loading_q; // being generated
   Texture &block_atlas;
   // Thread stuff

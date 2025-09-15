@@ -41,6 +41,7 @@ private:
   void render();
   void imgui();
   void cleanup();
+  void handleMouseClick(int button, int action, int mods);
 
   GameState game_state = GameState::START;
 

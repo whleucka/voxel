@@ -112,6 +112,14 @@ bool Engine::init() {
         eng->camera.processMouseMovement(dx, dy);
       });
 
+  glfwSetMouseButtonCallback(
+      window, [](GLFWwindow *win, int button, int action, int mods) {
+        auto *eng = static_cast<Engine *>(glfwGetWindowUserPointer(win));
+        if (!eng)
+          return;
+        eng->handleMouseClick(button, action, mods);
+      });
+
   // OpenGL settings
   glViewport(0, 0, width, height);
   glDepthRange(0.0, 1.0);
@@ -388,5 +396,20 @@ void Engine::cleanup() {
     glfwDestroyWindow(window);
     glfwTerminate();
     window = nullptr;
+  }
+}
+
+void Engine::handleMouseClick(int button, int action, int mods) {
+  if (action == GLFW_PRESS) {
+    glm::ivec3 block_pos, prev_block_pos;
+    if (world->raycast(camera.getPos(), camera.getFront(), 10.0f, block_pos,
+                       prev_block_pos)) {
+      if (button == GLFW_MOUSE_BUTTON_LEFT) {
+        world->removeBlock(block_pos.x, block_pos.y, block_pos.z);
+      } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+        world->addBlock(prev_block_pos.x, prev_block_pos.y, prev_block_pos.z,
+                        BlockType::STONE);
+      }
+    }
   }
 }
