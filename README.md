@@ -20,10 +20,7 @@
 ## Voxel Engine Next Steps
 
 *   **Collision detection**
-*   **Day/night cycle**
-*   **Fog**
 *   **Block face shading**
-*   **Block bounding boxes**
 *   **Biomes**
 
 
