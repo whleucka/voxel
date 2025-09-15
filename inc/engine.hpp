@@ -27,11 +27,11 @@ public:
   bool init();
   void run();
   Shader *block_shader = nullptr;
+  Shader *highlight_shader = nullptr;
   World *world = nullptr;
   Texture atlas_texture;
   bool debug = false;
   bool wireframe = false;
-  Shader *highlight_shader = nullptr;
   glm::ivec3 selected_block;
   bool is_block_selected = false;
   WireCube *highlight_cube = nullptr;

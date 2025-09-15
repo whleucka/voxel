@@ -5,7 +5,6 @@ in vec2 vTex;
 
 out vec4 FragColor;
 
-// Mesh::draw binds this as texture unit 0 and sets the uniform name to "texture_diffuse1"
 uniform sampler2D texture_diffuse1;
 
 // Sun directional light
@@ -13,24 +12,31 @@ uniform vec3 lightDir;
 uniform vec3 ambientColor;
 uniform float sunStrength;
 
+// Fog
+uniform vec3 cameraPos;
+uniform vec3 fogColor;
+uniform float fogStart;
+uniform float fogEnd;
+
 void main()
 {
     vec4 texColor = texture(texture_diffuse1, vTex);
 
-    // simple one-light lambert (with small ambient so dark faces aren't pitch black)
-    //const vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
-
-    //float lambert = max(dot(normalize(vNormal), lightDir), 0.2);
-
-    // float lambert = max(dot(normalize(vNormal), normalize(lightDir)), 0.2);
-
-    // Diffuse term
+    // --- Lighting ---
     float diff = max(dot(normalize(vNormal), normalize(lightDir)), 0.0);
-
-    // Combine ambient + sunlight
     vec3 lighting = ambientColor + diff * sunStrength;
+    vec3 litColor = texColor.rgb * lighting;
 
-    // Apply to texture
-    float alpha = texColor.a;
-    FragColor = vec4(texColor.rgb * lighting, alpha);
+    // --- Fog (exponential squared) ---
+    float density = 0.008; // (smaller = farther fog)
+    float dist = length(vWorldPos - cameraPos);
+    float fogFactor = exp(-pow(dist * density, 2.0)); 
+
+    // clamp to [0,1]
+    fogFactor = clamp(fogFactor, 0.0, 1.0);
+
+    // Blend: when fogFactor=1.0 → no fog, when fogFactor=0.0 → full fog
+    vec3 finalColor = mix(fogColor, litColor, fogFactor);
+
+    FragColor = vec4(finalColor, texColor.a);
 }

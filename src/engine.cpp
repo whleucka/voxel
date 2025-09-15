@@ -288,21 +288,28 @@ void Engine::updateSky() {
   glm::vec3 night_ambient(0.05f, 0.05f, 0.10f);
   glm::vec3 day_ambient(0.35f, 0.35f, 0.35f);
   glm::vec3 ambient_color = glm::mix(night_ambient, day_ambient, day_factor);
-
   // Sun strength follows day factor
   float sun_strength = day_factor;
+  // Sky color sync
+  glm::vec3 night_sky(0.0f, 0.0f, 0.05f);
+  glm::vec3 day_sky(0.4f, 0.7f, 1.0f);
+  glm::vec3 sunset_sky(1.0f, 0.5f, 0.2f); // warm orange/pink
+  glm::vec3 clear_color = glm::mix(night_sky, day_sky, day_factor);
 
   // Push to block shader
   block_shader->use();
   block_shader->setVec3("lightDir", glm::normalize(sun_dir));
   block_shader->setVec3("ambientColor", ambient_color);
   block_shader->setFloat("sunStrength", sun_strength);
+  block_shader->setVec3("cameraPos", camera.getPos());
 
-  // Sky color sync
-  glm::vec3 night_sky(0.0f, 0.0f, 0.05f);
-  glm::vec3 day_sky(0.4f, 0.7f, 1.0f);
-  glm::vec3 sunset_sky(1.0f, 0.5f, 0.2f); // warm orange/pink
-  glm::vec3 clear_color = glm::mix(night_sky, day_sky, day_factor);
+  float worldDistance = world->render_distance * world->chunk_width;
+  block_shader->setFloat("fogStart", worldDistance * 0.6f); // start halfway
+  block_shader->setFloat("fogEnd",   worldDistance * 0.9f); // full fog just before cutoff
+  //block_shader->setVec3("fogColor", glm::vec3(1.0f, 1.0f, 1.0f));
+  block_shader->setVec3("fogColor", clear_color); // Blend with fog
+
+
 
   if (t < 0.25f) {
     // sunrise fade-in: night → orange
@@ -357,12 +364,12 @@ void Engine::render() {
   // Render transparent blocks
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glDepthMask(GL_FALSE); // Disable depth writing for transparent objects
+  glDepthMask(GL_FALSE);   // Disable depth writing for transparent objects
   glDisable(GL_CULL_FACE); // Disable culling for transparent objects
   world->drawTransparent(ctx);
   glEnable(GL_CULL_FACE); // Re-enable culling
-  glDepthMask(GL_TRUE); // Re-enable depth writing
-  glDisable(GL_BLEND); // Disable blending
+  glDepthMask(GL_TRUE);   // Re-enable depth writing
+  glDisable(GL_BLEND);    // Disable blending
 
   if (is_block_selected) {
     highlight_shader->use();
