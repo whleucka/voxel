@@ -134,8 +134,8 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
           type = BlockType::BEDROCK;
         } else if ((stone_noise > 0.4) || (y >= 5 && y <= 15)) {
           type = BlockType::STONE;
-        } else if (water_noise > 0.4 && y <= 40) {
-          type = BlockType::WATER;
+        // } else if (water_noise > 0.4 && y <= 40) {
+        //   type = BlockType::WATER;
         } else {
           type = BlockType::DIRT;
         }
@@ -205,58 +205,62 @@ BlockType Chunk::getBlock(int x, int y, int z) const {
   return blocks[x][z][y];
 }
 
-static bool isExposedWater(const World* world, int gx, int gy, int gz) {
-    if (world->getBlock(gx, gy, gz) != BlockType::WATER) return false;
-
-    // Look upward until sea level
-    for (int y = gy + 1; y < world->sea_level; ++y) {
-        BlockType above = world->getBlock(gx, y, gz);
-        if (above == BlockType::AIR) return true;      // exposed to sky
-        if (above != BlockType::WATER) return false;   // blocked by solid
-    }
-    return false;
-}
-
 bool Chunk::faceVisible(int x, int y, int z, int dir, BlockType currentBlockType) const {
     int nx = x, ny = y, nz = z;
     switch (dir) {
-    case 0: nx++; break; 
-    case 1: nx--; break;
-    case 2: ny++; break;
-    case 3: ny--; break;
-    case 4: nz++; break;
-    case 5: nz--; break;
+    case 0: nx++; break; // +X
+    case 1: nx--; break; // -X
+    case 2: ny++; break; // +Y
+    case 3: ny--; break; // -Y
+    case 4: nz++; break; // +Z
+    case 5: nz--; break; // -Z
     }
 
-    // 1) Neighbor inside this chunk
+    // Neighbor lookup
+    BlockType neighborType;
     if (nx >= 0 && nx < width && ny >= 0 && ny < height && nz >= 0 && nz < length) {
-        BlockType neighborType = blocks[nx][nz][ny];
-
-        if (isTransparent(currentBlockType)) {
-            return neighborType == BlockType::AIR; // water shows surfaces only
-        } else {
-            return (neighborType == BlockType::AIR || neighborType == BlockType::WATER);
-        }
+        neighborType = blocks[nx][nz][ny];
+    } else {
+        int gx = world_x * width + nx;
+        int gy = ny;
+        int gz = world_z * length + nz;
+        neighborType = world->getBlock(gx, gy, gz);
     }
-
-    // 2) Neighbor in another chunk
-    const int gx = world_x * width + nx;
-    const int gy = ny;
-    const int gz = world_z * length + nz;
-
-    BlockType neighborType = world->getBlock(gx, gy, gz);
 
     if (neighborType == BlockType::UNKNOWN) {
-        if (gy < world->sea_level) return false; // no underground walls
-        return !isTransparent(currentBlockType);
+      // Neighbor chunk not loaded yet → render face to avoid gaps
+      return true;
     }
 
     if (isTransparent(currentBlockType)) {
+      if (dir == 2) return neighborType != BlockType::WATER; // top water face
+      return neighborType == BlockType::AIR || !isTransparent(neighborType);
+    } else {
+      return neighborType == BlockType::AIR || isTransparent(neighborType);
+    }
+
+    // Water rules
+    if (currentBlockType == BlockType::WATER) {
+        if (dir == 2) {
+            // Top face: visible unless water above
+            return neighborType != BlockType::WATER;
+        } else if (dir == 3) {
+            // Bottom face: only if air below (optional)
+            return neighborType == BlockType::AIR;
+        } else {
+            // Side faces: only if air next to it
+            return neighborType == BlockType::AIR;
+        }
+    }
+
+    // Normal blocks
+    if (isTransparent(currentBlockType)) {
         return neighborType == BlockType::AIR;
     } else {
-        return (neighborType == BlockType::AIR || neighborType == BlockType::WATER);
+        return (neighborType == BlockType::AIR || isTransparent(neighborType));
     }
 }
+
 
 ChunkKey Chunk::getChunkKey() const { return {world_x, world_z}; }
 

@@ -351,6 +351,7 @@ void Engine::render() {
                        0.5f, glm::max(50.0f, farPlane));
 
   renderCtx ctx{*block_shader, view, proj, camera};
+
   world->drawOpaque(ctx); // Render opaque objects first
 
   // Render transparent blocks
