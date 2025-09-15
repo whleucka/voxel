@@ -114,10 +114,23 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
                            (world_z * length + z) * 0.02));
 
         if (y == perlin_height - 1) {
+          int block_rand = (rand() % 100) + 1;
           if (perlin_height >= world->snow_height) {
             type = BlockType::SNOW;
+          } else if (perlin_height <= world->sea_level) {
+            type = BlockType::SAND;
           } else {
-            type = BlockType::GRASS;
+            if (perlin_height <= world->sea_level + 5) {
+              type = BlockType::GRASS;
+            } else {
+              if (block_rand <= 5) {
+                type = BlockType::COBBLESTONE;
+              } else if (block_rand <= 85) {
+                type = BlockType::STONE;
+              } else {
+                type = BlockType::DIRT;
+              }
+            }
           }
         } else if ((bedrock_noise > 0.1 && y <= 6) || (y < 5)) {
           type = BlockType::BEDROCK;
