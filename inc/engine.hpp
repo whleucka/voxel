@@ -6,7 +6,7 @@
 #include "shader.hpp"
 #include "texture.hpp"
 #include "world.hpp"
-#include "shapes/cube.hpp"
+#include "wire_cube.hpp"
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
 #include <string>
@@ -34,7 +34,7 @@ public:
   Shader *highlight_shader = nullptr;
   glm::ivec3 selected_block;
   bool is_block_selected = false;
-  Cube *highlight_cube = nullptr;
+  WireCube *highlight_cube = nullptr;
 
 private:
   static void framebufferSizeCallback(GLFWwindow *window, int w, int h);

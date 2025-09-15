@@ -1,4 +1,5 @@
 #include "engine.hpp"
+#include "wire_cube.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/ext/scalar_constants.hpp>
 #include <glm/ext/vector_float3.hpp>
@@ -9,7 +10,6 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "render_ctx.hpp"
-#include "shapes/cube.hpp"
 #include "stb_image.h"
 #include "world.hpp"
 #include <sys/resource.h>
@@ -143,7 +143,7 @@ bool Engine::init() {
   block_shader = new Shader("shaders/block.vert", "shaders/block.frag");
   highlight_shader =
       new Shader("shaders/highlight.vert", "shaders/highlight.frag");
-  highlight_cube = new Cube();
+  highlight_cube = new WireCube();
   world = new World(atlas_texture);
   // Load initial chunk
   world->update(camera.getPos());
@@ -368,8 +368,8 @@ void Engine::render() {
 
     // Highlight cube last
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glLineWidth(5.0f);
-    highlight_cube->draw(*highlight_shader);
+    glLineWidth(10.0f);
+    highlight_cube->draw();
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   }
 

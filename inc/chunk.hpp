@@ -28,7 +28,8 @@ public:
   void setBlock(int x, int y, int z, BlockType type);
   ChunkKey getChunkKey() const;
 
-  Mesh mesh;
+  Mesh opaqueMesh;
+  Mesh transparentMesh;
   AABB m_aabb; // Add AABB member
 
 private:

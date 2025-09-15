@@ -13,6 +13,10 @@ struct BlockFaceTiles {
   AtlasTile px, nx, py, ny, pz, nz;
 };
 
+inline bool isTransparent(BlockType t) {
+    return (t == BlockType::WATER);
+}
+
 /**
  * block.hpp
  *

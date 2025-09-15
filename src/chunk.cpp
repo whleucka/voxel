@@ -154,48 +154,58 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
   }
 }
 
+Chunk::~Chunk() {}
+
 void Chunk::generateMesh(const Texture &atlas) {
-  mesh.vertices.clear();
-  mesh.indices.clear();
-  mesh.textures.clear();
-  mesh.textures.push_back(atlas);
+  opaqueMesh.vertices.clear();
+  opaqueMesh.indices.clear();
+  opaqueMesh.textures.clear();
+  opaqueMesh.textures.push_back(atlas);
+
+  transparentMesh.vertices.clear();
+  transparentMesh.indices.clear();
+  transparentMesh.textures.clear();
+  transparentMesh.textures.push_back(atlas);
+
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
       for (int y = 0; y < height; y++) {
-        if (blocks[x][z][y] == BlockType::AIR) {
-          continue;
-        }
+        if (blocks[x][z][y] == BlockType::AIR) continue;
 
         const BlockType type = blocks[x][z][y];
         const auto map = Block::tilesFor(type);
         Block block(type, V3(x, y, z));
 
-        if (faceVisible(x, y, z, 0)) { // +X
-          block.emitFace(FACE_PX, V3(1, 0, 0), map.px, mesh);
-        }
-        if (faceVisible(x, y, z, 1)) { // -X
-          block.emitFace(FACE_NX, V3(-1, 0, 0), map.nx, mesh);
-        }
-        if (faceVisible(x, y, z, 2)) { // +Y
-          block.emitFace(FACE_PY, V3(0, 1, 0), map.py, mesh);
-        }
-        if (faceVisible(x, y, z, 3)) { // -Y
-          block.emitFace(FACE_NY, V3(0, -1, 0), map.ny, mesh);
-        }
-        if (faceVisible(x, y, z, 4)) { // +Z
-          block.emitFace(FACE_PZ, V3(0, 0, 1), map.pz, mesh);
-        }
-        if (faceVisible(x, y, z, 5)) { // -Z
-          block.emitFace(FACE_NZ, V3(0, 0, -1), map.nz, mesh);
-        }
+        // Choose target mesh
+        Mesh &target = (type == BlockType::WATER) ? transparentMesh : opaqueMesh;
+
+        if (faceVisible(x, y, z, 0)) block.emitFace(FACE_PX, V3(1, 0, 0), map.px, target);
+        if (faceVisible(x, y, z, 1)) block.emitFace(FACE_NX, V3(-1, 0, 0), map.nx, target);
+        if (faceVisible(x, y, z, 2)) block.emitFace(FACE_PY, V3(0, 1, 0), map.py, target);
+        if (faceVisible(x, y, z, 3)) block.emitFace(FACE_NY, V3(0, -1, 0), map.ny, target);
+        if (faceVisible(x, y, z, 4)) block.emitFace(FACE_PZ, V3(0, 0, 1), map.pz, target);
+        if (faceVisible(x, y, z, 5)) block.emitFace(FACE_NZ, V3(0, 0, -1), map.nz, target);
       }
     }
   }
 }
 
-Chunk::~Chunk() {}
+void Chunk::draw(Shader &shader) {
+  // Draw opaque first
+  glDepthMask(GL_TRUE);
+  glDisable(GL_BLEND);
+  opaqueMesh.draw(shader);
 
-void Chunk::draw(Shader &shader) { mesh.draw(shader); }
+  // Then transparent
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glDepthMask(GL_FALSE);
+  transparentMesh.draw(shader);
+
+  // Restore state
+  glDepthMask(GL_TRUE);
+  glDisable(GL_BLEND);
+}
 
 BlockType Chunk::getBlock(int x, int y, int z) const {
   if (x < 0 || x >= width || y < 0 || y >= height || z < 0 || z >= length) {
