@@ -148,7 +148,7 @@ void World::update(glm::vec3 camera_pos) {
   }
 }
 
-void World::draw(renderCtx &ctx) {
+void World::drawOpaque(renderCtx &ctx) {
   if (chunks.empty())
     return;
 
@@ -174,7 +174,48 @@ void World::draw(renderCtx &ctx) {
                        glm::vec3(key.x * chunk_width, 0, key.z * chunk_length));
     glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "model"), 1,
                        GL_FALSE, glm::value_ptr(model));
-    chunk->draw(ctx.block_shader);
+    chunk->drawOpaque(ctx.block_shader); // Fixed: call drawOpaque
+  }
+}
+
+void World::drawTransparent(renderCtx &ctx) {
+  if (chunks.empty())
+    return;
+
+  glUseProgram(ctx.block_shader.ID);
+
+  glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "view"), 1,
+                     GL_FALSE, glm::value_ptr(ctx.view));
+  glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "projection"), 1,
+                     GL_FALSE, glm::value_ptr(ctx.proj));
+
+  // Get frustum planes from the camera
+  glm::vec4 frustumPlanes[6];
+  ctx.camera.getFrustumPlanes(frustumPlanes, ctx.proj * ctx.view);
+
+  // Sort chunks by distance from camera for proper transparent rendering
+  std::vector<std::pair<float, Chunk *>> sortedChunks;
+  for (auto &[key, chunk] : chunks) {
+    glm::vec3 chunkCenter = glm::vec3(key.x * chunk_width + chunk_width / 2.0f,
+                                      chunk_height / 2.0f,
+                                      key.z * chunk_length + chunk_length / 2.0f);
+    float distance = glm::length(ctx.camera.getPos() - chunkCenter);
+    sortedChunks.push_back({distance, chunk});
+  }
+  std::sort(sortedChunks.rbegin(), sortedChunks.rend()); // Sort back to front
+
+  for (auto &[distance, chunk] : sortedChunks) {
+    // Perform frustum culling
+    if (!chunk->m_aabb.intersectsFrustum(frustumPlanes)) {
+      continue; // Skip rendering this chunk if it's outside the frustum
+    }
+
+    glm::mat4 model =
+        glm::translate(glm::mat4(1.0f),
+                       glm::vec3(chunk->getChunkKey().x * chunk_width, 0, chunk->getChunkKey().z * chunk_length)); // Fixed: use chunk->getChunkKey()
+    glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "model"), 1,
+                       GL_FALSE, glm::value_ptr(model));
+    chunk->drawTransparent(ctx.block_shader);
   }
 }
 
@@ -184,16 +225,11 @@ BlockType World::getBlock(int x, int y, int z) {
 
   auto it = chunks.find(ChunkKey{cx, cz});
   if (it == chunks.end()) {
-    // Heuristic: if chunk is not loaded, assume solid below a certain height,
-    // and air above. This prevents internal faces from showing, and allows
-    // grass blocks at the edge to render.
-    // FIXME: This fixes a weird glitch, but causes another bug where the top
-    // level grass blocks are visible from within the chunk?
-    if (y < sea_level) {
-      return BlockType::STONE;
-    } else {
-      return BlockType::AIR;
-    }
+    // If outside vertical bounds, just return AIR so no walls appear
+    if (y < 0 || y >= chunk_height) return BlockType::AIR;
+
+    // Otherwise, truly unknown (neighbor not loaded yet)
+    return BlockType::UNKNOWN;
   }
 
   const int lx = worldToLocal(x, chunk_width);

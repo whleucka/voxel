@@ -16,4 +16,5 @@ enum BlockType {
   SAND,
   COBBLESTONE,
   SNOW,
+  UNKNOWN  // for unloaded chunks
 };

@@ -31,5 +31,6 @@ void main()
     vec3 lighting = ambientColor + diff * sunStrength;
 
     // Apply to texture
-    FragColor = vec4(texColor.rgb * lighting, texColor.a);
+    float alpha = texColor.a;
+    FragColor = vec4(texColor.rgb * lighting, alpha);
 }

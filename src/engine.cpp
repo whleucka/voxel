@@ -351,7 +351,17 @@ void Engine::render() {
                        0.5f, glm::max(50.0f, farPlane));
 
   renderCtx ctx{*block_shader, view, proj, camera};
-  world->draw(ctx);
+  world->drawOpaque(ctx); // Render opaque objects first
+
+  // Render transparent blocks
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glDepthMask(GL_FALSE); // Disable depth writing for transparent objects
+  glDisable(GL_CULL_FACE); // Disable culling for transparent objects
+  world->drawTransparent(ctx);
+  glEnable(GL_CULL_FACE); // Re-enable culling
+  glDepthMask(GL_TRUE); // Re-enable depth writing
+  glDisable(GL_BLEND); // Disable blending
 
   if (is_block_selected) {
     highlight_shader->use();

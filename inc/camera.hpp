@@ -29,7 +29,7 @@ public:
 
   Camera() { updateCameraVectors(); }
 
-  glm::vec3 getPos() { return position; }
+  glm::vec3 getPos() const { return position; }
   glm::vec3 getFront() { return front; }
 
   glm::mat4 getViewMatrix() const {

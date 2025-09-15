@@ -23,7 +23,8 @@ public:
   ~Chunk();
 
   void generateMesh(const Texture &atlas);
-  void draw(Shader &shader);
+  void drawOpaque(Shader &shader);
+  void drawTransparent(Shader &shader);
   BlockType getBlock(int x, int y, int z) const;
   void setBlock(int x, int y, int z, BlockType type);
   ChunkKey getChunkKey() const;
@@ -33,7 +34,7 @@ public:
   AABB m_aabb; // Add AABB member
 
 private:
-  bool faceVisible(int x, int y, int z, int dir) const;
+  bool faceVisible(int x, int y, int z, int dir, BlockType currentBlockType) const;
   // blocks[x][z][y]
   std::vector<std::vector<std::vector<BlockType>>> blocks;
   const int width;

@@ -46,7 +46,8 @@ public:
   const size_t max_cache = 256;
 
   void update(glm::vec3 camera_pos);
-  void draw(renderCtx &ctx);
+  void drawOpaque(renderCtx &ctx);
+  void drawTransparent(renderCtx &ctx);
   BlockType getBlock(int x, int y, int z);
   Chunk *getChunk(int chunk_x, int chunk_y);
   int getChunkCount() const;

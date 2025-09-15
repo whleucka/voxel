@@ -177,34 +177,25 @@ void Chunk::generateMesh(const Texture &atlas) {
         Block block(type, V3(x, y, z));
 
         // Choose target mesh
-        Mesh &target = (type == BlockType::WATER) ? transparentMesh : opaqueMesh;
+        Mesh &target = isTransparent(type) ? transparentMesh : opaqueMesh;
 
-        if (faceVisible(x, y, z, 0)) block.emitFace(FACE_PX, V3(1, 0, 0), map.px, target);
-        if (faceVisible(x, y, z, 1)) block.emitFace(FACE_NX, V3(-1, 0, 0), map.nx, target);
-        if (faceVisible(x, y, z, 2)) block.emitFace(FACE_PY, V3(0, 1, 0), map.py, target);
-        if (faceVisible(x, y, z, 3)) block.emitFace(FACE_NY, V3(0, -1, 0), map.ny, target);
-        if (faceVisible(x, y, z, 4)) block.emitFace(FACE_PZ, V3(0, 0, 1), map.pz, target);
-        if (faceVisible(x, y, z, 5)) block.emitFace(FACE_NZ, V3(0, 0, -1), map.nz, target);
+        if (faceVisible(x, y, z, 0, type)) block.emitFace(FACE_PX, V3(1, 0, 0), map.px, target);
+        if (faceVisible(x, y, z, 1, type)) block.emitFace(FACE_NX, V3(-1, 0, 0), map.nx, target);
+        if (faceVisible(x, y, z, 2, type)) block.emitFace(FACE_PY, V3(0, 1, 0), map.py, target);
+        if (faceVisible(x, y, z, 3, type)) block.emitFace(FACE_NY, V3(0, -1, 0), map.ny, target);
+        if (faceVisible(x, y, z, 4, type)) block.emitFace(FACE_PZ, V3(0, 0, 1), map.pz, target);
+        if (faceVisible(x, y, z, 5, type)) block.emitFace(FACE_NZ, V3(0, 0, -1), map.nz, target);
       }
     }
   }
 }
 
-void Chunk::draw(Shader &shader) {
-  // Draw opaque first
-  glDepthMask(GL_TRUE);
-  glDisable(GL_BLEND);
+void Chunk::drawOpaque(Shader &shader) {
   opaqueMesh.draw(shader);
+}
 
-  // Then transparent
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glDepthMask(GL_FALSE);
+void Chunk::drawTransparent(Shader &shader) {
   transparentMesh.draw(shader);
-
-  // Restore state
-  glDepthMask(GL_TRUE);
-  glDisable(GL_BLEND);
 }
 
 BlockType Chunk::getBlock(int x, int y, int z) const {
@@ -214,42 +205,47 @@ BlockType Chunk::getBlock(int x, int y, int z) const {
   return blocks[x][z][y];
 }
 
-bool Chunk::faceVisible(int x, int y, int z, int dir) const {
-  int nx = x, ny = y, nz = z;
-  switch (dir) {
-  case 0:
-    nx++;
-    break; // +X
-  case 1:
-    nx--;
-    break; // -X
-  case 2:
-    ny++;
-    break; // +Y
-  case 3:
-    ny--;
-    break; // -Y
-  case 4:
-    nz++;
-    break; // +Z
-  case 5:
-    nz--;
-    break; // -Z
-  }
+bool Chunk::faceVisible(int x, int y, int z, int dir, BlockType currentBlockType) const {
+    int nx = x, ny = y, nz = z;
+    switch (dir) {
+    case 0: nx++; break; // +X
+    case 1: nx--; break; // -X
+    case 2: ny++; break; // +Y
+    case 3: ny--; break; // -Y
+    case 4: nz++; break; // +Z
+    case 5: nz--; break; // -Z
+    }
 
-  // 1) If neighbor is inside this chunk, use local data (fast + robust)
-  if (nx >= 0 && nx < width && ny >= 0 && ny < height && nz >= 0 &&
-      nz < length) {
-    return blocks[nx][nz][ny] == BlockType::AIR;
-  }
+    // 1) Neighbor inside same chunk
+    if (nx >= 0 && nx < width && ny >= 0 && ny < height && nz >= 0 && nz < length) {
+        BlockType neighborType = blocks[nx][nz][ny];
 
-  // 2) Otherwise, query the world using GLOBAL coords derived from chunk
-  // indices.
-  const int gx = world_x * width + nx;
-  const int gy = ny;
-  const int gz = world_z * length + nz;
+        // Don’t render faces between blocks of the same type if both are transparent
+        if (isTransparent(currentBlockType) && neighborType == currentBlockType) {
+            return false;
+        }
 
-  return world->getBlock(gx, gy, gz) == BlockType::AIR;
+        // Otherwise: show if neighbor is air or transparent
+        return neighborType == BlockType::AIR || isTransparent(neighborType);
+    }
+
+    // 2) Neighbor in another chunk
+    const int gx = world_x * width + nx;
+    const int gy = ny;
+    const int gz = world_z * length + nz;
+
+    BlockType neighborType = world->getBlock(gx, gy, gz);
+
+    if (neighborType == BlockType::UNKNOWN) {
+        // Draw faces at chunk borders *except* for transparent blocks (no giant water walls)
+        return !isTransparent(currentBlockType);
+    }
+
+    if (isTransparent(currentBlockType) && neighborType == currentBlockType) {
+        return false;
+    }
+
+    return neighborType == BlockType::AIR || isTransparent(neighborType);
 }
 
 ChunkKey Chunk::getChunkKey() const { return {world_x, world_z}; }
