@@ -11,9 +11,6 @@
 #include <unordered_set>
 #include <vector>
 
-const int render_distance = 12;
-const size_t max_cache = 128;
-
 struct ChunkKey {
   int x, z;
   bool operator==(const ChunkKey &other) const {
@@ -23,6 +20,7 @@ struct ChunkKey {
 
 struct ChunkKeyHash {
   std::size_t operator()(const ChunkKey &k) const {
+    // hash x,z
     return std::hash<int>()(k.x) ^ (std::hash<int>()(k.z) << 1);
   }
 };
@@ -37,16 +35,22 @@ class World {
 public:
   World(Texture &block_atlas);
   ~World();
+
+  const int chunk_width = 16;
+  const int chunk_length = 16;
+  const int chunk_height = 256;
+  const int render_distance = 15;
+  const int max_chunks_per_frame = 6; // how many chunks to load per frame
+  const int sea_level = 42; // sea below y
+  const int snow_height = 70; // snow above y
+  const size_t max_cache = 256;
+
   void update(glm::vec3 camera_pos);
   void draw(renderCtx &ctx);
   BlockType getBlock(int x, int y, int z);
   Chunk *getChunk(int chunk_x, int chunk_y);
   int getChunkCount() const;
-  const int chunk_width = 16;
-  const int chunk_length = 16;
-  const int chunk_height = 256;
-  const int sea_level = 42; // sea below y 42
-  const int snow_height = 70; // snow above y 70
+  float getMaxChunks() const;
 
 private:
   std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash> chunks; // currently rendered

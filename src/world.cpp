@@ -9,9 +9,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <vector>
+#include <cmath>
 
 std::vector<ChunkKey> getChunkLoadOrder(int camChunkX, int camChunkZ,
-    int radius) {
+                                        int radius) {
   std::vector<ChunkKey> result;
 
   for (int dx = -radius; dx <= radius; dx++) {
@@ -27,13 +28,13 @@ std::vector<ChunkKey> getChunkLoadOrder(int camChunkX, int camChunkZ,
 
   // Sort by squared distance (cheaper than sqrt)
   std::sort(result.begin(), result.end(),
-      [&](const ChunkKey &a, const ChunkKey &b) {
-      int dax = a.x - camChunkX;
-      int daz = a.z - camChunkZ;
-      int dbx = b.x - camChunkX;
-      int dbz = b.z - camChunkZ;
-      return (dax * dax + daz * daz) < (dbx * dbx + dbz * dbz);
-      });
+            [&](const ChunkKey &a, const ChunkKey &b) {
+              int dax = a.x - camChunkX;
+              int daz = a.z - camChunkZ;
+              int dbx = b.x - camChunkX;
+              int dbz = b.z - camChunkZ;
+              return (dax * dax + daz * daz) < (dbx * dbx + dbz * dbz);
+            });
 
   return result;
 }
@@ -93,6 +94,11 @@ void World::unloadChunk(const ChunkKey &key) {
 
 int World::getChunkCount() const { return chunks.size(); }
 
+float World::getMaxChunks() const {
+  // Approximately
+  return round(glm::pi<float>() * pow(render_distance, 2));
+}
+
 Chunk *World::getChunk(int chunk_x, int chunk_z) {
   ChunkKey key{chunk_x, chunk_z};
   auto it = chunks.find(key);
@@ -108,12 +114,11 @@ void World::update(glm::vec3 camera_pos) {
 
   auto order = getChunkLoadOrder(cam_cx, cam_cz, render_distance);
 
-  int chunksLoadedThisFrame = 0;
-  int loadBudget = 5; // how many chunks to load per frame
+  int chunks_loaded_this_frame = 0;
   for (auto &key : order) {
     if (chunks.find(key) == chunks.end()) {
       loadChunk(key.x, key.z);
-      if (++chunksLoadedThisFrame >= loadBudget)
+      if (++chunks_loaded_this_frame >= max_chunks_per_frame)
         break;
     }
   }
@@ -158,11 +163,10 @@ void World::draw(renderCtx &ctx) {
 
   // Get frustum planes from the camera
   glm::vec4 frustumPlanes[6];
-  // For now, using hardcoded values from Engine::render()
   float aspect =
       ctx.proj[1][1] / ctx.proj[0][0]; // Extract aspect from projection matrix
   float near = 0.5f;
-  float far = 1024.0f;
+  float far = getMaxChunks();
   ctx.camera.getFrustumPlanes(frustumPlanes, aspect, near, far);
 
   for (auto &[key, chunk] : chunks) {

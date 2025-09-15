@@ -42,6 +42,8 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
   m_aabb.min = glm::vec3(world_x * width, 0, world_z * length);
   m_aabb.max =
       glm::vec3(world_x * width + width, height, world_z * length + length);
+
+  //~.~.~.~.~. TERRAIN GENERATION ~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.
   blocks.resize(width,
                 std::vector<std::vector<BlockType>>(
                     length, std::vector<BlockType>(height, BlockType::AIR)));
@@ -50,13 +52,6 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
   const float h_freq = 0.02f; // perlin noise frequency
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
-      // V2 pos(
-      //     (world_x * width + x) * h_freq,
-      //     (world_z * length + z) * h_freq);
-
-      // double hNoise = glm::perlin(pos) * 0.5 + 0.5; // [0,1]
-      // int perlin_height = static_cast<int>(hNoise * 20) + h_mod;
-
       // --- multi-octave Perlin noise (fBm) ---
       auto fbm = [](glm::vec2 p, int octaves, double lacunarity, double gain) {
         double sum = 0.0;
@@ -78,19 +73,22 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
                     (world_z * length + z) * h_freq);
 
       // 4 octaves, lacunarity=2.0, gain=0.5 → classic smooth fBm
-      double hNoise = fbm(pos, 4, 2.0, 0.5);
+      double hNoise = fbm(pos, 4, 1.8, 0.5);
       // // Scale to terrain height
       // int perlin_height = static_cast<int>(hNoise * 30) + h_mod;
 
       // --- large scale biome noise ---
-      glm::vec2 biome_pos((world_x * width + x) *
-                              0.001f, // much lower frequency
+      glm::vec2 biome_pos((world_x * width + x) * 0.001f, // much lower frequency
                           (world_z * length + z) * 0.001f);
 
       double biome_noise = glm::perlin(biome_pos) * 0.5 + 0.5; // [0,1]
 
       // Emphasize mountain regions (smoothstep makes it "rare")
-      double mountain_factor = glm::smoothstep(0.65, 0.85, biome_noise);
+      // I'll probably forget what this means:
+      // Takes your biome noise, says “only the highest values should count as mountains,” 
+      // and applies a smooth ramp so that instead of an ugly cliff at 0.45, 
+      // you get a nice smooth transition into mountains.
+      double mountain_factor = glm::smoothstep(0.45, 0.85, biome_noise);
 
       // Final height = base hills + mountains
       int perlin_height =
@@ -100,7 +98,7 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
               ) +
           h_mod;
 
-      // --- terrain generation ---
+      // Set block type
       for (int y = 0; y < perlin_height; y++) {
         BlockType type = BlockType::AIR;
         const double stone_noise =
@@ -146,7 +144,7 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
         blocks[x][z][y] = type;
       }
 
-      // --- water filling pass ---
+      // Fill water
       for (int y = perlin_height; y < world->sea_level; y++) {
         if (blocks[x][z][y] == BlockType::AIR) {
           blocks[x][z][y] = BlockType::WATER;
@@ -234,8 +232,6 @@ bool Chunk::faceVisible(int x, int y, int z, int dir) const {
 
   // 2) Otherwise, query the world using GLOBAL coords derived from chunk
   // indices.
-  //    NOTE: in your ctor, world_x/world_z are *chunk indices*, not block
-  //    offsets.
   const int gx = world_x * width + nx;
   const int gy = ny;
   const int gz = world_z * length + nz;

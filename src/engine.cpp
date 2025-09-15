@@ -1,5 +1,6 @@
 #include "engine.hpp"
 #include <GLFW/glfw3.h>
+#include <glm/ext/scalar_constants.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <iostream>
 #define STB_IMAGE_IMPLEMENTATION
@@ -7,6 +8,7 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "render_ctx.hpp"
+#include "world.hpp"
 #include "stb_image.h"
 #include <sys/resource.h>
 
@@ -147,7 +149,7 @@ bool Engine::init() {
 
 void Engine::loadAtlas(std::string path) {
   int w, h, channels;
-  stbi_set_flip_vertically_on_load(true); // match your UV orientation
+  stbi_set_flip_vertically_on_load(true); // flip the textures
   unsigned char *data = stbi_load(path.c_str(), &w, &h, &channels, 0);
   if (!data) {
     std::cerr << "Failed to load atlas: " << path << "\n";
@@ -316,7 +318,7 @@ void Engine::render() {
   glm::mat4 proj = glm::perspective(
       glm::radians(camera.zoom), float(width) / float(height),
       0.5f,   // near plane (don’t keep at 0.1 unless you need it)
-      1024.0f // far plane (match your chunk render distance)
+      world->getMaxChunks() // far plane (match render distance)
   );
 
   renderCtx ctx{*block_shader, view, proj, camera};
@@ -359,7 +361,7 @@ void Engine::stats() {
     ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
     const glm::vec3 pos = camera.getPos();
     ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
-    ImGui::Text("Chunks: %i", world->getChunkCount());
+    ImGui::Text("Chunks: %i/%i", world->getChunkCount(), static_cast<int>(world->getMaxChunks()));
     ImGui::Text("Memory usage: %zu MB", getMemoryUsage());
     ImGui::Checkbox("Wireframe mode", &wireframe);
     ImGui::End();
