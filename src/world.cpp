@@ -348,63 +348,81 @@ void World::addBlock(int x, int y, int z, BlockType type) {
   }
 }
 
-// Amanatides and Woo's algorithm for fast voxel traversal
+// Amanatides & Woo's voxel traversal (fixed)
 bool World::raycast(const glm::vec3 &start, const glm::vec3 &dir,
-                    float max_dist, glm::ivec3 &block_pos,
-                    glm::ivec3 &face_normal) {
-  glm::vec3 normalized_dir = glm::normalize(dir);
-  glm::ivec3 current_voxel(floor(start.x), floor(start.y), floor(start.z));
+    float max_dist, glm::ivec3 &block_pos,
+    glm::ivec3 &face_normal) 
+{
+  // Normalize ray direction
+  glm::vec3 ray_dir = glm::normalize(dir);
 
-  glm::ivec3 step;
-  step.x = (normalized_dir.x > 0) ? 1 : -1;
-  step.y = (normalized_dir.y > 0) ? 1 : -1;
-  step.z = (normalized_dir.z > 0) ? 1 : -1;
+  // Offset start a tiny bit so we don’t immediately collide with the voxel we’re inside
+  glm::vec3 pos = start + ray_dir * 0.0001f;
 
+  // Current voxel coordinates
+  glm::ivec3 voxel = glm::floor(pos);
+
+  // Step direction per axis
+  glm::ivec3 step(
+      (ray_dir.x > 0) ? 1 : -1,
+      (ray_dir.y > 0) ? 1 : -1,
+      (ray_dir.z > 0) ? 1 : -1
+      );
+
+  // Compute initial tMax (distance to the first voxel boundary)
   glm::vec3 tMax;
-  tMax.x = (step.x > 0) ? (ceil(start.x) - start.x) / normalized_dir.x
-                       : (start.x - floor(start.x)) / -normalized_dir.x;
-  tMax.y = (step.y > 0) ? (ceil(start.y) - start.y) / normalized_dir.y
-                       : (start.y - floor(start.y)) / -normalized_dir.y;
-  tMax.z = (step.z > 0) ? (ceil(start.z) - start.z) / normalized_dir.z
-                       : (start.z - floor(start.z)) / -normalized_dir.z;
+  auto intBound = [](float s, float ds, int step) -> float {
+    if (ds == 0.0f) return std::numeric_limits<float>::infinity();
+    float nextBoundary = (step > 0) ? std::floor(s + 1.0f) : std::ceil(s - 1.0f);
+    return (nextBoundary - s) / ds;
+  };
 
-  glm::vec3 tDelta;
-  tDelta.x = (normalized_dir.x != 0) ? std::abs(1.0f / normalized_dir.x) : max_dist;
-  tDelta.y = (normalized_dir.y != 0) ? std::abs(1.0f / normalized_dir.y) : max_dist;
-  tDelta.z = (normalized_dir.z != 0) ? std::abs(1.0f / normalized_dir.z) : max_dist;
+  tMax.x = intBound(pos.x, ray_dir.x, step.x);
+  tMax.y = intBound(pos.y, ray_dir.y, step.y);
+  tMax.z = intBound(pos.z, ray_dir.z, step.z);
+
+  // Distance between voxel boundaries along each axis
+  glm::vec3 tDelta(
+      (ray_dir.x != 0.0f) ? std::abs(1.0f / ray_dir.x) : std::numeric_limits<float>::infinity(),
+      (ray_dir.y != 0.0f) ? std::abs(1.0f / ray_dir.y) : std::numeric_limits<float>::infinity(),
+      (ray_dir.z != 0.0f) ? std::abs(1.0f / ray_dir.z) : std::numeric_limits<float>::infinity()
+      );
 
   float dist = 0.0f;
-  while (dist < max_dist) {
+  face_normal = glm::ivec3(0);
+
+  while (dist <= max_dist) {
+    // Check voxel
+    if (getBlock(voxel.x, voxel.y, voxel.z) != BlockType::AIR) {
+      block_pos = voxel;
+      return true;
+    }
+
+    // Step to next voxel
     if (tMax.x < tMax.y) {
       if (tMax.x < tMax.z) {
-        current_voxel.x += step.x;
+        voxel.x += step.x;
         dist = tMax.x;
         tMax.x += tDelta.x;
         face_normal = glm::ivec3(-step.x, 0, 0);
       } else {
-        current_voxel.z += step.z;
+        voxel.z += step.z;
         dist = tMax.z;
         tMax.z += tDelta.z;
         face_normal = glm::ivec3(0, 0, -step.z);
       }
     } else {
       if (tMax.y < tMax.z) {
-        current_voxel.y += step.y;
+        voxel.y += step.y;
         dist = tMax.y;
         tMax.y += tDelta.y;
         face_normal = glm::ivec3(0, -step.y, 0);
       } else {
-        current_voxel.z += step.z;
+        voxel.z += step.z;
         dist = tMax.z;
         tMax.z += tDelta.z;
         face_normal = glm::ivec3(0, 0, -step.z);
       }
-    }
-
-    if (getBlock(current_voxel.x, current_voxel.y, current_voxel.z) !=
-        BlockType::AIR) {
-      block_pos = current_voxel;
-      return true;
     }
   }
 

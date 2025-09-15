@@ -9,9 +9,9 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "render_ctx.hpp"
-#include "world.hpp"
-#include "stb_image.h"
 #include "shapes/cube.hpp"
+#include "stb_image.h"
+#include "world.hpp"
 #include <sys/resource.h>
 
 glm::vec3 night(0.0f, 11.0f / 255.0f, 28.0f / 255.0f);
@@ -137,7 +137,8 @@ bool Engine::init() {
   // Load assets/world
   loadAtlas("res/block_atlas.png");
   block_shader = new Shader("shaders/block.vert", "shaders/block.frag");
-  highlight_shader = new Shader("shaders/highlight.vert", "shaders/highlight.frag");
+  highlight_shader =
+      new Shader("shaders/highlight.vert", "shaders/highlight.frag");
   highlight_cube = new Cube();
   world = new World(atlas_texture);
   // Load initial chunk
@@ -228,10 +229,14 @@ void Engine::update() {
   world->update(camera.getPos());
 
   // Raycast for block selection
-  glm::ivec3 block_pos, prev_block_pos;
-  is_block_selected = world->raycast(camera.getPos(), camera.getFront(), 10.0f, block_pos, prev_block_pos);
+  glm::ivec3 block_pos;
+  glm::ivec3 face_normal;
+
+  is_block_selected = world->raycast(camera.getPos(), camera.getFront(), 10.0f,
+                                     block_pos, face_normal);
+
   if (is_block_selected) {
-    selected_block = block_pos;
+    selected_block = block_pos; // block you’re pointing at
   }
 }
 
@@ -334,22 +339,27 @@ void Engine::render() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   glm::mat4 view = camera.getViewMatrix();
-  glm::mat4 proj = glm::perspective(
-      glm::radians(camera.zoom), float(width) / float(height),
-      0.5f,   // near plane (don’t keep at 0.1 unless you need it)
-      world->getMaxChunks() // far plane (match render distance)
-  );
+  float chunkSize = world->chunk_width; // e.g., chunk_width in world units
+  float farPlane = (world->render_distance + 2) * chunkSize * 1.5f;
+  glm::mat4 proj =
+      glm::perspective(glm::radians(camera.zoom), float(width) / float(height),
+                       0.5f, glm::max(50.0f, farPlane));
 
   renderCtx ctx{*block_shader, view, proj, camera};
   world->draw(ctx);
 
   if (is_block_selected) {
     highlight_shader->use();
-    glUniformMatrix4fv(glGetUniformLocation(highlight_shader->ID, "view"), 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(glGetUniformLocation(highlight_shader->ID, "projection"), 1, GL_FALSE, glm::value_ptr(proj));
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(selected_block));
-    model = glm::scale(model, glm::vec3(1.01f)); // Make it slightly larger than the block
-    glUniformMatrix4fv(glGetUniformLocation(highlight_shader->ID, "model"), 1, GL_FALSE, glm::value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(highlight_shader->ID, "view"), 1,
+                       GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(glGetUniformLocation(highlight_shader->ID, "projection"),
+                       1, GL_FALSE, glm::value_ptr(proj));
+    glm::mat4 model =
+        glm::translate(glm::mat4(1.0f), glm::vec3(selected_block));
+    model = glm::scale(
+        model, glm::vec3(1.01f)); // Make it slightly larger than the block
+    glUniformMatrix4fv(glGetUniformLocation(highlight_shader->ID, "model"), 1,
+                       GL_FALSE, glm::value_ptr(model));
     highlight_cube->draw(*highlight_shader);
   }
 
@@ -362,19 +372,17 @@ void Engine::render() {
 }
 
 void Engine::drawCrosshairImGui() {
-  ImVec2 center(ImGui::GetIO().DisplaySize.x * 0.5f,
-                ImGui::GetIO().DisplaySize.y * 0.5f);
+  ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+  ImDrawList *dl = ImGui::GetForegroundDrawList();
 
-  ImDrawList *draw_list = ImGui::GetForegroundDrawList();
   float size = 10.0f;
   float thickness = 2.0f;
   ImU32 color = IM_COL32(255, 255, 255, 255);
 
-  // Drawing a crosshair on the screen
-  draw_list->AddLine(ImVec2(center.x - size, center.y),
-                     ImVec2(center.x + size, center.y), color, thickness);
-  draw_list->AddLine(ImVec2(center.x, center.y - size),
-                     ImVec2(center.x, center.y + size), color, thickness);
+  dl->AddLine(ImVec2(center.x - size, center.y),
+              ImVec2(center.x + size, center.y), color, thickness);
+  dl->AddLine(ImVec2(center.x, center.y - size),
+              ImVec2(center.x, center.y + size), color, thickness);
 }
 
 void Engine::imgui() {
