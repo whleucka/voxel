@@ -65,7 +65,7 @@ void World::loadChunk(int x, int z) {
   // Enqueue for threaded generation
   {
     std::lock_guard<std::mutex> lock(_load_q_mutex);
-    if (_loading_q.count(key))
+    if (_loading_q.count(key) || _loading_q.size() > max_cache)
       return;
     _load_q.push(key);
     _loading_q.insert(key);
@@ -80,15 +80,12 @@ void World::unloadChunk(const ChunkKey &key) {
   if (it != chunks.end()) {
     std::cout << "UNLOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
     // Move chunk into cache
-    cache[key] = it->second;
-    chunks.erase(it);
-
-    // Evict oldest if cache too big
-    if (cache.size() > max_cache) {
-      auto oldest = cache.begin(); // naive eviction
-      delete oldest->second;       // free memory
-      cache.erase(oldest);
+    if (cache.size() < max_cache) {
+      cache[key] = it->second;
+    } else {
+      delete it->second;
     }
+    chunks.erase(it);
   }
 }
 
@@ -241,14 +238,19 @@ void World::threadLoop() {
       _load_q.pop();
     }
 
-    // Fresh generate chunk
-    Chunk *chunk =
-        new Chunk(chunk_width, chunk_length, chunk_height, key.x, key.z, this);
-    chunk->generateMesh(block_atlas);
+    try {
+      // Fresh generate chunk
+      Chunk *chunk =
+          new Chunk(chunk_width, chunk_length, chunk_height, key.x, key.z, this);
+      chunk->generateMesh(block_atlas);
 
-    {
-      std::lock_guard<std::mutex> lock(_generated_q_mutex);
-      _generated_q.push(chunk);
+      {
+        std::lock_guard<std::mutex> lock(_generated_q_mutex);
+        _generated_q.push(chunk);
+      }
+    } catch (const std::bad_alloc &e) {
+      std::cerr << "Failed to allocate memory for chunk: " << e.what() << std::endl;
+      _loading_q.erase(key);
     }
   }
 }
