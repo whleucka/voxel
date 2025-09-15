@@ -351,7 +351,7 @@ void World::addBlock(int x, int y, int z, BlockType type) {
 // Amanatides and Woo's algorithm for fast voxel traversal
 bool World::raycast(const glm::vec3 &start, const glm::vec3 &dir,
                     float max_dist, glm::ivec3 &block_pos,
-                    glm::ivec3 &prev_block_pos) {
+                    glm::ivec3 &face_normal) {
   glm::vec3 normalized_dir = glm::normalize(dir);
   glm::ivec3 current_voxel(floor(start.x), floor(start.y), floor(start.z));
 
@@ -375,34 +375,36 @@ bool World::raycast(const glm::vec3 &start, const glm::vec3 &dir,
 
   float dist = 0.0f;
   while (dist < max_dist) {
-    if (getBlock(current_voxel.x, current_voxel.y, current_voxel.z) !=
-        BlockType::AIR) {
-      block_pos = current_voxel;
-      return true;
-    }
-
-    prev_block_pos = current_voxel;
-
     if (tMax.x < tMax.y) {
       if (tMax.x < tMax.z) {
         current_voxel.x += step.x;
         dist = tMax.x;
         tMax.x += tDelta.x;
+        face_normal = glm::ivec3(-step.x, 0, 0);
       } else {
         current_voxel.z += step.z;
         dist = tMax.z;
         tMax.z += tDelta.z;
+        face_normal = glm::ivec3(0, 0, -step.z);
       }
     } else {
       if (tMax.y < tMax.z) {
         current_voxel.y += step.y;
         dist = tMax.y;
         tMax.y += tDelta.y;
+        face_normal = glm::ivec3(0, -step.y, 0);
       } else {
         current_voxel.z += step.z;
         dist = tMax.z;
         tMax.z += tDelta.z;
+        face_normal = glm::ivec3(0, 0, -step.z);
       }
+    }
+
+    if (getBlock(current_voxel.x, current_voxel.y, current_voxel.z) !=
+        BlockType::AIR) {
+      block_pos = current_voxel;
+      return true;
     }
   }
 

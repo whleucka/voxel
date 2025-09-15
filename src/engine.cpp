@@ -2,6 +2,7 @@
 #include <GLFW/glfw3.h>
 #include <glm/ext/scalar_constants.hpp>
 #include <glm/ext/vector_float3.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <iostream>
 #define STB_IMAGE_IMPLEMENTATION
 #include "imgui.h"
@@ -10,6 +11,7 @@
 #include "render_ctx.hpp"
 #include "world.hpp"
 #include "stb_image.h"
+#include "shapes/cube.hpp"
 #include <sys/resource.h>
 
 glm::vec3 night(0.0f, 11.0f / 255.0f, 28.0f / 255.0f);
@@ -135,6 +137,8 @@ bool Engine::init() {
   // Load assets/world
   loadAtlas("res/block_atlas.png");
   block_shader = new Shader("shaders/block.vert", "shaders/block.frag");
+  highlight_shader = new Shader("shaders/highlight.vert", "shaders/highlight.frag");
+  highlight_cube = new Cube();
   world = new World(atlas_texture);
   // Load initial chunk
   world->update(camera.getPos());
@@ -222,6 +226,13 @@ void Engine::update() {
 
   // Update world
   world->update(camera.getPos());
+
+  // Raycast for block selection
+  glm::ivec3 block_pos, prev_block_pos;
+  is_block_selected = world->raycast(camera.getPos(), camera.getFront(), 10.0f, block_pos, prev_block_pos);
+  if (is_block_selected) {
+    selected_block = block_pos;
+  }
 }
 
 void Engine::updateSky() {
@@ -332,6 +343,16 @@ void Engine::render() {
   renderCtx ctx{*block_shader, view, proj, camera};
   world->draw(ctx);
 
+  if (is_block_selected) {
+    highlight_shader->use();
+    glUniformMatrix4fv(glGetUniformLocation(highlight_shader->ID, "view"), 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(glGetUniformLocation(highlight_shader->ID, "projection"), 1, GL_FALSE, glm::value_ptr(proj));
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(selected_block));
+    model = glm::scale(model, glm::vec3(1.01f)); // Make it slightly larger than the block
+    glUniformMatrix4fv(glGetUniformLocation(highlight_shader->ID, "model"), 1, GL_FALSE, glm::value_ptr(model));
+    highlight_cube->draw(*highlight_shader);
+  }
+
   GLenum error = glGetError();
   if (error != GL_NO_ERROR) {
     fprintf(stderr, "OpenGL Error after world->draw: 0x%x\n", error);
@@ -401,12 +422,13 @@ void Engine::cleanup() {
 
 void Engine::handleMouseClick(int button, int action, int mods) {
   if (action == GLFW_PRESS) {
-    glm::ivec3 block_pos, prev_block_pos;
+    glm::ivec3 block_pos, face_normal;
     if (world->raycast(camera.getPos(), camera.getFront(), 10.0f, block_pos,
-                       prev_block_pos)) {
+                       face_normal)) {
       if (button == GLFW_MOUSE_BUTTON_LEFT) {
         world->removeBlock(block_pos.x, block_pos.y, block_pos.z);
       } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+        glm::ivec3 prev_block_pos = block_pos + face_normal;
         world->addBlock(prev_block_pos.x, prev_block_pos.y, prev_block_pos.z,
                         BlockType::STONE);
       }

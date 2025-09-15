@@ -1,63 +1,38 @@
 #include "shapes/cube.hpp"
+#include <vector>
 
-namespace Cube {
-const std::array<Vertex, 4> faceVertices[6] = {
-    // FRONT face (z = +0.5f)
-    std::array<Vertex, 4>{{
-        {{-0.5f, -0.5f, 0.5f}, {0.f, 0.f, 1.f}, {0.f, 0.f}}, // bottom-left
-        {{0.5f, -0.5f, 0.5f}, {0.f, 0.f, 1.f}, {1.f, 0.f}},  // bottom-right
-        {{0.5f, 0.5f, 0.5f}, {0.f, 0.f, 1.f}, {1.f, 1.f}},   // top-right
-        {{-0.5f, 0.5f, 0.5f}, {0.f, 0.f, 1.f}, {0.f, 1.f}},  // top-left
-    }},
+Cube::Cube() {
+  std::vector<Vertex> vertices = {
+      // Front face
+      {{-0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}},
+      {{0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
+      {{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+      {{-0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+      // Back face
+      {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},
+      {{0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
+      {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
+      {{-0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
+  };
 
-    // BACK face (z = -0.5f)
-    std::array<Vertex, 4>{{
-        {{0.5f, -0.5f, -0.5f}, {0.f, 0.f, -1.f}, {0.f, 0.f}},
-        {{-0.5f, -0.5f, -0.5f}, {0.f, 0.f, -1.f}, {1.f, 0.f}},
-        {{-0.5f, 0.5f, -0.5f}, {0.f, 0.f, -1.f}, {1.f, 1.f}},
-        {{0.5f, 0.5f, -0.5f}, {0.f, 0.f, -1.f}, {0.f, 1.f}},
-    }},
+  std::vector<unsigned int> indices = {
+      // Front face
+      0, 1, 2, 0, 2, 3,
+      // Back face
+      4, 5, 6, 4, 6, 7,
+      // Left face
+      4, 0, 3, 4, 3, 7,
+      // Right face
+      1, 5, 6, 1, 6, 2,
+      // Top face
+      3, 2, 6, 3, 6, 7,
+      // Bottom face
+      0, 1, 5, 0, 5, 4
+  };
 
-    // LEFT face (x = -0.5f)
-    std::array<Vertex, 4>{{
-        {{-0.5f, -0.5f, -0.5f}, {-1.f, 0.f, 0.f}, {0.f, 0.f}},
-        {{-0.5f, -0.5f, 0.5f}, {-1.f, 0.f, 0.f}, {1.f, 0.f}},
-        {{-0.5f, 0.5f, 0.5f}, {-1.f, 0.f, 0.f}, {1.f, 1.f}},
-        {{-0.5f, 0.5f, -0.5f}, {-1.f, 0.f, 0.f}, {0.f, 1.f}},
-    }},
+  mesh.vertices = vertices;
+  mesh.indices = indices;
+  mesh.setupMesh();
+}
 
-    // RIGHT face (x = +0.5f)
-    std::array<Vertex, 4>{{
-        {{0.5f, -0.5f, 0.5f}, {1.f, 0.f, 0.f}, {0.f, 0.f}},
-        {{0.5f, -0.5f, -0.5f}, {1.f, 0.f, 0.f}, {1.f, 0.f}},
-        {{0.5f, 0.5f, -0.5f}, {1.f, 0.f, 0.f}, {1.f, 1.f}},
-        {{0.5f, 0.5f, 0.5f}, {1.f, 0.f, 0.f}, {0.f, 1.f}},
-    }},
-
-    // TOP face (y = +0.5f)
-    std::array<Vertex, 4>{{
-        {{-0.5f, 0.5f, 0.5f}, {0.f, 1.f, 0.f}, {0.f, 0.f}},
-        {{0.5f, 0.5f, 0.5f}, {0.f, 1.f, 0.f}, {1.f, 0.f}},
-        {{0.5f, 0.5f, -0.5f}, {0.f, 1.f, 0.f}, {1.f, 1.f}},
-        {{-0.5f, 0.5f, -0.5f}, {0.f, 1.f, 0.f}, {0.f, 1.f}},
-    }},
-
-    // BOTTOM face (y = -0.5f)
-    std::array<Vertex, 4>{{
-        {{-0.5f, -0.5f, -0.5f}, {0.f, -1.f, 0.f}, {0.f, 0.f}},
-        {{0.5f, -0.5f, -0.5f}, {0.f, -1.f, 0.f}, {1.f, 0.f}},
-        {{0.5f, -0.5f, 0.5f}, {0.f, -1.f, 0.f}, {1.f, 1.f}},
-        {{-0.5f, -0.5f, 0.5f}, {0.f, -1.f, 0.f}, {0.f, 1.f}},
-    }},
-};
-
-// indices for each face (two triangles per quad, CCW winding)
-const std::array<unsigned int, 6> faceIndices[6] = {
-    {0, 1, 2, 0, 2, 3}, // front
-    {0, 1, 2, 0, 2, 3}, // back
-    {0, 1, 2, 0, 2, 3}, // left
-    {0, 1, 2, 0, 2, 3}, // right
-    {0, 1, 2, 0, 2, 3}, // top
-    {0, 1, 2, 0, 2, 3}, // bottom
-};
-} // namespace Cube
+void Cube::draw(Shader &shader) { mesh.draw(shader); }

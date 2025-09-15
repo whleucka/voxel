@@ -1,18 +1,12 @@
 #pragma once
 
-#include "vertex.hpp"
-#include <array>
+#include "mesh.hpp"
 
-/**
- * cube.hpp
- *
- * Provides static cube geometry for voxel rendering.
- *
- */
-namespace Cube {
-// 6 faces, each face has 4 vertices
-extern const std::array<Vertex, 4> faceVertices[6];
+class Cube {
+public:
+  Cube();
+  void draw(Shader &shader);
 
-// 6 faces, each face has 6 indices (two triangles)
-extern const std::array<unsigned int, 6> faceIndices[6];
-} // namespace Cube
+private:
+  Mesh mesh;
+};

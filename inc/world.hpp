@@ -52,7 +52,7 @@ public:
   int getChunkCount() const;
   float getMaxChunks() const;
   bool raycast(const glm::vec3 &start, const glm::vec3 &dir, float max_dist,
-               glm::ivec3 &block_pos, glm::ivec3 &prev_block_pos);
+               glm::ivec3 &block_pos, glm::ivec3 &face_normal);
   void removeBlock(int x, int y, int z);
   void addBlock(int x, int y, int z, BlockType type);
 

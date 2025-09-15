@@ -6,6 +6,7 @@
 #include "shader.hpp"
 #include "texture.hpp"
 #include "world.hpp"
+#include "shapes/cube.hpp"
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
 #include <string>
@@ -30,6 +31,10 @@ public:
   Texture atlas_texture;
   bool debug = false;
   bool wireframe = false;
+  Shader *highlight_shader = nullptr;
+  glm::ivec3 selected_block;
+  bool is_block_selected = false;
+  Cube *highlight_cube = nullptr;
 
 private:
   static void framebufferSizeCallback(GLFWwindow *window, int w, int h);
