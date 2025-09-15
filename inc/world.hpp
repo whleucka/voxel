@@ -48,7 +48,7 @@ public:
   void update(glm::vec3 camera_pos);
   void drawOpaque(renderCtx &ctx);
   void drawTransparent(renderCtx &ctx);
-  BlockType getBlock(int x, int y, int z);
+  BlockType getBlock(int x, int y, int z) const;
   Chunk *getChunk(int chunk_x, int chunk_y);
   int getChunkCount() const;
   float getMaxChunks() const;

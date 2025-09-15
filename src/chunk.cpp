@@ -205,28 +205,38 @@ BlockType Chunk::getBlock(int x, int y, int z) const {
   return blocks[x][z][y];
 }
 
+static bool isExposedWater(const World* world, int gx, int gy, int gz) {
+    if (world->getBlock(gx, gy, gz) != BlockType::WATER) return false;
+
+    // Look upward until sea level
+    for (int y = gy + 1; y < world->sea_level; ++y) {
+        BlockType above = world->getBlock(gx, y, gz);
+        if (above == BlockType::AIR) return true;      // exposed to sky
+        if (above != BlockType::WATER) return false;   // blocked by solid
+    }
+    return false;
+}
+
 bool Chunk::faceVisible(int x, int y, int z, int dir, BlockType currentBlockType) const {
     int nx = x, ny = y, nz = z;
     switch (dir) {
-    case 0: nx++; break; // +X
-    case 1: nx--; break; // -X
-    case 2: ny++; break; // +Y
-    case 3: ny--; break; // -Y
-    case 4: nz++; break; // +Z
-    case 5: nz--; break; // -Z
+    case 0: nx++; break; 
+    case 1: nx--; break;
+    case 2: ny++; break;
+    case 3: ny--; break;
+    case 4: nz++; break;
+    case 5: nz--; break;
     }
 
-    // 1) Neighbor inside same chunk
+    // 1) Neighbor inside this chunk
     if (nx >= 0 && nx < width && ny >= 0 && ny < height && nz >= 0 && nz < length) {
         BlockType neighborType = blocks[nx][nz][ny];
 
-        // Don’t render faces between blocks of the same type if both are transparent
-        if (isTransparent(currentBlockType) && neighborType == currentBlockType) {
-            return false;
+        if (isTransparent(currentBlockType)) {
+            return neighborType == BlockType::AIR; // water shows surfaces only
+        } else {
+            return (neighborType == BlockType::AIR || neighborType == BlockType::WATER);
         }
-
-        // Otherwise: show if neighbor is air or transparent
-        return neighborType == BlockType::AIR || isTransparent(neighborType);
     }
 
     // 2) Neighbor in another chunk
@@ -237,15 +247,15 @@ bool Chunk::faceVisible(int x, int y, int z, int dir, BlockType currentBlockType
     BlockType neighborType = world->getBlock(gx, gy, gz);
 
     if (neighborType == BlockType::UNKNOWN) {
-        // Draw faces at chunk borders *except* for transparent blocks (no giant water walls)
+        if (gy < world->sea_level) return false; // no underground walls
         return !isTransparent(currentBlockType);
     }
 
-    if (isTransparent(currentBlockType) && neighborType == currentBlockType) {
-        return false;
+    if (isTransparent(currentBlockType)) {
+        return neighborType == BlockType::AIR;
+    } else {
+        return (neighborType == BlockType::AIR || neighborType == BlockType::WATER);
     }
-
-    return neighborType == BlockType::AIR || isTransparent(neighborType);
 }
 
 ChunkKey Chunk::getChunkKey() const { return {world_x, world_z}; }

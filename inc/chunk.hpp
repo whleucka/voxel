@@ -10,6 +10,12 @@
 class World;
 struct ChunkKey;
 
+inline bool letsNeighborRender(BlockType t) {
+    // Which blocks should cause neighbors to show their faces?
+    // Air always does. Glass/leaves would too if you add them.
+    return (t == BlockType::AIR);
+}
+
 /**
  * chunk.hpp
  *

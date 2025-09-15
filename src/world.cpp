@@ -219,7 +219,7 @@ void World::drawTransparent(renderCtx &ctx) {
   }
 }
 
-BlockType World::getBlock(int x, int y, int z) {
+BlockType World::getBlock(int x, int y, int z) const {
   const int cx = worldToChunk(x, chunk_width);
   const int cz = worldToChunk(z, chunk_length);
 
