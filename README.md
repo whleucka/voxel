@@ -1,15 +1,17 @@
-# Voxel
+# Voxel 3D engine
 
 <img width="1920" height="1054" alt="screenshot-2025-09-11_20-51-50" src="https://github.com/user-attachments/assets/bc312763-0687-4d7d-a272-d8330ba738a6" />
 <img width="1921" height="1081" alt="image" src="https://github.com/user-attachments/assets/9a1d090b-0054-4af9-a21c-01ccc61f7eb4" />
 
-A simple, Minecraft-inspired voxel game engine and prototype built with C++ and OpenGL. This project aims to explore fundamental voxel rendering techniques, chunk management, and basic game mechanics.
-
+* A simple hobby project: A Minecraft-inspired voxel game engine and prototype built with C++ and OpenGL. 
+* Goals: explore fundamental voxel rendering techniques, chunk management, and basic game mechanics.
+* Fun fact: my 8 year old daughter helped make some of the block textures!
 
 ## Features
 
+*   **Custom textures:** Custom block textures created with GIMP.
 *   **Chunk-based World:** Efficiently manages and renders large voxel worlds using a chunk system.
-*   **Basic Block Types:** Supports various block types (e.g., dirt, grass, stone, water, etc) with texture atlasing (using GIMP to build image atlas).
+*   **Basic Block Types:** Supports various block types (e.g., dirt, grass, stone, water, etc) with texture atlasing.
 *   **First-Person Camera:** Implements a standard first-person camera for exploration.
 *   **Shader-based Rendering:** Utilizes modern OpenGL shaders for rendering blocks and the world.
 *   **Debug UI:** Integrated Dear ImGui for in-game debugging and parameter tweaking.
@@ -17,7 +19,7 @@ A simple, Minecraft-inspired voxel game engine and prototype built with C++ and 
 
 ## Voxel Engine Next Steps
 
-*   **Collision detection:**
+*   **Collision detection**
 *   **Day/night cycle**
 *   **Fog**
 *   **Block face shading**
@@ -62,6 +64,8 @@ After successful compilation, you can run the game using:
 ./bin/voxel
 ```
 
+Drawing blocks couldn't be *that* hard... *Right?*
+
 ## Controls
 
 *   **F3:** Show debug info/stats.
@@ -78,6 +82,7 @@ After successful compilation, you can run the game using:
 *   `inc/`: Header files for the project.
 *   `shaders/`: GLSL shader programs (`.vert` for vertex, `.frag` for fragment).
 *   `assets/`: Textures and other game assets.
+*   `res/`: Contains game resource.
 *   `bin/`: Compiled executable.
 *   `obj/`: Object files generated during compilation.
 *   `makefile`: Build instructions for the project.
@@ -88,11 +93,12 @@ Contributions are welcome! If you have suggestions for improvements, bug fixes, 
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details (if you have one, otherwise consider adding one).
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
-*   [LearnOpenGL.com](https://learnopengl.com/): Learning OpenGL resource
+*   [LearnOpenGL.com](https://learnopengl.com/): Learning OpenGL resource.
+*   [gimp](https://www.gimp.org): GNU Image Manipulation Program.
 *   [GLFW](https://www.glfw.org/): For window and input management.
 *   [GLAD](https://glad.dav1d.de/): For loading OpenGL function pointers.
 *   [Dear ImGui](https://github.com/ocornut/imgui): For the immediate-mode GUI used for debugging.
