@@ -126,6 +126,10 @@ bool Engine::init() {
   glViewport(0, 0, width, height);
   glDepthRange(0.0, 1.0);
   glClearDepth(1.0);
+
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
   glEnable(GL_DEPTH_TEST); // enable depth so faces don’t z-fight
   glEnable(GL_CULL_FACE);
   glCullFace(GL_BACK);
@@ -329,6 +333,7 @@ void Engine::updateSky() {
 
 void Engine::render() {
   if (wireframe) {
+    glLineWidth(2.0f);
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
   } else {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -360,7 +365,12 @@ void Engine::render() {
         model, glm::vec3(1.01f)); // Make it slightly larger than the block
     glUniformMatrix4fv(glGetUniformLocation(highlight_shader->ID, "model"), 1,
                        GL_FALSE, glm::value_ptr(model));
+
+    // Highlight cube last
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glLineWidth(5.0f);
     highlight_cube->draw(*highlight_shader);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   }
 
   GLenum error = glGetError();
