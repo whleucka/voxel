@@ -1,8 +1,8 @@
 #pragma once
 
-#include <glm/glm.hpp>
-#include "mesh.hpp"
 #include "block_type.hpp"
+#include "mesh.hpp"
+#include <glm/glm.hpp>
 
 struct AtlasTile {
   int x;
@@ -13,9 +13,7 @@ struct BlockFaceTiles {
   AtlasTile px, nx, py, ny, pz, nz;
 };
 
-inline bool isTransparent(BlockType t) {
-    return (t == BlockType::WATER);
-}
+inline bool isTransparent(BlockType t) { return (t == BlockType::WATER); }
 
 /**
  * block.hpp
@@ -27,21 +25,19 @@ class Block {
 public:
   BlockType type;
 
-  Block(BlockType type,
-        const glm::vec3& position = glm::vec3(0.0f),
+  Block(BlockType type, const glm::vec3 &position = glm::vec3(0.0f),
         int tilesPerAxis = 16);
 
   static BlockFaceTiles tilesFor(BlockType t);
   int tilesPerAxis() const { return tiles_per_axis; }
 
-  void emitFace(const glm::vec3 (&verts)[4],
-                const glm::vec3& faceNormal,
-                const AtlasTile& tile, Mesh& mesh);
-  void appendQuadIndices(Mesh& mesh);
+  void emitFace(const glm::vec3 (&verts)[4], const glm::vec3 &faceNormal,
+                const AtlasTile &tile, Mesh &mesh);
+  void appendQuadIndices(Mesh &mesh);
 
 private:
   glm::vec3 pos;
   int tiles_per_axis;
 
-  void tileUVs(const AtlasTile& tile, glm::vec2 (&uv)[4]) const;
+  void tileUVs(const AtlasTile &tile, glm::vec2 (&uv)[4]) const;
 };

@@ -41,8 +41,8 @@ public:
   const int chunk_height = 256;
   const int render_distance = 15;
   const int max_chunks_per_frame = 6; // how many chunks to load per frame
-  const int sea_level = 42; // sea below y
-  const int snow_height = 70; // snow above y
+  const int sea_level = 42;           // sea below y
+  const int snow_height = 70;         // snow above y
   const size_t max_cache = 256;
 
   void update(glm::vec3 camera_pos);
@@ -60,7 +60,7 @@ private:
   std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash>
       chunks; // currently rendered
   std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash>
-      cache; // inactive but saved
+      cache;                                             // inactive but saved
   std::unordered_set<ChunkKey, ChunkKeyHash> _loading_q; // being generated
   Texture &block_atlas;
   // Thread stuff

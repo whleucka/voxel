@@ -1,10 +1,10 @@
 #pragma once
 
+#include "aabb.hpp" // Include AABB header
 #include "block.hpp"
 #include "mesh.hpp"
 #include "shader.hpp"
 #include "texture.hpp"
-#include "aabb.hpp" // Include AABB header
 #include <vector>
 
 class World;

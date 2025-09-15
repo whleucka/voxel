@@ -55,7 +55,7 @@ public:
   void processMouseMovement(float xoffset, float yoffset,
                             bool constrainPitch = true);
 
-  void getFrustumPlanes(glm::vec4 planes[6], const glm::mat4& viewProj) const;
+  void getFrustumPlanes(glm::vec4 planes[6], const glm::mat4 &viewProj) const;
 
 private:
   void updateCameraVectors() {

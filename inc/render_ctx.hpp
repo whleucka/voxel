@@ -1,7 +1,7 @@
 #pragma once
 
-#include "shader.hpp"
 #include "camera.hpp" // Include camera header
+#include "shader.hpp"
 #include <glm/glm.hpp>
 
 /**
