@@ -21,7 +21,7 @@ std::vector<ChunkKey> getChunkLoadOrder(int camChunkX, int camChunkZ,
       if (dx * dx + dz * dz <= radius * radius) {
         // (π * r²) render_distance = 18
         // π * 18² is approx 1,017 chunks
-        result.push_back({camChunkX + dx, camChunkZ + dz});
+        result.push_back(makeChunkKey(camChunkX + dx, camChunkZ + dz));
       }
     }
   }
@@ -29,10 +29,10 @@ std::vector<ChunkKey> getChunkLoadOrder(int camChunkX, int camChunkZ,
   // Sort by squared distance (cheaper than sqrt)
   std::sort(result.begin(), result.end(),
       [&](const ChunkKey &a, const ChunkKey &b) {
-      int dax = a.x - camChunkX;
-      int daz = a.z - camChunkZ;
-      int dbx = b.x - camChunkX;
-      int dbz = b.z - camChunkZ;
+      int dax = getChunkX(a) - camChunkX;
+      int daz = getChunkZ(a) - camChunkZ;
+      int dbx = getChunkX(b) - camChunkX;
+      int dbz = getChunkZ(b) - camChunkZ;
       return (dax * dax + daz * daz) < (dbx * dbx + dbz * dbz);
       });
 
@@ -48,7 +48,7 @@ World::World(Texture &a) : block_atlas(a) { startThreads(); }
 World::~World() { stopThreads(); }
 
 void World::loadChunk(int x, int z) {
-  ChunkKey key{x, z};
+  ChunkKey key = makeChunkKey(x, z);
 
   // Already active
   if (chunks.find(key) != chunks.end())
@@ -74,7 +74,7 @@ void World::loadChunk(int x, int z) {
       return;
     _load_q.push(key);
     _loading_q.insert(key);
-    std::cout << "LOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
+    std::cout << "LOAD CHUNK (" << getChunkX(key) << ", " << getChunkZ(key) << ")" << std::endl;
   }
   _load_q_cv.notify_one();
 }
@@ -82,7 +82,7 @@ void World::loadChunk(int x, int z) {
 void World::unloadChunk(const ChunkKey &key) {
   auto it = chunks.find(key);
   if (it != chunks.end()) {
-    std::cout << "UNLOAD CHUNK (" << key.x << ", " << key.z << ")\n";
+    std::cout << "UNLOAD CHUNK (" << getChunkX(key) << ", " << getChunkZ(key) << ")\n";
     if (cache.size() < max_cache) cache[key] = it->second;
     else                           delete it->second;
     chunks.erase(it);
@@ -99,7 +99,7 @@ float World::getMaxChunks() const {
 }
 
 Chunk *World::getChunk(int chunk_x, int chunk_z) {
-  ChunkKey key{chunk_x, chunk_z};
+  ChunkKey key = makeChunkKey(chunk_x, chunk_z);
   auto it = chunks.find(key);
   if (it != chunks.end()) {
     return it->second; // loaded
@@ -116,7 +116,7 @@ void World::update(glm::vec3 camera_pos) {
   int chunks_loaded_this_frame = 0;
   for (auto &key : order) {
     if (chunks.find(key) == chunks.end()) {
-      loadChunk(key.x, key.z);
+      loadChunk(getChunkX(key), getChunkZ(key));
       if (++chunks_loaded_this_frame >= max_chunks_per_frame)
         break;
     }
@@ -125,8 +125,8 @@ void World::update(glm::vec3 camera_pos) {
   // Unload chunks that are too far away
   std::vector<ChunkKey> toUnload;
   for (auto &[key, chunk] : chunks) {
-    int distX = key.x - cam_cx;
-    int distZ = key.z - cam_cz;
+    int distX = getChunkX(key) - cam_cx;
+    int distZ = getChunkZ(key) - cam_cz;
     if (distX * distX + distZ * distZ > render_distance * render_distance) {
       toUnload.push_back(key);
     }
@@ -174,7 +174,7 @@ void World::drawOpaque(renderCtx &ctx) {
 
     glm::mat4 model =
       glm::translate(glm::mat4(1.0f),
-          glm::vec3(key.x * chunk_width, 0, key.z * chunk_length));
+          glm::vec3(getChunkX(key) * chunk_width, 0, getChunkZ(key) * chunk_length));
     glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "model"), 1,
         GL_FALSE, glm::value_ptr(model));
     chunk->drawOpaque(ctx.block_shader); // Fixed: call drawOpaque
@@ -199,9 +199,9 @@ void World::drawTransparent(renderCtx &ctx) {
   // Sort chunks by distance from camera for proper transparent rendering
   std::vector<std::pair<float, Chunk *>> sortedChunks;
   for (auto &[key, chunk] : chunks) {
-    glm::vec3 chunkCenter = glm::vec3(key.x * chunk_width + chunk_width / 2.0f,
+    glm::vec3 chunkCenter = glm::vec3(getChunkX(key) * chunk_width + chunk_width / 2.0f,
         chunk_height / 2.0f,
-        key.z * chunk_length + chunk_length / 2.0f);
+        getChunkZ(key) * chunk_length + chunk_length / 2.0f);
     float distance = glm::length(ctx.camera.getPos() - chunkCenter);
     sortedChunks.push_back({distance, chunk});
   }
@@ -215,7 +215,7 @@ void World::drawTransparent(renderCtx &ctx) {
 
     glm::mat4 model =
       glm::translate(glm::mat4(1.0f),
-          glm::vec3(chunk->getChunkKey().x * chunk_width, 0, chunk->getChunkKey().z * chunk_length));
+          glm::vec3(getChunkX(chunk->getChunkKey()) * chunk_width, 0, getChunkZ(chunk->getChunkKey()) * chunk_length));
     glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "model"), 1,
         GL_FALSE, glm::value_ptr(model));
     chunk->drawTransparent(ctx.block_shader);
@@ -226,7 +226,7 @@ void World::remeshNeighbors(const ChunkKey& key) {
   static const int offsets[4][2] = { {1,0}, {-1,0}, {0,1}, {0,-1} };
 
   for (auto& off : offsets) {
-    ChunkKey nk{ key.x + off[0], key.z + off[1] };
+    ChunkKey nk = makeChunkKey(getChunkX(key) + off[0], getChunkZ(key) + off[1]);
     auto it = chunks.find(nk);
     if (it != chunks.end()) {
       it->second->generateMesh(block_atlas);
@@ -240,7 +240,7 @@ BlockType World::getBlock(int x, int y, int z) const {
   const int cx = worldToChunk(x, chunk_width);
   const int cz = worldToChunk(z, chunk_length);
 
-  auto it = chunks.find(ChunkKey{cx, cz});
+  auto it = chunks.find(makeChunkKey(cx, cz));
   if (it == chunks.end()) {
     // If outside vertical bounds, just return AIR so no walls appear
     if (y < 0 || y >= chunk_height) return BlockType::AIR;
@@ -290,8 +290,8 @@ void World::threadLoop() {
 
     try {
       // Fresh generate chunk
-      Chunk *chunk = new Chunk(chunk_width, chunk_length, chunk_height, key.x,
-          key.z, this);
+      Chunk *chunk = new Chunk(chunk_width, chunk_length, chunk_height, getChunkX(key),
+          getChunkZ(key), this);
       chunk->generateMesh(block_atlas);
 
       {

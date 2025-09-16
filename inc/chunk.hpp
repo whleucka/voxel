@@ -5,15 +5,25 @@
 #include "mesh.hpp"
 #include "shader.hpp"
 #include "texture.hpp"
+#include <cstdint>
 #include <vector>
 
 class World;
-struct ChunkKey;
+
+using ChunkKey = uint64_t;
+
+inline ChunkKey makeChunkKey(int x, int z) {
+  return (uint64_t(uint32_t(x)) << 32) | uint32_t(z);
+}
+
+inline int getChunkX(ChunkKey key) { return int(key >> 32); }
+
+inline int getChunkZ(ChunkKey key) { return int(key & 0xFFFFFFFF); }
 
 inline bool letsNeighborRender(BlockType t) {
-    // Which blocks should cause neighbors to show their faces?
-    // Air always does. Glass/leaves would too if you add them.
-    return (t == BlockType::AIR);
+  // Which blocks should cause neighbors to show their faces?
+  // Air always does. Glass/leaves would too if you add them.
+  return (t == BlockType::AIR);
 }
 
 /**
@@ -40,7 +50,8 @@ public:
   AABB m_aabb; // Add AABB member
 
 private:
-  bool faceVisible(int x, int y, int z, int dir, BlockType currentBlockType) const;
+  bool faceVisible(int x, int y, int z, int dir,
+                   BlockType currentBlockType) const;
   // blocks[x][z][y]
   std::vector<std::vector<std::vector<BlockType>>> blocks;
   const int width;

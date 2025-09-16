@@ -242,7 +242,7 @@ bool Chunk::faceVisible(int x, int y, int z, int dir, BlockType currentBlockType
     }
 }
 
-ChunkKey Chunk::getChunkKey() const { return {world_x, world_z}; }
+ChunkKey Chunk::getChunkKey() const { return makeChunkKey(world_x, world_z); }
 
 void Chunk::setBlock(int x, int y, int z, BlockType type) {
   if (x < 0 || x >= width || y < 0 || y >= height || z < 0 || z >= length) {
