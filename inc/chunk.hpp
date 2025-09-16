@@ -1,6 +1,6 @@
 #pragma once
 
-#include "aabb.hpp" // Include AABB header
+#include "aabb.hpp"
 #include "block.hpp"
 #include "mesh.hpp"
 #include "shader.hpp"

@@ -82,12 +82,15 @@ void World::loadChunk(int x, int z) {
 void World::unloadChunk(const ChunkKey &key) {
   auto it = chunks.find(key);
   if (it != chunks.end()) {
-    std::cout << "UNLOAD CHUNK (" << getChunkX(key) << ", " << getChunkZ(key) << ")\n";
     if (cache.size() < max_cache) cache[key] = it->second;
-    else                           delete it->second;
+    else delete it->second;
     chunks.erase(it);
 
-    remeshNeighbors(key);
+    // Instead of remeshing immediately:
+    {
+      std::lock_guard<std::mutex> lock(_remesh_q_mutex);
+      _remesh_q.push(key);
+    }
   }
 }
 
@@ -147,6 +150,17 @@ void World::update(glm::vec3 camera_pos) {
       chunks[chunk->getChunkKey()] = chunk;
       _loading_q.erase(chunk->getChunkKey());
       remeshNeighbors(chunk->getChunkKey());
+    }
+  }
+  const int remesh_budget = 2; // how many neighbor sets per frame
+  int count = 0;
+  {
+    std::lock_guard<std::mutex> lock(_remesh_q_mutex);
+    while (!_remesh_q.empty() && count < remesh_budget) {
+      ChunkKey key = _remesh_q.front();
+      _remesh_q.pop();
+      remeshNeighbors(key);
+      ++count;
     }
   }
 }

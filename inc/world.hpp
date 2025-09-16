@@ -57,6 +57,8 @@ private:
   std::mutex _load_q_mutex;
   std::condition_variable _load_q_cv;
   std::queue<Chunk *> _generated_q;
+  std::queue<ChunkKey> _remesh_q;
+  std::mutex _remesh_q_mutex;
   std::mutex _generated_q_mutex;
   bool _should_stop = false;
 
