@@ -26,7 +26,7 @@ public:
   const int chunk_width = 16;
   const int chunk_length = 16;
   const int chunk_height = 256;
-  const int render_distance = 15;
+  const int render_distance = 12;
   const int max_chunks_per_frame = 6; // how many chunks to load per frame
   const int sea_level = 42;           // sea below y
   const int snow_height = 70;         // snow above y
