@@ -6,32 +6,32 @@ using V3 = glm::vec3;
 using V2 = glm::vec2;
 
 Block::Block(BlockType t, const glm::vec3 &position, int tilesPerAxis)
-    : type(t), pos(position), tiles_per_axis(tilesPerAxis) {}
+  : type(t), pos(position), tiles_per_axis(tilesPerAxis) {}
 
-void Block::emitFace(const V3 (&verts)[4], const V3 &normal,
-                     const AtlasTile &tile, Mesh &mesh) {
-  V2 uv[4];
-  tileUVs(tile, uv);
+  void Block::emitFace(const V3 (&verts)[4], const V3 &normal,
+      const AtlasTile &tile, Mesh &mesh) {
+    V2 uv[4];
+    tileUVs(tile, uv);
 
-  // Base index before adding new vertices
-  uint32_t base = static_cast<uint32_t>(mesh.vertices.size());
+    // Base index before adding new vertices
+    uint32_t base = static_cast<uint32_t>(mesh.vertices.size());
 
-  for (int i = 0; i < 4; ++i) {
-    Vertex v;
-    v.position = verts[i] + pos;
-    v.normal = normal;
-    v.text_coord = uv[i];
-    mesh.vertices.push_back(v);
+    for (int i = 0; i < 4; ++i) {
+      Vertex v;
+      v.position = verts[i] + pos;
+      v.normal   = normal;
+      v.text_coord = uv[i];
+      mesh.vertices.push_back(v);
+    }
+
+    // Two triangles, CCW
+    mesh.indices.push_back(base + 0);
+    mesh.indices.push_back(base + 1);
+    mesh.indices.push_back(base + 2);
+    mesh.indices.push_back(base + 0);
+    mesh.indices.push_back(base + 2);
+    mesh.indices.push_back(base + 3);
   }
-
-  // Two triangles, CCW
-  mesh.indices.push_back(base + 0);
-  mesh.indices.push_back(base + 1);
-  mesh.indices.push_back(base + 2);
-  mesh.indices.push_back(base + 0);
-  mesh.indices.push_back(base + 2);
-  mesh.indices.push_back(base + 3);
-}
 
 void Block::appendQuadIndices(Mesh &mesh) {
   const uint32_t base = static_cast<uint32_t>(mesh.vertices.size() - 4);
@@ -66,28 +66,28 @@ BlockFaceTiles Block::tilesFor(BlockType t) {
   };
 
   switch (t) {
-  case BlockType::GRASS: {
-    BlockFaceTiles f{};
-    f.py = AtlasTile{0, 0};
-    f.px = f.nx = f.pz = f.nz = {1, 0};
-    f.ny = AtlasTile{2, 0};
-    return f;
-  }
-  case BlockType::DIRT:
-    return all(2, 0);
-  case BlockType::STONE:
-    return all(3, 0);
-  case BlockType::BEDROCK:
-    return all(4, 0);
-  case BlockType::SAND:
-    return all(5, 0);
-  case BlockType::COBBLESTONE:
-    return all(6, 0);
-  case BlockType::WATER:
-    return all(7, 0);
-  case BlockType::SNOW:
-    return all(8, 0);
-  default:
-    return all(15, 15);
+    case BlockType::GRASS: {
+                             BlockFaceTiles f{};
+                             f.py = AtlasTile{0, 0};
+                             f.px = f.nx = f.pz = f.nz = {1, 0};
+                             f.ny = AtlasTile{2, 0};
+                             return f;
+                           }
+    case BlockType::DIRT:
+                           return all(2, 0);
+    case BlockType::STONE:
+                           return all(3, 0);
+    case BlockType::BEDROCK:
+                           return all(4, 0);
+    case BlockType::SAND:
+                           return all(5, 0);
+    case BlockType::COBBLESTONE:
+                           return all(6, 0);
+    case BlockType::WATER:
+                           return all(7, 0);
+    case BlockType::SNOW:
+                           return all(8, 0);
+    default:
+                           return all(15, 15);
   }
 }
