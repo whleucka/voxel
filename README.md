@@ -1,7 +1,7 @@
 # Voxel 3D engine
 
 <img width="1920" height="1054" alt="screenshot-2025-09-11_20-51-50" src="https://github.com/user-attachments/assets/bc312763-0687-4d7d-a272-d8330ba738a6" />
-<img width="1921" height="1081" alt="image" src="https://github.com/user-attachments/assets/9a1d090b-0054-4af9-a21c-01ccc61f7eb4" />
+<img width="1921" height="1081" alt="image" src="https://github.com/user-attachments/assets/e305b309-1a6f-4e2b-a85d-5ff1dadc19c1" />
 
 * A simple hobby project: A Minecraft-inspired voxel game engine and prototype built with C++ and OpenGL. 
 * Goals: explore fundamental voxel rendering techniques, chunk management, and basic game mechanics.
