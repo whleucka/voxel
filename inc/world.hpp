@@ -51,15 +51,22 @@ private:
       cache;                                             // inactive but saved
   robin_hood::unordered_set<ChunkKey> _loading_q; // being generated
   Texture &block_atlas;
-  // Thread stuff
+
+  // thread workers
   std::vector<std::thread> _threads;
   std::queue<ChunkKey> _load_q;
   std::mutex _load_q_mutex;
   std::condition_variable _load_q_cv;
+
+  // generated chunks waiting for GPU upload
   std::queue<Chunk *> _generated_q;
-  std::queue<ChunkKey> _remesh_q;
-  std::mutex _remesh_q_mutex;
   std::mutex _generated_q_mutex;
+
+  // remesh jobs (neighbors) waiting for GPU upload
+  std::queue<ChunkKey> _remesh_q;
+  robin_hood::unordered_set<ChunkKey> _remesh_q_seen;
+  std::mutex _remesh_q_mutex;
+
   bool _should_stop = false;
 
   void remeshNeighbors(const ChunkKey& key);

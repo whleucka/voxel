@@ -86,10 +86,16 @@ void World::unloadChunk(const ChunkKey &key) {
     else delete it->second;
     chunks.erase(it);
 
-    // Instead of remeshing immediately:
+    // Queue neighbors for remesh (not the removed chunk itself!)
+    static const int offsets[4][2] = { {1,0}, {-1,0}, {0,1}, {0,-1} };
     {
       std::lock_guard<std::mutex> lock(_remesh_q_mutex);
-      _remesh_q.push(key);
+      for (auto& off : offsets) {
+        ChunkKey nk = makeChunkKey(getChunkX(key) + off[0], getChunkZ(key) + off[1]);
+        if (_remesh_q_seen.insert(nk).second) {
+          _remesh_q.push(nk);
+        }
+      }
     }
   }
 }
@@ -114,8 +120,10 @@ void World::update(glm::vec3 camera_pos) {
   int cam_cx = worldToChunkCoord(static_cast<int>(camera_pos.x), chunk_width);
   int cam_cz = worldToChunkCoord(static_cast<int>(camera_pos.z), chunk_length);
 
+  // -----------------------
+  // 1. Request new chunks
+  // -----------------------
   auto order = getChunkLoadOrder(cam_cx, cam_cz, render_distance);
-
   int chunks_loaded_this_frame = 0;
   for (auto &key : order) {
     if (chunks.find(key) == chunks.end()) {
@@ -125,7 +133,9 @@ void World::update(glm::vec3 camera_pos) {
     }
   }
 
-  // Unload chunks that are too far away
+  // -----------------------
+  // 2. Unload far chunks
+  // -----------------------
   std::vector<ChunkKey> toUnload;
   for (auto &[key, chunk] : chunks) {
     int distX = getChunkX(key) - cam_cx;
@@ -139,20 +149,41 @@ void World::update(glm::vec3 camera_pos) {
     unloadChunk(key);
   }
 
-  // Process generated chunks
+  // -----------------------
+  // 3. Integrate generated chunks (budgeted)
+  // -----------------------
+  const int integrate_budget = 2; // tune: 1–3 usually smooth
+  int integrated = 0;
   {
     std::lock_guard<std::mutex> lock(_generated_q_mutex);
-    while (!_generated_q.empty()) {
+    while (!_generated_q.empty() && integrated < integrate_budget) {
       Chunk *chunk = _generated_q.front();
       _generated_q.pop();
+
+      // GPU upload
       chunk->opaqueMesh.setupMesh();
       chunk->transparentMesh.setupMesh();
+
+      // Put in active map
       chunks[chunk->getChunkKey()] = chunk;
       _loading_q.erase(chunk->getChunkKey());
-      remeshNeighbors(chunk->getChunkKey());
+
+      // Instead of remeshing neighbors immediately → defer
+      {
+        std::lock_guard<std::mutex> rlock(_remesh_q_mutex);
+        if (_remesh_q_seen.insert(chunk->getChunkKey()).second) {
+          _remesh_q.push(chunk->getChunkKey());
+        }
+      }
+
+      ++integrated;
     }
   }
-  const int remesh_budget = 2; // how many neighbor sets per frame
+
+  // -----------------------
+  // 4. Process remesh queue (budgeted)
+  // -----------------------
+  const int remesh_budget = 2; // tune: 2–4
   int count = 0;
   {
     std::lock_guard<std::mutex> lock(_remesh_q_mutex);
@@ -160,6 +191,7 @@ void World::update(glm::vec3 camera_pos) {
       ChunkKey key = _remesh_q.front();
       _remesh_q.pop();
       remeshNeighbors(key);
+      _remesh_q_seen.erase(key);
       ++count;
     }
   }
