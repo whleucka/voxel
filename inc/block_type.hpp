@@ -1,12 +1,14 @@
 #pragma once
 
+#include <cstdint>
+
 /**
  * block_type.hpp
  *
  * Defines a block type
  * 
  */
-enum BlockType {
+enum BlockType : uint8_t {
   AIR = 0,
   WATER, 
   GRASS,

@@ -44,9 +44,7 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
       glm::vec3(world_x * width + width, height, world_z * length + length);
 
   //~.~.~.~.~. TERRAIN GENERATION ~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.
-  blocks.resize(width,
-                std::vector<std::vector<BlockType>>(
-                    length, std::vector<BlockType>(height, BlockType::AIR)));
+  blocks.resize(width * length * height, static_cast<uint8_t>(BlockType::AIR));
 
   const int h_mod = 29;       // Determines height of terrain
   const float h_freq = 0.02f; // perlin noise frequency
@@ -142,13 +140,13 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
         }
         
 
-        blocks[x][z][y] = type;
+        blocks[blockIndex(x, y, z)] = static_cast<uint8_t>(type);
       }
 
       // Fill water
       for (int y = perlin_height; y < world->sea_level; y++) {
-        if (blocks[x][z][y] == BlockType::AIR) {
-          blocks[x][z][y] = BlockType::WATER;
+        if (blocks[blockIndex(x, y, z)] == static_cast<uint8_t>(BlockType::AIR)) {
+          blocks[blockIndex(x, y, z)] = static_cast<uint8_t>(BlockType::WATER);
         }
       }
     }
@@ -171,9 +169,9 @@ void Chunk::generateMesh(const Texture &atlas) {
   for (int x = 0; x < width; x++) {
     for (int z = 0; z < length; z++) {
       for (int y = 0; y < height; y++) {
-        if (blocks[x][z][y] == BlockType::AIR) continue;
+        if (blocks[blockIndex(x, y, z)] == static_cast<uint8_t>(BlockType::AIR)) continue;
 
-        const BlockType type = blocks[x][z][y];
+        const BlockType type = static_cast<BlockType>(blocks[blockIndex(x, y, z)]);
         const auto map = Block::tilesFor(type);
         Block block(type, V3(x, y, z));
 
@@ -203,7 +201,7 @@ BlockType Chunk::getBlock(int x, int y, int z) const {
   if (x < 0 || x >= width || y < 0 || y >= height || z < 0 || z >= length) {
     return BlockType::AIR;
   }
-  return blocks[x][z][y];
+  return static_cast<BlockType>(blocks[blockIndex(x, y, z)]);
 }
 
 bool Chunk::faceVisible(int x, int y, int z, int dir, BlockType currentBlockType) const {
@@ -219,7 +217,7 @@ bool Chunk::faceVisible(int x, int y, int z, int dir, BlockType currentBlockType
 
     auto getNeighbor = [&](int nx, int ny, int nz) -> BlockType {
         if (nx >= 0 && nx < width && ny >= 0 && ny < height && nz >= 0 && nz < length)
-            return blocks[nx][nz][ny];
+            return static_cast<BlockType>(blocks[blockIndex(nx, ny, nz)]);
         int gx = world_x * width + nx;
         int gy = ny;
         int gz = world_z * length + nz;
@@ -248,6 +246,6 @@ void Chunk::setBlock(int x, int y, int z, BlockType type) {
   if (x < 0 || x >= width || y < 0 || y >= height || z < 0 || z >= length) {
     return;
   }
-  blocks[x][z][y] = type;
+  blocks[blockIndex(x, y, z)] = static_cast<uint8_t>(type);
 }
 

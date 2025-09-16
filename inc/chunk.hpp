@@ -53,7 +53,10 @@ private:
   bool faceVisible(int x, int y, int z, int dir,
                    BlockType currentBlockType) const;
   // blocks[x][z][y]
-  std::vector<std::vector<std::vector<BlockType>>> blocks;
+  std::vector<uint8_t> blocks;
+  int blockIndex(int x, int y, int z) const {
+    return y * width * length + z * width + x;
+  }
   const int width;
   const int length;
   int height;
