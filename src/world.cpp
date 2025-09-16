@@ -212,7 +212,7 @@ void World::drawTransparent(renderCtx &ctx) {
 
     glm::mat4 model =
         glm::translate(glm::mat4(1.0f),
-                       glm::vec3(chunk->getChunkKey().x * chunk_width, 0, chunk->getChunkKey().z * chunk_length)); // Fixed: use chunk->getChunkKey()
+                       glm::vec3(chunk->getChunkKey().x * chunk_width, 0, chunk->getChunkKey().z * chunk_length));
     glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "model"), 1,
                        GL_FALSE, glm::value_ptr(model));
     chunk->drawTransparent(ctx.block_shader);
