@@ -12,7 +12,7 @@
 #include <vector>
 
 std::vector<ChunkKey> getChunkLoadOrder(int camChunkX, int camChunkZ,
-                                        int radius) {
+    int radius) {
   std::vector<ChunkKey> result;
 
   for (int dx = -radius; dx <= radius; dx++) {
@@ -28,13 +28,13 @@ std::vector<ChunkKey> getChunkLoadOrder(int camChunkX, int camChunkZ,
 
   // Sort by squared distance (cheaper than sqrt)
   std::sort(result.begin(), result.end(),
-            [&](const ChunkKey &a, const ChunkKey &b) {
-              int dax = a.x - camChunkX;
-              int daz = a.z - camChunkZ;
-              int dbx = b.x - camChunkX;
-              int dbz = b.z - camChunkZ;
-              return (dax * dax + daz * daz) < (dbx * dbx + dbz * dbz);
-            });
+      [&](const ChunkKey &a, const ChunkKey &b) {
+      int dax = a.x - camChunkX;
+      int daz = a.z - camChunkZ;
+      int dbx = b.x - camChunkX;
+      int dbz = b.z - camChunkZ;
+      return (dax * dax + daz * daz) < (dbx * dbx + dbz * dbz);
+      });
 
   return result;
 }
@@ -59,6 +59,11 @@ void World::loadChunk(int x, int z) {
   if (it != cache.end()) {
     chunks[key] = it->second;
     cache.erase(it);
+    // Ensure VAOs exist (safe even if already created)
+    it->second->opaqueMesh.setupMesh();
+    it->second->transparentMesh.setupMesh();
+
+    remeshNeighbors(key);
     return;
   }
 
@@ -75,17 +80,14 @@ void World::loadChunk(int x, int z) {
 }
 
 void World::unloadChunk(const ChunkKey &key) {
-
   auto it = chunks.find(key);
   if (it != chunks.end()) {
-    std::cout << "UNLOAD CHUNK (" << key.x << ", " << key.z << ")" << std::endl;
-    // Move chunk into cache
-    if (cache.size() < max_cache) {
-      cache[key] = it->second;
-    } else {
-      delete it->second;
-    }
+    std::cout << "UNLOAD CHUNK (" << key.x << ", " << key.z << ")\n";
+    if (cache.size() < max_cache) cache[key] = it->second;
+    else                           delete it->second;
     chunks.erase(it);
+
+    remeshNeighbors(key);
   }
 }
 
@@ -144,6 +146,7 @@ void World::update(glm::vec3 camera_pos) {
       chunk->transparentMesh.setupMesh();
       chunks[chunk->getChunkKey()] = chunk;
       _loading_q.erase(chunk->getChunkKey());
+      remeshNeighbors(chunk->getChunkKey());
     }
   }
 }
@@ -155,9 +158,9 @@ void World::drawOpaque(renderCtx &ctx) {
   glUseProgram(ctx.block_shader.ID);
 
   glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "view"), 1,
-                     GL_FALSE, glm::value_ptr(ctx.view));
+      GL_FALSE, glm::value_ptr(ctx.view));
   glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "projection"), 1,
-                     GL_FALSE, glm::value_ptr(ctx.proj));
+      GL_FALSE, glm::value_ptr(ctx.proj));
 
   // Get frustum planes from the camera
   glm::vec4 frustumPlanes[6];
@@ -170,10 +173,10 @@ void World::drawOpaque(renderCtx &ctx) {
     }
 
     glm::mat4 model =
-        glm::translate(glm::mat4(1.0f),
-                       glm::vec3(key.x * chunk_width, 0, key.z * chunk_length));
+      glm::translate(glm::mat4(1.0f),
+          glm::vec3(key.x * chunk_width, 0, key.z * chunk_length));
     glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "model"), 1,
-                       GL_FALSE, glm::value_ptr(model));
+        GL_FALSE, glm::value_ptr(model));
     chunk->drawOpaque(ctx.block_shader); // Fixed: call drawOpaque
   }
 }
@@ -185,9 +188,9 @@ void World::drawTransparent(renderCtx &ctx) {
   glUseProgram(ctx.block_shader.ID);
 
   glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "view"), 1,
-                     GL_FALSE, glm::value_ptr(ctx.view));
+      GL_FALSE, glm::value_ptr(ctx.view));
   glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "projection"), 1,
-                     GL_FALSE, glm::value_ptr(ctx.proj));
+      GL_FALSE, glm::value_ptr(ctx.proj));
 
   // Get frustum planes from the camera
   glm::vec4 frustumPlanes[6];
@@ -197,8 +200,8 @@ void World::drawTransparent(renderCtx &ctx) {
   std::vector<std::pair<float, Chunk *>> sortedChunks;
   for (auto &[key, chunk] : chunks) {
     glm::vec3 chunkCenter = glm::vec3(key.x * chunk_width + chunk_width / 2.0f,
-                                      chunk_height / 2.0f,
-                                      key.z * chunk_length + chunk_length / 2.0f);
+        chunk_height / 2.0f,
+        key.z * chunk_length + chunk_length / 2.0f);
     float distance = glm::length(ctx.camera.getPos() - chunkCenter);
     sortedChunks.push_back({distance, chunk});
   }
@@ -211,11 +214,25 @@ void World::drawTransparent(renderCtx &ctx) {
     }
 
     glm::mat4 model =
-        glm::translate(glm::mat4(1.0f),
-                       glm::vec3(chunk->getChunkKey().x * chunk_width, 0, chunk->getChunkKey().z * chunk_length));
+      glm::translate(glm::mat4(1.0f),
+          glm::vec3(chunk->getChunkKey().x * chunk_width, 0, chunk->getChunkKey().z * chunk_length));
     glUniformMatrix4fv(glGetUniformLocation(ctx.block_shader.ID, "model"), 1,
-                       GL_FALSE, glm::value_ptr(model));
+        GL_FALSE, glm::value_ptr(model));
     chunk->drawTransparent(ctx.block_shader);
+  }
+}
+
+void World::remeshNeighbors(const ChunkKey& key) {
+  static const int offsets[4][2] = { {1,0}, {-1,0}, {0,1}, {0,-1} };
+
+  for (auto& off : offsets) {
+    ChunkKey nk{ key.x + off[0], key.z + off[1] };
+    auto it = chunks.find(nk);
+    if (it != chunks.end()) {
+      it->second->generateMesh(block_atlas);
+      it->second->opaqueMesh.setupMesh();        // 👈 upload
+      it->second->transparentMesh.setupMesh();   // 👈 upload
+    }
   }
 }
 
@@ -263,7 +280,7 @@ void World::threadLoop() {
     {
       std::unique_lock<std::mutex> lock(_load_q_mutex);
       _load_q_cv.wait(lock,
-                      [this] { return _should_stop || !_load_q.empty(); });
+          [this] { return _should_stop || !_load_q.empty(); });
       if (_should_stop) {
         return;
       }
@@ -274,7 +291,7 @@ void World::threadLoop() {
     try {
       // Fresh generate chunk
       Chunk *chunk = new Chunk(chunk_width, chunk_length, chunk_height, key.x,
-                               key.z, this);
+          key.z, this);
       chunk->generateMesh(block_atlas);
 
       {
@@ -283,7 +300,7 @@ void World::threadLoop() {
       }
     } catch (const std::bad_alloc &e) {
       std::cerr << "Failed to allocate memory for chunk: " << e.what()
-                << std::endl;
+        << std::endl;
       _loading_q.erase(key);
     }
   }
@@ -393,8 +410,8 @@ void World::addBlock(int x, int y, int z, BlockType type) {
 
 // Amanatides & Woo's voxel traversal (fixed)
 bool World::raycast(const glm::vec3 &start, const glm::vec3 &dir,
-                    float max_dist, glm::ivec3 &block_pos,
-                    glm::ivec3 &face_normal) {
+    float max_dist, glm::ivec3 &block_pos,
+    glm::ivec3 &face_normal) {
   // Normalize ray direction
   glm::vec3 ray_dir = glm::normalize(dir);
 
@@ -407,7 +424,7 @@ bool World::raycast(const glm::vec3 &start, const glm::vec3 &dir,
 
   // Step direction per axis
   glm::ivec3 step((ray_dir.x > 0) ? 1 : -1, (ray_dir.y > 0) ? 1 : -1,
-                  (ray_dir.z > 0) ? 1 : -1);
+      (ray_dir.z > 0) ? 1 : -1);
 
   // Compute initial tMax (distance to the first voxel boundary)
   glm::vec3 tMax;
@@ -415,7 +432,7 @@ bool World::raycast(const glm::vec3 &start, const glm::vec3 &dir,
     if (ds == 0.0f)
       return std::numeric_limits<float>::infinity();
     float nextBoundary =
-        (step > 0) ? std::floor(s + 1.0f) : std::ceil(s - 1.0f);
+      (step > 0) ? std::floor(s + 1.0f) : std::ceil(s - 1.0f);
     return (nextBoundary - s) / ds;
   };
 
@@ -425,12 +442,12 @@ bool World::raycast(const glm::vec3 &start, const glm::vec3 &dir,
 
   // Distance between voxel boundaries along each axis
   glm::vec3 tDelta((ray_dir.x != 0.0f) ? std::abs(1.0f / ray_dir.x)
-                                       : std::numeric_limits<float>::infinity(),
-                   (ray_dir.y != 0.0f) ? std::abs(1.0f / ray_dir.y)
-                                       : std::numeric_limits<float>::infinity(),
-                   (ray_dir.z != 0.0f)
-                       ? std::abs(1.0f / ray_dir.z)
-                       : std::numeric_limits<float>::infinity());
+      : std::numeric_limits<float>::infinity(),
+      (ray_dir.y != 0.0f) ? std::abs(1.0f / ray_dir.y)
+      : std::numeric_limits<float>::infinity(),
+      (ray_dir.z != 0.0f)
+      ? std::abs(1.0f / ray_dir.z)
+      : std::numeric_limits<float>::infinity());
 
   float dist = 0.0f;
   face_normal = glm::ivec3(0);

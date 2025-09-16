@@ -7,9 +7,8 @@
 #include <mutex>
 #include <queue>
 #include <thread>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
+#include "robin_hood.h"
 
 struct ChunkKey {
   int x, z;
@@ -19,9 +18,11 @@ struct ChunkKey {
 };
 
 struct ChunkKeyHash {
-  std::size_t operator()(const ChunkKey &k) const {
-    // hash x,z
-    return std::hash<int>()(k.x) ^ (std::hash<int>()(k.z) << 1);
+  std::size_t operator()(const ChunkKey &k) const noexcept {
+    std::size_t h1 = std::hash<int>{}(k.x);
+    std::size_t h2 = std::hash<int>{}(k.z);
+    // Boost-like hash combine
+    return h1 ^ (h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
   }
 };
 
@@ -58,11 +59,11 @@ public:
   void addBlock(int x, int y, int z, BlockType type);
 
 private:
-  std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash>
+  robin_hood::unordered_map<ChunkKey, Chunk *, ChunkKeyHash>
       chunks; // currently rendered
-  std::unordered_map<ChunkKey, Chunk *, ChunkKeyHash>
+  robin_hood::unordered_map<ChunkKey, Chunk *, ChunkKeyHash>
       cache;                                             // inactive but saved
-  std::unordered_set<ChunkKey, ChunkKeyHash> _loading_q; // being generated
+  robin_hood::unordered_set<ChunkKey, ChunkKeyHash> _loading_q; // being generated
   Texture &block_atlas;
   // Thread stuff
   std::vector<std::thread> _threads;
@@ -73,6 +74,7 @@ private:
   std::mutex _generated_q_mutex;
   bool _should_stop = false;
 
+  void remeshNeighbors(const ChunkKey& key);
   void loadChunk(int chunk_x, int chunk_z);
   void unloadChunk(const ChunkKey &key);
   void startThreads();

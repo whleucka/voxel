@@ -107,9 +107,9 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
         const double bedrock_noise =
             glm::perlin(V3((world_x * width + x) * 0.42, y * 0.02,
                            (world_z * length + z) * 0.42));
-        const double water_noise =
-            glm::perlin(V3((world_x * width + x) * 0.02, y * 0.02,
-                           (world_z * length + z) * 0.02));
+        // const double air_noise =
+        //     glm::perlin(V3((world_x * width + x) * 0.02, y * 0.02,
+        //                    (world_z * length + z) * 0.02));
 
         if (y == perlin_height - 1) {
           int block_rand = (rand() % 100) + 1;
@@ -134,8 +134,9 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
           type = BlockType::BEDROCK;
         } else if ((stone_noise > 0.4) || (y >= 5 && y <= 15)) {
           type = BlockType::STONE;
-        // } else if (water_noise > 0.4 && y <= 40) {
-        //   type = BlockType::WATER;
+        // } else if (air_noise > 0.4 && y <= 40) {
+        //   // Cave-like
+        //   type = BlockType::AIR;
         } else {
           type = BlockType::DIRT;
         }
@@ -206,44 +207,39 @@ BlockType Chunk::getBlock(int x, int y, int z) const {
 }
 
 bool Chunk::faceVisible(int x, int y, int z, int dir, BlockType currentBlockType) const {
-  int nx = x, ny = y, nz = z;
-  switch (dir) {
-    case 0: nx++; break;
-    case 1: nx--; break;
-    case 2: ny++; break;
-    case 3: ny--; break;
-    case 4: nz++; break;
-    case 5: nz--; break;
-  }
-
-  auto getNeighbor = [&](int nx, int ny, int nz) -> BlockType {
-    if (nx >= 0 && nx < width && ny >= 0 && ny < height && nz >= 0 && nz < length) {
-      return blocks[nx][nz][ny];
+    int nx = x, ny = y, nz = z;
+    switch (dir) {
+        case 0: nx++; break;
+        case 1: nx--; break;
+        case 2: ny++; break;
+        case 3: ny--; break;
+        case 4: nz++; break;
+        case 5: nz--; break;
     }
-    int gx = world_x * width + nx;
-    int gy = ny;
-    int gz = world_z * length + nz;
-    return world->getBlock(gx, gy, gz);
-  };
 
-  BlockType neighborType = getNeighbor(nx, ny, nz);
+    auto getNeighbor = [&](int nx, int ny, int nz) -> BlockType {
+        if (nx >= 0 && nx < width && ny >= 0 && ny < height && nz >= 0 && nz < length)
+            return blocks[nx][nz][ny];
+        int gx = world_x * width + nx;
+        int gy = ny;
+        int gz = world_z * length + nz;
+        return world->getBlock(gx, gy, gz);
+    };
 
-  // Handle "UNKNOWN" neighbors differently for water vs solids
-  if (neighborType == BlockType::UNKNOWN) {
-    if (currentBlockType == BlockType::WATER) {
-      neighborType = BlockType::WATER; // hide water-water walls
+    BlockType neighborType = getNeighbor(nx, ny, nz);
+
+    // ✅ NEW: Don’t emit seam faces if neighbor isn’t loaded
+    if (neighborType == BlockType::UNKNOWN) {
+        return false;
+    }
+
+    if (isTransparent(currentBlockType)) {
+        // Water: only draw surfaces against air
+        return neighborType == BlockType::AIR;
     } else {
-      neighborType = BlockType::AIR;   // show solid faces at seams
+        // Solids: draw against air OR transparent (so sand shows under water)
+        return (neighborType == BlockType::AIR || isTransparent(neighborType));
     }
-  }
-
-  if (isTransparent(currentBlockType)) {
-    // Water: only show faces against AIR
-    return neighborType == BlockType::AIR;
-  } else {
-    // Solid: show faces against AIR or water
-    return (neighborType == BlockType::AIR || isTransparent(neighborType));
-  }
 }
 
 ChunkKey Chunk::getChunkKey() const { return {world_x, world_z}; }
