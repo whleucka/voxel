@@ -37,6 +37,8 @@ public:
     glBindVertexArray(0);
   }
 
+  void setIndexCount(GLsizei count) { indexCount = count; }
+
   // draw only if we have indices
   void draw(Shader& shader) const {
     if (VAO == 0 || indexCount == 0) return;

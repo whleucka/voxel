@@ -95,10 +95,10 @@ static inline void pushQuad(std::vector<Vertex> &verts,
                             const glm::vec3 p[4], const glm::vec3 &n, float u0,
                             float v0, float u1, float v1) {
   const unsigned base = (unsigned)verts.size();
-  verts.push_back({p[0], n, {u0, v0}});
-  verts.push_back({p[1], n, {u1, v0}});
-  verts.push_back({p[2], n, {u1, v1}});
-  verts.push_back({p[3], n, {u0, v1}});
+  verts.push_back({p[0], n, {u0, v0}, {0.0f, 0.0f}});
+  verts.push_back({p[1], n, {u1, v0}, {0.0f, 0.0f}});
+  verts.push_back({p[2], n, {u1, v1}, {0.0f, 0.0f}});
+  verts.push_back({p[3], n, {u0, v1}, {0.0f, 0.0f}});
   inds.insert(inds.end(),
               {base + 0, base + 1, base + 2, base + 0, base + 2, base + 3});
 }
@@ -387,6 +387,7 @@ void GreedyMesher::build(const Chunk &chunk, SampleFn sample, Mesh &opaque,
   if (!iO.empty()) {
     opaque.vertices = std::move(vO);
     opaque.indices = std::move(iO);
+    opaque.setIndexCount(opaque.indices.size());
     opaque.setupMesh();
   } else {
     opaque.clear();
@@ -395,6 +396,7 @@ void GreedyMesher::build(const Chunk &chunk, SampleFn sample, Mesh &opaque,
   if (!iT.empty()) {
     transparent.vertices = std::move(vT);
     transparent.indices = std::move(iT);
+    transparent.setIndexCount(transparent.indices.size());
     transparent.setupMesh();
   } else {
     transparent.clear();
