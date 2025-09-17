@@ -22,6 +22,7 @@ public:
 
 private:
   robin_hood::unordered_map<uint64_t, std::unique_ptr<Chunk>> chunks;
+  robin_hood::unordered_set<uint64_t> dirty;
   ThreadPool thread_pool;
 
   int render_distance = 8;

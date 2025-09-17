@@ -24,8 +24,9 @@ void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
 
   // View/Projection
   glm::mat4 projection = glm::perspective(
-      glm::radians(45.0f), (float)screen_width / (float)screen_height, 0.1f,
-      1000.0f);
+      glm::radians(45.0f), (float)screen_width / (float)screen_height,
+      0.5f,    // was 0.1f
+      512.0f); // was 1000.0f
   glm::mat4 view = camera.getViewMatrix();
   block_shader->setMat4("projection", projection);
   block_shader->setMat4("view", view);
@@ -42,13 +43,12 @@ void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
   // —— PASS 1: Opaque ——
   glDisable(GL_BLEND);
   glDepthMask(GL_TRUE);
-  for (const Chunk *c : chunks) {
-    // IMPORTANT: set model (translate chunk into world)
-    glm::mat4 model =
-        glm::translate(glm::mat4(1.0f), glm::vec3(c->world_x * Chunk::W, 0.0f,
-                                                  c->world_z * Chunk::L));
+  for (const Chunk* c : chunks) {
+    glm::mat4 model = glm::translate(
+        glm::mat4(1.0f),
+        glm::vec3(c->world_x * Chunk::W, 0.0f, c->world_z * Chunk::L)
+        );
     block_shader->setMat4("model", model);
-
     c->opaqueMesh.draw(*block_shader);
   }
 
@@ -56,12 +56,12 @@ void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glDepthMask(GL_FALSE);
-  for (const Chunk *c : chunks) {
-    glm::mat4 model =
-        glm::translate(glm::mat4(1.0f), glm::vec3(c->world_x * Chunk::W, 0.0f,
-                                                  c->world_z * Chunk::L));
+  for (const Chunk* c : chunks) {
+    glm::mat4 model = glm::translate(
+        glm::mat4(1.0f),
+        glm::vec3(c->world_x * Chunk::W, 0.0f, c->world_z * Chunk::L)
+        );
     block_shader->setMat4("model", model);
-
     c->transparentMesh.draw(*block_shader);
   }
   glDepthMask(GL_TRUE);

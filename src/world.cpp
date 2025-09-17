@@ -62,23 +62,44 @@ void World::setBlock(int x, int y, int z, BlockType type) {
 }
 
 void World::generateMeshes() {
-  for (auto &kv : chunks) {
-    Chunk &c = *kv.second;
+  if (dirty.empty())
+    return;
 
-    auto sample = [&](int gx, int gy, int gz) -> BlockType {
-      return getBlock(gx, gy, gz);
-    };
+  auto sample = [&](int gx, int gy, int gz) -> BlockType {
+    return getBlock(gx, gy, gz);
+  };
 
+  for (auto key : dirty) {
+    auto it = chunks.find(key);
+    if (it == chunks.end())
+      continue;
+    Chunk &c = *it->second;
     GreedyMesher::build(c, sample, c.opaqueMesh, c.transparentMesh);
   }
+  dirty.clear();
 }
 
 void World::loadChunk(int cx, int cz) {
-  uint64_t key = makeChunkKey(cx, cz);
-  if (chunks.find(key) == chunks.end()) {
-    chunks[key] = std::make_unique<Chunk>(cx, cz);
-    chunks[key]->generateChunk();
-  }
+  const uint64_t key = makeChunkKey(cx, cz);
+  if (chunks.find(key) != chunks.end())
+    return;
+
+  auto &up = chunks[key] = std::make_unique<Chunk>(cx, cz);
+  up->generateChunk();
+
+  // mark this chunk dirty
+  dirty.insert(key);
+
+  // if neighbors exist, mark them dirty too so shared faces get culled
+  auto mark_if_present = [&](int nx, int nz) {
+    auto it = chunks.find(makeChunkKey(nx, nz));
+    if (it != chunks.end())
+      dirty.insert(makeChunkKey(nx, nz));
+  };
+  mark_if_present(cx + 1, cz);
+  mark_if_present(cx - 1, cz);
+  mark_if_present(cx, cz + 1);
+  mark_if_present(cx, cz - 1);
 }
 
 void World::unloadChunk(int cx, int cz) {
