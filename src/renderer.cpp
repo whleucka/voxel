@@ -65,4 +65,5 @@ void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
     c->transparentMesh.draw(*block_shader);
   }
   glDepthMask(GL_TRUE);
+  glDisable(GL_BLEND);    // leave GL clean
 }

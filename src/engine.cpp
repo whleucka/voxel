@@ -126,20 +126,20 @@ bool Engine::init() {
       });
 
   // OpenGL settings
-  glViewport(0, 0, width, height);
-  glDepthRange(0.0, 1.0);
-  glClearDepth(1.0);
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_LESS);
 
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-  glEnable(GL_DEPTH_TEST); // enable depth so faces don’t z-fight
   glEnable(GL_CULL_FACE);
   glCullFace(GL_BACK);
   glFrontFace(GL_CCW);
-  glfwSwapInterval(0); // 0 = disable vsync, 1 = enable vsync
 
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  // Don’t enable blending globally – only for the transparent pass.
+  glDisable(GL_BLEND);
+
+  glClearDepth(1.0);
+  glDepthRange(0.0, 1.0);
+
+  glfwSwapInterval(0); // 0 = disable vsync, 1 = enable vsync
 
   // ImGui
   IMGUI_CHECKVERSION();
@@ -224,6 +224,8 @@ void Engine::render() {
   else { // Sunset to midnight
     sky_color = glm::mix(sunset, night, (time_fraction - 0.75f) / 0.25f);
   }
+
+  glViewport(0, 0, width, height);
   glClearColor(sky_color.r, sky_color.g, sky_color.b, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
