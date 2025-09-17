@@ -30,7 +30,7 @@ GLAD_OBJ    := $(BUILDDIR)/glad.o
 # DO NOT EDIT BELOW THIS LINE
 #---------------------------------------------------------------------------------
 SOURCES     := $(shell find $(SRCDIR) -type f -name *.$(SRCEXT))
-OBJECTS     := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.$(OBJEXT))) $(GLAD_OBJ)
+OBJECTS     := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.$(OBJEXT))) $(GLAD_OBJ) obj/shader.o obj/texture_manager.o
 
 # Default Make
 all: resources $(TARGET)

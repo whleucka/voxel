@@ -1,44 +1,40 @@
 #pragma once
 
 #include "camera.hpp"
-#include "game_state.hpp"
 #include "game_clock.hpp"
-#include "shader.hpp"
-#include "texture.hpp"
+#include "renderer.hpp"
 #include "world.hpp"
-#include "wire_cube.hpp"
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
 #include <string>
 
-/**
- * engine.hpp
- *
- * The 3D game engine created by Will Hleucka
- *
- */
 class Engine {
 public:
-  Engine(int w, int h, const std::string &t)
-      : window(nullptr), width(w), height(h), title(t) {}
-
-  Engine() { cleanup(); }
+  Engine(int w, int h, const std::string &t);
+  ~Engine();
 
   bool init();
   void run();
-  Shader *block_shader = nullptr;
-  Shader *highlight_shader = nullptr;
-  World *world = nullptr;
-  Texture atlas_texture;
   bool debug = false;
   bool wireframe = false;
-  glm::ivec3 selected_block;
-  bool is_block_selected = false;
-  WireCube *highlight_cube = nullptr;
 
 private:
+  GLFWwindow *window;
+  int width, height;
+  std::string title;
+
+  float last_frame = 0.0f;
+  float delta_time = 0.0f;
+  float last_x;
+  float last_y;
+  bool first_mouse = true;
+
+  GameClock game_clock;
+  Camera camera;
+  World world;
+  Renderer renderer;
+
   static void framebufferSizeCallback(GLFWwindow *window, int w, int h);
-  void updateSky();
   void drawCrosshairImGui();
   void processInput();
   void loadAtlas(std::string path);
@@ -47,19 +43,4 @@ private:
   void imgui();
   void cleanup();
   void handleMouseClick(int button, int action, int mods);
-
-  GameState game_state = GameState::START;
-
-  GLFWwindow *window;
-  int width = 800, height = 600;
-  std::string title;
-
-  float last_frame = 0.0f;
-  float delta_time = 0.0f;
-
-  GameClock game_clock;
-  Camera camera;
-  float last_x = width / 2.0f;
-  float last_y = height / 2.0f;
-  bool first_mouse = true;
 };

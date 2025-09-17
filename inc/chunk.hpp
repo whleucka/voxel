@@ -1,66 +1,60 @@
 #pragma once
 
-#include "aabb.hpp"
-#include "block.hpp"
-#include "mesh.hpp"
-#include "shader.hpp"
-#include "texture.hpp"
 #include <cstdint>
-#include <vector>
+#include <array>
 
-class World;
+#include <glm/vec2.hpp>
 
-using ChunkKey = uint64_t;
+#include "mesh.hpp"
 
-inline ChunkKey makeChunkKey(int x, int z) {
-  return (uint64_t(uint32_t(x)) << 32) | uint32_t(z);
-}
+enum class BlockType : uint8_t {
+  AIR = 0,
+  DIRT,
+  STONE,
+  GRASS,
+  WATER,
+  SAND,
+  COBBLESTONE,
+  SNOW,
+};
 
-inline int getChunkX(ChunkKey key) { return int(key >> 32); }
+struct BlockInfo {
+  bool solid;
+  bool transparent;
+  glm::vec2 uv;
+};
 
-inline int getChunkZ(ChunkKey key) { return int(key & 0xFFFFFFFF); }
-
-inline bool letsNeighborRender(BlockType t) {
-  // Which blocks should cause neighbors to show their faces?
-  // Air always does. Glass/leaves would too if you add them.
-  return (t == BlockType::AIR);
-}
-
-/**
- * chunk.hpp
- *
- * A chunk for the 3d world
- *
- */
 class Chunk {
 public:
-  Chunk(const int width, const int length, const int height, const int world_x,
-        const int world_z, World *world);
-  ~Chunk();
+  static constexpr int W = 16;
+  static constexpr int H = 256;
+  static constexpr int L = 16;
 
-  void generateMesh(const Texture &atlas);
-  void drawOpaque(Shader &shader);
-  void drawTransparent(Shader &shader);
+  Chunk(int32_t world_x, int32_t world_z);
+
   BlockType getBlock(int x, int y, int z) const;
   void setBlock(int x, int y, int z, BlockType type);
-  ChunkKey getChunkKey() const;
 
-  Mesh opaqueMesh;
-  Mesh transparentMesh;
-  AABB m_aabb; // Add AABB member
+  void generateChunk();
+  void generateMesh();
+
+  void drawOpaque() const;
+  void drawTransparent() const;
+
+  int32_t world_x, world_z;
+  Mesh opaqueMesh, transparentMesh;
 
 private:
-  bool faceVisible(int x, int y, int z, int dir,
-                   BlockType currentBlockType) const;
-  // blocks[x][z][y]
-  std::vector<uint8_t> blocks;
-  int blockIndex(int x, int y, int z) const {
-    return y * width * length + z * width + x;
+  std::array<BlockType, W * H * L> blocks;
+
+  inline int getIndex(int x, int y, int z) const {
+    return x + W * (z + L * y);
   }
-  const int width;
-  const int length;
-  int height;
-  const int world_x;
-  const int world_z;
-  World *world;
+};
+
+struct ChunkKey {
+  int32_t x, z;
+  bool operator==(const ChunkKey &other) const {
+    return x == other.x && z == other.z;
+  }
 };
