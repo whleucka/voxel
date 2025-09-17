@@ -1,0 +1,30 @@
+{
+  "blocks": {
+    "dirt": {
+      "uv": [2, 0]
+    },
+    "grass": {
+      "uv_top": [0, 0],
+      "uv_side": [1, 0],
+      "uv_bottom": [2, 0]
+    },
+    "stone": {
+      "uv": [3, 0]
+    },
+    "bedrock": {
+      "uv": [4, 0]
+    },
+    "sand": {
+      "uv": [5, 0]
+    },
+    "cobblestone": {
+      "uv": [5, 0]
+    },
+    "water": {
+      "uv": [6, 0]
+    },
+    "snow": {
+      "uv": [7, 0]
+    }
+  }
+}
