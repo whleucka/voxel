@@ -1,21 +1,24 @@
 #version 330 core
-
-uniform mat4 projection;
-uniform mat4 view;
-uniform mat4 model;
-
 layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNormal;
-layout(location=2) in vec2 aTex;
+layout(location=2) in vec2 aUvLocal;
+layout(location=3) in vec2 aUvBase;
+
+uniform mat4 model, view, projection;
 
 out vec3 vNormal;
 out vec3 vWorldPos;
-out vec2 vTex;
+out vec2 vUvLocal;
+out vec2 vUvBase;
 
 void main() {
     vec4 worldPos = model * vec4(aPos, 1.0);
-    vWorldPos = worldPos.xyz;
-    vNormal   = mat3(model) * aNormal;
-    vTex      = aTex;
     gl_Position = projection * view * worldPos;
+
+    // model is pure translate for chunks, but this is still fine:
+    vNormal = mat3(transpose(inverse(model))) * aNormal;
+    vWorldPos = worldPos.xyz;
+
+    vUvLocal = aUvLocal; // in blocks (0..w, 0..h)
+    vUvBase  = aUvBase;  // lower-left corner of atlas tile [0..1]
 }

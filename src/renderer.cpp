@@ -1,6 +1,7 @@
 #include "renderer.hpp"
 #include "stb_image.h"
 #include "texture_manager.hpp"
+#include <iostream>
 
 Renderer::Renderer() : block_shader(nullptr) {}
 
@@ -14,6 +15,8 @@ void Renderer::init() {
 void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
                     int screen_width, int screen_height) {
   block_shader->use();
+  GLint curProg = 0; glGetIntegerv(GL_CURRENT_PROGRAM, &curProg);
+  std::cout << "GL_CURRENT_PROGRAM=" << curProg << "\n"; // must be > 0
 
   // Bind atlas + sampler
   const Texture &atlas =

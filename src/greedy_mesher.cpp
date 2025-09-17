@@ -3,10 +3,10 @@
 #include "block_type.hpp"
 #include "texture_manager.hpp"
 #include <functional>
+#include <iostream>
 #include <vector>
 
 // ----- helpers -----
-
 static inline bool isAir(BlockType t) { return t == BlockType::AIR; }
 static inline bool isTrans(BlockType t) { return t == BlockType::WATER; }
 static inline bool isOpaque(BlockType t) { return !isAir(t) && !isTrans(t); }
@@ -20,6 +20,25 @@ static inline void tileToUV(float tileX, float tileY, float atlasSizePx,
   v0 = 1.0f - (tileY + 1) * TILE + pad; // flipped V
   u1 = (tileX + 1) * TILE - pad;
   v1 = 1.0f - tileY * TILE - pad;
+}
+static inline void pushQuadTiled(std::vector<Vertex>& verts,
+                                 std::vector<unsigned>& inds,
+                                 const glm::vec3 P[4],
+                                 const glm::vec3& N,
+                                 const glm::vec2 LUV[4],   // in blocks
+                                 const glm::vec2& tileBase // atlas u0,v0
+) {
+    unsigned base = (unsigned)verts.size();
+    for (int i=0;i<4;++i)
+        verts.push_back({ P[i], N, LUV[i], tileBase });
+    inds.insert(inds.end(), {base, base+1, base+2, base, base+2, base+3});
+}
+static inline void tileBaseNoPad(float tileX,float tileY,
+                                 float atlasPx,float tilePx,
+                                 float& u0,float& v0) {
+  const float T = tilePx / atlasPx;      // 16 / 256 = 0.0625
+  u0 = tileX * T;
+  v0 = 1.0f - (tileY + 1) * T;           // stbi vertical flip
 }
 
 struct MaskCell {
@@ -128,22 +147,25 @@ void GreedyMesher::build(const Chunk &chunk, SampleFn sample, Mesh &opaque,
               BlockDataManager::getInstance().getUV(bt, BlockFace::TOP);
         }
       }
-      auto emit = [&](int u, int v, int w, int h, const MaskCell &cell) {
-        float u0, v0, u1, v1;
-        tileToUV(cell.tile.x, cell.tile.y, ATLAS, TILE, u0, v0, u1, v1);
-        glm::vec3 p[4] = {
-            {(float)u, (float)(y + 1), (float)(v + h)},
-            {(float)(u + w), (float)(y + 1), (float)(v + h)},
-            {(float)(u + w), (float)(y + 1), (float)v},
-            {(float)u, (float)(y + 1), (float)v},
+      auto emitTop = [&](int u,int v,int w,int h,const MaskCell& cell){
+        float u0,v0; tileBaseNoPad(cell.tile.x, cell.tile.y, ATLAS, TILE, u0, v0);
+        glm::vec2 tileBase(u0, v0);
+
+        glm::vec3 P[4] = {
+          {(float)u,     (float)(y+1), (float)(v+h)},
+          {(float)(u+w), (float)(y+1), (float)(v+h)},
+          {(float)(u+w), (float)(y+1), (float)v    },
+          {(float)u,     (float)(y+1), (float)v    },
         };
-        // group by opacity of "current" voxel
-        const BlockType any = sample(baseX + u, y, baseZ + v);
-        auto &VV = isTrans(any) ? vT : vO;
-        auto &II = isTrans(any) ? iT : iO;
-        pushQuad(VV, II, p, {0, 1, 0}, u0, v0, u1, v1);
+        // match P[] CCW; (X,Z) -> (w,h) in blocks
+        glm::vec2 LUV[4] = { {0,h}, {w,h}, {w,0}, {0,0} };
+
+        auto& VV = isTrans(sample(baseX+u, y, baseZ+v)) ? vT : vO;
+        auto& II = isTrans(sample(baseX+u, y, baseZ+v)) ? iT : iO;
+        pushQuadTiled(VV, II, P, {0,1,0}, LUV, tileBase);
       };
-      greedy2D(X, Z, mask, emit, same);
+
+      greedy2D(X, Z, mask, emitTop, same);
     }
 
     // BOTTOM (−Y)
@@ -168,21 +190,24 @@ void GreedyMesher::build(const Chunk &chunk, SampleFn sample, Mesh &opaque,
               BlockDataManager::getInstance().getUV(bt, BlockFace::BOTTOM);
         }
       }
-      auto emit = [&](int u, int v, int w, int h, const MaskCell &cell) {
-        float u0, v0, u1, v1;
-        tileToUV(cell.tile.x, cell.tile.y, ATLAS, TILE, u0, v0, u1, v1);
-        glm::vec3 p[4] = {
-            {(float)u, (float)y, (float)v},
-            {(float)(u + w), (float)y, (float)v},
-            {(float)(u + w), (float)y, (float)(v + h)},
-            {(float)u, (float)y, (float)(v + h)},
+      auto emitBottom = [&](int u,int v,int w,int h,const MaskCell& cell){
+        float u0,v0; tileBaseNoPad(cell.tile.x, cell.tile.y, ATLAS, TILE, u0, v0);
+        glm::vec2 tileBase(u0, v0);
+
+        glm::vec3 P[4] = {
+          {(float)u,     (float)y, (float)v    },
+          {(float)(u+w), (float)y, (float)v    },
+          {(float)(u+w), (float)y, (float)(v+h)},
+          {(float)u,     (float)y, (float)(v+h)},
         };
-        const BlockType any = sample(baseX + u, y, baseZ + v);
-        auto &VV = isTrans(any) ? vT : vO;
-        auto &II = isTrans(any) ? iT : iO;
-        pushQuad(VV, II, p, {0, -1, 0}, u0, v0, u1, v1);
+        // oriented to match your CCW for bottom
+        glm::vec2 LUV[4] = { {0,0}, {w,0}, {w,h}, {0,h} };
+
+        auto& VV = isTrans(sample(baseX+u, y, baseZ+v)) ? vT : vO;
+        auto& II = isTrans(sample(baseX+u, y, baseZ+v)) ? iT : iO;
+        pushQuadTiled(VV, II, P, {0,-1,0}, LUV, tileBase);
       };
-      greedy2D(X, Z, mask, emit, same);
+      greedy2D(X, Z, mask, emitBottom, same);
     }
   }
 
@@ -210,21 +235,23 @@ void GreedyMesher::build(const Chunk &chunk, SampleFn sample, Mesh &opaque,
               BlockDataManager::getInstance().getUV(bt, BlockFace::FRONT);
         }
       }
-      auto emit = [&](int u, int v, int w, int h, const MaskCell &cell) {
-        float u0, v0, u1, v1;
-        tileToUV(cell.tile.x, cell.tile.y, ATLAS, TILE, u0, v0, u1, v1);
-        glm::vec3 p[4] = {
-            {(float)u, (float)v, (float)(z + 1)},
-            {(float)(u + w), (float)v, (float)(z + 1)},
-            {(float)(u + w), (float)(v + h), (float)(z + 1)},
-            {(float)u, (float)(v + h), (float)(z + 1)},
+      auto emitFront = [&](int u,int v,int w,int h,const MaskCell& cell){
+        float u0,v0; tileBaseNoPad(cell.tile.x, cell.tile.y, ATLAS, TILE, u0, v0);
+        glm::vec2 tileBase(u0, v0);
+
+        glm::vec3 P[4] = {
+          {(float)u,     (float)v,     (float)(z+1)},
+          {(float)(u+w), (float)v,     (float)(z+1)},
+          {(float)(u+w), (float)(v+h), (float)(z+1)},
+          {(float)u,     (float)(v+h), (float)(z+1)},
         };
-        const BlockType any = sample(baseX + u, v, baseZ + z);
-        auto &VV = isTrans(any) ? vT : vO;
-        auto &II = isTrans(any) ? iT : iO;
-        pushQuad(VV, II, p, {0, 0, 1}, u0, v0, u1, v1);
+        glm::vec2 LUV[4] = { {0,0}, {w,0}, {w,h}, {0,h} };
+
+        auto& VV = isTrans(sample(baseX+u, v, baseZ+z)) ? vT : vO;
+        auto& II = isTrans(sample(baseX+u, v, baseZ+z)) ? iT : iO;
+        pushQuadTiled(VV, II, P, {0,0,1}, LUV, tileBase);
       };
-      greedy2D(X, Y, mask, emit, same);
+      greedy2D(X, Y, mask, emitFront, same);
     }
 
     // BACK (−Z)
@@ -247,21 +274,24 @@ void GreedyMesher::build(const Chunk &chunk, SampleFn sample, Mesh &opaque,
               BlockDataManager::getInstance().getUV(bt, BlockFace::BACK);
         }
       }
-      auto emit = [&](int u, int v, int w, int h, const MaskCell &cell) {
-        float u0, v0, u1, v1;
-        tileToUV(cell.tile.x, cell.tile.y, ATLAS, TILE, u0, v0, u1, v1);
-        glm::vec3 p[4] = {
-            {(float)(u + w), (float)v, (float)z},
-            {(float)u, (float)v, (float)z},
-            {(float)u, (float)(v + h), (float)z},
-            {(float)(u + w), (float)(v + h), (float)z},
+      auto emitBack = [&](int u,int v,int w,int h,const MaskCell& cell){
+        float u0,v0; tileBaseNoPad(cell.tile.x, cell.tile.y, ATLAS, TILE, u0, v0);
+        glm::vec2 tileBase(u0, v0);
+
+        glm::vec3 P[4] = {
+          {(float)(u+w), (float)v,     (float)z},
+          {(float)u,     (float)v,     (float)z},
+          {(float)u,     (float)(v+h), (float)z},
+          {(float)(u+w), (float)(v+h), (float)z},
         };
-        const BlockType any = sample(baseX + u, v, baseZ + z);
-        auto &VV = isTrans(any) ? vT : vO;
-        auto &II = isTrans(any) ? iT : iO;
-        pushQuad(VV, II, p, {0, 0, -1}, u0, v0, u1, v1);
+        // flip X to compensate reversed positions
+        glm::vec2 LUV[4] = { {w,0}, {0,0}, {0,h}, {w,h} };
+
+        auto& VV = isTrans(sample(baseX+u, v, baseZ+z)) ? vT : vO;
+        auto& II = isTrans(sample(baseX+u, v, baseZ+z)) ? iT : iO;
+        pushQuadTiled(VV, II, P, {0,0,-1}, LUV, tileBase);
       };
-      greedy2D(X, Y, mask, emit, same);
+      greedy2D(X, Y, mask, emitBack, same);
     }
   }
 
@@ -289,21 +319,24 @@ void GreedyMesher::build(const Chunk &chunk, SampleFn sample, Mesh &opaque,
               BlockDataManager::getInstance().getUV(bt, BlockFace::RIGHT);
         }
       }
-      auto emit = [&](int u, int v, int w, int h, const MaskCell &cell) {
-        float u0, v0, u1, v1;
-        tileToUV(cell.tile.x, cell.tile.y, ATLAS, TILE, u0, v0, u1, v1);
-        glm::vec3 p[4] = {
-            {(float)(x + 1), (float)v, (float)(u + w)},      // bl
-            {(float)(x + 1), (float)v, (float)u},            // br
-            {(float)(x + 1), (float)(v + h), (float)u},      // tr
-            {(float)(x + 1), (float)(v + h), (float)(u + w)} // tl
+      auto emitRight = [&](int u,int v,int w,int h,const MaskCell& cell){
+        float u0,v0; tileBaseNoPad(cell.tile.x, cell.tile.y, ATLAS, TILE, u0, v0);
+        glm::vec2 tileBase(u0, v0);
+
+        glm::vec3 P[4] = {
+          {(float)(x+1), (float)v,     (float)(u+w)}, // bl (Z+)
+          {(float)(x+1), (float)v,     (float)u    }, // br (Z-)
+          {(float)(x+1), (float)(v+h), (float)u    }, // tr
+          {(float)(x+1), (float)(v+h), (float)(u+w)}, // tl
         };
-        const BlockType any = sample(baseX + x, v, baseZ + u);
-        auto &VV = isTrans(any) ? vT : vO;
-        auto &II = isTrans(any) ? iT : iO;
-        pushQuad(VV, II, p, {1, 0, 0}, u0, v0, u1, v1);
+        // X+ face increases to the left in Z, so flip X in LUV
+        glm::vec2 LUV[4] = { {w,0}, {0,0}, {0,h}, {w,h} };
+
+        auto& VV = isTrans(sample(baseX+x, v, baseZ+u)) ? vT : vO;
+        auto& II = isTrans(sample(baseX+x, v, baseZ+u)) ? iT : iO;
+        pushQuadTiled(VV, II, P, {1,0,0}, LUV, tileBase);
       };
-      greedy2D(Z, Y, mask, emit, same);
+      greedy2D(Z, Y, mask, emitRight, same);
     }
 
     // LEFT (−X)
@@ -327,23 +360,28 @@ void GreedyMesher::build(const Chunk &chunk, SampleFn sample, Mesh &opaque,
         }
       }
       // LEFT (−X) — plane at x, normal -X, CCW when viewed from outside (−X)
-      auto emit = [&](int u, int v, int w, int h, const MaskCell &cell) {
-        float U0, V0, U1, V1;
-        tileToUV(cell.tile.x, cell.tile.y, ATLAS, TILE, U0, V0, U1, V1);
-        glm::vec3 p[4] = {
-            {(float)x, (float)v, (float)u},             // bl = (x, y,   z)
-            {(float)x, (float)v, (float)(u + w)},       // br = (x, y,   z+w)
-            {(float)x, (float)(v + h), (float)(u + w)}, // tr = (x, y+h, z+w)
-            {(float)x, (float)(v + h), (float)u}        // tl = (x, y+h, z)
+      auto emitLeft = [&](int u,int v,int w,int h,const MaskCell& cell){
+        float u0,v0; tileBaseNoPad(cell.tile.x, cell.tile.y, ATLAS, TILE, u0, v0);
+        glm::vec2 tileBase(u0, v0);
+
+        glm::vec3 P[4] = {
+          {(float)x, (float)v,     (float)u    }, // bl (Z-)
+          {(float)x, (float)v,     (float)(u+w)}, // br (Z+)
+          {(float)x, (float)(v+h), (float)(u+w)}, // tr
+          {(float)x, (float)(v+h), (float)u    }, // tl
         };
-        const BlockType any = sample(baseX + x, v, baseZ + u);
-        auto &VV = isTrans(any) ? vT : vO;
-        auto &II = isTrans(any) ? iT : iO;
-        pushQuad(VV, II, p, {-1, 0, 0}, U0, V0, U1, V1);
+        glm::vec2 LUV[4] = { {0,0}, {w,0}, {w,h}, {0,h} };
+
+        auto& VV = isTrans(sample(baseX+x, v, baseZ+u)) ? vT : vO;
+        auto& II = isTrans(sample(baseX+x, v, baseZ+u)) ? iT : iO;
+        pushQuadTiled(VV, II, P, {-1,0,0}, LUV, tileBase);
       };
-      greedy2D(Z, Y, mask, emit, same);
+      greedy2D(Z, Y, mask, emitLeft, same);
     }
   }
+      std::cout << "opaque: V=" << vO.size() << " I=" << iO.size()
+          << "  transparent: V=" << vT.size() << "\n";
+
 
   // upload
   if (!iO.empty()) {
