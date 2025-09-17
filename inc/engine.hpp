@@ -8,6 +8,7 @@
 #include <glad/glad.h>
 #include <string>
 
+
 class Engine {
 public:
   Engine(int w, int h, const std::string &t);
@@ -43,4 +44,5 @@ private:
   void imgui();
   void cleanup();
   void handleMouseClick(int button, int action, int mods);
+  void checkOpenGLError(const char* stmt, const char* fname, int line);
 };

@@ -1,5 +1,6 @@
 #include "engine.hpp"
 #include "camera.hpp"
+#include "block_data_manager.hpp"
 #include "texture_manager.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/ext/scalar_constants.hpp>
@@ -153,9 +154,12 @@ bool Engine::init() {
   ImGui_ImplOpenGL3_Init(
       "#version 330"); // or "#version 130" depending on context
 
+  BlockDataManager::getInstance().load("res/block_data.json");
+
   renderer.init();
-  world.generateMeshes();
   loadAtlas("res/block_atlas.png");
+
+  world.generateMeshes();
 
   return true;
 }
@@ -292,3 +296,4 @@ void Engine::handleMouseClick(int, int action, int) {
   if (action == GLFW_PRESS) {
   }
 }
+

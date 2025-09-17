@@ -6,23 +6,7 @@
 #include <glm/vec2.hpp>
 
 #include "mesh.hpp"
-
-enum class BlockType : uint8_t {
-  AIR = 0,
-  DIRT,
-  STONE,
-  GRASS,
-  WATER,
-  SAND,
-  COBBLESTONE,
-  SNOW,
-};
-
-struct BlockInfo {
-  bool solid;
-  bool transparent;
-  glm::vec2 uv;
-};
+#include "block_type.hpp"
 
 class Chunk {
 public:

@@ -1,8 +1,13 @@
 #include "world.hpp"
+#include "greedy_mesher.hpp"
 
 World::World() {
   // Create a single chunk at (0, 0)
   loadChunk(0, 0);
+  // const int R = 1; // radius in chunks (1 => 3x3)
+  // for (int dx = -R; dx <= R; ++dx)
+  //   for (int dz = -R; dz <= R; ++dz)
+  //     loadChunk(dx, dz);
 }
 
 World::~World() = default;
@@ -19,15 +24,31 @@ std::vector<Chunk *> World::getVisibleChunks(const Camera &) {
   return result;
 }
 
+static inline int floorDiv(int a, int b) {
+  int q = a / b, r = a % b;
+  if (r != 0 && ((r < 0) != (b < 0)))
+    --q;
+  return q;
+}
+static inline int floorMod(int a, int b) {
+  int r = a % b;
+  return (r < 0) ? r + b : r;
+}
+
 BlockType World::getBlock(int x, int y, int z) const {
-  int cx = x / Chunk::W;
-  int cz = z / Chunk::L;
-  uint64_t key = makeChunkKey(cx, cz);
+  if (y < 0 || y >= Chunk::H)
+    return BlockType::AIR;
+
+  const int cx = floorDiv(x, Chunk::W);
+  const int cz = floorDiv(z, Chunk::L);
+  const uint64_t key = makeChunkKey(cx, cz);
   auto it = chunks.find(key);
-  if (it != chunks.end()) {
-    return it->second->getBlock(x % Chunk::W, y, z % Chunk::L);
-  }
-  return BlockType::AIR;
+  if (it == chunks.end())
+    return BlockType::AIR;
+
+  const int lx = floorMod(x, Chunk::W);
+  const int lz = floorMod(z, Chunk::L);
+  return it->second->getBlock(lx, y, lz);
 }
 
 void World::setBlock(int x, int y, int z, BlockType type) {
@@ -41,9 +62,14 @@ void World::setBlock(int x, int y, int z, BlockType type) {
 }
 
 void World::generateMeshes() {
-  for (auto const& [key, val] : chunks)
-  {
-    val->generateMesh();
+  for (auto &kv : chunks) {
+    Chunk &c = *kv.second;
+
+    auto sample = [&](int gx, int gy, int gz) -> BlockType {
+      return getBlock(gx, gy, gz);
+    };
+
+    GreedyMesher::build(c, sample, c.opaqueMesh, c.transparentMesh);
   }
 }
 
@@ -54,7 +80,6 @@ void World::loadChunk(int cx, int cz) {
     chunks[key]->generateChunk();
   }
 }
-
 
 void World::unloadChunk(int cx, int cz) {
   uint64_t key = makeChunkKey(cx, cz);

@@ -9,6 +9,7 @@ enum class BlockType : uint8_t {
   STONE,
   GRASS,
   WATER,
+  BEDROCK,
   SAND,
   COBBLESTONE,
   SNOW,
