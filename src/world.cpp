@@ -4,7 +4,7 @@
 World::World() {
   // Create a single chunk at (0, 0)
   // loadChunk(0, 0);
-  const int R = 5; // radius in chunks (1 => 3x3)
+  const int R = 3; // radius in chunks (1 => 3x3)
   for (int dx = -R; dx <= R; ++dx)
     for (int dz = -R; dz <= R; ++dz)
       loadChunk(dx, dz);
