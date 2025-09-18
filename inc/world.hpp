@@ -8,21 +8,21 @@
 
 #include "camera.hpp"
 #include "chunk.hpp"
+#include "greedy_mesher.hpp"
 #include "robin_hood.h"
 #include "thread_pool.hpp"
-#include "greedy_mesher.hpp"
 
 struct PendingUpload {
   uint64_t chunk_key;
-  Mesh* targetMesh;
+  Mesh *targetMesh;
   CpuMesh mesh;
 };
 
 struct GeneratedData {
-    uint64_t key;
-    std::unique_ptr<Chunk> chunk;
-    CpuMesh opaque_mesh;
-    CpuMesh transparent_mesh;
+  uint64_t key;
+  std::unique_ptr<Chunk> chunk;
+  CpuMesh opaque_mesh;
+  CpuMesh transparent_mesh;
 };
 
 class World {
@@ -45,7 +45,7 @@ private:
 
   // Results from worker threads waiting to be promoted to `chunks`
   std::deque<GeneratedData> pending_generated;
-  std::mutex pending_mutex; // guards pending_generated
+  std::mutex pending_mutex;        // guards pending_generated
   mutable std::mutex chunks_mutex; // guards chunks
 
   std::deque<PendingUpload> pending_uploads;
@@ -59,7 +59,6 @@ private:
 
   // Promote some completed worker outputs into the world (main thread)
   void promotePendingGenerated(int budget);
-
 
   static uint64_t makeChunkKey(int cx, int cz) {
     return (uint64_t(uint32_t(cx)) << 32) | uint32_t(cz);

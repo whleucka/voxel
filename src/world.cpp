@@ -46,7 +46,8 @@ void World::promotePendingGenerated(int budget) {
     }
   }
 
-  if (local.empty()) return;
+  if (local.empty())
+    return;
 
   std::lock_guard<std::mutex> lock(chunks_mutex);
   for (auto &item : local) {
@@ -56,27 +57,20 @@ void World::promotePendingGenerated(int budget) {
     loading.erase(key);
     chunks[key] = std::move(item.chunk);
 
-    Chunk& chunk = *chunks[key];
+    Chunk &chunk = *chunks[key];
 
     if (!item.opaque_mesh.vertices.empty()) {
-        pending_uploads.push_back({key, &chunk.opaqueMesh, std::move(item.opaque_mesh)});
+      pending_uploads.push_back(
+          {key, &chunk.opaqueMesh, std::move(item.opaque_mesh)});
     }
     if (!item.transparent_mesh.vertices.empty()) {
-        pending_uploads.push_back({key, &chunk.transparentMesh, std::move(item.transparent_mesh)});
+      pending_uploads.push_back(
+          {key, &chunk.transparentMesh, std::move(item.transparent_mesh)});
     }
   }
 }
 
 World::World() {
-  // Pre-load around origin synchronously so you see something right away
-  for (int dx = -render_distance; dx <= render_distance; ++dx) {
-    for (int dz = -render_distance; dz <= render_distance; ++dz) {
-      if (dx * dx + dz * dz > render_distance * render_distance)
-        continue;
-      loadChunk(dx, dz); // This will enqueue now; for "instant", you can
-                         // special-case to sync generate here.
-    }
-  }
   // Immediately promote a few to avoid blank start
   promotePendingGenerated(64); // generous first tick
 }
@@ -100,7 +94,7 @@ static inline void unpackChunkKey(uint64_t key, int &cx, int &cz) {
 }
 
 void World::update(const glm::vec3 &camera_pos) {
-  // --- 0) Promote finished worker chunks first (so they can render) ---
+  // 0) Promote finished worker chunks first (so they can render)
   promotePendingGenerated(/*budget=*/8);
 
   // --- camera chunk coords ---
@@ -112,7 +106,7 @@ void World::update(const glm::vec3 &camera_pos) {
   const int r = render_distance;
   const int r2 = r * r;
 
-  // --- 1) LOAD: nearest-first using spiral order ---
+  // 1) LOAD: nearest-first using spiral order
   static thread_local std::vector<std::pair<int, int>> order;
   spiralOrder(r, order);
 
@@ -147,8 +141,7 @@ void World::update(const glm::vec3 &camera_pos) {
     }
   }
 
-  // --- 2) UNLOAD: kick out chunks outside the circle (cap per frame if needed)
-  // ---
+  // 2) UNLOAD: kick out chunks outside the circle (cap per frame if needed)
   std::vector<uint64_t> toUnload;
   {
     std::lock_guard<std::mutex> lock(chunks_mutex);
@@ -234,7 +227,7 @@ void World::loadChunk(int cx, int cz) {
 
   loading.insert(key);
   if (kLogLoads)
-    std::cout << "ENQUEUE " << cx << "," << cz << "\n";
+    std::cout << "ENQUEUE CHUNK" << cx << "," << cz << "\n";
 
   // Worker job: build the chunk data OFF the main thread
   thread_pool.enqueue([this, cx, cz, key]() {
@@ -242,13 +235,14 @@ void World::loadChunk(int cx, int cz) {
     up->generateChunk();
 
     auto sample = [this, &up](int gx, int gy, int gz) -> BlockType {
-        int local_x = gx - up->world_x * Chunk::W;
-        int local_y = gy;
-        int local_z = gz - up->world_z * Chunk::L;
-        if (local_x >= 0 && local_x < Chunk::W && local_z >= 0 && local_z < Chunk::L) {
-            return up->getBlock(local_x, local_y, local_z);
-        }
-        return this->getBlock(gx, gy, gz);
+      int local_x = gx - up->world_x * Chunk::W;
+      int local_y = gy;
+      int local_z = gz - up->world_z * Chunk::L;
+      if (local_x >= 0 && local_x < Chunk::W && local_z >= 0 &&
+          local_z < Chunk::L) {
+        return up->getBlock(local_x, local_y, local_z);
+      }
+      return this->getBlock(gx, gy, gz);
     };
 
     auto [opaque_mesh, transparent_mesh] = GreedyMesher::build_cpu(*up, sample);
@@ -256,7 +250,9 @@ void World::loadChunk(int cx, int cz) {
     // Hand it back to the main thread queue
     {
       std::lock_guard<std::mutex> lk(pending_mutex);
-      pending_generated.emplace_back(GeneratedData{key, std::move(up), std::move(opaque_mesh), std::move(transparent_mesh)});
+      pending_generated.emplace_back(
+          GeneratedData{key, std::move(up), std::move(opaque_mesh),
+                        std::move(transparent_mesh)});
     }
   });
 }
@@ -264,22 +260,19 @@ void World::loadChunk(int cx, int cz) {
 void World::unloadChunk(int cx, int cz) {
   const uint64_t key = makeChunkKey(cx, cz);
 
-  pending_uploads.erase(
-    std::remove_if(pending_uploads.begin(), pending_uploads.end(),
-                   [key](const PendingUpload& upload) {
-                     return upload.chunk_key == key;
-                   }),
-    pending_uploads.end());
+  pending_uploads.erase(std::remove_if(pending_uploads.begin(),
+                                       pending_uploads.end(),
+                                       [key](const PendingUpload &upload) {
+                                         return upload.chunk_key == key;
+                                       }),
+                        pending_uploads.end());
 
-  // If it’s still in-flight, just forget about it (when it returns, we won't
-  // insert it if you add a check)
   loading.erase(key);
   if (kLogUnloads)
-    std::cout << "UNLOAD " << cx << "," << cz << "\n";
+    std::cout << "UNLOAD CHUNK " << cx << "," << cz << "\n";
   std::lock_guard<std::mutex> lock(chunks_mutex);
   chunks.erase(key);
 }
-
 
 void World::processUploads() {
   if (pending_uploads.empty()) {
@@ -290,7 +283,8 @@ void World::processUploads() {
   const int max_uploads_per_frame = 1;
 
   auto it = pending_uploads.begin();
-  while (it != pending_uploads.end() && uploads_processed < max_uploads_per_frame) {
+  while (it != pending_uploads.end() &&
+         uploads_processed < max_uploads_per_frame) {
     if (it->targetMesh) {
       it->targetMesh->upload(it->mesh.vertices, it->mesh.indices);
     }
@@ -298,4 +292,3 @@ void World::processUploads() {
     uploads_processed++;
   }
 }
-

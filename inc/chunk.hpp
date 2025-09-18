@@ -1,12 +1,12 @@
 #pragma once
 
-#include <cstdint>
 #include <array>
+#include <cstdint>
 
 #include <glm/vec2.hpp>
 
-#include "mesh.hpp"
 #include "block_type.hpp"
+#include "mesh.hpp"
 
 class Chunk {
 public:
@@ -20,10 +20,6 @@ public:
   void setBlock(int x, int y, int z, BlockType type);
 
   void generateChunk();
-  void generateMesh();
-
-  void drawOpaque() const;
-  void drawTransparent() const;
 
   int32_t world_x, world_z;
   Mesh opaqueMesh, transparentMesh;
@@ -31,9 +27,7 @@ public:
 private:
   std::array<BlockType, W * H * L> blocks;
 
-  inline int getIndex(int x, int y, int z) const {
-    return x + W * (z + L * y);
-  }
+  inline int getIndex(int x, int y, int z) const { return x + W * (z + L * y); }
 };
 
 struct ChunkKey {
