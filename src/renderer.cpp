@@ -81,10 +81,10 @@ void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
   // How far you can see in world units (radius to the outer ring of chunks)
   float chunkSize = float(Chunk::W); // or 0.5f*(Chunk::W + Chunk::L)
   float radiusWU =
-      (World::render_distance + 0.5f) * chunkSize; // +0.5 for a little buffer
+      (World::render_distance + 1.0f) * chunkSize; // for a little buffer
 
   // Place fog near the edge of visibility
-  float fogStart = 0.70f * radiusWU; // starts ~70% of the way out
+  float fogStart = 0.65f * radiusWU; // starts ~65% of the way out
   float fogEnd = 0.98f * radiusWU;   // fully fogged just before the edge
 
   block_shader->setFloat("fogStart", fogStart);
