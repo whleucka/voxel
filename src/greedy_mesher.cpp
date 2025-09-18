@@ -91,12 +91,11 @@ static void greedy2D(int U, int V, std::vector<MaskCell> &mask, EmitFn emit,
 
 // ----- build (greedy) -----
 
-void GreedyMesher::build(const Chunk &chunk, SampleFn sample, Mesh &opaque,
-                         Mesh &transparent) {
+std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn sample) {
   constexpr float ATLAS = 256.0f, TILE = 16.0f;
 
   std::vector<Vertex> vO, vT;
-  std::vector<unsigned> iO, iT;
+  std::vector<unsigned int> iO, iT;
 
   auto same = [](const MaskCell &a, const MaskCell &b) {
     return a.set && b.set && a.tile == b.tile;
@@ -106,9 +105,12 @@ void GreedyMesher::build(const Chunk &chunk, SampleFn sample, Mesh &opaque,
   const int baseX = chunk.world_x * Chunk::W;
   const int baseZ = chunk.world_z * Chunk::L;
 
+  std::vector<MaskCell> mask;
+  mask.reserve(std::max({Chunk::W * Chunk::H, Chunk::W * Chunk::L, Chunk::H * Chunk::L}));
+
   // -------- ±Y (TOP/BOTTOM) --------
   {
-    std::vector<MaskCell> mask(X * Z);
+    mask.assign(X * Z, MaskCell());
 
     // TOP (+Y)
     for (int y = 0; y < Y; ++y) {
@@ -201,7 +203,7 @@ void GreedyMesher::build(const Chunk &chunk, SampleFn sample, Mesh &opaque,
 
   // -------- ±Z (FRONT/BACK) --------
   {
-    std::vector<MaskCell> mask(X * Y);
+    mask.assign(X * Y, MaskCell());
 
     // FRONT (+Z)
     for (int z = 0; z < Z; ++z) {
@@ -287,7 +289,7 @@ void GreedyMesher::build(const Chunk &chunk, SampleFn sample, Mesh &opaque,
 
   // -------- ±X (RIGHT/LEFT) --------
   {
-    std::vector<MaskCell> mask(Z * Y); // U=Z, V=Y
+    mask.assign(Z * Y, MaskCell()); // U=Z, V=Y
 
     // RIGHT (+X)
     for (int x = 0; x < X; ++x) {
@@ -372,26 +374,16 @@ void GreedyMesher::build(const Chunk &chunk, SampleFn sample, Mesh &opaque,
     }
   }
 
-  // Handy debug of opaque and transparent
-  // std::cout << "opaque: V=" << vO.size() << " I=" << iO.size()
-  //           << "  transparent: V=" << vT.size() << "\n";
-
-  // upload
+  CpuMesh opaqueMesh, transparentMesh;
   if (!iO.empty()) {
-    opaque.vertices = std::move(vO);
-    opaque.indices = std::move(iO);
-    opaque.setIndexCount(opaque.indices.size());
-    opaque.setupMesh();
-  } else {
-    opaque.clear();
+    opaqueMesh.vertices = std::move(vO);
+    opaqueMesh.indices = std::move(iO);
   }
 
   if (!iT.empty()) {
-    transparent.vertices = std::move(vT);
-    transparent.indices = std::move(iT);
-    transparent.setIndexCount(transparent.indices.size());
-    transparent.setupMesh();
-  } else {
-    transparent.clear();
+    transparentMesh.vertices = std::move(vT);
+    transparentMesh.indices = std::move(iT);
   }
+
+  return {opaqueMesh, transparentMesh};
 }

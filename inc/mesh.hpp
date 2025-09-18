@@ -39,6 +39,14 @@ public:
 
   void setIndexCount(GLsizei count) { indexCount = count; }
 
+  void upload(const std::vector<Vertex>& new_vertices, const std::vector<unsigned int>& new_indices) {
+    vertices = new_vertices;
+    indices = new_indices;
+    indexCount = new_indices.size();
+    setupMesh();
+  }
+
+
   // draw only if we have indices
   void draw(Shader& shader) const {
     if (VAO == 0 || indexCount == 0) return;

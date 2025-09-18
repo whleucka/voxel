@@ -55,10 +55,7 @@ void Chunk::generateChunk() {
 }
 
 void Chunk::generateMesh() {
-  auto sample = [&](int gx, int gy, int gz) -> BlockType {
-    return getBlock(gx, gy, gz);   // world-space accessor (can cross chunks)
-  };
-  GreedyMesher::build(*this, sample, opaqueMesh, transparentMesh);
+  // no-op
 }
 
 void Chunk::drawOpaque() const {

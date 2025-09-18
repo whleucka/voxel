@@ -10,6 +10,20 @@
 #include "chunk.hpp"
 #include "robin_hood.h"
 #include "thread_pool.hpp"
+#include "greedy_mesher.hpp"
+
+struct PendingUpload {
+  uint64_t chunk_key;
+  Mesh* targetMesh;
+  CpuMesh mesh;
+};
+
+struct GeneratedData {
+    uint64_t key;
+    std::unique_ptr<Chunk> chunk;
+    CpuMesh opaque_mesh;
+    CpuMesh transparent_mesh;
+};
 
 class World {
 public:
@@ -19,6 +33,7 @@ public:
   std::vector<Chunk *> getVisibleChunks(const Camera &camera);
   void update(const glm::vec3 &camera_pos);
   void generateMeshes();
+  void processUploads();
   BlockType getBlock(int x, int y, int z) const;
   void setBlock(int x, int y, int z, BlockType type);
 
@@ -33,19 +48,20 @@ private:
   robin_hood::unordered_set<uint64_t> loading;
 
   // Results from worker threads waiting to be promoted to `chunks`
-  std::deque<std::pair<uint64_t, std::unique_ptr<Chunk>>> pending_generated;
+  std::deque<GeneratedData> pending_generated;
   std::mutex pending_mutex; // guards pending_generated
+
+  std::deque<PendingUpload> pending_uploads;
 
   ThreadPool thread_pool;
 
-  int render_distance = 10;
+  int render_distance = 5;
 
   void loadChunk(int cx, int cz);
   void unloadChunk(int cx, int cz);
 
   // Promote some completed worker outputs into the world (main thread)
   void promotePendingGenerated(int budget);
-  void queueMeshUpload(uint64_t key, bool transparent);
 
 
   static uint64_t makeChunkKey(int cx, int cz) {

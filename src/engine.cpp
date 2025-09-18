@@ -206,6 +206,7 @@ void Engine::loadAtlas(std::string path) {
 void Engine::update() {
   game_clock.update(delta_time);
   world.update(camera.getPosition());
+  world.processUploads();
 }
 
 void Engine::render() {
