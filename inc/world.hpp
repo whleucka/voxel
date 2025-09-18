@@ -1,78 +1,72 @@
 #pragma once
 
-#include "chunk.hpp"
-#include "render_ctx.hpp"
-#include "texture.hpp"
-#include <condition_variable>
+#include <cstdint>
+#include <deque>
+#include <memory>
 #include <mutex>
-#include <queue>
-#include <thread>
 #include <vector>
+
+#include "camera.hpp"
+#include "chunk.hpp"
+#include "greedy_mesher.hpp"
 #include "robin_hood.h"
+#include "thread_pool.hpp"
 
+struct PendingUpload {
+  uint64_t chunk_key;
+  Mesh *targetMesh;
+  CpuMesh mesh;
+};
 
+struct GeneratedData {
+  uint64_t key;
+  std::unique_ptr<Chunk> chunk;
+  CpuMesh opaque_mesh;
+  CpuMesh transparent_mesh;
+};
 
-/*
- * world.hpp
- *
- * 3d minecraft-like voxel game world
- *
- */
 class World {
 public:
-  World(Texture &block_atlas);
+  World();
   ~World();
 
-  const int chunk_width = 16;
-  const int chunk_length = 16;
-  const int chunk_height = 256;
-  const int render_distance = 12;
-  const int max_chunks_per_frame = 6; // how many chunks to load per frame
-  const int sea_level = 42;           // sea below y
-  const int snow_height = 70;         // snow above y
-  const size_t max_cache = 256;
+  static constexpr int render_distance = 12;
 
-  void update(glm::vec3 camera_pos);
-  void drawOpaque(renderCtx &ctx);
-  void drawTransparent(renderCtx &ctx);
+  std::vector<Chunk *> getVisibleChunks(const Camera &camera);
+  void update(const glm::vec3 &camera_pos);
+  void processUploads();
   BlockType getBlock(int x, int y, int z) const;
-  Chunk *getChunk(int chunk_x, int chunk_y);
-  int getChunkCount() const;
-  float getMaxChunks() const;
-  bool raycast(const glm::vec3 &start, const glm::vec3 &dir, float max_dist,
-               glm::ivec3 &block_pos, glm::ivec3 &face_normal);
-  void removeBlock(int x, int y, int z);
-  void addBlock(int x, int y, int z, BlockType type);
+  void setBlock(int x, int y, int z, BlockType type);
 
+  // How many chunks have loaded
+  size_t getLoadedChunkCount() const { return chunks.size(); }
+
+  // uint64_t chunk key -- made of 2 32 bit integers
+  static uint64_t makeChunkKey(int cx, int cz) {
+    return (uint64_t(uint32_t(cx)) << 32) | uint32_t(cz);
+  }
 private:
-  robin_hood::unordered_map<ChunkKey, Chunk *>
-      chunks; // currently rendered
-  robin_hood::unordered_map<ChunkKey, Chunk *>
-      cache;                                             // inactive but saved
-  robin_hood::unordered_set<ChunkKey> _loading_q; // being generated
-  Texture &block_atlas;
+  // Load chunks algo
+  void spiralLoadOrderCircle(int camCx, int camCz, int r, std::vector<std::pair<int, int>> &out);
 
-  // thread workers
-  std::vector<std::thread> _threads;
-  std::queue<ChunkKey> _load_q;
-  std::mutex _load_q_mutex;
-  std::condition_variable _load_q_cv;
+  // Main-thread only
+  robin_hood::unordered_map<uint64_t, std::unique_ptr<Chunk>> chunks;
 
-  // generated chunks waiting for GPU upload
-  std::queue<Chunk *> _generated_q;
-  std::mutex _generated_q_mutex;
+  // Chunks currently being generated in the pool (guarded by main-thread only)
+  robin_hood::unordered_set<uint64_t> loading;
 
-  // remesh jobs (neighbors) waiting for GPU upload
-  std::queue<ChunkKey> _remesh_q;
-  robin_hood::unordered_set<ChunkKey> _remesh_q_seen;
-  std::mutex _remesh_q_mutex;
+  // Results from worker threads waiting to be promoted to `chunks`
+  std::deque<GeneratedData> pending_generated;
+  std::mutex pending_mutex;        // guards pending_generated
+  mutable std::mutex chunks_mutex; // guards chunks
 
-  bool _should_stop = false;
+  std::deque<PendingUpload> pending_uploads;
 
-  void remeshNeighbors(const ChunkKey& key);
-  void loadChunk(int chunk_x, int chunk_z);
-  void unloadChunk(const ChunkKey &key);
-  void startThreads();
-  void stopThreads();
-  void threadLoop();
+  ThreadPool thread_pool;
+
+  void loadChunk(int cx, int cz);
+  void unloadChunk(int cx, int cz);
+
+  // Promote some completed worker outputs into the world (main thread)
+  void promotePendingGenerated(int budget);
 };

@@ -1,56 +1,42 @@
 #include "chunk.hpp"
-#include "block.hpp"
-#include "block_type.hpp"
-#include "world.hpp"
-#include <glm/glm.hpp>
+#include <algorithm>
+#include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/noise.hpp>
 
-// alias
-using V3 = glm::vec3;
-using V2 = glm::vec2;
+Chunk::Chunk(int32_t world_x, int32_t world_z)
+    : world_x(world_x), world_z(world_z) {
+  blocks.fill(BlockType::AIR);
+}
 
-// ------ Face vertex templates for a unit cube centered at the origin ------
-// +X face (right)  CCW: bottom-front → bottom-back → top-back → top-front
-static const V3 FACE_PX[4] = {V3(0.5f, -0.5f, 0.5f), V3(0.5f, -0.5f, -0.5f),
-                              V3(0.5f, 0.5f, -0.5f), V3(0.5f, 0.5f, 0.5f)};
+BlockType Chunk::getBlock(int x, int y, int z) const {
+  if (x < 0 || x >= W || y < 0 || y >= H || z < 0 || z >= L) {
+    return BlockType::AIR;
+  }
+  return blocks[getIndex(x, y, z)];
+}
 
-// -X face (left)   CCW: bottom-back → bottom-front → top-front → top-back
-static const V3 FACE_NX[4] = {V3(-0.5f, -0.5f, -0.5f), V3(-0.5f, -0.5f, 0.5f),
-                              V3(-0.5f, 0.5f, 0.5f), V3(-0.5f, 0.5f, -0.5f)};
+void Chunk::setBlock(int x, int y, int z, BlockType type) {
+  if (x < 0 || x >= W || y < 0 || y >= H || z < 0 || z >= L) {
+    return;
+  }
+  blocks[getIndex(x, y, z)] = type;
+}
 
-// +Y face (top)    CCW: front-left → front-right → back-right → back-left
-static const V3 FACE_PY[4] = {V3(-0.5f, 0.5f, 0.5f), V3(0.5f, 0.5f, 0.5f),
-                              V3(0.5f, 0.5f, -0.5f), V3(-0.5f, 0.5f, -0.5f)};
+void Chunk::generateChunk() {
+  const int SEA_LEVEL = 42;  // water below y
+  const int SNOW_LEVEL = 65; // snow above y
+  const float FREQ = 0.05f;  // noise frequency
+  const float AMP = 29.0f;   // height amplitude
+  const float OCTAVES = 4.0f;
+  const float LACUNARITY = 1.8f;
+  const float GAIN = 0.5f;
+  const int baseX = world_x * W;
+  const int baseZ = world_z * L;
 
-// -Y face (bottom) CCW: back-left → back-right → front-right → front-left
-static const V3 FACE_NY[4] = {V3(-0.5f, -0.5f, -0.5f), V3(0.5f, -0.5f, -0.5f),
-                              V3(0.5f, -0.5f, 0.5f), V3(-0.5f, -0.5f, 0.5f)};
-
-// +Z face (front)  CCW: bottom-left → bottom-right → top-right → top-left
-static const V3 FACE_PZ[4] = {V3(-0.5f, -0.5f, 0.5f), V3(0.5f, -0.5f, 0.5f),
-                              V3(0.5f, 0.5f, 0.5f), V3(-0.5f, 0.5f, 0.5f)};
-
-// -Z face (back)   CCW: bottom-right → bottom-left → top-left → top-right
-static const V3 FACE_NZ[4] = {V3(0.5f, -0.5f, -0.5f), V3(-0.5f, -0.5f, -0.5f),
-                              V3(-0.5f, 0.5f, -0.5f), V3(0.5f, 0.5f, -0.5f)};
-
-Chunk::Chunk(const int w, const int l, const int h, const int world_x,
-             const int world_z, World *world)
-    : width(w), length(l), height(h), world_x(world_x), world_z(world_z),
-      world(world) {
-  // Calculate AABB for the chunk
-  m_aabb.min = glm::vec3(world_x * width, 0, world_z * length);
-  m_aabb.max =
-      glm::vec3(world_x * width + width, height, world_z * length + length);
-
-  //~.~.~.~.~. TERRAIN GENERATION ~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.
-  blocks.resize(width * length * height, static_cast<uint8_t>(BlockType::AIR));
-
-  const int h_mod = 29;       // Determines height of terrain
-  const float h_freq = 0.02f; // perlin noise frequency
-  for (int x = 0; x < width; x++) {
-    for (int z = 0; z < length; z++) {
-      // --- multi-octave Perlin noise (fBm) ---
+  for (int x = 0; x < W; ++x) {
+    for (int z = 0; z < L; ++z) {
+      /** GENERATE TERRAIN */
+      // multi-octave Perlin noise (fBm)
       auto fbm = [](glm::vec2 p, int octaves, double lacunarity, double gain) {
         double sum = 0.0;
         double amplitude = 1.0;
@@ -67,62 +53,51 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
       };
 
       // Sample noise at world position
-      glm::vec2 pos((world_x * width + x) * h_freq,
-                    (world_z * length + z) * h_freq);
+      glm::vec2 pos((baseX + x) * FREQ, (baseZ + z) * FREQ);
 
-      // 4 octaves, lacunarity=2.0, gain=0.5 → classic smooth fBm
-      double hNoise = fbm(pos, 4, 1.8, 0.5);
-      // // Scale to terrain height
-      // int perlin_height = static_cast<int>(hNoise * 30) + h_mod;
+      // classic smooth fBm
+      double hNoise = fbm(pos, OCTAVES, LACUNARITY, GAIN);
 
       // --- large scale biome noise ---
-      glm::vec2 biome_pos((world_x * width + x) * 0.001f, // much lower frequency
-                          (world_z * length + z) * 0.001f);
+      glm::vec2 biome_pos((world_x * W + x) * 0.001f, // much lower frequency
+                          (world_z * L + z) * 0.001f);
 
       double biome_noise = glm::perlin(biome_pos) * 0.5 + 0.5; // [0,1]
 
       // Emphasize mountain regions (smoothstep makes it "rare")
       // I'll probably forget what this means:
-      // Takes your biome noise, says “only the highest values should count as mountains,” 
-      // and applies a smooth ramp so that instead of an ugly cliff at 0.45, 
-      // you get a nice smooth transition into mountains.
+      // Takes your biome noise, says “only the highest values should count as
+      // mountains,” and applies a smooth ramp so that instead of an ugly cliff
+      // at 0.45, you get a nice smooth transition into mountains.
       double mountain_factor = glm::smoothstep(0.45, 0.85, biome_noise);
 
-      // Final height = base hills + mountains
-      int perlin_height =
-          static_cast<int>(
-              hNoise * 30            // base hills
-              + mountain_factor * 80 // extra mountains only where biome is high
-              ) +
-          h_mod;
+      int perlin_height = static_cast<int>(
+          hNoise * 30            // base hills
+          + mountain_factor * 80 // extra mountains only where biome is high
+      ) + AMP;
 
-      // Set block type
       for (int y = 0; y < perlin_height; y++) {
         BlockType type = BlockType::AIR;
-        const double stone_noise =
-            glm::perlin(V3((world_x * width + x) * 0.55, y * 0.25,
-                           (world_z * length + z) * 0.25));
-        const double bedrock_noise =
-            glm::perlin(V3((world_x * width + x) * 0.42, y * 0.02,
-                           (world_z * length + z) * 0.42));
-        // const double air_noise =
-        //     glm::perlin(V3((world_x * width + x) * 0.02, y * 0.02,
-        //                    (world_z * length + z) * 0.02));
+        const double stone_noise = glm::perlin(glm::vec3(
+            (world_x * W + x) * 0.55, y * 0.25, (world_z * L + z) * 0.25));
+        const double bedrock_noise = glm::perlin(glm::vec3(
+            (world_x * W + x) * 0.42, y * 0.02, (world_z * L + z) * 0.42));
 
+        // Figure out top block
         if (y == perlin_height - 1) {
           int block_rand = (rand() % 100) + 1;
-          if (perlin_height >= world->snow_height) {
+          if (perlin_height >= SNOW_LEVEL) {
             type = BlockType::SNOW;
-          } else if (perlin_height <= world->sea_level) {
+          } else if (perlin_height <= SEA_LEVEL) {
             type = BlockType::SAND;
           } else {
-            if (perlin_height <= world->sea_level + 5) {
-              type = BlockType::GRASS;
-            } else {
+            if (y < SNOW_LEVEL) {
               if (block_rand <= 5) {
                 type = BlockType::COBBLESTONE;
-              } else if (block_rand <= 85) {
+              } else if (block_rand < 15) {
                 type = BlockType::STONE;
+              } else if (block_rand <= 85) {
+                type = BlockType::GRASS;
               } else {
                 type = BlockType::DIRT;
               }
@@ -132,120 +107,20 @@ Chunk::Chunk(const int w, const int l, const int h, const int world_x,
           type = BlockType::BEDROCK;
         } else if ((stone_noise > 0.4) || (y >= 5 && y <= 15)) {
           type = BlockType::STONE;
-        // } else if (air_noise > 0.4 && y <= 40) {
-        //   // Cave-like
-        //   type = BlockType::AIR;
         } else {
           type = BlockType::DIRT;
         }
-        
-
-        blocks[blockIndex(x, y, z)] = static_cast<uint8_t>(type);
+        setBlock(x, y, z, type);
       }
+      
 
-      // Fill water
-      for (int y = perlin_height; y < world->sea_level; y++) {
-        if (blocks[blockIndex(x, y, z)] == static_cast<uint8_t>(BlockType::AIR)) {
-          blocks[blockIndex(x, y, z)] = static_cast<uint8_t>(BlockType::WATER);
+      // Fill water pass
+      for (int y = perlin_height; y < SEA_LEVEL; y++) {
+        BlockType type = getBlock(x, y, z);
+        if (type == BlockType::AIR) {
+          setBlock(x, y, z, BlockType::WATER);
         }
       }
     }
   }
 }
-
-Chunk::~Chunk() {}
-
-void Chunk::generateMesh(const Texture &atlas) {
-  opaqueMesh.vertices.clear();
-  opaqueMesh.indices.clear();
-  opaqueMesh.textures.clear();
-  opaqueMesh.textures.push_back(atlas);
-
-  transparentMesh.vertices.clear();
-  transparentMesh.indices.clear();
-  transparentMesh.textures.clear();
-  transparentMesh.textures.push_back(atlas);
-
-  for (int x = 0; x < width; x++) {
-    for (int z = 0; z < length; z++) {
-      for (int y = 0; y < height; y++) {
-        if (blocks[blockIndex(x, y, z)] == static_cast<uint8_t>(BlockType::AIR)) continue;
-
-        const BlockType type = static_cast<BlockType>(blocks[blockIndex(x, y, z)]);
-        const auto map = Block::tilesFor(type);
-        Block block(type, V3(x, y, z));
-
-        // Choose target mesh
-        Mesh &target = isTransparent(type) ? transparentMesh : opaqueMesh;
-
-        if (faceVisible(x, y, z, 0, type)) block.emitFace(FACE_PX, V3(1, 0, 0), map.px, target);
-        if (faceVisible(x, y, z, 1, type)) block.emitFace(FACE_NX, V3(-1, 0, 0), map.nx, target);
-        if (faceVisible(x, y, z, 2, type)) block.emitFace(FACE_PY, V3(0, 1, 0), map.py, target);
-        if (faceVisible(x, y, z, 3, type)) block.emitFace(FACE_NY, V3(0, -1, 0), map.ny, target);
-        if (faceVisible(x, y, z, 4, type)) block.emitFace(FACE_PZ, V3(0, 0, 1), map.pz, target);
-        if (faceVisible(x, y, z, 5, type)) block.emitFace(FACE_NZ, V3(0, 0, -1), map.nz, target);
-      }
-    }
-  }
-}
-
-void Chunk::drawOpaque(Shader &shader) {
-  opaqueMesh.draw(shader);
-}
-
-void Chunk::drawTransparent(Shader &shader) {
-  transparentMesh.draw(shader);
-}
-
-BlockType Chunk::getBlock(int x, int y, int z) const {
-  if (x < 0 || x >= width || y < 0 || y >= height || z < 0 || z >= length) {
-    return BlockType::AIR;
-  }
-  return static_cast<BlockType>(blocks[blockIndex(x, y, z)]);
-}
-
-bool Chunk::faceVisible(int x, int y, int z, int dir, BlockType currentBlockType) const {
-    int nx = x, ny = y, nz = z;
-    switch (dir) {
-        case 0: nx++; break;
-        case 1: nx--; break;
-        case 2: ny++; break;
-        case 3: ny--; break;
-        case 4: nz++; break;
-        case 5: nz--; break;
-    }
-
-    auto getNeighbor = [&](int nx, int ny, int nz) -> BlockType {
-        if (nx >= 0 && nx < width && ny >= 0 && ny < height && nz >= 0 && nz < length)
-            return static_cast<BlockType>(blocks[blockIndex(nx, ny, nz)]);
-        int gx = world_x * width + nx;
-        int gy = ny;
-        int gz = world_z * length + nz;
-        return world->getBlock(gx, gy, gz);
-    };
-
-    BlockType neighborType = getNeighbor(nx, ny, nz);
-
-    // ✅ NEW: Don’t emit seam faces if neighbor isn’t loaded
-    if (neighborType == BlockType::UNKNOWN) {
-        return false;
-    }
-
-    if (isTransparent(currentBlockType)) {
-        // Water: only draw surfaces against air
-        return neighborType == BlockType::AIR;
-    } else {
-        // Solids: draw against air OR transparent (so sand shows under water)
-        return (neighborType == BlockType::AIR || isTransparent(neighborType));
-    }
-}
-
-ChunkKey Chunk::getChunkKey() const { return makeChunkKey(world_x, world_z); }
-
-void Chunk::setBlock(int x, int y, int z, BlockType type) {
-  if (x < 0 || x >= width || y < 0 || y >= height || z < 0 || z >= length) {
-    return;
-  }
-  blocks[blockIndex(x, y, z)] = static_cast<uint8_t>(type);
-}
-

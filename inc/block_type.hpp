@@ -1,22 +1,22 @@
 #pragma once
 
 #include <cstdint>
+#include <glm/vec2.hpp>
 
-/**
- * block_type.hpp
- *
- * Defines a block type
- * 
- */
-enum BlockType : uint8_t {
+enum class BlockType : uint8_t {
   AIR = 0,
-  WATER, 
-  GRASS,
   DIRT,
   STONE,
+  GRASS,
+  WATER,
   BEDROCK,
   SAND,
   COBBLESTONE,
   SNOW,
-  UNKNOWN  // for unloaded chunks
+};
+
+struct BlockInfo {
+  bool solid;       // Blocks light & movement
+  bool transparent; // Transparent block (separate pass)
+  glm::vec2 uv;     // Texture atlas coordinates
 };
