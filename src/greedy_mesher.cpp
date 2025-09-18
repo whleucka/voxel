@@ -105,6 +105,25 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
   const int baseX = chunk.world_x * Chunk::W;
   const int baseZ = chunk.world_z * Chunk::L;
 
+  auto edgeFluidNeighbor = [&](BlockType bt, int x, int y, int z, int nx, int nz) {
+    BlockType nb = sample(baseX + x + nx, y, baseZ + z + nz);
+
+    // Only apply to fluids (water) on chunk borders for SIDE faces.
+    auto isFluid = [](BlockType t){ return t == BlockType::WATER; };
+    if (!isFluid(bt)) return nb;
+
+    bool atXPosEdge = (nx > 0) && (x == X - 1);
+    bool atXNegEdge = (nx < 0) && (x == 0);
+    bool atZPosEdge = (nz > 0) && (z == Z - 1);
+    bool atZNegEdge = (nz < 0) && (z == 0);
+
+    if (atXPosEdge || atXNegEdge || atZPosEdge || atZNegEdge) {
+      // Pretend neighbor is the same fluid → no side face at chunk boundary.
+      nb = bt;
+    }
+    return nb;
+  };
+
   std::vector<MaskCell> mask;
   mask.reserve(std::max({Chunk::W * Chunk::H, Chunk::W * Chunk::L, Chunk::H * Chunk::L}));
 
@@ -214,7 +233,7 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
             mask[x + y * X].set = false;
             continue;
           }
-          const BlockType nb = sample(baseX + x, y, baseZ + z + 1);
+          const BlockType nb = edgeFluidNeighbor(bt, x, y, z, /*nx=*/0, /*nz=*/+1);
           const bool draw = isAir(nb) || (isOpaque(bt) != isOpaque(nb));
           if (!draw) {
             mask[x + y * X].set = false;
@@ -254,7 +273,7 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
             mask[x + y * X].set = false;
             continue;
           }
-          const BlockType nb = sample(baseX + x, y, baseZ + z - 1);
+          const BlockType nb = edgeFluidNeighbor(bt, x, y, z, /*nx=*/0, /*nz=*/-1);
           const bool draw = isAir(nb) || (isOpaque(bt) != isOpaque(nb));
           if (!draw) {
             mask[x + y * X].set = false;
@@ -300,7 +319,7 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
             mask[z + y * Z].set = false;
             continue;
           }
-          const BlockType nb = sample(baseX + x + 1, y, baseZ + z);
+          const BlockType nb = edgeFluidNeighbor(bt, x, y, z, /*nx=*/+1, /*nz=*/0);
           const bool draw = isAir(nb) || (isOpaque(bt) != isOpaque(nb));
           if (!draw) {
             mask[z + y * Z].set = false;
@@ -341,7 +360,7 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
             mask[z + y * Z].set = false;
             continue;
           }
-          const BlockType nb = sample(baseX + x - 1, y, baseZ + z);
+          const BlockType nb = edgeFluidNeighbor(bt, x, y, z, /*nx=*/-1, /*nz=*/0);
           const bool draw = isAir(nb) || (isOpaque(bt) != isOpaque(nb));
           if (!draw) {
             mask[z + y * Z].set = false;
@@ -352,7 +371,6 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
               BlockDataManager::getInstance().getUV(bt, BlockFace::LEFT);
         }
       }
-      // LEFT (−X) — plane at x, normal -X, CCW when viewed from outside (−X)
       auto emitLeft = [&](int u, int v, int w, int h, const MaskCell &cell) {
         float u0, v0;
         tileBaseNoPad(cell.tile.x, cell.tile.y, ATLAS, TILE, u0, v0);
