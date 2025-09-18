@@ -275,6 +275,7 @@ void Engine::imgui() {
     const glm::vec3 pos = camera.getPosition();
     ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
     ImGui::Text("Memory usage: %zu MB", getMemoryUsage());
+    ImGui::Text("Chunks loaded: %zu", world.getLoadedChunkCount());
     ImGui::Checkbox("Wireframe mode", &wireframe);
     ImGui::End();
   }

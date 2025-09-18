@@ -36,6 +36,9 @@ public:
   BlockType getBlock(int x, int y, int z) const;
   void setBlock(int x, int y, int z, BlockType type);
 
+public:
+  size_t getLoadedChunkCount() const { return chunks.size(); }
+
 private:
   // Main-thread only
   robin_hood::unordered_map<uint64_t, std::unique_ptr<Chunk>> chunks;

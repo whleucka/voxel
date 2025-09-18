@@ -151,14 +151,22 @@ void World::update(const glm::vec3 &camera_pos) {
       unpackChunkKey(kv.first, cx, cz);
       const int dx = cx - cam_cx;
       const int dz = cz - cam_cz;
-      if (dx * dx + dz * dz > r2)
+      if (dx * dx + dz * dz > r2) {
         toUnload.push_back(kv.first);
+        if (kLogUnloads) {
+          std::cout << "CONSIDERING UNLOAD CHUNK " << cx << "," << cz << " (dist^2: " << dx * dx + dz * dz << ", r2: " << r2 << ")\n";
+        }
+      }
     }
   }
   // optional cap: size_t unload_budget = 16;
   for (auto key : toUnload) {
-    unloadChunk(static_cast<int>(static_cast<int32_t>(key >> 32)),
-                static_cast<int>(static_cast<int32_t>(key & 0xffffffffu)));
+    int cx, cz;
+    unpackChunkKey(key, cx, cz);
+    unloadChunk(cx, cz);
+    if (kLogUnloads) {
+      std::cout << "UNLOADED CHUNK " << cx << "," << cz << "\n";
+    }
     // if (--unload_budget == 0) break;
   }
 
