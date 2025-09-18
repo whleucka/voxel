@@ -15,7 +15,7 @@ public:
 
   void init();
   void draw(const std::vector<Chunk *> &chunks, const Camera &camera,
-            int screen_width, int screen_height);
+            int screen_width, int screen_height, float time_fraction);
 
 private:
   Shader *block_shader;

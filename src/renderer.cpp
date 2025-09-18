@@ -3,6 +3,10 @@
 #include "texture_manager.hpp"
 #include "world.hpp"
 
+const glm::vec3 night(0.0f, 11.0f / 255.0f, 28.0f / 255.0f);
+const glm::vec3 day(0.4f, 0.7f, 1.0f);
+const glm::vec3 sunset(1.0f, 0.5f, 0.2f);
+
 Renderer::Renderer() : block_shader(nullptr) {}
 
 Renderer::~Renderer() { delete block_shader; }
@@ -13,7 +17,25 @@ void Renderer::init() {
 }
 
 void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
-                    int screen_width, int screen_height) {
+                    int screen_width, int screen_height, float time_fraction) {
+  
+  glm::vec3 sky_color;
+  if (time_fraction < 0.25f) { // Midnight to sunrise
+    sky_color = glm::mix(night, sunset, time_fraction / 0.25f);
+  }
+  else if (time_fraction < 0.5f) { // Sunrise to noon
+    sky_color = glm::mix(sunset, day, (time_fraction - 0.25f) / 0.25f);
+  }
+  else if (time_fraction < 0.75f) { // Noon to sunset
+    sky_color = glm::mix(day, sunset, (time_fraction - 0.5f) / 0.25f);
+  }
+  else { // Sunset to midnight
+    sky_color = glm::mix(sunset, night, (time_fraction - 0.75f) / 0.25f);
+  }
+
+  glViewport(0, 0, screen_width, screen_height);
+  glClearColor(sky_color.r, sky_color.g, sky_color.b, 1.0f);
+
   block_shader->use();
 
   // Bind atlas + sampler

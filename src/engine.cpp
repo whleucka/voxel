@@ -12,10 +12,6 @@
 #include "imgui_impl_opengl3.h"
 #include <sys/resource.h>
 
-const glm::vec3 night(0.0f, 11.0f / 255.0f, 28.0f / 255.0f);
-const glm::vec3 day(0.4f, 0.7f, 1.0f);
-const glm::vec3 sunset(1.0f, 0.5f, 0.2f);
-
 size_t getMemoryUsage() {
   struct rusage usage;
   getrusage(RUSAGE_SELF, &usage);
@@ -207,31 +203,6 @@ void Engine::update() {
   game_clock.update(delta_time);
   world.update(camera.getPosition());
   world.processUploads();
-}
-
-void Engine::render() {
-  // Set sky color based on time of day
-  float time_fraction = game_clock.fractionOfDay();
-  glm::vec3 sky_color;
-  if (time_fraction < 0.25f) { // Midnight to sunrise
-    sky_color = glm::mix(night, sunset, time_fraction / 0.25f);
-  }
-  else if (time_fraction < 0.5f) { // Sunrise to noon
-    sky_color = glm::mix(sunset, day, (time_fraction - 0.25f) / 0.25f);
-  }
-  else if (time_fraction < 0.75f) { // Noon to sunset
-    sky_color = glm::mix(day, sunset, (time_fraction - 0.5f) / 0.25f);
-  }
-  else { // Sunset to midnight
-    sky_color = glm::mix(sunset, night, (time_fraction - 0.75f) / 0.25f);
-  }
-
-  glViewport(0, 0, width, height);
-  glClearColor(sky_color.r, sky_color.g, sky_color.b, 1.0f);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-  // Gather chunk pointers from world
-  std::vector<Chunk *> visible_chunks = world.getVisibleChunks(camera);
 
   if (wireframe) {
     glLineWidth(2.0f);
@@ -240,9 +211,19 @@ void Engine::render() {
   else {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   }
+}
+
+void Engine::render() {
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  // Gather chunk pointers from world
+  std::vector<Chunk *> visible_chunks = world.getVisibleChunks(camera);
+
+  // Set sky color based on time of day
+  float time_fraction = game_clock.fractionOfDay();
 
   // Render scene
-  renderer.draw(visible_chunks, camera, width, height);
+  renderer.draw(visible_chunks, camera, width, height, time_fraction);
 
   imgui();
 }
@@ -252,7 +233,7 @@ void Engine::drawCrosshairImGui() {
   ImDrawList *dl = ImGui::GetForegroundDrawList();
 
   float size = 10.0f;
-  float thickness = 2.0f;
+  float thickness = 3.0f;
   ImU32 color = IM_COL32(255, 255, 255, 255);
 
   dl->AddLine(ImVec2(center.x - size, center.y),
