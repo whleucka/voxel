@@ -5,7 +5,6 @@
 #include "camera.hpp"
 #include "chunk.hpp"
 #include "shader.hpp"
-#include "texture.hpp"
 
 class Engine;
 

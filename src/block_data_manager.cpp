@@ -5,6 +5,7 @@
 
 void BlockDataManager::load(const std::string &path) {
   // sensible empty default so operator[] won’t explode later
+  // Maybe json was a bad idea?
   data = nlohmann::json::object();
   data["blocks"] = nlohmann::json::object();
 

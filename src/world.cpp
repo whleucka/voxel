@@ -4,7 +4,7 @@
 World::World() {
   // Create a single chunk at (0, 0)
   // loadChunk(0, 0);
-  const int R = 1; // radius in chunks (1 => 3x3)
+  const int R = 3; // radius in chunks (1 => 3x3)
   for (int dx = -R; dx <= R; ++dx)
     for (int dz = -R; dz <= R; ++dz)
       loadChunk(dx, dz);
@@ -13,7 +13,7 @@ World::World() {
 World::~World() = default;
 
 void World::update(const glm::vec3 &) {
-  // For now, we only have one chunk, so there's nothing to do here.
+  // There's nothing to do here.
 }
 
 std::vector<Chunk *> World::getVisibleChunks(const Camera &) {
