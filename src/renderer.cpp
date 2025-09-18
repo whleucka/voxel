@@ -58,7 +58,7 @@ void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
   block_shader->setVec3("ambientColor", glm::vec3(0.2f));
   block_shader->setFloat("sunStrength", 1.0f);
   block_shader->setVec3("cameraPos", camera.getPosition());
-  block_shader->setVec3("fogColor", glm::vec3(0.5f, 0.6f, 0.7f));
+  block_shader->setVec3("fogColor", glm::vec3(sky_color.r, sky_color.g, sky_color.b));
   // How far you can see in world units (radius to the outer ring of chunks)
   float chunkSize = float(Chunk::W); // or 0.5f*(Chunk::W + Chunk::L)
   float radiusWU =

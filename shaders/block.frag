@@ -8,7 +8,7 @@ out vec4 FragColor;
 
 uniform sampler2D texture_diffuse1;
 
-// lighting / fog uniforms (keep as you had)
+// lighting / fog uniforms
 uniform vec3 lightDir;
 uniform vec3 ambientColor;
 uniform float sunStrength;
