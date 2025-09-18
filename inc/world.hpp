@@ -52,7 +52,7 @@ private:
 
   ThreadPool thread_pool;
 
-  int render_distance = 5;
+  int render_distance = 20;
 
   void loadChunk(int cx, int cz);
   void unloadChunk(int cx, int cz);
