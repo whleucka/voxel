@@ -30,16 +30,25 @@ public:
   World();
   ~World();
 
+  static constexpr int render_distance = 12;
+
   std::vector<Chunk *> getVisibleChunks(const Camera &camera);
   void update(const glm::vec3 &camera_pos);
   void processUploads();
   BlockType getBlock(int x, int y, int z) const;
   void setBlock(int x, int y, int z, BlockType type);
 
-public:
+  // How many chunks have loaded
   size_t getLoadedChunkCount() const { return chunks.size(); }
 
+  // uint64_t chunk key -- made of 2 32 bit integers
+  static uint64_t makeChunkKey(int cx, int cz) {
+    return (uint64_t(uint32_t(cx)) << 32) | uint32_t(cz);
+  }
 private:
+  // Load chunks algo
+  void spiralLoadOrderCircle(int camCx, int camCz, int r, std::vector<std::pair<int, int>> &out);
+
   // Main-thread only
   robin_hood::unordered_map<uint64_t, std::unique_ptr<Chunk>> chunks;
 
@@ -55,15 +64,9 @@ private:
 
   ThreadPool thread_pool;
 
-  int render_distance = 20;
-
   void loadChunk(int cx, int cz);
   void unloadChunk(int cx, int cz);
 
   // Promote some completed worker outputs into the world (main thread)
   void promotePendingGenerated(int budget);
-
-  static uint64_t makeChunkKey(int cx, int cz) {
-    return (uint64_t(uint32_t(cx)) << 32) | uint32_t(cz);
-  }
 };

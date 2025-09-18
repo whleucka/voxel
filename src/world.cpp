@@ -1,38 +1,12 @@
 #include "world.hpp"
 #include "greedy_mesher.hpp"
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 
 // std::cout per chunk will hitch. Gate it
 static constexpr bool kLogLoads = false;
 static constexpr bool kLogUnloads = false;
-
-static inline void spiralOrder(int r, std::vector<std::pair<int, int>> &out) {
-  out.clear();
-  out.reserve((2 * r + 1) * (2 * r + 1));
-
-  int x = 0, z = 0;
-  int dx = 1, dz = 0; // start moving +x
-  int step = 1;
-
-  out.emplace_back(0, 0);
-  while (std::max(std::abs(x), std::abs(z)) < r) {
-    // two legs per ring
-    for (int leg = 0; leg < 2; ++leg) {
-      for (int s = 0; s < step; ++s) {
-        x += dx;
-        z += dz;
-        if (std::abs(x) <= r && std::abs(z) <= r)
-          out.emplace_back(x, z);
-      }
-      // right turn: (dx, dz) = (dz, -dx)
-      int ndx = dz, ndz = -dx;
-      dx = ndx;
-      dz = ndz;
-    }
-    ++step;
-  }
-}
 
 // Promote N ready chunks from worker → main thread world
 void World::promotePendingGenerated(int budget) {
@@ -52,8 +26,6 @@ void World::promotePendingGenerated(int budget) {
   std::lock_guard<std::mutex> lock(chunks_mutex);
   for (auto &item : local) {
     const uint64_t key = item.key;
-    int cx = (int)(int32_t)(key >> 32);
-    int cz = (int)(int32_t)(key & 0xffffffffu);
     loading.erase(key);
     chunks[key] = std::move(item.chunk);
 
@@ -93,6 +65,30 @@ static inline void unpackChunkKey(uint64_t key, int &cx, int &cz) {
   cz = static_cast<int>(static_cast<int32_t>(key & 0xffffffffu));
 }
 
+void World::spiralLoadOrderCircle(int camCx, int camCz, int r, std::vector<std::pair<int, int>> &out) {
+  out.clear();
+  out.reserve(static_cast<size_t>(3.3 * r * r) + 1);
+
+  auto push_key = [&](int dx, int dz) {
+    if (dx*dx + dz*dz <= r*r) {
+      out.emplace_back(camCx + dx, camCz + dz);
+    }
+  };
+
+  int x = 0, z = 0, dx = 1, dz = 0, step = 1;
+  push_key(0, 0);
+  while (std::max(std::abs(x), std::abs(z)) <= r) {
+    for (int leg = 0; leg < 2; ++leg) {
+      for (int s = 0; s < step; ++s) {
+        x += dx; z += dz;
+        if (std::abs(x) <= r && std::abs(z) <= r) push_key(x, z);
+      }
+      int ndx = dz, ndz = -dx; dx = ndx; dz = ndz;
+    }
+    ++step;
+  }
+}
+
 void World::update(const glm::vec3 &camera_pos) {
   // 0) Promote finished worker chunks first (so they can render)
   promotePendingGenerated(/*budget=*/8);
@@ -108,7 +104,7 @@ void World::update(const glm::vec3 &camera_pos) {
 
   // 1) LOAD: nearest-first using spiral order
   static thread_local std::vector<std::pair<int, int>> order;
-  spiralOrder(r, order);
+  spiralLoadOrderCircle(cam_cx, cam_cz, r, order);
 
   // knobs
   const int load_budget = 6;

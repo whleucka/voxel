@@ -38,11 +38,10 @@ void main()
     vec3 lighting = ambientColor + diff * sunStrength;
     vec3 litColor = texColor.rgb * lighting;
 
-    // Fog: reuse your previous params
+    // Fog
     float density = 0.005;
     float dist = length(vWorldPos - cameraPos);
-    float fogFactor = exp(-pow(dist * density, 2.0));
-    fogFactor = clamp(fogFactor, 0.0, 1.0);
+    float fogFactor = clamp((fogEnd - dist) / max(fogEnd - fogStart, 0.0001), 0.0, 1.0);
 
     vec3 finalColor = mix(fogColor, litColor, fogFactor);
     FragColor = vec4(finalColor, texColor.a);
