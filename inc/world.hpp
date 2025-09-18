@@ -32,7 +32,6 @@ public:
 
   std::vector<Chunk *> getVisibleChunks(const Camera &camera);
   void update(const glm::vec3 &camera_pos);
-  void generateMeshes();
   void processUploads();
   BlockType getBlock(int x, int y, int z) const;
   void setBlock(int x, int y, int z, BlockType type);
@@ -41,15 +40,13 @@ private:
   // Main-thread only
   robin_hood::unordered_map<uint64_t, std::unique_ptr<Chunk>> chunks;
 
-  // Chunks that need meshing (main-thread)
-  robin_hood::unordered_set<uint64_t> dirty;
-
   // Chunks currently being generated in the pool (guarded by main-thread only)
   robin_hood::unordered_set<uint64_t> loading;
 
   // Results from worker threads waiting to be promoted to `chunks`
   std::deque<GeneratedData> pending_generated;
   std::mutex pending_mutex; // guards pending_generated
+  mutable std::mutex chunks_mutex; // guards chunks
 
   std::deque<PendingUpload> pending_uploads;
 

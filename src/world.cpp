@@ -38,14 +38,17 @@ static inline void spiralOrder(int r, std::vector<std::pair<int, int>> &out) {
 void World::promotePendingGenerated(int budget) {
   std::deque<GeneratedData> local;
   {
+    std::lock_guard<std::mutex> lock(chunks_mutex);
     std::lock_guard<std::mutex> lk(pending_mutex);
-    // Move up to `budget` to a local queue
     for (int i = 0; i < budget && !pending_generated.empty(); ++i) {
       local.emplace_back(std::move(pending_generated.front()));
       pending_generated.pop_front();
     }
   }
-  // No locks from here down
+
+  if (local.empty()) return;
+
+  std::lock_guard<std::mutex> lock(chunks_mutex);
   for (auto &item : local) {
     const uint64_t key = item.key;
     int cx = (int)(int32_t)(key >> 32);
@@ -61,15 +64,6 @@ void World::promotePendingGenerated(int budget) {
     if (!item.transparent_mesh.vertices.empty()) {
         pending_uploads.push_back({key, &chunk.transparentMesh, std::move(item.transparent_mesh)});
     }
-
-    auto mark_if_present = [&](int nx, int nz) {
-      if (chunks.count(makeChunkKey(nx, nz)))
-        dirty.insert(makeChunkKey(nx, nz));
-    };
-    mark_if_present(cx + 1, cz);
-    mark_if_present(cx - 1, cz);
-    mark_if_present(cx, cz + 1);
-    mark_if_present(cx, cz - 1);
   }
 }
 
@@ -85,7 +79,6 @@ World::World() {
   }
   // Immediately promote a few to avoid blank start
   promotePendingGenerated(64); // generous first tick
-  generateMeshes();
 }
 
 World::~World() = default;
@@ -139,8 +132,12 @@ void World::update(const glm::vec3 &camera_pos) {
       const int cz = cam_cz + dz;
       const uint64_t key = makeChunkKey(cx, cz);
 
-      if (chunks.find(key) == chunks.end() &&
-          loading.find(key) == loading.end()) {
+      {
+        std::lock_guard<std::mutex> lock(chunks_mutex);
+        if (chunks.find(key) != chunks.end())
+          continue; // already present
+      }
+      if (loading.find(key) == loading.end()) {
         loadChunk(cx, cz); // enqueue to thread pool
         if (--loads_left == 0)
           break;
@@ -153,13 +150,17 @@ void World::update(const glm::vec3 &camera_pos) {
   // --- 2) UNLOAD: kick out chunks outside the circle (cap per frame if needed)
   // ---
   std::vector<uint64_t> toUnload;
-  toUnload.reserve(chunks.size());
-  for (const auto &kv : chunks) {
-    int cx, cz;
-    unpackChunkKey(kv.first, cx, cz);
-    const int dx = cx - cam_cx, dz = cz - cam_cz;
-    if (dx * dx + dz * dz > r2)
-      toUnload.push_back(kv.first);
+  {
+    std::lock_guard<std::mutex> lock(chunks_mutex);
+    toUnload.reserve(chunks.size());
+    for (const auto &kv : chunks) {
+      int cx, cz;
+      unpackChunkKey(kv.first, cx, cz);
+      const int dx = cx - cam_cx;
+      const int dz = cz - cam_cz;
+      if (dx * dx + dz * dz > r2)
+        toUnload.push_back(kv.first);
+    }
   }
   // optional cap: size_t unload_budget = 16;
   for (auto key : toUnload) {
@@ -170,10 +171,10 @@ void World::update(const glm::vec3 &camera_pos) {
 
   // --- 3) Mesh a bit each frame on main thread (your function already
   // time/qty-budgets) ---
-  generateMeshes();
 }
 
 std::vector<Chunk *> World::getVisibleChunks(const Camera &cam) {
+  std::lock_guard<std::mutex> lock(chunks_mutex);
   // unchanged (distance filter)
   const glm::vec3 p = cam.getPosition();
   const int cam_cx = floorDiv(static_cast<int>(std::floor(p.x)), Chunk::W);
@@ -193,6 +194,7 @@ std::vector<Chunk *> World::getVisibleChunks(const Camera &cam) {
 }
 
 BlockType World::getBlock(int x, int y, int z) const {
+  std::lock_guard<std::mutex> lock(chunks_mutex);
   if (y < 0 || y >= Chunk::H)
     return BlockType::AIR;
 
@@ -209,6 +211,7 @@ BlockType World::getBlock(int x, int y, int z) const {
 }
 
 void World::setBlock(int x, int y, int z, BlockType type) {
+  std::lock_guard<std::mutex> lock(chunks_mutex);
   int cx = x / Chunk::W;
   int cz = z / Chunk::L;
   uint64_t key = makeChunkKey(cx, cz);
@@ -218,53 +221,14 @@ void World::setBlock(int x, int y, int z, BlockType type) {
   }
 }
 
-void World::generateMeshes() {
-  if (dirty.empty())
-    return;
-
-  auto sample = [&](int gx, int gy, int gz) -> BlockType {
-    return getBlock(gx, gy, gz);
-  };
-
-  using clock = std::chrono::steady_clock;
-  const auto t0 = clock::now();
-  const auto budget = std::chrono::milliseconds(2); // ~2 ms per frame
-
-  // Pull keys into a small vector to avoid iterator invalidation fiddling
-  std::vector<uint64_t> toBuild;
-  toBuild.reserve(8);
-  for (auto key : dirty) {
-    toBuild.push_back(key);
-    if (toBuild.size() >= 8)
-      break;
-  }
-
-  for (auto key : toBuild) {
-    auto it = chunks.find(key);
-    if (it == chunks.end()) {
-      dirty.erase(key);
-      continue;
-    }
-    Chunk &c = *it->second;
-    auto [opaque_mesh, transparent_mesh] = GreedyMesher::build_cpu(c, sample);
-    if (!opaque_mesh.vertices.empty()) {
-        pending_uploads.push_back({key, &c.opaqueMesh, std::move(opaque_mesh)});
-    }
-    if (!transparent_mesh.vertices.empty()) {
-        pending_uploads.push_back({key, &c.transparentMesh, std::move(transparent_mesh)});
-    }
-    dirty.erase(key);
-
-    if (clock::now() - t0 >= budget)
-      break;
-  }
-}
-
 void World::loadChunk(int cx, int cz) {
   const uint64_t key = makeChunkKey(cx, cz);
 
-  if (chunks.find(key) != chunks.end())
-    return; // already present
+  {
+    std::lock_guard<std::mutex> lock(chunks_mutex);
+    if (chunks.find(key) != chunks.end())
+      return; // already present
+  }
   if (loading.find(key) != loading.end())
     return; // already queued
 
@@ -277,11 +241,14 @@ void World::loadChunk(int cx, int cz) {
     auto up = std::make_unique<Chunk>(cx, cz);
     up->generateChunk();
 
-    auto sample = [&](int gx, int gy, int gz) -> BlockType {
+    auto sample = [this, &up](int gx, int gy, int gz) -> BlockType {
         int local_x = gx - up->world_x * Chunk::W;
         int local_y = gy;
         int local_z = gz - up->world_z * Chunk::L;
-        return up->getBlock(local_x, local_y, local_z);
+        if (local_x >= 0 && local_x < Chunk::W && local_z >= 0 && local_z < Chunk::L) {
+            return up->getBlock(local_x, local_y, local_z);
+        }
+        return this->getBlock(gx, gy, gz);
     };
 
     auto [opaque_mesh, transparent_mesh] = GreedyMesher::build_cpu(*up, sample);
@@ -309,8 +276,8 @@ void World::unloadChunk(int cx, int cz) {
   loading.erase(key);
   if (kLogUnloads)
     std::cout << "UNLOAD " << cx << "," << cz << "\n";
+  std::lock_guard<std::mutex> lock(chunks_mutex);
   chunks.erase(key);
-  dirty.erase(key);
 }
 
 
@@ -320,7 +287,7 @@ void World::processUploads() {
   }
 
   int uploads_processed = 0;
-  const int max_uploads_per_frame = 2;
+  const int max_uploads_per_frame = 1;
 
   auto it = pending_uploads.begin();
   while (it != pending_uploads.end() && uploads_processed < max_uploads_per_frame) {
@@ -331,3 +298,4 @@ void World::processUploads() {
     uploads_processed++;
   }
 }
+

@@ -159,7 +159,7 @@ bool Engine::init() {
   renderer.init();
   loadAtlas("res/block_atlas.png");
 
-  world.generateMeshes();
+
 
   return true;
 }
