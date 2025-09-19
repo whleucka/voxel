@@ -29,9 +29,9 @@ public:
     if (dir == RIGHT)
       position += right * v;
     if (dir == UP)
-      position -= up * v;
+      position -= world_up * v;
     if (dir == DOWN)
-      position += up * v;
+      position += world_up * v;
   }
 
   void processMouseMovement(float xoffset, float yoffset,

@@ -150,7 +150,7 @@ void Chunk::generateChunk() {
                   type = BlockType::STONE;
                 } else if (block_rand <= 90) {
                   type = BlockType::GRASS;
-                  if (tree_noise > 0.3 && block_rand <= 25) {
+                  if (tree_noise > 0.7) {
                     generateTree(x, y, z);
                   }
                 } else {
