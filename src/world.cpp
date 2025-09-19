@@ -11,8 +11,9 @@ static constexpr bool kLogUnloads = false;
 // Promote N ready chunks from worker → main thread world
 void World::promotePendingGenerated(int budget) {
   std::deque<GeneratedData> local;
+
+  // Phase 1: drain pending (only pending_mutex)
   {
-    std::lock_guard<std::mutex> lock(chunks_mutex);
     std::lock_guard<std::mutex> lk(pending_mutex);
     for (int i = 0; i < budget && !pending_generated.empty(); ++i) {
       local.emplace_back(std::move(pending_generated.front()));
@@ -23,21 +24,22 @@ void World::promotePendingGenerated(int budget) {
   if (local.empty())
     return;
 
-  std::lock_guard<std::mutex> lock(chunks_mutex);
-  for (auto &item : local) {
-    const uint64_t key = item.key;
-    loading.erase(key);
-    chunks[key] = std::move(item.chunk);
-
-    Chunk &chunk = *chunks[key];
-
-    if (!item.opaque_mesh.vertices.empty()) {
-      pending_uploads.push_back(
-          {key, &chunk.opaqueMesh, std::move(item.opaque_mesh)});
-    }
-    if (!item.transparent_mesh.vertices.empty()) {
-      pending_uploads.push_back(
-          {key, &chunk.transparentMesh, std::move(item.transparent_mesh)});
+  // Phase 2: publish to world / schedule uploads (only chunks_mutex)
+  {
+    std::lock_guard<std::mutex> lock(chunks_mutex);
+    for (auto &item : local) {
+      const uint64_t key = item.key;
+      loading.erase(key);
+      chunks[key] = std::move(item.chunk);
+      Chunk &chunk = *chunks[key];
+      if (!item.opaque_mesh.vertices.empty()) {
+        pending_uploads.push_back(
+            {key, &chunk.opaqueMesh, std::move(item.opaque_mesh)});
+      }
+      if (!item.transparent_mesh.vertices.empty()) {
+        pending_uploads.push_back(
+            {key, &chunk.transparentMesh, std::move(item.transparent_mesh)});
+      }
     }
   }
 }
@@ -65,13 +67,14 @@ static inline void unpackChunkKey(uint64_t key, int &cx, int &cz) {
   cz = static_cast<int>(static_cast<int32_t>(key & 0xffffffffu));
 }
 
-void World::spiralLoadOrderCircle(int camCx, int camCz, int r, std::vector<std::pair<int, int>> &out) {
+void World::spiralLoadOrderCircle(int r,
+                                  std::vector<std::pair<int, int>> &out) {
   out.clear();
   out.reserve(static_cast<size_t>(3.3 * r * r) + 1);
 
   auto push_key = [&](int dx, int dz) {
-    if (dx*dx + dz*dz <= r*r) {
-      out.emplace_back(camCx + dx, camCz + dz);
+    if (dx * dx + dz * dz <= r * r) {
+      out.emplace_back(dx, dz);
     }
   };
 
@@ -80,10 +83,14 @@ void World::spiralLoadOrderCircle(int camCx, int camCz, int r, std::vector<std::
   while (std::max(std::abs(x), std::abs(z)) <= r) {
     for (int leg = 0; leg < 2; ++leg) {
       for (int s = 0; s < step; ++s) {
-        x += dx; z += dz;
-        if (std::abs(x) <= r && std::abs(z) <= r) push_key(x, z);
+        x += dx;
+        z += dz;
+        if (std::abs(x) <= r && std::abs(z) <= r)
+          push_key(x, z);
       }
-      int ndx = dz, ndz = -dx; dx = ndx; dz = ndz;
+      int ndx = dz, ndz = -dx;
+      dx = ndx;
+      dz = ndz;
     }
     ++step;
   }
@@ -104,7 +111,7 @@ void World::update(const glm::vec3 &camera_pos) {
 
   // 1) LOAD: nearest-first using spiral order
   static thread_local std::vector<std::pair<int, int>> order;
-  spiralLoadOrderCircle(cam_cx, cam_cz, r, order);
+  spiralLoadOrderCircle(r, order);
 
   // knobs
   const int load_budget = 6;
@@ -150,7 +157,9 @@ void World::update(const glm::vec3 &camera_pos) {
       if (dx * dx + dz * dz > r2) {
         toUnload.push_back(kv.first);
         if (kLogUnloads) {
-          std::cout << "CONSIDERING UNLOAD CHUNK " << cx << "," << cz << " (dist^2: " << dx * dx + dz * dz << ", r2: " << r2 << ")\n";
+          std::cout << "CONSIDERING UNLOAD CHUNK " << cx << "," << cz
+                    << " (dist^2: " << dx * dx + dz * dz << ", r2: " << r2
+                    << ")\n";
         }
       }
     }

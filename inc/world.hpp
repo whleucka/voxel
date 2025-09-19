@@ -47,7 +47,7 @@ public:
   }
 private:
   // Load chunks algo
-  void spiralLoadOrderCircle(int camCx, int camCz, int r, std::vector<std::pair<int, int>> &out);
+  void spiralLoadOrderCircle(int r, std::vector<std::pair<int, int>> &out);
 
   // Main-thread only
   robin_hood::unordered_map<uint64_t, std::unique_ptr<Chunk>> chunks;

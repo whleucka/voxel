@@ -27,8 +27,8 @@ void Chunk::generateChunk() {
   const float FREQ = 0.05f;  // noise frequency
   const float AMP = 29.0f;   // height amplitude
   const float OCTAVES = 4.0f;
-  const float LACUNARITY = 1.8f;
-  const float GAIN = 0.5f;
+  const float LACUNARITY = 0.8f;
+  const float GAIN = 0.6f;
   const int baseX = world_x * W;
   const int baseZ = world_z * L;
 
@@ -68,7 +68,7 @@ void Chunk::generateChunk() {
       // Takes your biome noise, says “only the highest values should count as
       // mountains,” and applies a smooth ramp so that instead of an ugly cliff
       // at 0.45, you get a nice smooth transition into mountains.
-      double mountain_factor = glm::smoothstep(0.45, 0.85, biome_noise);
+      double mountain_factor = glm::smoothstep(0.55, 0.85, biome_noise);
 
       int perlin_height = static_cast<int>(
           hNoise * 30            // base hills
@@ -81,11 +81,15 @@ void Chunk::generateChunk() {
             (world_x * W + x) * 0.55, y * 0.25, (world_z * L + z) * 0.25));
         const double bedrock_noise = glm::perlin(glm::vec3(
             (world_x * W + x) * 0.42, y * 0.02, (world_z * L + z) * 0.42));
+        double snowNoise = glm::perlin(glm::vec2(
+              (world_x * W + x) * 0.02,
+              (world_z * L + z) * 0.02
+              ));
 
         // Figure out top block
         if (y == perlin_height - 1) {
           int block_rand = (rand() % 100) + 1;
-          if (perlin_height > SNOW_LEVEL) {
+          if (perlin_height > SNOW_LEVEL + snowNoise * 5.0) {
             if (block_rand <= 95) {
               type = BlockType::SNOW;
             } else if (block_rand <= 98) {
@@ -93,6 +97,8 @@ void Chunk::generateChunk() {
             } else {
               type = BlockType::SNOW_DIRT;
             }
+          } else if (perlin_height > SNOW_LEVEL) {
+              type = BlockType::SNOW;
           } else if (perlin_height <= SEA_LEVEL) {
             type = BlockType::SAND;
           } else {
