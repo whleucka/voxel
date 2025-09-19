@@ -23,9 +23,27 @@ void Chunk::setBlock(int x, int y, int z, BlockType type) {
 }
 
 void Chunk::generateTree(int x, int y, int z) {
-  int h = (rand() % 5) + 1;
-  for (int j = 1; j < h; j++) {
+  int h = (rand() % 4) + 7;
+  for (int j = 1; j <= h; j++) {
     setBlock(x, y + j, z, BlockType::TREE);
+  }
+
+  // leaves
+  int radius = (rand() % 2) + 4;
+  int top = y + h;
+
+  for (int dy = -2; dy <= 2; dy++) {
+    for (int dx = -radius; dx <= radius; dx++) {
+      for (int dz = -radius; dz <= radius; dz++) {
+        // add some randomness
+        if (rand()%5==0) continue;
+        // little sphere-ish shape
+        if (dx*dx + dz*dz + dy*dy <= radius*radius + 1) {
+          if (getBlock(x + dx, top + dy, z + dz) != BlockType::TREE)
+            setBlock(x + dx, top + dy, z + dz, BlockType::TREE_LEAF);
+        }
+      }
+    }
   }
 }
 
@@ -91,6 +109,8 @@ void Chunk::generateChunk() {
             (world_x * W + x) * 0.55, y * 0.25, (world_z * L + z) * 0.25));
         const double bedrock_noise = glm::perlin(glm::vec3(
             (world_x * W + x) * 0.42, y * 0.02, (world_z * L + z) * 0.42));
+        const double tree_noise = glm::perlin(glm::vec3(
+            (world_x * W + x) * 0.6, y * 0.02, (world_z * L + z) * 0.6));
 
         BlockType type = BlockType::AIR;
 
@@ -130,7 +150,7 @@ void Chunk::generateChunk() {
                   type = BlockType::STONE;
                 } else if (block_rand <= 90) {
                   type = BlockType::GRASS;
-                  if (block_rand <= 20) {
+                  if (tree_noise > 0.3 && block_rand <= 25) {
                     generateTree(x, y, z);
                   }
                 } else {
