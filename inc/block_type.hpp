@@ -5,21 +5,17 @@
 
 enum class BlockType : uint8_t {
   AIR = 0,
-  DIRT,
-  STONE,
-  GRASS,
-  WATER,
   BEDROCK,
-  SAND,
   COBBLESTONE,
-  SNOW,
-  SNOW_STONE,
-  SNOW_DIRT,
+  DIRT,
+  GRASS,
+  SAND,
   SANDSTONE,
-};
-
-struct BlockInfo {
-  bool solid;       // Blocks light & movement
-  bool transparent; // Transparent block (separate pass)
-  glm::vec2 uv;     // Texture atlas coordinates
+  SNOW,
+  SNOW_DIRT,
+  SNOW_STONE,
+  STONE,
+  TREE,
+  TREE_LEAF,
+  WATER,
 };

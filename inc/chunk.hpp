@@ -20,6 +20,7 @@ public:
   void setBlock(int x, int y, int z, BlockType type);
 
   void generateChunk();
+  void generateTree(int x, int y, int z);
 
   int32_t world_x, world_z;
   Mesh opaqueMesh, transparentMesh;

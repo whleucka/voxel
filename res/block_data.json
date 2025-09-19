@@ -38,6 +38,14 @@
     },
     "sandstone": {
         "uv": [11, 0]
+    },
+    "tree-leaf": {
+        "uv": [12, 0]
+    },
+    "tree": {
+      "uv_top": [14, 0],
+      "uv_side": [13, 0],
+      "uv_bottom": [14, 0]
     }
   }
 }

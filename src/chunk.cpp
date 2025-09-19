@@ -22,6 +22,13 @@ void Chunk::setBlock(int x, int y, int z, BlockType type) {
   blocks[getIndex(x, y, z)] = type;
 }
 
+void Chunk::generateTree(int x, int y, int z) {
+  int h = (rand() % 5) + 1;
+  for (int j = 1; j < h; j++) {
+    setBlock(x, y + j, z, BlockType::TREE);
+  }
+}
+
 void Chunk::generateChunk() {
   const int SEA_LEVEL = 48;  // water below y
   const int SNOW_LEVEL = 75; // snow above y
@@ -71,23 +78,26 @@ void Chunk::generateChunk() {
       // at 0.45, you get a nice smooth transition into mountains.
       double mountain_factor = glm::smoothstep(0.45, 0.85, biome_noise);
 
-      int perlin_height = static_cast<int>(
-          hNoise * 30            // base hills
-          + mountain_factor * 80 // extra mountains only where biome is high
-      ) + AMP;
+      int perlin_height =
+          static_cast<int>(
+              hNoise * 30            // base hills
+              + mountain_factor * 80 // extra mountains only where biome is high
+              ) +
+          AMP;
 
       for (int y = 0; y < perlin_height; y++) {
-      const double stone_noise = glm::perlin(glm::vec3(
-          (world_x * W + x) * 0.55, y * 0.25, (world_z * L + z) * 0.25));
-      const double bedrock_noise = glm::perlin(glm::vec3(
-          (world_x * W + x) * 0.42, y * 0.02, (world_z * L + z) * 0.42));
+
+        const double stone_noise = glm::perlin(glm::vec3(
+            (world_x * W + x) * 0.55, y * 0.25, (world_z * L + z) * 0.25));
+        const double bedrock_noise = glm::perlin(glm::vec3(
+            (world_x * W + x) * 0.42, y * 0.02, (world_z * L + z) * 0.42));
+
         BlockType type = BlockType::AIR;
+
         // Figure out top block
         if (y == perlin_height - 1) {
-          double snow_noise = glm::perlin(glm::vec2(
-                (world_x * W + x) * 0.02,
-                (world_z * L + z) * 0.02
-                ));
+          double snow_noise = glm::perlin(
+              glm::vec2((world_x * W + x) * 0.02, (world_z * L + z) * 0.02));
           int block_rand = (rand() % 100) + 1;
           if (perlin_height > SNOW_LEVEL + snow_noise * 5.0) {
             if (block_rand <= 95) {
@@ -98,7 +108,7 @@ void Chunk::generateChunk() {
               type = BlockType::SNOW_DIRT;
             }
           } else if (perlin_height > SNOW_LEVEL) {
-              type = BlockType::SNOW;
+            type = BlockType::SNOW;
           } else if (perlin_height <= SEA_LEVEL) {
             if (perlin_height < SEA_LEVEL - 5) {
               type = BlockType::SANDSTONE;
@@ -120,6 +130,9 @@ void Chunk::generateChunk() {
                   type = BlockType::STONE;
                 } else if (block_rand <= 90) {
                   type = BlockType::GRASS;
+                  if (block_rand <= 20) {
+                    generateTree(x, y, z);
+                  }
                 } else {
                   type = BlockType::DIRT;
                 }
@@ -133,9 +146,9 @@ void Chunk::generateChunk() {
         } else {
           type = BlockType::DIRT;
         }
+
         setBlock(x, y, z, type);
       }
-      
 
       // Fill water pass
       for (int y = perlin_height; y < SEA_LEVEL; y++) {
