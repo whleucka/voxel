@@ -1,4 +1,5 @@
 #include "chunk.hpp"
+#include "block_type.hpp"
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/noise.hpp>
 
@@ -76,20 +77,19 @@ void Chunk::generateChunk() {
       ) + AMP;
 
       for (int y = 0; y < perlin_height; y++) {
+      const double stone_noise = glm::perlin(glm::vec3(
+          (world_x * W + x) * 0.55, y * 0.25, (world_z * L + z) * 0.25));
+      const double bedrock_noise = glm::perlin(glm::vec3(
+          (world_x * W + x) * 0.42, y * 0.02, (world_z * L + z) * 0.42));
         BlockType type = BlockType::AIR;
-        const double stone_noise = glm::perlin(glm::vec3(
-            (world_x * W + x) * 0.55, y * 0.25, (world_z * L + z) * 0.25));
-        const double bedrock_noise = glm::perlin(glm::vec3(
-            (world_x * W + x) * 0.42, y * 0.02, (world_z * L + z) * 0.42));
-        double snowNoise = glm::perlin(glm::vec2(
-              (world_x * W + x) * 0.02,
-              (world_z * L + z) * 0.02
-              ));
-
         // Figure out top block
         if (y == perlin_height - 1) {
+          double snow_noise = glm::perlin(glm::vec2(
+                (world_x * W + x) * 0.02,
+                (world_z * L + z) * 0.02
+                ));
           int block_rand = (rand() % 100) + 1;
-          if (perlin_height > SNOW_LEVEL + snowNoise * 5.0) {
+          if (perlin_height > SNOW_LEVEL + snow_noise * 5.0) {
             if (block_rand <= 95) {
               type = BlockType::SNOW;
             } else if (block_rand <= 98) {
@@ -100,7 +100,11 @@ void Chunk::generateChunk() {
           } else if (perlin_height > SNOW_LEVEL) {
               type = BlockType::SNOW;
           } else if (perlin_height <= SEA_LEVEL) {
-            type = BlockType::SAND;
+            if (perlin_height < SEA_LEVEL - 5) {
+              type = BlockType::SANDSTONE;
+            } else {
+              type = BlockType::SAND;
+            }
           } else {
             if (y < SNOW_LEVEL) {
               if (y > SNOW_LEVEL - 2) {

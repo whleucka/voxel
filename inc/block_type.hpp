@@ -15,6 +15,7 @@ enum class BlockType : uint8_t {
   SNOW,
   SNOW_STONE,
   SNOW_DIRT,
+  SANDSTONE,
 };
 
 struct BlockInfo {

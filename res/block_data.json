@@ -35,6 +35,9 @@
       "uv_top": [8, 0],
       "uv_side": [10, 0],
       "uv_bottom": [2, 0]
+    },
+    "sandstone": {
+        "uv": [11, 0]
     }
   }
 }
