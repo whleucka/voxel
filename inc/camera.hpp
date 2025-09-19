@@ -6,6 +6,21 @@ enum Camera_Movement { FORWARD, BACKWARD, LEFT, RIGHT, UP, DOWN };
 
 class Camera {
 public:
+  // config
+  float movement_speed = 10.0f;
+  float mouse_sensitivity = 0.05f;
+  float zoom = 45.0f;
+
+  // state
+  glm::vec3 position{24.0f, 56.0f, 24.0f};
+  glm::vec3 front{0.0f, 0.0f, -1.0f};
+  glm::vec3 up{0.0f, 1.0f, 0.0f};
+  glm::vec3 right{1.0f, 0.0f, 0.0f};
+  glm::vec3 world_up{0.0f, 1.0f, 0.0f};
+
+  float yaw = -90.0f; // -Z
+  float pitch = -30.0f;
+
   Camera() { updateCameraVectors(); }
 
   glm::vec3 getPosition() const { return position; }
@@ -40,21 +55,6 @@ public:
   void getFrustumPlanes(glm::vec4 planes[6], const glm::mat4 &viewProj) const;
 
 private:
-  // config
-  float movement_speed = 10.0f;
-  float mouse_sensitivity = 0.05f;
-  float zoom = 45.0f;
-
-  // state
-  glm::vec3 position{24.0f, 56.0f, 24.0f};
-  glm::vec3 front{0.0f, 0.0f, -1.0f};
-  glm::vec3 up{0.0f, 1.0f, 0.0f};
-  glm::vec3 right{1.0f, 0.0f, 0.0f};
-  glm::vec3 world_up{0.0f, 1.0f, 0.0f};
-
-  float yaw = -90.0f; // -Z
-  float pitch = -30.0f;
-
   void updateCameraVectors() {
     // forward from yaw/pitch (no roll)
     glm::vec3 f;

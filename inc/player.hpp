@@ -8,18 +8,12 @@ class Player {
 public:
   Player(World *world, const glm::vec3 &spawn_pos);
 
-  // Update per frame
   void update(float dt);
-
-  // Input
   void processKeyboard(bool forward, bool back, bool left, bool right,
-                       bool jump);
+                       bool jump, bool sprint);
 
-  // Camera access
   Camera &getCamera() { return camera; }
   const Camera &getCamera() const { return camera; }
-
-  // Position getters
   glm::vec3 getPosition() const { return position; }
 
 private:
@@ -31,9 +25,12 @@ private:
   glm::vec3 position;
   glm::vec3 velocity;
   bool on_ground;
+  bool in_water;
 
   // Constants
   float move_speed = 5.0f;
+  float sprint_speed = 10.0f;
+  float water_speed = 2.0f;
   float jump_strength = 8.0f;
   float gravity = -20.0f;
   float player_height = 1.8f;
@@ -41,5 +38,5 @@ private:
 
   // Helpers
   void applyGravity(float dt);
-  void handleCollisions();
+  void handleCollisions(int axis);
 };

@@ -1,6 +1,6 @@
 #include "engine.hpp"
-#include "camera.hpp"
 #include "block_data_manager.hpp"
+#include "player.hpp"
 #include "texture_manager.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/ext/scalar_constants.hpp>
@@ -110,7 +110,7 @@ bool Engine::init() {
         float dy = float(eng->last_y - ypos);
         eng->last_x = xpos;
         eng->last_y = ypos;
-        eng->camera.processMouseMovement(dx, dy);
+        eng->player->getCamera().processMouseMovement(dx, dy);
       });
 
   glfwSetMouseButtonCallback(
@@ -157,7 +157,7 @@ bool Engine::init() {
   renderer.init();
   loadAtlas("res/block_atlas.png");
 
-
+  player = new Player(&world, glm::vec3(0, 80, 0));
 
   return true;
 }
@@ -182,19 +182,13 @@ void Engine::processInput() {
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     glfwSetWindowShouldClose(window, true);
 
-  // Camera controls
-  if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-    camera.processKeyboard(FORWARD, delta_time);
-  if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-    camera.processKeyboard(BACKWARD, delta_time);
-  if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-    camera.processKeyboard(LEFT, delta_time);
-  if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-    camera.processKeyboard(RIGHT, delta_time);
-  if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
-    camera.processKeyboard(UP, delta_time);
-  if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
-    camera.processKeyboard(DOWN, delta_time);
+  bool forward = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
+  bool back = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
+  bool left = glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS;
+  bool right = glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS;
+  bool jump = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+  bool sprint = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
+  player->processKeyboard(forward, back, left, right, jump, sprint);
 }
 
 void Engine::loadAtlas(std::string path) {
@@ -203,7 +197,8 @@ void Engine::loadAtlas(std::string path) {
 
 void Engine::update() {
   game_clock.update(delta_time);
-  world.update(camera.getPosition());
+  player->update(delta_time);
+  world.update(player->getPosition());
   world.processUploads();
 
   if (wireframe) {
@@ -219,13 +214,13 @@ void Engine::render() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Gather chunk pointers from world
-  std::vector<Chunk *> visible_chunks = world.getVisibleChunks(camera);
+  std::vector<Chunk *> visible_chunks = world.getVisibleChunks(player->getCamera());
 
   // Set sky color based on time of day
   float time_fraction = game_clock.fractionOfDay();
 
   // Render scene
-  renderer.draw(visible_chunks, camera, width, height, time_fraction);
+  renderer.draw(visible_chunks, player->getCamera(), width, height, time_fraction);
 
   imgui();
 }
@@ -255,8 +250,8 @@ void Engine::imgui() {
     ImGui::Text("Game time: %.2d:%.2d", game_clock.hour(), game_clock.minute());
     ImGui::Text("FPS: %.1f", io.Framerate);
     ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
-    const glm::vec3 pos = camera.getPosition();
-    ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
+    const glm::vec3 pos = player->getPosition();
+    ImGui::Text("Player: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
     ImGui::Text("Memory usage: %zu MB", getMemoryUsage());
     ImGui::Text("Chunks loaded: %zu", world.getLoadedChunkCount());
     ImGui::Checkbox("Wireframe mode", &wireframe);
@@ -268,6 +263,7 @@ void Engine::imgui() {
 }
 
 void Engine::cleanup() {
+  delete player;
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();

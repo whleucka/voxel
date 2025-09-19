@@ -8,6 +8,7 @@
 #include <glad/glad.h>
 #include <string>
 
+class Player;
 
 class Engine {
 public:
@@ -31,7 +32,7 @@ private:
   bool first_mouse = true;
 
   GameClock game_clock;
-  Camera camera;
+  Player *player;
   World world;
   Renderer renderer;
 
