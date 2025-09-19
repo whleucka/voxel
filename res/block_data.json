@@ -25,6 +25,16 @@
     },
     "snow": {
       "uv": [8, 0]
+    },
+    "snow-stone": {
+      "uv_top": [8, 0],
+      "uv_side": [9, 0],
+      "uv_bottom": [3, 0]
+    },
+    "snow-dirt": {
+      "uv_top": [8, 0],
+      "uv_side": [10, 0],
+      "uv_bottom": [2, 0]
     }
   }
 }

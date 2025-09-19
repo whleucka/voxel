@@ -1,5 +1,4 @@
 #include "chunk.hpp"
-#include <algorithm>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/noise.hpp>
 
@@ -23,8 +22,8 @@ void Chunk::setBlock(int x, int y, int z, BlockType type) {
 }
 
 void Chunk::generateChunk() {
-  const int SEA_LEVEL = 42;  // water below y
-  const int SNOW_LEVEL = 65; // snow above y
+  const int SEA_LEVEL = 48;  // water below y
+  const int SNOW_LEVEL = 78; // snow above y
   const float FREQ = 0.05f;  // noise frequency
   const float AMP = 29.0f;   // height amplitude
   const float OCTAVES = 4.0f;
@@ -86,20 +85,34 @@ void Chunk::generateChunk() {
         // Figure out top block
         if (y == perlin_height - 1) {
           int block_rand = (rand() % 100) + 1;
-          if (perlin_height >= SNOW_LEVEL) {
-            type = BlockType::SNOW;
+          if (perlin_height > SNOW_LEVEL) {
+            if (block_rand <= 95) {
+              type = BlockType::SNOW;
+            } else if (block_rand <= 98) {
+              type = BlockType::SNOW_STONE;
+            } else {
+              type = BlockType::SNOW_DIRT;
+            }
           } else if (perlin_height <= SEA_LEVEL) {
             type = BlockType::SAND;
           } else {
             if (y < SNOW_LEVEL) {
-              if (block_rand <= 5) {
-                type = BlockType::COBBLESTONE;
-              } else if (block_rand < 15) {
-                type = BlockType::STONE;
-              } else if (block_rand <= 85) {
-                type = BlockType::GRASS;
+              if (y > SNOW_LEVEL - 2) {
+                if (block_rand <= 80) {
+                  type = BlockType::SNOW_STONE;
+                } else {
+                  type = BlockType::SNOW_DIRT;
+                }
               } else {
-                type = BlockType::DIRT;
+                if (block_rand <= 5) {
+                  type = BlockType::COBBLESTONE;
+                } else if (block_rand <= 15) {
+                  type = BlockType::STONE;
+                } else if (block_rand <= 90) {
+                  type = BlockType::GRASS;
+                } else {
+                  type = BlockType::DIRT;
+                }
               }
             }
           }

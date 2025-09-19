@@ -58,6 +58,12 @@ glm::vec2 BlockDataManager::getUV(BlockType type, BlockFace face) const {
   case BlockType::SNOW:
     type_str = "snow";
     break;
+  case BlockType::SNOW_STONE:
+    type_str = "snow-stone";
+    break;
+  case BlockType::SNOW_DIRT:
+    type_str = "snow-dirt";
+    break;
   default:
     type_str = "dirt";
     break;
