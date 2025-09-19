@@ -97,7 +97,7 @@ void World::spiralLoadOrderCircle(int r,
 }
 
 void World::update(const glm::vec3 &camera_pos) {
-  // 0) Promote finished worker chunks first (so they can render)
+  // Promote finished worker chunks first (so they can render)
   promotePendingGenerated(/*budget=*/8);
 
   // --- camera chunk coords ---
@@ -109,7 +109,7 @@ void World::update(const glm::vec3 &camera_pos) {
   const int r = render_distance;
   const int r2 = r * r;
 
-  // 1) LOAD: nearest-first using spiral order
+  // LOAD: nearest-first using spiral order
   static thread_local std::vector<std::pair<int, int>> order;
   spiralLoadOrderCircle(r, order);
 
@@ -144,7 +144,7 @@ void World::update(const glm::vec3 &camera_pos) {
     }
   }
 
-  // 2) UNLOAD: kick out chunks outside the circle (cap per frame if needed)
+  // UNLOAD: kick out chunks outside the circle (cap per frame if needed)
   std::vector<uint64_t> toUnload;
   {
     std::lock_guard<std::mutex> lock(chunks_mutex);

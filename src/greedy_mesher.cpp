@@ -2,7 +2,6 @@
 #include "block_data_manager.hpp"
 #include "block_type.hpp"
 #include <functional>
-#include <iostream>
 #include <vector>
 
 /** Warning to future self: if you touch something here, expect breakage lol */
@@ -11,17 +10,6 @@
 static inline bool isAir(BlockType t) { return t == BlockType::AIR; }
 static inline bool isTrans(BlockType t) { return t == BlockType::WATER; }
 static inline bool isOpaque(BlockType t) { return !isAir(t) && !isTrans(t); }
-
-static inline void tileToUV(float tileX, float tileY, float atlasSizePx,
-                            float tileSizePx, float &u0, float &v0, float &u1,
-                            float &v1) {
-  const float TILE = tileSizePx / atlasSizePx;
-  const float pad = 0.5f / atlasSizePx; // shrink in by half a texel
-  u0 = tileX * TILE + pad;
-  v0 = 1.0f - (tileY + 1) * TILE + pad; // flipped V
-  u1 = (tileX + 1) * TILE - pad;
-  v1 = 1.0f - tileY * TILE - pad;
-}
 static inline void pushQuadTiled(std::vector<Vertex> &verts,
                                  std::vector<unsigned> &inds,
                                  const glm::vec3 P[4], const glm::vec3 &N,
