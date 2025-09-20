@@ -23,7 +23,7 @@ bool isAABBInFrustum(const glm::vec4 planes[6], const glm::vec3 &min,
       positive_vertex.z = max.z;
     }
 
-    if (glm::dot(glm::vec3(planes[i]), positive_vertex) + planes[i].w < 0) {
+    if (glm::dot(glm::vec3(planes[i]), positive_vertex) + planes[i].w < -0.001f) {
       return false;
     }
   }
@@ -204,7 +204,7 @@ std::vector<Chunk *> World::getVisibleChunks(const Camera &cam, int width,
 
   // Frustum culling
   glm::mat4 projection = glm::perspective(
-      glm::radians(cam.zoom), (float)width / (float)height, 0.1f, 500.0f);
+      glm::radians(45.0f), (float)width / (float)height, 0.5f, 512.0f);
   glm::mat4 view = cam.getViewMatrix();
   glm::mat4 viewProj = projection * view;
   glm::vec4 planes[6];

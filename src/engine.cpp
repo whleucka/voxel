@@ -198,15 +198,14 @@ void Engine::loadAtlas(std::string path) {
 }
 
 void Engine::update() {
-// Engine update loop
-if (!spawn) {
+  // Spawn user (wait for chunk to generate)
+  if (!spawn) {
     int ground_y = world.getHighestBlock(0, 0);
     if (ground_y > 0) {
-        player->setPosition(glm::vec3(0, ground_y, 0));
-        spawn = true;
+      player->setPosition(glm::vec3(0, ground_y, 0));
+      spawn = true;
     }
-}
-
+  }
 
   game_clock.update(delta_time);
   player->update(delta_time);
@@ -242,9 +241,9 @@ void Engine::drawCrosshairImGui() {
   ImVec2 center = ImGui::GetMainViewport()->GetCenter();
   ImDrawList *dl = ImGui::GetForegroundDrawList();
 
-  float size = 10.0f;
-  float thickness = 3.0f;
-  ImU32 color = IM_COL32(255, 255, 255, 255);
+  float size = 15.0f;
+  float thickness = 4.0f;
+  ImU32 color = IM_COL32(255, 255, 255, 128);
 
   dl->AddLine(ImVec2(center.x - size, center.y),
               ImVec2(center.x + size, center.y), color, thickness);
