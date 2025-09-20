@@ -48,13 +48,13 @@ void Chunk::generateTree(int x, int y, int z) {
 }
 
 void Chunk::generateChunk() {
-  const int SEA_LEVEL = 48;  // water below y
-  const int SNOW_LEVEL = 75; // snow above y
+  const int SEA_LEVEL = 50;  // water below y
+  const int SNOW_LEVEL = 80; // snow above y
   const float FREQ = 0.03f;  // noise frequency
-  const float AMP = 32.0f;   // height amplitude
+  const float AMP = 35.0f;   // height amplitude
   const float OCTAVES = 4.0f;
   const float LACUNARITY = 1.2f;
-  const float GAIN = 0.5f;
+  const float GAIN = 0.4f;
   const int baseX = world_x * W;
   const int baseZ = world_z * L;
 
@@ -93,12 +93,12 @@ void Chunk::generateChunk() {
       // I'll probably forget what this means:
       // Takes your biome noise, says “only the highest values should count as
       // mountains,” and applies a smooth ramp so that instead of an ugly cliff
-      // at 0.45, you get a nice smooth transition into mountains.
-      double mountain_factor = glm::smoothstep(0.45, 0.85, biome_noise);
+      // at x, you get a nice smooth transition into mountains.
+      double mountain_factor = glm::smoothstep(0.42, 0.65, biome_noise);
 
       int perlin_height =
           static_cast<int>(
-              hNoise * 30            // base hills
+              hNoise * 25            // base hills
               + mountain_factor * 80 // extra mountains only where biome is high
               ) +
           AMP;
@@ -150,7 +150,7 @@ void Chunk::generateChunk() {
                   type = BlockType::STONE;
                 } else if (block_rand <= 90) {
                   type = BlockType::GRASS;
-                  if (perlin_height <= SNOW_LEVEL - 20 && tree_noise > 0.7) {
+                  if (perlin_height <= SNOW_LEVEL - 3 && tree_noise > 0.6) {
                     generateTree(x, y, z);
                   }
                 } else {
