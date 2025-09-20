@@ -2,7 +2,6 @@
 
 <img width="1920" height="1054" alt="screenshot-2025-09-11_20-51-50" src="https://github.com/user-attachments/assets/bc312763-0687-4d7d-a272-d8330ba738a6" />
 <img width="1921" height="1081" alt="image" src="https://github.com/user-attachments/assets/d4c21933-737d-4f8f-8eaa-54e6fa9ce939" />
-<img width="1921" height="1081" alt="image" src="https://github.com/user-attachments/assets/5ba443c8-e0d6-4809-996f-a5e9b4937949" />
 
 
 * A simple hobby project: A Minecraft-inspired voxel game engine and prototype built with C++ and OpenGL. 
