@@ -339,23 +339,35 @@ void World::processUploads() {
   }
 }
 
-void World::loadChunkBlocking(int cx, int cz) {
+void World::generateChunkData(int cx, int cz) {
     const uint64_t key = makeChunkKey(cx, cz);
-
-    // Check if chunk is already loaded
     {
         std::lock_guard<std::mutex> lock(chunks_mutex);
         if (chunks.find(key) != chunks.end()) {
             return;
         }
     }
-
-    // Generate chunk
     auto chunk = std::make_unique<Chunk>(cx, cz);
     chunk->generateChunk();
+    {
+        std::lock_guard<std::mutex> lock(chunks_mutex);
+        chunks[key] = std::move(chunk);
+    }
+}
 
-    // Generate mesh
-    auto sample = [this, &chunk](int gx, int gy, int gz) -> BlockType {
+void World::generateChunkMesh(int cx, int cz) {
+    const uint64_t key = makeChunkKey(cx, cz);
+    Chunk* chunk;
+    {
+        std::lock_guard<std::mutex> lock(chunks_mutex);
+        auto it = chunks.find(key);
+        if (it == chunks.end()) {
+            return;
+        }
+        chunk = it->second.get();
+    }
+
+    auto sample = [this, chunk](int gx, int gy, int gz) -> BlockType {
       int local_x = gx - chunk->world_x * Chunk::W;
       int local_y = gy;
       int local_z = gz - chunk->world_z * Chunk::L;
@@ -367,16 +379,13 @@ void World::loadChunkBlocking(int cx, int cz) {
     };
     auto [opaque_mesh, transparent_mesh] = GreedyMesher::build_cpu(*chunk, sample);
 
-    // Add to world
     {
         std::lock_guard<std::mutex> lock(chunks_mutex);
-        chunks[key] = std::move(chunk);
-        Chunk& new_chunk = *chunks[key];
         if (!opaque_mesh.vertices.empty()) {
-            pending_uploads.push_back({key, &new_chunk.opaqueMesh, std::move(opaque_mesh)});
+            pending_uploads.push_back({key, &chunk->opaqueMesh, std::move(opaque_mesh)});
         }
         if (!transparent_mesh.vertices.empty()) {
-            pending_uploads.push_back({key, &new_chunk.transparentMesh, std::move(transparent_mesh)});
+            pending_uploads.push_back({key, &chunk->transparentMesh, std::move(transparent_mesh)});
         }
     }
 }

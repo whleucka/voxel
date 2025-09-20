@@ -35,7 +35,8 @@ public:
   std::vector<Chunk *> getVisibleChunks(const Camera &cam, int width, int height);
   void update(const glm::vec3 &camera_pos);
   void processUploads();
-  void loadChunkBlocking(int cx, int cz);
+  void generateChunkData(int cx, int cz);
+  void generateChunkMesh(int cx, int cz);
   void processAllUploads();
   int getHighestBlock(int x, int z);
   BlockType getBlock(int x, int y, int z) const;

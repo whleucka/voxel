@@ -78,7 +78,7 @@ void Chunk::generateChunk() {
       };
 
       // Sample noise at world position
-      glm::vec2 pos((baseX + x) * FREQ, (baseZ + z) * FREQ);
+      glm::vec2 pos((baseX + x + 0.1f) * FREQ, (baseZ + z + 0.1f) * FREQ);
 
       // classic smooth fBm
       double hNoise = fbm(pos, OCTAVES, LACUNARITY, GAIN);

@@ -159,16 +159,7 @@ bool Engine::init() {
 
   world.processUploads();
 
-  const int spawn_cx = 0;
-  const int spawn_cz = 0;
-  for (int x = -1; x <= 1; x++) {
-    for (int z = -1; z <= 1; z++) {
-        world.loadChunkBlocking(spawn_cx + x, spawn_cz + z);
-    }
-  }
-  world.processAllUploads();
-
-  int spawn_y = 256;
+  int spawn_y = 80;
   player = new Player(&world, glm::vec3(0, spawn_y, 0));
 
   return true;
