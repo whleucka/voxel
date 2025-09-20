@@ -110,7 +110,7 @@ void Chunk::generateChunk() {
         const double bedrock_noise = glm::perlin(glm::vec3(
             (world_x * W + x) * 0.42, y * 0.02, (world_z * L + z) * 0.42));
         const double tree_noise = glm::perlin(glm::vec3(
-            (world_x * W + x) * 0.6, y * 0.02, (world_z * L + z) * 0.6));
+            (world_x * W + x) * 0.4, y * 0.02, (world_z * L + z) * 0.4));
 
         BlockType type = BlockType::AIR;
 
@@ -150,7 +150,7 @@ void Chunk::generateChunk() {
                   type = BlockType::STONE;
                 } else if (block_rand <= 90) {
                   type = BlockType::GRASS;
-                  if (tree_noise > 0.7) {
+                  if (perlin_height <= SNOW_LEVEL - 20 && tree_noise > 0.7) {
                     generateTree(x, y, z);
                   }
                 } else {

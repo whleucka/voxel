@@ -45,6 +45,7 @@ void Player::processKeyboard(bool forward, bool back, bool left, bool right,
   }
 
   float current_speed = move_speed;
+
   if (in_water) {
     current_speed = water_speed;
   } else if (sprint) {
@@ -55,7 +56,7 @@ void Player::processKeyboard(bool forward, bool back, bool left, bool right,
   velocity.z = move_dir.z * current_speed;
 
   if (jump && on_ground) {
-    velocity.y = jump_strength;
+    velocity.y = in_water ? water_jump_strength : jump_strength;
     on_ground = false;
   }
 }
@@ -69,8 +70,10 @@ void Player::applyGravity(float dt) {
 }
 
 void Player::checkWater() {
-  bool in = world->getBlock(position.x, position.y, position.z) == BlockType::WATER;
-  bool on = world->getBlock(position.x, position.y - 1, position.z) == BlockType::WATER;
+  bool in =
+      world->getBlock(position.x, position.y, position.z) == BlockType::WATER;
+  bool on = world->getBlock(position.x, position.y - 1, position.z) ==
+            BlockType::WATER;
   in_water = in || on;
 }
 

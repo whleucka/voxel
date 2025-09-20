@@ -3,10 +3,31 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <glm/gtc/matrix_transform.hpp>
 
 // std::cout per chunk will hitch. Gate it
 static constexpr bool kLogLoads = false;
 static constexpr bool kLogUnloads = false;
+
+bool isAABBInFrustum(const glm::vec4 planes[6], const glm::vec3& min, const glm::vec3& max) {
+    for (int i = 0; i < 6; i++) {
+        glm::vec3 positive_vertex = min;
+        if (planes[i].x >= 0) {
+            positive_vertex.x = max.x;
+        }
+        if (planes[i].y >= 0) {
+            positive_vertex.y = max.y;
+        }
+        if (planes[i].z >= 0) {
+            positive_vertex.z = max.z;
+        }
+
+        if (glm::dot(glm::vec3(planes[i]), positive_vertex) + planes[i].w < 0) {
+            return false;
+        }
+    }
+    return true;
+}
 
 // Promote N ready chunks from worker → main thread world
 void World::promotePendingGenerated(int budget) {
@@ -176,9 +197,16 @@ void World::update(const glm::vec3 &camera_pos) {
   }
 }
 
-std::vector<Chunk *> World::getVisibleChunks(const Camera &cam) {
+std::vector<Chunk *> World::getVisibleChunks(const Camera &cam, int width, int height) {
   std::lock_guard<std::mutex> lock(chunks_mutex);
-  // unchanged (distance filter)
+
+  // Frustum culling
+  glm::mat4 projection = glm::perspective(glm::radians(cam.zoom), (float)width / (float)height, 0.1f, 500.0f);
+  glm::mat4 view = cam.getViewMatrix();
+  glm::mat4 viewProj = projection * view;
+  glm::vec4 planes[6];
+  cam.getFrustumPlanes(planes, viewProj);
+
   const glm::vec3 p = cam.getPosition();
   const int cam_cx = floorDiv(static_cast<int>(std::floor(p.x)), Chunk::W);
   const int cam_cz = floorDiv(static_cast<int>(std::floor(p.z)), Chunk::L);
@@ -190,8 +218,16 @@ std::vector<Chunk *> World::getVisibleChunks(const Camera &cam) {
     int cx, cz;
     unpackChunkKey(key, cx, cz);
     const int dx = cx - cam_cx, dz = cz - cam_cz;
-    if (dx * dx + dz * dz <= r2)
-      result.push_back(uptr.get());
+    if (dx * dx + dz * dz > r2) {
+        continue;
+    }
+
+    glm::vec3 min = glm::vec3(cx * Chunk::W, 0, cz * Chunk::L);
+    glm::vec3 max = min + glm::vec3(Chunk::W, Chunk::H, Chunk::L);
+
+    if (isAABBInFrustum(planes, min, max)) {
+        result.push_back(uptr.get());
+    }
   }
   return result;
 }
@@ -301,4 +337,65 @@ void World::processUploads() {
     it = pending_uploads.erase(it);
     uploads_processed++;
   }
+}
+
+void World::loadChunkBlocking(int cx, int cz) {
+    const uint64_t key = makeChunkKey(cx, cz);
+
+    // Check if chunk is already loaded
+    {
+        std::lock_guard<std::mutex> lock(chunks_mutex);
+        if (chunks.find(key) != chunks.end()) {
+            return;
+        }
+    }
+
+    // Generate chunk
+    auto chunk = std::make_unique<Chunk>(cx, cz);
+    chunk->generateChunk();
+
+    // Generate mesh
+    auto sample = [this, &chunk](int gx, int gy, int gz) -> BlockType {
+      int local_x = gx - chunk->world_x * Chunk::W;
+      int local_y = gy;
+      int local_z = gz - chunk->world_z * Chunk::L;
+      if (local_x >= 0 && local_x < Chunk::W && local_z >= 0 &&
+          local_z < Chunk::L) {
+        return chunk->getBlock(local_x, local_y, local_z);
+      }
+      return this->getBlock(gx, gy, gz);
+    };
+    auto [opaque_mesh, transparent_mesh] = GreedyMesher::build_cpu(*chunk, sample);
+
+    // Add to world
+    {
+        std::lock_guard<std::mutex> lock(chunks_mutex);
+        chunks[key] = std::move(chunk);
+        Chunk& new_chunk = *chunks[key];
+        if (!opaque_mesh.vertices.empty()) {
+            pending_uploads.push_back({key, &new_chunk.opaqueMesh, std::move(opaque_mesh)});
+        }
+        if (!transparent_mesh.vertices.empty()) {
+            pending_uploads.push_back({key, &new_chunk.transparentMesh, std::move(transparent_mesh)});
+        }
+    }
+}
+
+void World::processAllUploads() {
+    auto it = pending_uploads.begin();
+    while (it != pending_uploads.end()) {
+        if (it->targetMesh) {
+            it->targetMesh->upload(it->mesh.vertices, it->mesh.indices);
+        }
+        it = pending_uploads.erase(it);
+    }
+}
+
+int World::getHighestBlock(int x, int z) {
+    for (int y = Chunk::H - 1; y >= 0; y--) {
+        if (getBlock(x, y, z) != BlockType::AIR) {
+            return y + 1;
+        }
+    }
+    return 0;
 }

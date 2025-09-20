@@ -157,7 +157,19 @@ bool Engine::init() {
   renderer.init();
   loadAtlas("res/block_atlas.png");
 
-  player = new Player(&world, glm::vec3(0, 80, 0));
+  world.processUploads();
+
+  const int spawn_cx = 0;
+  const int spawn_cz = 0;
+  for (int x = -1; x <= 1; x++) {
+    for (int z = -1; z <= 1; z++) {
+        world.loadChunkBlocking(spawn_cx + x, spawn_cz + z);
+    }
+  }
+  world.processAllUploads();
+
+  int spawn_y = 256;
+  player = new Player(&world, glm::vec3(0, spawn_y, 0));
 
   return true;
 }
@@ -214,7 +226,7 @@ void Engine::render() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Gather chunk pointers from world
-  std::vector<Chunk *> visible_chunks = world.getVisibleChunks(player->getCamera());
+  std::vector<Chunk *> visible_chunks = world.getVisibleChunks(player->getCamera(), width, height);
 
   // Set sky color based on time of day
   float time_fraction = game_clock.fractionOfDay();
