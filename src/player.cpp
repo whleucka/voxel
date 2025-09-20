@@ -10,17 +10,23 @@ Player::Player(World *world, const glm::vec3 &spawn_pos)
 void Player::update(float dt) {
   checkWater();
 
-  // Apply gravity
-  applyGravity(dt);
-
   // Update position based on velocity
-  // Attempt to avoid jitters
-  position.x += velocity.x * dt;
-  handleCollisions(0); // X-axis collisions
-  position.y += velocity.y * dt;
-  handleCollisions(1); // Y-axis collisions
-  position.z += velocity.z * dt;
-  handleCollisions(2); // Z-axis collisions
+  // Use sub-stepping to prevent tunneling at high speeds
+  const int substeps = 8;
+  const float substep_dt = dt / substeps;
+
+  for (int i = 0; i < substeps; ++i) {
+    applyGravity(substep_dt);
+
+    position.x += velocity.x * substep_dt;
+    handleCollisions(0); // X-axis collisions
+
+    position.y += velocity.y * substep_dt;
+    handleCollisions(1); // Y-axis collisions
+
+    position.z += velocity.z * substep_dt;
+    handleCollisions(2); // Z-axis collisions
+  }
 
   // Update camera position
   camera.position = position + glm::vec3(0.0f, player_height, 0.0f);
@@ -86,9 +92,9 @@ void Player::handleCollisions(int axis) {
     on_ground = false;
   }
 
-  for (int x = floor(player_min.x); x < ceil(player_max.x); x++) {
-    for (int y = floor(player_min.y); y < ceil(player_max.y); y++) {
-      for (int z = floor(player_min.z); z < ceil(player_max.z); z++) {
+  for (int x = floor(player_min.x); x <= floor(player_max.x); x++) {
+    for (int y = floor(player_min.y); y <= floor(player_max.y); y++) {
+      for (int z = floor(player_min.z); z <= floor(player_max.z); z++) {
         if (world->getBlock(x, y, z) != BlockType::AIR) {
           glm::vec3 block_min(x, y, z);
           glm::vec3 block_max = block_min + glm::vec3(1.0f);
