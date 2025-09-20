@@ -8,6 +8,8 @@ Player::Player(World *world, const glm::vec3 &spawn_pos)
 }
 
 void Player::update(float dt) {
+  checkWater();
+
   // Apply gravity
   applyGravity(dt);
 
@@ -66,6 +68,12 @@ void Player::applyGravity(float dt) {
   }
 }
 
+void Player::checkWater() {
+  bool in = world->getBlock(position.x, position.y, position.z) == BlockType::WATER;
+  bool on = world->getBlock(position.x, position.y - 1, position.z) == BlockType::WATER;
+  in_water = in || on;
+}
+
 void Player::handleCollisions(int axis) {
   glm::vec3 player_min = position - glm::vec3(player_radius, 0, player_radius);
   glm::vec3 player_max =
@@ -73,12 +81,6 @@ void Player::handleCollisions(int axis) {
 
   if (axis == 1) {
     on_ground = false;
-  }
-  in_water = false;
-
-  // Check for water
-  if (world->getBlock(position.x, position.y, position.z) == BlockType::WATER) {
-    in_water = true;
   }
 
   for (int x = floor(player_min.x); x < ceil(player_max.x); x++) {
