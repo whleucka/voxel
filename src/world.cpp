@@ -109,11 +109,11 @@ void World::update(const glm::vec3 &camera_pos) {
   const int r = render_distance;
   const int r2 = r * r;
 
-  // LOAD: nearest-first using spiral order
+  // nearest-first using spiral order
   static thread_local std::vector<std::pair<int, int>> order;
   spiralLoadOrderCircle(r, order);
 
-  // knobs
+  // special knobs
   const int load_budget = 6;
   const size_t workers_hint = 8;
   const size_t inflight_cap = workers_hint * 2;
@@ -174,9 +174,6 @@ void World::update(const glm::vec3 &camera_pos) {
     }
     // if (--unload_budget == 0) break;
   }
-
-  // --- 3) Mesh a bit each frame on main thread (your function already
-  // time/qty-budgets) ---
 }
 
 std::vector<Chunk *> World::getVisibleChunks(const Camera &cam) {

@@ -12,12 +12,13 @@ void Player::update(float dt) {
   applyGravity(dt);
 
   // Update position based on velocity
+  // Attempt to avoid jitters
   position.x += velocity.x * dt;
-  handleCollisions(0); // Resolve X-axis collisions
+  handleCollisions(0); // X-axis collisions
   position.y += velocity.y * dt;
-  handleCollisions(1); // Resolve Y-axis collisions
+  handleCollisions(1); // Y-axis collisions
   position.z += velocity.z * dt;
-  handleCollisions(2); // Resolve Z-axis collisions
+  handleCollisions(2); // Z-axis collisions
 
   // Update camera position
   camera.position = position + glm::vec3(0.0f, player_height, 0.0f);

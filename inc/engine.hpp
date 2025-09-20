@@ -10,6 +10,11 @@
 
 class Player;
 
+enum GameMode {
+  SURVIVAL = 0,
+  CREATIVE,
+};
+
 class Engine {
 public:
   Engine(int w, int h, const std::string &t);
@@ -30,6 +35,8 @@ private:
   float last_x;
   float last_y;
   bool first_mouse = true;
+
+  GameMode mode = GameMode::SURVIVAL;
 
   GameClock game_clock;
   Player *player;
