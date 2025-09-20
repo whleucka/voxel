@@ -30,10 +30,10 @@ public:
   World();
   ~World();
 
-  static constexpr int render_distance = 30;
+  static constexpr int render_distance = 15;
 
   std::vector<Chunk *> getVisibleChunks(const Camera &cam, int width, int height);
-  void update(const glm::vec3 &camera_pos);
+  void update(const Camera &cam);
   void processUploads();
   void generateChunkData(int cx, int cz);
   void generateChunkMesh(int cx, int cz);

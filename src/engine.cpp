@@ -209,7 +209,7 @@ void Engine::update() {
 
   game_clock.update(delta_time);
   player->update(delta_time);
-  world.update(player->getPosition());
+  world.update(player->getCamera());
   world.processUploads();
 
   if (wireframe) {

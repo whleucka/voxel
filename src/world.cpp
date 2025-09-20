@@ -118,11 +118,12 @@ void World::spiralLoadOrderCircle(int r,
   }
 }
 
-void World::update(const glm::vec3 &camera_pos) {
+void World::update(const Camera &cam) {
   // Promote finished worker chunks first (so they can render)
   promotePendingGenerated(/*budget=*/8);
 
   // --- camera chunk coords ---
+  const glm::vec3 camera_pos = cam.getPosition();
   const int cam_cx =
       floorDiv(static_cast<int>(std::floor(camera_pos.x)), Chunk::W);
   const int cam_cz =
@@ -135,6 +136,42 @@ void World::update(const glm::vec3 &camera_pos) {
   static thread_local std::vector<std::pair<int, int>> order;
   spiralLoadOrderCircle(r, order);
 
+  // Frustum culling for prioritizing loads
+  glm::mat4 projection = glm::perspective(
+      glm::radians(45.0f), 1920.f / 1080.f, 0.5f, 512.0f);
+  glm::mat4 view = cam.getViewMatrix();
+  glm::mat4 viewProj = projection * view;
+  glm::vec4 planes[6];
+  cam.getFrustumPlanes(planes, viewProj);
+
+  std::vector<std::pair<int, int>> priority_loads;
+  std::vector<std::pair<int, int>> background_loads;
+
+  for (auto [dx, dz] : order) {
+    if (dx * dx + dz * dz > r2)
+      continue;
+    const int cx = cam_cx + dx;
+    const int cz = cam_cz + dz;
+    const uint64_t key = makeChunkKey(cx, cz);
+
+    {
+      std::lock_guard<std::mutex> lock(chunks_mutex);
+      if (chunks.count(key))
+        continue; // already present
+    }
+    if (loading.count(key))
+      continue; // already loading
+
+    glm::vec3 min = glm::vec3(cx * Chunk::W, 0, cz * Chunk::L);
+    glm::vec3 max = min + glm::vec3(Chunk::W, Chunk::H, Chunk::L);
+
+    if (isAABBInFrustum(planes, min, max)) {
+      priority_loads.push_back({cx, cz});
+    } else {
+      background_loads.push_back({cx, cz});
+    }
+  }
+
   // special knobs
   const int load_budget = 6;
   const size_t workers_hint = 8;
@@ -144,25 +181,19 @@ void World::update(const glm::vec3 &camera_pos) {
 
   // Only try to enqueue if we don't already have a lot in-flight
   if (loading.size() < inflight_cap) {
-    for (auto [dx, dz] : order) {
-      if (dx * dx + dz * dz > r2)
-        continue; // optional circle mask
-      const int cx = cam_cx + dx;
-      const int cz = cam_cz + dz;
-      const uint64_t key = makeChunkKey(cx, cz);
-
-      {
-        std::lock_guard<std::mutex> lock(chunks_mutex);
-        if (chunks.find(key) != chunks.end())
-          continue; // already present
-      }
-      if (loading.find(key) == loading.end()) {
-        loadChunk(cx, cz); // enqueue to thread pool
-        if (--loads_left == 0)
-          break;
-        if (loading.size() >= inflight_cap)
-          break; // back off if queue fills
-      }
+    // Prioritize frustum-visible chunks
+    for (auto [cx, cz] : priority_loads) {
+      if (loads_left == 0)
+        break;
+      loadChunk(cx, cz);
+      --loads_left;
+    }
+    // Then load background chunks
+    for (auto [cx, cz] : background_loads) {
+      if (loads_left == 0)
+        break;
+      loadChunk(cx, cz);
+      --loads_left;
     }
   }
 
