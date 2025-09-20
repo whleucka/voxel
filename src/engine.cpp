@@ -159,7 +159,7 @@ bool Engine::init() {
 
   world.processUploads();
 
-  int spawn_y = 80;
+  int spawn_y = 100;
   player = new Player(&world, glm::vec3(0, spawn_y, 0));
 
   return true;
