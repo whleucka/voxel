@@ -1,5 +1,8 @@
 #include "engine.hpp"
 #include "block_data_manager.hpp"
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 #include "player.hpp"
 #include "texture_manager.hpp"
 #include <GLFW/glfw3.h>
@@ -7,9 +10,6 @@
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
 #include <sys/resource.h>
 
 size_t getMemoryUsage() {
@@ -19,17 +19,16 @@ size_t getMemoryUsage() {
   return usage.ru_maxrss / 1024.0f; // MB
 }
 
-void keyCallback(GLFWwindow *window, int key, int, int action,
-                 int) {
+void keyCallback(GLFWwindow *window, int key, int, int action, int) {
   // This is better than processInput, because I don't have to worry about key
   // held vs key pressed, etc
   if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
-    Engine *engine = 
+    Engine *engine =
         reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
     engine->debug = !engine->debug;
   }
   if (key == GLFW_KEY_F4 && action == GLFW_PRESS) {
-    Engine *engine = 
+    Engine *engine =
         reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
     engine->wireframe = !engine->wireframe;
   }
@@ -67,7 +66,7 @@ bool Engine::init() {
   last_x = width / 2.0f;
   last_y = height / 2.0f;
 
-  window = 
+  window =
       glfwCreateWindow(width, height, title.c_str(), primaryMonitor, nullptr);
   if (!window) {
     std::cerr << "Failed to create GLFW window\n";
@@ -159,8 +158,8 @@ bool Engine::init() {
 
   world.processUploads();
 
-  int spawn_y = 100;
-  player = new Player(&world, glm::vec3(0, spawn_y, 0));
+  // Initial "safe" spawn
+  player = new Player(&world, glm::vec3(0, 200, 0));
 
   return true;
 }
@@ -199,6 +198,16 @@ void Engine::loadAtlas(std::string path) {
 }
 
 void Engine::update() {
+// Engine update loop
+if (!spawn) {
+    int ground_y = world.getHighestBlock(0, 0);
+    if (ground_y > 0) {
+        player->setPosition(glm::vec3(0, ground_y, 0));
+        spawn = true;
+    }
+}
+
+
   game_clock.update(delta_time);
   player->update(delta_time);
   world.update(player->getPosition());
@@ -207,8 +216,7 @@ void Engine::update() {
   if (wireframe) {
     glLineWidth(2.0f);
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-  }
-  else {
+  } else {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   }
 }
@@ -217,13 +225,15 @@ void Engine::render() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Gather chunk pointers from world
-  std::vector<Chunk *> visible_chunks = world.getVisibleChunks(player->getCamera(), width, height);
+  std::vector<Chunk *> visible_chunks =
+      world.getVisibleChunks(player->getCamera(), width, height);
 
   // Set sky color based on time of day
   float time_fraction = game_clock.fractionOfDay();
 
   // Render scene
-  renderer.draw(visible_chunks, player->getCamera(), width, height, time_fraction);
+  renderer.draw(visible_chunks, player->getCamera(), width, height,
+                time_fraction);
 
   imgui();
 }
@@ -282,4 +292,3 @@ void Engine::handleMouseClick(int, int action, int) {
   if (action == GLFW_PRESS) {
   }
 }
-

@@ -15,6 +15,7 @@ public:
   Camera &getCamera() { return camera; }
   const Camera &getCamera() const { return camera; }
   glm::vec3 getPosition() const { return position; }
+  void setPosition(glm::vec3 pos) { position = pos; }
 
 private:
   World *world;

@@ -30,6 +30,7 @@ private:
   int width, height;
   std::string title;
 
+  bool spawn = false;
   float last_frame = 0.0f;
   float delta_time = 0.0f;
   float last_x;
