@@ -55,7 +55,7 @@ void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
 
   // View/Projection
   glm::mat4 projection = glm::perspective(
-      glm::radians(45.0f), (float)screen_width / (float)screen_height, 0.5f,
+      glm::radians(45.0f), (float)screen_width / (float)screen_height, 0.1f,
       512.0f);
   glm::mat4 view = camera.getViewMatrix();
   block_shader->setMat4("projection", projection);

@@ -128,7 +128,7 @@ void World::update(const Camera &cam) {
 
   // Frustum culling for prioritizing loads
   glm::mat4 projection = glm::perspective(
-      glm::radians(45.0f), 1920.f / 1080.f, 0.5f, 512.0f);
+      glm::radians(45.0f), 1920.f / 1080.f, 0.1f, 512.0f);
   glm::mat4 view = cam.getViewMatrix();
   glm::mat4 viewProj = projection * view;
   glm::vec4 planes[6];
@@ -226,7 +226,7 @@ std::vector<Chunk *> World::getVisibleChunks(const Camera &cam, int width,
 
   // Frustum culling
   glm::mat4 projection = glm::perspective(
-      glm::radians(45.0f), (float)width / (float)height, 0.5f, 512.0f);
+      glm::radians(45.0f), (float)width / (float)height, 0.1f, 512.0f);
   glm::mat4 view = cam.getViewMatrix();
   glm::mat4 viewProj = projection * view;
   glm::vec4 planes[6];
