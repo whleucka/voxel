@@ -23,7 +23,7 @@ void Chunk::setBlock(int x, int y, int z, BlockType type) {
 }
 
 void Chunk::generateTree(int x, int y, int z) {
-  int h = (rand() % 4) + 7;
+  int h = (rand() % 6) + 11;
   for (int j = 1; j <= h; j++) {
     setBlock(x, y + j, z, BlockType::TREE);
   }
@@ -31,12 +31,14 @@ void Chunk::generateTree(int x, int y, int z) {
   // leaves
   int radius = (rand() % 2) + 4;
   int top = y + h;
+  int t_h = (rand() % 2) + 5; // leaf height
+  int t_d = (rand() % 2) + 5; // leaf depth
 
-  for (int dy = -2; dy <= 2; dy++) {
+  for (int dy = -t_d; dy <= t_h; dy++) {
     for (int dx = -radius; dx <= radius; dx++) {
       for (int dz = -radius; dz <= radius; dz++) {
         // add some randomness
-        if (rand()%5==0) continue;
+        if (rand()%10==0) continue;
         // little sphere-ish shape
         if (dx*dx + dz*dz + dy*dy <= radius*radius + 1) {
           if (getBlock(x + dx, top + dy, z + dz) != BlockType::TREE)
