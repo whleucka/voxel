@@ -207,7 +207,8 @@ void World::update(const Camera &cam) {
       unpackChunkKey(kv.first, cx, cz);
       const int dx = cx - cam_cx;
       const int dz = cz - cam_cz;
-      if (dx * dx + dz * dz > r2) {
+      const int render_distance_buffer = 2;
+      if (dx * dx + dz * dz > r2 + render_distance_buffer) {
         toUnload.push_back(kv.first);
         if (kLogUnloads) {
           std::cout << "CONSIDERING UNLOAD CHUNK " << cx << "," << cz
