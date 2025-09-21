@@ -5,6 +5,9 @@
 #include <memory>
 #include <mutex>
 #include <vector>
+#include <optional>
+
+#include <glm/glm.hpp>
 
 #include "camera.hpp"
 #include "chunk.hpp"
@@ -41,6 +44,8 @@ public:
   int getHighestBlock(int x, int z);
   BlockType getBlock(int x, int y, int z) const;
   void setBlock(int x, int y, int z, BlockType type);
+
+  std::optional<std::tuple<glm::ivec3, glm::ivec3>> raycast(const glm::vec3 &start, const glm::vec3 &direction, float max_dist) const;
 
   // How many chunks have loaded
   size_t getLoadedChunkCount() const { return chunks.size(); }

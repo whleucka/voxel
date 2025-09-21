@@ -1,5 +1,6 @@
 #include "world.hpp"
 #include "greedy_mesher.hpp"
+#include "utils.hpp"
 #include <cmath>
 #include <cstdint>
 #include <glm/gtc/matrix_transform.hpp>
@@ -72,17 +73,6 @@ World::World() {
 }
 
 World::~World() = default;
-
-static inline int floorDiv(int a, int b) {
-  int q = a / b, r = a % b;
-  if (r != 0 && ((r < 0) != (b < 0)))
-    --q;
-  return q;
-}
-static inline int floorMod(int a, int b) {
-  int r = a % b;
-  return (r < 0) ? r + b : r;
-}
 
 static inline void unpackChunkKey(uint64_t key, int &cx, int &cz) {
   cx = static_cast<int>(static_cast<int32_t>(key >> 32));
@@ -286,12 +276,18 @@ BlockType World::getBlock(int x, int y, int z) const {
 
 void World::setBlock(int x, int y, int z, BlockType type) {
   std::lock_guard<std::mutex> lock(chunks_mutex);
-  int cx = x / Chunk::W;
-  int cz = z / Chunk::L;
-  uint64_t key = makeChunkKey(cx, cz);
+  if (y < 0 || y >= Chunk::H) {
+    return;
+  }
+
+  const int cx = floorDiv(x, Chunk::W);
+  const int cz = floorDiv(z, Chunk::L);
+  const uint64_t key = makeChunkKey(cx, cz);
   auto it = chunks.find(key);
   if (it != chunks.end()) {
-    it->second->setBlock(x % Chunk::W, y, z % Chunk::L, type);
+    const int lx = floorMod(x, Chunk::W);
+    const int lz = floorMod(z, Chunk::L);
+    it->second->setBlock(lx, y, lz, type);
   }
 }
 
@@ -445,4 +441,61 @@ int World::getHighestBlock(int x, int z) {
     }
   }
   return 0;
+}
+
+std::optional<std::tuple<glm::ivec3, glm::ivec3>>
+World::raycast(const glm::vec3 &start, const glm::vec3 &direction,
+               float max_dist) const {
+  glm::ivec3 block_pos = glm::floor(start);
+  glm::vec3 ray_unit_step =
+      glm::vec3(glm::abs(1.0f / direction.x), glm::abs(1.0f / direction.y),
+                glm::abs(1.0f / direction.z));
+
+  glm::ivec3 step;
+  glm::vec3 ray_len;
+
+  if (direction.x < 0) {
+    step.x = -1;
+    ray_len.x = (start.x - float(block_pos.x)) * ray_unit_step.x;
+  } else {
+    step.x = 1;
+    ray_len.x = (float(block_pos.x + 1) - start.x) * ray_unit_step.x;
+  }
+  if (direction.y < 0) {
+    step.y = -1;
+    ray_len.y = (start.y - float(block_pos.y)) * ray_unit_step.y;
+  } else {
+    step.y = 1;
+    ray_len.y = (float(block_pos.y + 1) - start.y) * ray_unit_step.y;
+  }
+  if (direction.z < 0) {
+    step.z = -1;
+    ray_len.z = (start.z - float(block_pos.z)) * ray_unit_step.z;
+  } else {
+    step.z = 1;
+    ray_len.z = (float(block_pos.z + 1) - start.z) * ray_unit_step.z;
+  }
+
+  glm::ivec3 normal(0);
+  while (glm::distance(start, glm::vec3(block_pos)) < max_dist) {
+    if (getBlock(block_pos.x, block_pos.y, block_pos.z) != BlockType::AIR) {
+      return std::make_tuple(block_pos, normal);
+    }
+
+    if (ray_len.x < ray_len.y && ray_len.x < ray_len.z) {
+      block_pos.x += step.x;
+      ray_len.x += ray_unit_step.x;
+      normal = glm::ivec3(-step.x, 0, 0);
+    } else if (ray_len.y < ray_len.z) {
+      block_pos.y += step.y;
+      ray_len.y += ray_unit_step.y;
+      normal = glm::ivec3(0, -step.y, 0);
+    } else {
+      block_pos.z += step.z;
+      ray_len.z += ray_unit_step.z;
+      normal = glm::ivec3(0, 0, -step.z);
+    }
+  }
+
+  return std::nullopt;
 }

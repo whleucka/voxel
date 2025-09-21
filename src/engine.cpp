@@ -5,6 +5,7 @@
 #include "imgui_impl_opengl3.h"
 #include "player.hpp"
 #include "texture_manager.hpp"
+#include "utils.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/ext/scalar_constants.hpp>
 #include <glm/ext/vector_float3.hpp>
@@ -287,7 +288,36 @@ void Engine::cleanup() {
   }
 }
 
-void Engine::handleMouseClick(int, int action, int) {
+void Engine::handleMouseClick(int button, int action, int) {
   if (action == GLFW_PRESS) {
+    auto &cam = player->getCamera();
+    auto result = world.raycast(cam.getPosition(), cam.getFront(), 5.0f);
+    if (result) {
+      auto [block_pos, normal] = *result;
+      if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+        glm::ivec3 new_pos = block_pos + normal;
+        world.setBlock(new_pos.x, new_pos.y, new_pos.z, BlockType::GRASS);
+      } else if (button == GLFW_MOUSE_BUTTON_LEFT) {
+        world.setBlock(block_pos.x, block_pos.y, block_pos.z, BlockType::AIR);
+      }
+
+      int cx = floorDiv(block_pos.x, Chunk::W);
+      int cz = floorDiv(block_pos.z, Chunk::L);
+      world.generateChunkMesh(cx, cz);
+
+      // Also update neighbors if the block is on a chunk boundary
+      if (block_pos.x % Chunk::W == 0) {
+        world.generateChunkMesh(cx - 1, cz);
+      }
+      if (block_pos.x % Chunk::W == Chunk::W - 1) {
+        world.generateChunkMesh(cx + 1, cz);
+      }
+      if (block_pos.z % Chunk::L == 0) {
+        world.generateChunkMesh(cx, cz - 1);
+      }
+      if (block_pos.z % Chunk::L == Chunk::L - 1) {
+        world.generateChunkMesh(cx, cz + 1);
+      }
+    }
   }
 }
