@@ -3,13 +3,14 @@
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/noise.hpp>
 
-const int SEA_LEVEL = 50;  // water below y
-const int SNOW_LEVEL = 80; // snow above y
-const float FREQ = 0.03f;  // noise frequency
-const float AMP = 35.0f;   // height amplitude
-const float OCTAVES = 4.0f;
-const float LACUNARITY = 1.2f;
-const float GAIN = 0.4f;
+const int SEA_LEVEL = 50;            // water below y
+const int SNOW_LEVEL = 80;           // snow above y
+const float FREQ = 0.03f;            // noise frequency
+const float AMP = 35.0f;             // height amplitude
+const float OCTAVES = 4.0f;          // terrain octaves
+const float LACUNARITY = 1.2f;       // terrain lacunarity
+const float GAIN = 0.4f;             // terrain gain
+const int TREE_BORDER_THRESHOLD = 5; // trees spawn in centre of chunk
 
 Chunk::Chunk(int32_t world_x, int32_t world_z)
     : world_x(world_x), world_z(world_z) {
@@ -81,7 +82,11 @@ BlockType Chunk::generateTopBlock(int x, int y, int z) {
         } else if (block_rand <= 15) {
           return BlockType::STONE;
         } else {
-          if (y <= SNOW_LEVEL - 3 && tree_noise > 0.6) {
+          if (y <= SNOW_LEVEL - 3 && tree_noise > 0.4 &&
+              x >= TREE_BORDER_THRESHOLD &&
+              x <= W - 1 - TREE_BORDER_THRESHOLD &&
+              z >= TREE_BORDER_THRESHOLD &&
+              z <= L - 1 - TREE_BORDER_THRESHOLD) {
             generateTree(x, y, z);
           }
           return BlockType::GRASS;
@@ -163,7 +168,7 @@ void Chunk::generateTerrain(int x, int z) {
 
 void Chunk::generateTree(int x, int y, int z) {
   // set trunk
-  int h = (rand() % 6) + 11;
+  int h = (rand() % 6) + 10;
   for (int j = 1; j <= h; j++) {
     setBlock(x, y + j, z, BlockType::TREE);
   }
@@ -171,14 +176,14 @@ void Chunk::generateTree(int x, int y, int z) {
   // set leaves
   int radius = (rand() % 2) + 4;
   int top = y + h;
-  int t_h = (rand() % 2) + 5; // leaf height
-  int t_d = (rand() % 2) + 5; // leaf depth
+  int t_h = (rand() % 3) + 6; // leaf height
+  int t_d = (rand() % 3) + 4; // leaf depth
 
   for (int dy = -t_d; dy <= t_h; dy++) {
     for (int dx = -radius; dx <= radius; dx++) {
       for (int dz = -radius; dz <= radius; dz++) {
         // add some randomness
-        if (rand() % 10 == 0)
+        if (rand() % 10 > 4)
           continue;
         // little sphere-ish shape
         if (dx * dx + dz * dz + dy * dy <= radius * radius + 1) {
