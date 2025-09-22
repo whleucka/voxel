@@ -213,6 +213,16 @@ void Engine::update() {
   world.update(player->getCamera());
   world.processUploads();
 
+  // Raycast for highlighted block
+  auto &cam = player->getCamera();
+  auto result = world.raycast(cam.getPosition(), cam.getFront(), 5.0f);
+  if (result) {
+    has_highlighted_block = true;
+    highlighted_block_pos = std::get<0>(*result);
+  } else {
+    has_highlighted_block = false;
+  }
+
   if (wireframe) {
     glLineWidth(2.0f);
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -234,6 +244,10 @@ void Engine::render() {
   // Render scene
   renderer.draw(visible_chunks, player->getCamera(), width, height,
                 time_fraction);
+
+  if (has_highlighted_block) {
+    renderer.drawHighlight(player->getCamera(), highlighted_block_pos);
+  }
 
   imgui();
 }

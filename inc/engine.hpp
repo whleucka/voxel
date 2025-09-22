@@ -6,6 +6,7 @@
 #include "world.hpp"
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
+#include <glm/glm.hpp>
 #include <string>
 
 class Player;
@@ -44,6 +45,9 @@ private:
   World world;
   Renderer renderer;
 
+  bool has_highlighted_block = false;
+  glm::vec3 highlighted_block_pos;
+
   static void framebufferSizeCallback(GLFWwindow *window, int w, int h);
   void drawCrosshairImGui();
   void processInput();
@@ -53,5 +57,5 @@ private:
   void imgui();
   void cleanup();
   void handleMouseClick(int button, int action, int mods);
-  void checkOpenGLError(const char* stmt, const char* fname, int line);
+  void checkOpenGLError(const char *stmt, const char *fname, int line);
 };
