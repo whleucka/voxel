@@ -83,6 +83,32 @@ void Player::checkWater() {
   in_water = in || on;
 }
 
+bool Player::tryStepUp(float maxStepHeight) {
+  glm::vec3 oldPos = position;
+
+  position.y += maxStepHeight;
+
+  glm::vec3 new_min = position - glm::vec3(player_radius, 0, player_radius);
+  glm::vec3 new_max =
+      position + glm::vec3(player_radius, player_height, player_radius);
+
+  // Check all blocks in new AABB
+  for (int x = floor(new_min.x); x <= floor(new_max.x); x++) {
+    for (int y = floor(new_min.y); y <= floor(new_max.y); y++) {
+      for (int z = floor(new_min.z); z <= floor(new_max.z); z++) {
+        if (world->getBlock(x, y, z) != BlockType::AIR) {
+          // Fail → restore
+          position = oldPos;
+          return false;
+        }
+      }
+    }
+  }
+
+  // Success: we stepped up
+  return true;
+}
+
 void Player::handleCollisions(int axis) {
   glm::vec3 player_min = position - glm::vec3(player_radius, 0, player_radius);
   glm::vec3 player_max =
@@ -99,18 +125,35 @@ void Player::handleCollisions(int axis) {
           glm::vec3 block_min(x, y, z);
           glm::vec3 block_max = block_min + glm::vec3(1.0f);
 
-          // Check for intersection
           if ((player_max.x > block_min.x && player_min.x < block_max.x) &&
               (player_max.y > block_min.y && player_min.y < block_max.y) &&
               (player_max.z > block_min.z && player_min.z < block_max.z)) {
 
+            float maxStepHeight = 0.6f;
+
             if (axis == 0) { // X-axis
               if (velocity.x > 0) {
+                // Try step-up
+                if (tryStepUp(maxStepHeight))
+                  return;
                 position.x = block_min.x - player_radius;
               } else if (velocity.x < 0) {
+                if (tryStepUp(maxStepHeight))
+                  return;
                 position.x = block_max.x + player_radius;
               }
               velocity.x = 0;
+            } else if (axis == 2) { // Z-axis
+              if (velocity.z > 0) {
+                if (tryStepUp(maxStepHeight))
+                  return;
+                position.z = block_min.z - player_radius;
+              } else if (velocity.z < 0) {
+                if (tryStepUp(maxStepHeight))
+                  return;
+                position.z = block_max.z + player_radius;
+              }
+              velocity.z = 0;
             } else if (axis == 1) { // Y-axis
               if (velocity.y > 0) {
                 position.y = block_min.y - player_height;
@@ -119,13 +162,6 @@ void Player::handleCollisions(int axis) {
                 on_ground = true;
               }
               velocity.y = 0;
-            } else if (axis == 2) { // Z-axis
-              if (velocity.z > 0) {
-                position.z = block_min.z - player_radius;
-              } else if (velocity.z < 0) {
-                position.z = block_max.z + player_radius;
-              }
-              velocity.z = 0;
             }
           }
         }
