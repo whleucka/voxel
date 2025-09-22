@@ -27,6 +27,9 @@ public:
 
 private:
   std::array<BlockType, W * H * L> blocks;
+  void generateTerrain(int x, int z);
+  BlockType generateTopBlock(int x, int y, int z);
+  BlockType generateInternalBlock(int x, int y, int z);
 
   inline int getIndex(int x, int y, int z) const { return x + W * (z + L * y); }
 };
