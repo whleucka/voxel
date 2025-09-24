@@ -80,8 +80,8 @@
     },
     "tree-leaf": {
         "uv": [12, 0],
-        "opaque": false,
-        "transparent": true,
+        "opaque": true,
+        "transparent": false,
         "fluid": false
     },
     "tree": {
