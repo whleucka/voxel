@@ -19,6 +19,10 @@ public:
   void load(const std::string &path);
   glm::vec2 getUV(BlockType type, BlockFace face) const;
 
+  bool isOpaque(BlockType type) const;
+  bool isTransparent(BlockType type) const;
+  bool isFluid(BlockType type) const;
+
 private:
   BlockDataManager() = default;
   ~BlockDataManager() = default;

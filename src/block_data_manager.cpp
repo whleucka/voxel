@@ -30,53 +30,43 @@ void BlockDataManager::load(const std::string &path) {
   }
 }
 
-glm::vec2 BlockDataManager::getUV(BlockType type, BlockFace face) const {
-  // map BlockType -> JSON key
-  std::string type_str;
+static std::string BlockTypeToString(BlockType type) {
   switch (type) {
+  case BlockType::AIR:
+    return "air";
   case BlockType::DIRT:
-    type_str = "dirt";
-    break;
+    return "dirt";
   case BlockType::GRASS:
-    type_str = "grass";
-    break;
+    return "grass";
   case BlockType::STONE:
-    type_str = "stone";
-    break;
+    return "stone";
   case BlockType::SAND:
-    type_str = "sand";
-    break;
+    return "sand";
   case BlockType::COBBLESTONE:
-    type_str = "cobblestone";
-    break;
+    return "cobblestone";
   case BlockType::BEDROCK:
-    type_str = "bedrock";
-    break;
+    return "bedrock";
   case BlockType::WATER:
-    type_str = "water";
-    break;
+    return "water";
   case BlockType::SNOW:
-    type_str = "snow";
-    break;
+    return "snow";
   case BlockType::SNOW_STONE:
-    type_str = "snow-stone";
-    break;
+    return "snow-stone";
   case BlockType::SNOW_DIRT:
-    type_str = "snow-dirt";
-    break;
+    return "snow-dirt";
   case BlockType::SANDSTONE:
-    type_str = "sandstone";
-    break;
+    return "sandstone";
   case BlockType::TREE_LEAF:
-    type_str = "tree-leaf";
-    break;
+    return "tree-leaf";
   case BlockType::TREE:
-    type_str = "tree";
-    break;
+    return "tree";
   default:
-    type_str = "dirt";
-    break;
+    return "dirt";
   }
+}
+
+glm::vec2 BlockDataManager::getUV(BlockType type, BlockFace face) const {
+  const std::string type_str = BlockTypeToString(type);
 
   if (!data.is_object())
     return {0, 0};
@@ -111,4 +101,49 @@ glm::vec2 BlockDataManager::getUV(BlockType type, BlockFace face) const {
   default:
     return pick2("uv_side");
   }
+}
+
+bool BlockDataManager::isOpaque(BlockType type) const {
+  const std::string type_str = BlockTypeToString(type);
+  if (!data.is_object()) return false;
+  auto itBlocks = data.find("blocks");
+  if (itBlocks == data.end() || !itBlocks->is_object()) return false;
+  auto itType = itBlocks->find(type_str);
+  if (itType == itBlocks->end() || !itType->is_object()) return false;
+
+  const auto &block_data = *itType;
+  if (block_data.contains("opaque") && block_data["opaque"].is_boolean()) {
+    return block_data["opaque"].get<bool>();
+  }
+  return false;
+}
+
+bool BlockDataManager::isTransparent(BlockType type) const {
+  const std::string type_str = BlockTypeToString(type);
+  if (!data.is_object()) return false;
+  auto itBlocks = data.find("blocks");
+  if (itBlocks == data.end() || !itBlocks->is_object()) return false;
+  auto itType = itBlocks->find(type_str);
+  if (itType == itBlocks->end() || !itType->is_object()) return false;
+
+  const auto &block_data = *itType;
+  if (block_data.contains("transparent") && block_data["transparent"].is_boolean()) {
+    return block_data["transparent"].get<bool>();
+  }
+  return false;
+}
+
+bool BlockDataManager::isFluid(BlockType type) const {
+  const std::string type_str = BlockTypeToString(type);
+  if (!data.is_object()) return false;
+  auto itBlocks = data.find("blocks");
+  if (itBlocks == data.end() || !itBlocks->is_object()) return false;
+  auto itType = itBlocks->find(type_str);
+  if (itType == itBlocks->end() || !itType->is_object()) return false;
+
+  const auto &block_data = *itType;
+  if (block_data.contains("fluid") && block_data["fluid"].is_boolean()) {
+    return block_data["fluid"].get<bool>();
+  }
+  return false;
 }
