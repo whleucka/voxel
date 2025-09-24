@@ -114,6 +114,7 @@ void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
   }
 
   // —— PASS 2: Transparent ——
+  glDisable(GL_CULL_FACE);
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glDepthMask(GL_FALSE);
@@ -126,6 +127,7 @@ void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
   }
   glDepthMask(GL_TRUE);
   glDisable(GL_BLEND); // leave GL clean
+  glEnable(GL_CULL_FACE); // Re-enable culling
 }
 
 void Renderer::drawHighlight(const Camera &camera, const glm::vec3 &block_pos) {
