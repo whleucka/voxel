@@ -147,3 +147,33 @@ bool BlockDataManager::isFluid(BlockType type) const {
   }
   return false;
 }
+
+bool BlockDataManager::isSolid(BlockType type) const {
+  const std::string type_str = BlockTypeToString(type);
+  if (!data.is_object()) return false;
+  auto itBlocks = data.find("blocks");
+  if (itBlocks == data.end() || !itBlocks->is_object()) return false;
+  auto itType = itBlocks->find(type_str);
+  if (itType == itBlocks->end() || !itType->is_object()) return false;
+
+  const auto &block_data = *itType;
+  if (block_data.contains("solid") && block_data["solid"].is_boolean()) {
+    return block_data["solid"].get<bool>();
+  }
+  return false;
+}
+
+bool BlockDataManager::isSelectable(BlockType type) const {
+  const std::string type_str = BlockTypeToString(type);
+  if (!data.is_object()) return false;
+  auto itBlocks = data.find("blocks");
+  if (itBlocks == data.end() || !itBlocks->is_object()) return false;
+  auto itType = itBlocks->find(type_str);
+  if (itType == itBlocks->end() || !itType->is_object()) return false;
+
+  const auto &block_data = *itType;
+  if (block_data.contains("selectable") && block_data["selectable"].is_boolean()) {
+    return block_data["selectable"].get<bool>();
+  }
+  return false;
+}

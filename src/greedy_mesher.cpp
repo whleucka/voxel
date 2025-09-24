@@ -173,7 +173,7 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
           const BlockType nb = (y - 1 >= 0)
                                    ? sample(baseX + x, y - 1, baseZ + z)
                                    : BlockType::AIR;
-          const bool draw = isAir(nb) || (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+          const bool draw = isAir(nb) || (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb)) || (BlockDataManager::getInstance().isFluid(bt) && BlockDataManager::getInstance().isFluid(nb));
           if (!draw) {
             mask[x + z * X].set = false;
             continue;

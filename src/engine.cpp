@@ -217,8 +217,13 @@ void Engine::update() {
   auto &cam = player->getCamera();
   auto result = world.raycast(cam.getPosition(), cam.getFront(), 5.0f);
   if (result) {
-    has_highlighted_block = true;
-    highlighted_block_pos = std::get<0>(*result);
+    BlockType block_type = world.getBlock(std::get<0>(*result).x, std::get<0>(*result).y, std::get<0>(*result).z);
+    if (BlockDataManager::getInstance().isSelectable(block_type)) {
+      has_highlighted_block = true;
+      highlighted_block_pos = std::get<0>(*result);
+    } else {
+      has_highlighted_block = false;
+    }
   } else {
     has_highlighted_block = false;
   }
@@ -307,6 +312,10 @@ void Engine::handleMouseClick(int button, int action, int) {
     auto &cam = player->getCamera();
     auto result = world.raycast(cam.getPosition(), cam.getFront(), 5.0f);
     if (result) {
+      BlockType block_type = world.getBlock(std::get<0>(*result).x, std::get<0>(*result).y, std::get<0>(*result).z);
+      if (!BlockDataManager::getInstance().isSelectable(block_type)) {
+        return;
+      }
       auto [block_pos, normal] = *result;
       if (button == GLFW_MOUSE_BUTTON_RIGHT) {
         glm::ivec3 new_pos = block_pos + normal;

@@ -1,5 +1,6 @@
 #include "player.hpp"
 #include "world.hpp"
+#include "block_data_manager.hpp"
 
 Player::Player(World *world, const glm::vec3 &spawn_pos)
     : world(world), position(spawn_pos), velocity(0.0f), on_ground(false),
@@ -54,6 +55,11 @@ void Player::processKeyboard(bool forward, bool back, bool left, bool right,
 
   if (in_water) {
     current_speed = water_speed;
+    if (jump) {
+      velocity.y = water_jump_strength;
+    } else if (sprint) {
+      velocity.y = -water_jump_strength;
+    }
   } else if (sprint) {
     current_speed = sprint_speed;
   }
@@ -62,24 +68,24 @@ void Player::processKeyboard(bool forward, bool back, bool left, bool right,
   velocity.z = move_dir.z * current_speed;
 
   if (jump && on_ground) {
-    velocity.y = in_water ? water_jump_strength : jump_strength;
+    velocity.y = jump_strength;
     on_ground = false;
   }
 }
 
 void Player::applyGravity(float dt) {
   if (in_water) {
-    velocity.y += gravity * 0.4f * dt;
+    velocity.y -= 0.5f * dt;
   } else {
     velocity.y += gravity * dt;
   }
 }
 
 void Player::checkWater() {
-  bool in =
-      world->getBlock(position.x, position.y, position.z) == BlockType::WATER;
-  bool on = world->getBlock(position.x, position.y - 1, position.z) ==
-            BlockType::WATER;
+  bool in = BlockDataManager::getInstance().isFluid(
+      world->getBlock(position.x, position.y, position.z));
+  bool on = BlockDataManager::getInstance().isFluid(
+      world->getBlock(position.x, position.y - 1, position.z));
   in_water = in || on;
 }
 
@@ -95,9 +101,8 @@ bool Player::tryStepUp(float maxStepHeight) {
   // Check all blocks in new AABB
   for (int x = floor(new_min.x); x <= floor(new_max.x); x++) {
     for (int y = floor(new_min.y); y <= floor(new_max.y); y++) {
-      for (int z = floor(new_min.z); z <= floor(new_max.z); z++) {
-        if (world->getBlock(x, y, z) != BlockType::AIR) {
-          // Fail → restore
+              for (int z = floor(new_min.z); z <= floor(new_max.z); z++) {
+                if (BlockDataManager::getInstance().isSolid(world->getBlock(x, y, z))) {          // Fail → restore
           position = oldPos;
           return false;
         }
@@ -121,7 +126,7 @@ void Player::handleCollisions(int axis) {
   for (int x = floor(player_min.x); x <= floor(player_max.x); x++) {
     for (int y = floor(player_min.y); y <= floor(player_max.y); y++) {
       for (int z = floor(player_min.z); z <= floor(player_max.z); z++) {
-        if (world->getBlock(x, y, z) != BlockType::AIR) {
+        if (BlockDataManager::getInstance().isSolid(world->getBlock(x, y, z))) {
           glm::vec3 block_min(x, y, z);
           glm::vec3 block_max = block_min + glm::vec3(1.0f);
 

@@ -22,6 +22,8 @@ public:
   bool isOpaque(BlockType type) const;
   bool isTransparent(BlockType type) const;
   bool isFluid(BlockType type) const;
+  bool isSolid(BlockType type) const;
+  bool isSelectable(BlockType type) const;
 
 private:
   BlockDataManager() = default;
