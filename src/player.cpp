@@ -75,7 +75,7 @@ void Player::processKeyboard(bool forward, bool back, bool left, bool right,
 
 void Player::applyGravity(float dt) {
   if (in_water) {
-    velocity.y -= 0.5f * dt;
+    velocity.y -= 0.1f * dt;
   } else {
     velocity.y += gravity * dt;
   }

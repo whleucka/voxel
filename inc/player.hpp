@@ -29,7 +29,7 @@ private:
   float move_speed = 8.0f;
   float sprint_speed = 10.0f;
   float water_speed = 2.0f;
-  float water_jump_strength = 2.0f;
+  float water_jump_strength = 0.3f;
   float jump_strength = 7.0f;
   float gravity = -20.0f;
   float player_height = 2.0f;

@@ -173,7 +173,13 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
           const BlockType nb = (y - 1 >= 0)
                                    ? sample(baseX + x, y - 1, baseZ + z)
                                    : BlockType::AIR;
-          const bool draw = isAir(nb) || (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+          bool draw = isAir(nb) || 
+            (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+
+          // Extra rule: if current block is fluid, and neighbor is opaque → skip
+          if (BlockDataManager::getInstance().isFluid(bt) && BlockDataManager::getInstance().isOpaque(nb)) {
+            draw = false;
+          }
           if (!draw) {
             mask[x + z * X].set = false;
             continue;
@@ -219,7 +225,12 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
             continue;
           }
           const BlockType nb = edgeFluidNeighbor(bt, x, y, z, /*nx=*/0, /*nz=*/+1);
-          const bool draw = isAir(nb) || (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+          bool draw = isAir(nb) ||
+            (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+
+          if (BlockDataManager::getInstance().isFluid(bt) && BlockDataManager::getInstance().isOpaque(nb)) {
+            draw = false;
+          }
           if (!draw) {
             mask[x + y * X].set = false;
             continue;
@@ -258,7 +269,12 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
             continue;
           }
           const BlockType nb = edgeFluidNeighbor(bt, x, y, z, /*nx=*/0, /*nz=*/-1);
-          const bool draw = isAir(nb) || (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+          bool draw = isAir(nb) ||
+            (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+
+          if (BlockDataManager::getInstance().isFluid(bt) && BlockDataManager::getInstance().isOpaque(nb)) {
+            draw = false;
+          }
           if (!draw) {
             mask[x + y * X].set = false;
             continue;
@@ -304,7 +320,12 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
             continue;
           }
           const BlockType nb = edgeFluidNeighbor(bt, x, y, z, /*nx=*/+1, /*nz=*/0);
-          const bool draw = isAir(nb) || (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+          bool draw = isAir(nb) ||
+            (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+
+          if (BlockDataManager::getInstance().isFluid(bt) && BlockDataManager::getInstance().isOpaque(nb)) {
+            draw = false;
+          }
           if (!draw) {
             mask[z + y * Z].set = false;
             continue;
@@ -345,7 +366,12 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
             continue;
           }
           const BlockType nb = edgeFluidNeighbor(bt, x, y, z, /*nx=*/-1, /*nz=*/0);
-          const bool draw = isAir(nb) || (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+          bool draw = isAir(nb) ||
+            (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+
+          if (BlockDataManager::getInstance().isFluid(bt) && BlockDataManager::getInstance().isOpaque(nb)) {
+            draw = false;
+          }
           if (!draw) {
             mask[z + y * Z].set = false;
             continue;
