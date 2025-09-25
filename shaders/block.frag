@@ -3,6 +3,7 @@ in vec3 vNormal;
 in vec3 vWorldPos;
 in vec2 vUvLocal; // in blocks
 in vec2 vUvBase;  // tile base (u0,v0) in [0..1]
+in float vAO;
 
 out vec4 FragColor;
 
@@ -52,7 +53,7 @@ void main()
     float ambScale = mix(nightAmb, dayAmb, uSunVis);
 
     // If you use hemisphere ambient, multiply that result by ambScale instead.
-    vec3 lit = ambientColor * ambScale + diff * sunStrength;
+    vec3 lit = ambientColor * ambScale * vAO + diff * sunStrength;
     vec3 litColor = texColor.rgb * lit;  // (linear space)
 
     // Fog

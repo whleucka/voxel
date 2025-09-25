@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "greedy_mesher.hpp"
 #include "block_data_manager.hpp"
 #include "block_type.hpp"
@@ -7,17 +9,19 @@
 /** Warning to future self: if you touch something here, expect breakage lol */
 
 // ----- helpers -----
+
 static inline bool isAir(BlockType t) { return t == BlockType::AIR; }
 
 static inline void pushQuadTiled(std::vector<Vertex> &verts,
                                  std::vector<unsigned> &inds,
                                  const glm::vec3 P[4], const glm::vec3 &N,
                                  const glm::vec2 LUV[4],   // in blocks
-                                 const glm::vec2 &tileBase // atlas u0,v0
+                                 const glm::vec2 &tileBase, // atlas u0,v0
+                                 const float AO[4] // ambient occlusion
 ) {
   unsigned base = (unsigned)verts.size();
   for (int i = 0; i < 4; ++i)
-    verts.push_back({P[i], N, LUV[i], tileBase});
+    verts.push_back({P[i], N, LUV[i], tileBase, AO[i]});
   inds.insert(inds.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
 }
 static inline void tileBaseNoPad(float tileX, float tileY, float atlasPx,
@@ -83,6 +87,41 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
 
   std::vector<Vertex> vO, vT;
   std::vector<unsigned int> iO, iT;
+
+  auto isOccluding = [&](int x, int y, int z) {
+    BlockType type = sample(x, y, z);
+    return !isAir(type) && BlockDataManager::getInstance().isOpaque(type);
+  };
+
+  auto vertexAO = [&](int x, int y, int z, const glm::vec3 &normal) {
+    int side1_dx = 0, side1_dy = 0, side1_dz = 0;
+    int side2_dx = 0, side2_dy = 0, side2_dz = 0;
+    int corner_dx = 0, corner_dy = 0, corner_dz = 0;
+
+    if (normal.y != 0) { // Top/Bottom face
+        side1_dx = 1; side2_dz = 1;
+    } else if (normal.z != 0) { // Front/Back face
+        side1_dx = 1; side2_dy = 1;
+    } else { // Left/Right face
+        side1_dz = 1; side2_dy = 1;
+    }
+    corner_dx = side1_dx + side2_dx;
+    corner_dy = side1_dy + side2_dy;
+    corner_dz = side1_dz + side2_dz;
+
+    bool side1 = isOccluding(x + side1_dx, y + side1_dy, z + side1_dz);
+    bool side2 = isOccluding(x + side2_dx, y + side2_dy, z + side2_dz);
+    bool corner = isOccluding(x + corner_dx, y + corner_dy, z + corner_dz);
+
+    int occlusion = 0;
+    if (side1 && side2) {
+        occlusion = 3;
+    } else {
+        occlusion = (side1 ? 1 : 0) + (side2 ? 1 : 0) + (corner ? 1 : 0);
+    }
+
+    return 1.0f - (float)occlusion * 0.25f;
+  };
 
   auto same = [](const MaskCell &a, const MaskCell &b) {
     return a.set && b.set && a.tile == b.tile;
@@ -153,9 +192,16 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
         };
         // match P[] CCW; (X,Z) -> (w,h) in blocks
         glm::vec2 LUV[4] = {{0, h}, {w, h}, {w, 0}, {0, 0}};
+        
+        float ao[4];
+        ao[0] = vertexAO(baseX + u, y + 1, baseZ + v + h, {0, 1, 0});
+        ao[1] = vertexAO(baseX + u + w, y + 1, baseZ + v + h, {0, 1, 0});
+        ao[2] = vertexAO(baseX + u + w, y + 1, baseZ + v, {0, 1, 0});
+        ao[3] = vertexAO(baseX + u, y + 1, baseZ + v, {0, 1, 0});
+
         auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + u, y, baseZ + v)) ? vT : vO;
         auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + u, y, baseZ + v)) ? iT : iO;
-        pushQuadTiled(VV, II, P, {0, 1, 0}, LUV, tileBase);
+        pushQuadTiled(VV, II, P, {0, 1, 0}, LUV, tileBase, ao);
       };
 
       greedy2D(X, Z, mask, emitTop, same);
@@ -203,9 +249,15 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
         // oriented to match your CCW for bottom
         glm::vec2 LUV[4] = {{0, 0}, {w, 0}, {w, h}, {0, h}};
 
+        float ao[4];
+        ao[0] = vertexAO(baseX + u, y, baseZ + v, {0, -1, 0});
+        ao[1] = vertexAO(baseX + u + w, y, baseZ + v, {0, -1, 0});
+        ao[2] = vertexAO(baseX + u + w, y, baseZ + v + h, {0, -1, 0});
+        ao[3] = vertexAO(baseX + u, y, baseZ + v + h, {0, -1, 0});
+
         auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + u, y, baseZ + v)) ? vT : vO;
         auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + u, y, baseZ + v)) ? iT : iO;
-        pushQuadTiled(VV, II, P, {0, -1, 0}, LUV, tileBase);
+        pushQuadTiled(VV, II, P, {0, -1, 0}, LUV, tileBase, ao);
       };
       greedy2D(X, Z, mask, emitBottom, same);
     }
@@ -252,9 +304,16 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
             {(float)u, (float)(v + h), (float)(z + 1)},
         };
         glm::vec2 LUV[4] = {{0, 0}, {w, 0}, {w, h}, {0, h}};
+
+        float ao[4];
+        ao[0] = vertexAO(baseX + u, v, baseZ + z + 1, {0, 0, 1});
+        ao[1] = vertexAO(baseX + u + w, v, baseZ + z + 1, {0, 0, 1});
+        ao[2] = vertexAO(baseX + u + w, v + h, baseZ + z + 1, {0, 0, 1});
+        ao[3] = vertexAO(baseX + u, v + h, baseZ + z + 1, {0, 0, 1});
+
         auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + u, v, baseZ + z)) ? vT : vO;
         auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + u, v, baseZ + z)) ? iT : iO;
-        pushQuadTiled(VV, II, P, {0, 0, 1}, LUV, tileBase);
+        pushQuadTiled(VV, II, P, {0, 0, 1}, LUV, tileBase, ao);
       };
       greedy2D(X, Y, mask, emitFront, same);
     }
@@ -298,9 +357,15 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
         // flip X to compensate reversed positions
         glm::vec2 LUV[4] = {{w, 0}, {0, 0}, {0, h}, {w, h}};
 
+        float ao[4];
+        ao[0] = vertexAO(baseX + u + w, v, baseZ + z, {0, 0, -1});
+        ao[1] = vertexAO(baseX + u, v, baseZ + z, {0, 0, -1});
+        ao[2] = vertexAO(baseX + u, v + h, baseZ + z, {0, 0, -1});
+        ao[3] = vertexAO(baseX + u + w, v + h, baseZ + z, {0, 0, -1});
+
         auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + u, v, baseZ + z)) ? vT : vO;
         auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + u, v, baseZ + z)) ? iT : iO;
-        pushQuadTiled(VV, II, P, {0, 0, -1}, LUV, tileBase);
+        pushQuadTiled(VV, II, P, {0, 0, -1}, LUV, tileBase, ao);
       };
       greedy2D(X, Y, mask, emitBack, same);
     }
@@ -349,9 +414,15 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
         // X+ face increases to the left in Z, so flip X in LUV
         glm::vec2 LUV[4] = {{w, 0}, {0, 0}, {0, h}, {w, h}};
 
+        float ao[4];
+        ao[0] = vertexAO(baseX + x + 1, v, baseZ + u + w, {1, 0, 0});
+        ao[1] = vertexAO(baseX + x + 1, v, baseZ + u, {1, 0, 0});
+        ao[2] = vertexAO(baseX + x + 1, v + h, baseZ + u, {1, 0, 0});
+        ao[3] = vertexAO(baseX + x + 1, v + h, baseZ + u + w, {1, 0, 0});
+
         auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + x, v, baseZ + u)) ? vT : vO;
         auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + x, v, baseZ + u)) ? iT : iO;
-        pushQuadTiled(VV, II, P, {1, 0, 0}, LUV, tileBase);
+        pushQuadTiled(VV, II, P, {1, 0, 0}, LUV, tileBase, ao);
       };
       greedy2D(Z, Y, mask, emitRight, same);
     }
@@ -394,9 +465,15 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
         };
         glm::vec2 LUV[4] = {{0, 0}, {w, 0}, {w, h}, {0, h}};
 
+        float ao[4];
+        ao[0] = vertexAO(baseX + x, v, baseZ + u, {-1, 0, 0});
+        ao[1] = vertexAO(baseX + x, v, baseZ + u + w, {-1, 0, 0});
+        ao[2] = vertexAO(baseX + x, v + h, baseZ + u + w, {-1, 0, 0});
+        ao[3] = vertexAO(baseX + x, v + h, baseZ + u, {-1, 0, 0});
+
         auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + x, v, baseZ + u)) ? vT : vO;
         auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + x, v, baseZ + u)) ? iT : iO;
-        pushQuadTiled(VV, II, P, {-1, 0, 0}, LUV, tileBase);
+        pushQuadTiled(VV, II, P, {-1, 0, 0}, LUV, tileBase, ao);
       };
       greedy2D(Z, Y, mask, emitLeft, same);
     }
