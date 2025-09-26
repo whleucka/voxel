@@ -174,9 +174,7 @@ void Chunk::generateClouds(int x, int z) {
   const double cloud_noise = glm::perlin(
       glm::vec2((world_x * W + x) * 0.01, (world_z * L + z) * 0.01));
   if (cloud_noise > 0.5) {
-    for (int y = CLOUD_LEVEL - 1; y < CLOUD_LEVEL; y++) {
-      setBlock(x, y, z, BlockType::CLOUD);
-    }
+      setBlock(x, CLOUD_LEVEL, z, BlockType::CLOUD);
   }
 }
 
