@@ -188,14 +188,14 @@ void Chunk::generateTrees(int x, int y, int z) {
   // set leaves
   int radius = (rand() % 2) + 4;
   int top = y + h;
-  int t_h = (rand() % 3) + 6; // leaf height
-  int t_d = (rand() % 3) + 4; // leaf depth
+  int t_h = (rand() % 3) + h - radius; // leaf height
+  int t_d = (rand() % 2) + 4; // leaf depth
 
   for (int dy = -t_d; dy <= t_h; dy++) {
     for (int dx = -radius; dx <= radius; dx++) {
       for (int dz = -radius; dz <= radius; dz++) {
         // add some randomness
-        if (rand() % 10 > 4)
+        if (rand() % 100 > 35)
           continue;
         // little sphere-ish shape
         if (dx * dx + dz * dz + dy * dy <= radius * radius + 1) {
