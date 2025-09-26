@@ -3,7 +3,7 @@
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/noise.hpp>
 
-const int CLOUD_LEVEL = 180;         // clouds at y
+const int CLOUD_LEVEL = 200;         // clouds at y
 const int SEA_LEVEL = 50;            // water below y
 const int SNOW_LEVEL = 80;           // snow above y
 
@@ -172,12 +172,20 @@ void Chunk::generateTerrain(int x, int z) {
 }
 
 void Chunk::generateClouds(int x, int z) {
-  float radius = static_cast<float>(((rand() % 1) + 100));
-  float scale = static_cast<float>(((rand() % 10) + 10000));
-  const double cloud_noise = glm::perlin(
-      glm::vec2((world_x * W + x) * radius/scale, (world_z * L + z) * radius/scale));
-  if (cloud_noise > 0.6) {
+  const double cloud_noise_big = glm::perlin(
+      glm::vec2((world_x * W + x) * 0.02, (world_z * L + z) * 0.01));
+  const double cloud_noise_mid = glm::perlin(
+      glm::vec2((world_x * W + x) * 0.04, (world_z * L + z) * 0.02));
+  const double cloud_noise_small = glm::perlin(
+      glm::vec2((world_x * W + x) * 0.06, (world_z * L + z) * 0.04));
+  if (cloud_noise_big > 0.4) {
       setBlock(x, CLOUD_LEVEL, z, BlockType::CLOUD);
+  }
+  if (cloud_noise_mid > 0.5) {
+      setBlock(x, CLOUD_LEVEL-10, z, BlockType::CLOUD);
+  }
+  if (cloud_noise_small > 0.6) {
+      setBlock(x, CLOUD_LEVEL-20, z, BlockType::CLOUD);
   }
 }
 

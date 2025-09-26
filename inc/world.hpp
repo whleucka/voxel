@@ -33,7 +33,7 @@ public:
   World();
   ~World();
 
-  static constexpr int render_distance = 15;
+  static constexpr int render_distance = 20;
 
   std::vector<Chunk *> getVisibleChunks(const Camera &cam, int width, int height);
   void update(const Camera &cam);
