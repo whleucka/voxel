@@ -6,6 +6,7 @@
 const int CLOUD_LEVEL = 180;         // clouds at y
 const int SEA_LEVEL = 50;            // water below y
 const int SNOW_LEVEL = 80;           // snow above y
+
 const float FREQ = 0.03f;            // noise frequency
 const float AMP = 35.0f;             // height amplitude
 const float OCTAVES = 4.0f;          // terrain octaves

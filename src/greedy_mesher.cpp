@@ -17,11 +17,12 @@ static inline void pushQuadTiled(std::vector<Vertex> &verts,
                                  const glm::vec3 P[4], const glm::vec3 &N,
                                  const glm::vec2 LUV[4],   // in blocks
                                  const glm::vec2 &tileBase, // atlas u0,v0
-                                 const float AO[4] // ambient occlusion
+                                 const float AO[4], // ambient occlusion
+                                 const float isCloud // is cloud
 ) {
   unsigned base = (unsigned)verts.size();
   for (int i = 0; i < 4; ++i)
-    verts.push_back({P[i], N, LUV[i], tileBase, AO[i]});
+    verts.push_back({P[i], N, LUV[i], tileBase, AO[i], isCloud});
   inds.insert(inds.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
 }
 static inline void tileBaseNoPad(float tileX, float tileY, float atlasPx,
@@ -201,7 +202,9 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
 
         auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + u, y, baseZ + v)) ? vT : vO;
         auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + u, y, baseZ + v)) ? iT : iO;
-        pushQuadTiled(VV, II, P, {0, 1, 0}, LUV, tileBase, ao);
+        const BlockType bt = sample(baseX + u, y, baseZ + v);
+        const float isCloud = (bt == BlockType::CLOUD) ? 1.0f : 0.0f;
+        pushQuadTiled(VV, II, P, {0, 1, 0}, LUV, tileBase, ao, isCloud);
       };
 
       greedy2D(X, Z, mask, emitTop, same);
@@ -257,7 +260,9 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
 
         auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + u, y, baseZ + v)) ? vT : vO;
         auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + u, y, baseZ + v)) ? iT : iO;
-        pushQuadTiled(VV, II, P, {0, -1, 0}, LUV, tileBase, ao);
+        const BlockType bt = sample(baseX + u, y, baseZ + v);
+        const float isCloud = (bt == BlockType::CLOUD) ? 1.0f : 0.0f;
+        pushQuadTiled(VV, II, P, {0, -1, 0}, LUV, tileBase, ao, isCloud);
       };
       greedy2D(X, Z, mask, emitBottom, same);
     }
@@ -313,7 +318,9 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
 
         auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + u, v, baseZ + z)) ? vT : vO;
         auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + u, v, baseZ + z)) ? iT : iO;
-        pushQuadTiled(VV, II, P, {0, 0, 1}, LUV, tileBase, ao);
+        const BlockType bt = sample(baseX + u, v, baseZ + z);
+        const float isCloud = (bt == BlockType::CLOUD) ? 1.0f : 0.0f;
+        pushQuadTiled(VV, II, P, {0, 0, 1}, LUV, tileBase, ao, isCloud);
       };
       greedy2D(X, Y, mask, emitFront, same);
     }
@@ -365,7 +372,9 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
 
         auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + u, v, baseZ + z)) ? vT : vO;
         auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + u, v, baseZ + z)) ? iT : iO;
-        pushQuadTiled(VV, II, P, {0, 0, -1}, LUV, tileBase, ao);
+        const BlockType bt = sample(baseX + u, v, baseZ + z);
+        const float isCloud = (bt == BlockType::CLOUD) ? 1.0f : 0.0f;
+        pushQuadTiled(VV, II, P, {0, 0, -1}, LUV, tileBase, ao, isCloud);
       };
       greedy2D(X, Y, mask, emitBack, same);
     }
@@ -422,7 +431,9 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
 
         auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + x, v, baseZ + u)) ? vT : vO;
         auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + x, v, baseZ + u)) ? iT : iO;
-        pushQuadTiled(VV, II, P, {1, 0, 0}, LUV, tileBase, ao);
+        const BlockType bt = sample(baseX + x, v, baseZ + u);
+        const float isCloud = (bt == BlockType::CLOUD) ? 1.0f : 0.0f;
+        pushQuadTiled(VV, II, P, {1, 0, 0}, LUV, tileBase, ao, isCloud);
       };
       greedy2D(Z, Y, mask, emitRight, same);
     }
@@ -473,7 +484,9 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
 
         auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + x, v, baseZ + u)) ? vT : vO;
         auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + x, v, baseZ + u)) ? iT : iO;
-        pushQuadTiled(VV, II, P, {-1, 0, 0}, LUV, tileBase, ao);
+        const BlockType bt = sample(baseX + x, v, baseZ + u);
+        const float isCloud = (bt == BlockType::CLOUD) ? 1.0f : 0.0f;
+        pushQuadTiled(VV, II, P, {-1, 0, 0}, LUV, tileBase, ao, isCloud);
       };
       greedy2D(Z, Y, mask, emitLeft, same);
     }

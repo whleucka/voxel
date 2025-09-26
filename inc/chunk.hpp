@@ -13,6 +13,7 @@ public:
   static constexpr int W = 16;
   static constexpr int H = 256;
   static constexpr int L = 16;
+  static constexpr float CLOUD_SPEED = 0.05f;
 
   Chunk(int32_t world_x, int32_t world_z);
 

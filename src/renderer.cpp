@@ -25,7 +25,7 @@ void Renderer::init() {
 }
 
 void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
-                    int screen_width, int screen_height, float time_fraction) {
+                    int screen_width, int screen_height, float time_fraction, const glm::vec3& cloud_offset) {
 
   float t = time_fraction; // 0..1
   float ang = t * 2.0f * glm::pi<float>() -
@@ -86,6 +86,9 @@ void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
   block_shader->setVec3("ambientColor", glm::vec3(0.2f));
   block_shader->setFloat("sunStrength", 1.0f);
   block_shader->setVec3("cameraPos", camera.getPosition());
+
+  // Cloud offset
+  block_shader->setVec3("cloudOffset", cloud_offset);
 
   // Fog
   block_shader->setVec3("fogColor",

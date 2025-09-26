@@ -6,6 +6,7 @@
 #include "player.hpp"
 #include "texture_manager.hpp"
 #include "utils.hpp"
+#include "chunk.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/ext/scalar_constants.hpp>
 #include <glm/ext/vector_float3.hpp>
@@ -213,6 +214,10 @@ void Engine::update() {
   world.update(player->getCamera());
   world.processUploads();
 
+  // Update cloud offset
+  cloud_offset.x += Chunk::CLOUD_SPEED * delta_time;
+  cloud_offset.z += Chunk::CLOUD_SPEED * delta_time;
+
   // Raycast for highlighted block
   auto &cam = player->getCamera();
   auto result = world.raycast(cam.getPosition(), cam.getFront(), 5.0f);
@@ -248,7 +253,7 @@ void Engine::render() {
 
   // Render scene
   renderer.draw(visible_chunks, player->getCamera(), width, height,
-                time_fraction);
+                time_fraction, cloud_offset);
 
   if (has_highlighted_block) {
     renderer.drawHighlight(player->getCamera(), highlighted_block_pos);

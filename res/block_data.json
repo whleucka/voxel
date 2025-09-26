@@ -123,7 +123,7 @@
     "cloud": {
         "uv": [15, 0],
         "opaque": false,
-        "transparent": false,
+        "transparent": true,
         "fluid": false,
         "solid": false,
         "selectable": false
