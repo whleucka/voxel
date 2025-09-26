@@ -60,6 +60,8 @@ static std::string BlockTypeToString(BlockType type) {
     return "tree-leaf";
   case BlockType::TREE:
     return "tree";
+  case BlockType::CLOUD:
+    return "cloud";
   default:
     return "dirt";
   }

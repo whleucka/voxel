@@ -20,7 +20,6 @@ public:
   void setBlock(int x, int y, int z, BlockType type);
 
   void generateChunk();
-  void generateTree(int x, int y, int z);
 
   int32_t world_x, world_z;
   Mesh opaqueMesh, transparentMesh;
@@ -30,6 +29,8 @@ private:
   void generateTerrain(int x, int z);
   BlockType generateTopBlock(int x, int y, int z);
   BlockType generateInternalBlock(int x, int y, int z);
+  void generateClouds(int x, int z);
+  void generateTrees(int x, int y, int z);
 
   inline int getIndex(int x, int y, int z) const { return x + W * (z + L * y); }
 };

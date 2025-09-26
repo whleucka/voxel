@@ -3,6 +3,7 @@
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/noise.hpp>
 
+const int CLOUD_LEVEL = 180;         // clouds at y
 const int SEA_LEVEL = 50;            // water below y
 const int SNOW_LEVEL = 80;           // snow above y
 const float FREQ = 0.03f;            // noise frequency
@@ -11,6 +12,21 @@ const float OCTAVES = 4.0f;          // terrain octaves
 const float LACUNARITY = 1.2f;       // terrain lacunarity
 const float GAIN = 0.4f;             // terrain gain
 const int TREE_BORDER_THRESHOLD = 5; // trees spawn in centre of chunk
+
+static double fbm(glm::vec3 p, int octaves, double lacunarity, double gain) {
+  double sum = 0.0;
+  double amplitude = 1.0;
+  float frequency = 1.0;
+  double norm = 0.0;
+
+  for (int i = 0; i < octaves; i++) {
+    sum += amplitude * (glm::perlin(p * frequency) * 0.5 + 0.5);
+    norm += amplitude;
+    amplitude *= gain;
+    frequency *= lacunarity;
+  }
+  return sum / norm; // normalize back to [0,1]
+}
 
 Chunk::Chunk(int32_t world_x, int32_t world_z)
     : world_x(world_x), world_z(world_z) {
@@ -87,7 +103,7 @@ BlockType Chunk::generateTopBlock(int x, int y, int z) {
               x <= W - 1 - TREE_BORDER_THRESHOLD &&
               z >= TREE_BORDER_THRESHOLD &&
               z <= L - 1 - TREE_BORDER_THRESHOLD) {
-            generateTree(x, y, z);
+            generateTrees(x, y, z);
           }
           return BlockType::GRASS;
         }
@@ -101,27 +117,12 @@ void Chunk::generateTerrain(int x, int z) {
   const int baseX = world_x * W;
   const int baseZ = world_z * L;
 
-  // multi-octave Perlin noise (fBm)
-  auto fbm = [](glm::vec2 p, int octaves, double lacunarity, double gain) {
-    double sum = 0.0;
-    double amplitude = 1.0;
-    float frequency = 1.0;
-    double norm = 0.0;
-
-    for (int i = 0; i < octaves; i++) {
-      sum += amplitude * (glm::perlin(p * frequency) * 0.5 + 0.5);
-      norm += amplitude;
-      amplitude *= gain;
-      frequency *= lacunarity;
-    }
-    return sum / norm; // normalize back to [0,1]
-  };
-
   // Sample noise at world position
-  glm::vec2 pos((baseX + x + 0.1f) * FREQ, (baseZ + z + 0.1f) * FREQ);
+  glm::vec3 pos((baseX + x + 0.1f) * FREQ, (baseZ + z + 0.1f) * FREQ, 0.0);
 
   // classic smooth fBm
   double hNoise = fbm(pos, OCTAVES, LACUNARITY, GAIN);
+
 
   // --- large scale biome noise ---
   glm::vec2 biome_pos((world_x * W + x) * 0.001f, // much lower frequency
@@ -164,9 +165,22 @@ void Chunk::generateTerrain(int x, int z) {
       setBlock(x, y, z, BlockType::WATER);
     }
   }
+
+  // Generate clouds
+  generateClouds(x, z);
 }
 
-void Chunk::generateTree(int x, int y, int z) {
+void Chunk::generateClouds(int x, int z) {
+  const double cloud_noise = glm::perlin(
+      glm::vec2((world_x * W + x) * 0.01, (world_z * L + z) * 0.01));
+  if (cloud_noise > 0.5) {
+    for (int y = CLOUD_LEVEL - 1; y < CLOUD_LEVEL; y++) {
+      setBlock(x, y, z, BlockType::CLOUD);
+    }
+  }
+}
+
+void Chunk::generateTrees(int x, int y, int z) {
   // set trunk
   int h = (rand() % 6) + 10;
   for (int j = 1; j <= h; j++) {

@@ -119,6 +119,14 @@
       "fluid": false,
       "solid": true,
       "selectable": true
+    },
+    "cloud": {
+        "uv": [15, 0],
+        "opaque": false,
+        "transparent": false,
+        "fluid": false,
+        "solid": false,
+        "selectable": false
     }
   }
 }

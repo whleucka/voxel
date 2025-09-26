@@ -18,4 +18,5 @@ enum class BlockType : uint8_t {
   TREE,
   TREE_LEAF,
   WATER,
+  CLOUD,
 };
