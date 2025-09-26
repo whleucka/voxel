@@ -15,14 +15,13 @@
 *   **Basic Block Types:** Supports various block types (e.g., dirt, grass, stone, water, etc) with texture atlasing.
 *   **First-Person Camera:** Implements a standard first-person camera for exploration.
 *   **Shader-based Rendering:** Utilizes modern OpenGL shaders for rendering blocks and the world.
+*   **Collision detection:** Simple aabb collision detection.
 *   **Debug UI:** Integrated Dear ImGui for in-game debugging and parameter tweaking.
 
 
 ## Voxel Engine Next Steps
 
-*   **Collision detection**
-*   **Block face shading**
-*   **Biomes**
+*   **Biomes:** clouds, trees, flowers, etc
 
 
 ## Getting Started
