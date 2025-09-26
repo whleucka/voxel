@@ -14,7 +14,6 @@
 #include "greedy_mesher.hpp"
 #include "robin_hood.h"
 #include "thread_pool.hpp"
-#include "wire_cube.hpp"
 
 struct PendingUpload {
   uint64_t chunk_key;

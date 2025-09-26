@@ -172,9 +172,11 @@ void Chunk::generateTerrain(int x, int z) {
 }
 
 void Chunk::generateClouds(int x, int z) {
+  float radius = static_cast<float>(((rand() % 1) + 100));
+  float scale = static_cast<float>(((rand() % 10) + 10000));
   const double cloud_noise = glm::perlin(
-      glm::vec2((world_x * W + x) * 0.01, (world_z * L + z) * 0.01));
-  if (cloud_noise > 0.5) {
+      glm::vec2((world_x * W + x) * radius/scale, (world_z * L + z) * radius/scale));
+  if (cloud_noise > 0.6) {
       setBlock(x, CLOUD_LEVEL, z, BlockType::CLOUD);
   }
 }
