@@ -26,11 +26,11 @@ private:
   bool on_ground;
   bool in_water;
 
-  float move_speed = 8.0f;
-  float sprint_speed = 10.0f;
-  float water_speed = 2.0f;
-  float water_jump_strength = 0.3f;
-  float jump_strength = 7.0f;
+  float move_speed = 6.0f;
+  float sprint_speed = 12.0f;
+  float water_speed = 2.5f;
+  float water_jump_strength = 0.4f;
+  float jump_strength = 6.0f;
   float gravity = -20.0f;
   float player_height = 1.7f;
   float player_radius = 0.4f;
