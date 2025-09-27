@@ -32,7 +32,7 @@ private:
   float water_jump_strength = 0.3f;
   float jump_strength = 7.0f;
   float gravity = -20.0f;
-  float player_height = 2.0f;
+  float player_height = 1.7f;
   float player_radius = 0.4f;
 
   void applyGravity(float dt);

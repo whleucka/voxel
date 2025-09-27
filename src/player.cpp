@@ -84,9 +84,7 @@ void Player::applyGravity(float dt) {
 void Player::checkWater() {
   bool in = BlockDataManager::getInstance().isFluid(
       world->getBlock(position.x, position.y, position.z));
-  bool on = BlockDataManager::getInstance().isFluid(
-      world->getBlock(position.x, position.y - 1, position.z));
-  in_water = in || on;
+  in_water = in;
 }
 
 bool Player::tryStepUp(float maxStepHeight) {
