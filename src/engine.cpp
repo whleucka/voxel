@@ -202,10 +202,12 @@ void Engine::loadAtlas(std::string path) {
 void Engine::update() {
   // Spawn user (wait for chunk to generate)
   if (!spawn) {
-    int ground_y = world.getHighestBlock(0, 0);
-    if (ground_y > 0) {
-      player->setPosition(glm::vec3(0, ground_y, 0));
-      spawn = true;
+    for (int y = Chunk::H - 1; y >= 0; --y) {
+        if (world.getBlock(0, y, 0) != BlockType::AIR) {
+            player->setPosition(glm::vec3(0, y + 2, 0));
+            spawn = true;
+            break;
+        }
     }
   }
 
@@ -331,20 +333,20 @@ void Engine::handleMouseClick(int button, int action, int) {
 
       int cx = floorDiv(block_pos.x, Chunk::W);
       int cz = floorDiv(block_pos.z, Chunk::L);
-      world.generateChunkMesh(cx, cz);
+      world.remeshChunk(cx, cz);
 
       // Also update neighbors if the block is on a chunk boundary
       if (block_pos.x % Chunk::W == 0) {
-        world.generateChunkMesh(cx - 1, cz);
+        world.remeshChunk(cx - 1, cz);
       }
       if (block_pos.x % Chunk::W == Chunk::W - 1) {
-        world.generateChunkMesh(cx + 1, cz);
+        world.remeshChunk(cx + 1, cz);
       }
       if (block_pos.z % Chunk::L == 0) {
-        world.generateChunkMesh(cx, cz - 1);
+        world.remeshChunk(cx, cz - 1);
       }
       if (block_pos.z % Chunk::L == Chunk::L - 1) {
-        world.generateChunkMesh(cx, cz + 1);
+        world.remeshChunk(cx, cz + 1);
       }
     }
   }

@@ -65,9 +65,6 @@ private:
 
     // lock Right to world_up to prevent roll
     right = glm::normalize(glm::cross(front, world_up));
-    // if nearly vertical, pick fallback axis
-    if (glm::length(right) < 1e-6f)
-      right = glm::normalize(glm::cross(front, glm::vec3(0, 0, 1)));
     up = glm::normalize(glm::cross(right, front));
   }
 };

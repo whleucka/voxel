@@ -14,6 +14,7 @@
 #include "greedy_mesher.hpp"
 #include "robin_hood.h"
 #include "thread_pool.hpp"
+#include "biome_manager.hpp"
 
 struct PendingUpload {
   uint64_t chunk_key;
@@ -38,12 +39,10 @@ public:
   std::vector<Chunk *> getVisibleChunks(const Camera &cam, int width, int height);
   void update(const Camera &cam);
   void processUploads();
-  void generateChunkData(int cx, int cz);
-  void generateChunkMesh(int cx, int cz);
   void processAllUploads();
-  int getHighestBlock(int x, int z);
   BlockType getBlock(int x, int y, int z) const;
   void setBlock(int x, int y, int z, BlockType type);
+  void remeshChunk(int cx, int cz);
 
   std::optional<std::tuple<glm::ivec3, glm::ivec3>> raycast(const glm::vec3 &start, const glm::vec3 &direction, float max_dist) const;
 

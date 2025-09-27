@@ -48,10 +48,10 @@ void Camera::processMouseMovement(float xoffset, float yoffset,
   pitch += yoffset; // look up/down
 
   if (constrainPitch) {
-    if (pitch > 89.0f)
-      pitch = 89.0f;
-    if (pitch < -89.0f)
-      pitch = -89.0f;
+    if (pitch > 89.9f)
+      pitch = 89.9f;
+    if (pitch < -89.9f)
+      pitch = -89.9f;
   }
   updateCameraVectors();
 }

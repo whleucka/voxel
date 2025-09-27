@@ -13,25 +13,18 @@ public:
   static constexpr int W = 16;
   static constexpr int H = 256;
   static constexpr int L = 16;
-  static constexpr float CLOUD_SPEED = 0.4f;
+  static constexpr float CLOUD_SPEED = 0.7f;
 
   Chunk(int32_t world_x, int32_t world_z);
 
   BlockType getBlock(int x, int y, int z) const;
   void setBlock(int x, int y, int z, BlockType type);
 
-  void generateChunk();
-
   int32_t world_x, world_z;
   Mesh opaqueMesh, transparentMesh;
 
 private:
   std::array<BlockType, W * H * L> blocks;
-  void generateTerrain(int x, int z);
-  BlockType generateTopBlock(int x, int y, int z);
-  BlockType generateInternalBlock(int x, int y, int z);
-  void generateClouds(int x, int z);
-  void generateTrees(int x, int y, int z);
 
   inline int getIndex(int x, int y, int z) const { return x + W * (z + L * y); }
 };

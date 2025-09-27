@@ -1,4 +1,5 @@
 #include "world.hpp"
+#include "biome_manager.hpp"
 #include "greedy_mesher.hpp"
 #include "utils.hpp"
 #include <cmath>
@@ -307,7 +308,11 @@ void World::loadChunk(int cx, int cz) {
   // Worker job: build the chunk data OFF the main thread
   thread_pool.enqueue([this, cx, cz, key]() {
     auto up = std::make_unique<Chunk>(cx, cz);
-    up->generateChunk();
+    
+    BiomeType biomeType = BiomeManager::getBiomeForChunk(cx, cz);
+    std::unique_ptr<Biome> biome = BiomeManager::createBiome(biomeType);
+    biome->generateTerrain(*up);
+    biome->spawnDecorations(*up);
 
     auto sample = [this, &up](int gx, int gy, int gz) -> BlockType {
       int local_x = gx - up->world_x * Chunk::W;
@@ -368,60 +373,6 @@ void World::processUploads() {
   }
 }
 
-void World::generateChunkData(int cx, int cz) {
-  const uint64_t key = makeChunkKey(cx, cz);
-  {
-    std::lock_guard<std::mutex> lock(chunks_mutex);
-    if (chunks.find(key) != chunks.end()) {
-      return;
-    }
-  }
-  auto chunk = std::make_unique<Chunk>(cx, cz);
-  chunk->generateChunk();
-  {
-    std::lock_guard<std::mutex> lock(chunks_mutex);
-    chunks[key] = std::move(chunk);
-  }
-}
-
-void World::generateChunkMesh(int cx, int cz) {
-  const uint64_t key = makeChunkKey(cx, cz);
-  Chunk *chunk;
-  {
-    std::lock_guard<std::mutex> lock(chunks_mutex);
-    auto it = chunks.find(key);
-    if (it == chunks.end()) {
-      return;
-    }
-    chunk = it->second.get();
-  }
-
-  auto sample = [this, chunk](int gx, int gy, int gz) -> BlockType {
-    int local_x = gx - chunk->world_x * Chunk::W;
-    int local_y = gy;
-    int local_z = gz - chunk->world_z * Chunk::L;
-    if (local_x >= 0 && local_x < Chunk::W && local_z >= 0 &&
-        local_z < Chunk::L) {
-      return chunk->getBlock(local_x, local_y, local_z);
-    }
-    return this->getBlock(gx, gy, gz);
-  };
-  auto [opaque_mesh, transparent_mesh] =
-      GreedyMesher::build_cpu(*chunk, sample);
-
-  {
-    std::lock_guard<std::mutex> lock(chunks_mutex);
-    if (!opaque_mesh.vertices.empty()) {
-      pending_uploads.push_back(
-          {key, &chunk->opaqueMesh, std::move(opaque_mesh)});
-    }
-    if (!transparent_mesh.vertices.empty()) {
-      pending_uploads.push_back(
-          {key, &chunk->transparentMesh, std::move(transparent_mesh)});
-    }
-  }
-}
-
 void World::processAllUploads() {
   auto it = pending_uploads.begin();
   while (it != pending_uploads.end()) {
@@ -430,15 +381,6 @@ void World::processAllUploads() {
     }
     it = pending_uploads.erase(it);
   }
-}
-
-int World::getHighestBlock(int x, int z) {
-  for (int y = Chunk::H - 1; y >= 0; y--) {
-    if (getBlock(x, y, z) != BlockType::AIR) {
-      return y + 1;
-    }
-  }
-  return 0;
 }
 
 std::optional<std::tuple<glm::ivec3, glm::ivec3>>
@@ -496,4 +438,41 @@ World::raycast(const glm::vec3 &start, const glm::vec3 &direction,
   }
 
   return std::nullopt;
+}
+
+void World::remeshChunk(int cx, int cz) {
+  const uint64_t key = makeChunkKey(cx, cz);
+
+  Chunk* chunk_ptr = nullptr;
+  {
+      std::lock_guard<std::mutex> lock(chunks_mutex);
+      auto it = chunks.find(key);
+      if (it == chunks.end()) {
+          return;
+      }
+      chunk_ptr = it->second.get();
+  }
+
+
+  thread_pool.enqueue([this, chunk_ptr, key]() {
+    auto sample = [this, chunk_ptr](int gx, int gy, int gz) -> BlockType {
+      int local_x = gx - chunk_ptr->world_x * Chunk::W;
+      int local_y = gy;
+      int local_z = gz - chunk_ptr->world_z * Chunk::L;
+      if (local_x >= 0 && local_x < Chunk::W && local_z >= 0 &&
+          local_z < Chunk::L) {
+        return chunk_ptr->getBlock(local_x, local_y, local_z);
+      }
+      return this->getBlock(gx, gy, gz);
+    };
+
+    auto [opaque_mesh, transparent_mesh] = GreedyMesher::build_cpu(*chunk_ptr, sample);
+
+    // Hand it back to the main thread queue
+    {
+      std::lock_guard<std::mutex> lk(pending_mutex);
+      pending_uploads.push_back({key, &chunk_ptr->opaqueMesh, std::move(opaque_mesh)});
+      pending_uploads.push_back({key, &chunk_ptr->transparentMesh, std::move(transparent_mesh)});
+    }
+  });
 }
