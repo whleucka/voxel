@@ -14,20 +14,18 @@ bool isAABBInFrustum(const glm::vec4 planes[6], const glm::vec3 &min,
                      const glm::vec3 &max) {
   for (int i = 0; i < 6; i++) {
     glm::vec3 positive_vertex = min;
-    if (planes[i].x >= 0) {
+    if (planes[i].x >= 0)
       positive_vertex.x = max.x;
-    }
-    if (planes[i].y >= 0) {
+    if (planes[i].y >= 0)
       positive_vertex.y = max.y;
-    }
-    if (planes[i].z >= 0) {
+    if (planes[i].z >= 0)
       positive_vertex.z = max.z;
-    }
 
-    if (glm::dot(glm::vec3(planes[i]), positive_vertex) + planes[i].w < -0.001f) {
+    if (glm::dot(glm::vec3(planes[i]), positive_vertex) + planes[i].w < 0.0f) {
       return false;
     }
   }
+
   return true;
 }
 
