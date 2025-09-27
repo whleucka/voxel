@@ -2,7 +2,12 @@
 #include "plains_biome.hpp"
 #include "forest_biome.hpp"
 #include "desert_biome.hpp"
+#include "ocean_biome.hpp"
+#include "terrain_generator.hpp"
+#include "chunk.hpp"
 #include <glm/gtc/noise.hpp>
+
+const int SEA_LEVEL = 44;
 
 std::unique_ptr<Biome> BiomeManager::createBiome(BiomeType type) {
     switch (type) {
@@ -12,19 +17,34 @@ std::unique_ptr<Biome> BiomeManager::createBiome(BiomeType type) {
             return std::make_unique<ForestBiome>();
         case BiomeType::DESERT:
             return std::make_unique<DesertBiome>();
+        case BiomeType::OCEAN:
+            return std::make_unique<OceanBiome>();
     }
     return std::make_unique<PlainsBiome>(); // Default to plains
 }
 
 BiomeType BiomeManager::getBiomeForChunk(int cx, int cz) {
-    glm::vec2 pos(cx * 0.01f, cz * 0.01f);
-    double noise = glm::perlin(pos) * 0.5 + 0.5; // [0, 1]
+    float chunk_center_x = (cx + 0.5f) * Chunk::W;
+    float chunk_center_z = (cz + 0.5f) * Chunk::L;
 
-    if (noise < 0.33) {
-        return BiomeType::DESERT;
-    } else if (noise < 0.66) {
-        return BiomeType::PLAINS;
-    } else {
-        return BiomeType::FOREST;
+    float biome_noise;
+    int center_height = TerrainGenerator::getHeight(chunk_center_x, chunk_center_z, &biome_noise);
+
+    if (center_height < SEA_LEVEL) {
+        return BiomeType::OCEAN;
+    }
+
+    if (center_height < 80) { // Lowlands
+        if (biome_noise < 0.33) {
+            return BiomeType::DESERT;
+        } else {
+            return BiomeType::PLAINS;
+        }
+    } else { // Highlands
+        if (biome_noise < 0.5) {
+            return BiomeType::PLAINS; // Grassy hills
+        } else {
+            return BiomeType::FOREST; // Mountain forests
+        }
     }
 }
