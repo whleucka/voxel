@@ -7,7 +7,8 @@ enum class BiomeType {
   PLAINS,
   FOREST,
   DESERT,
-  OCEAN
+  OCEAN,
+  TROPICAL
 };
 
 class BiomeManager {

@@ -1,13 +1,12 @@
 #include "tree_spawner.hpp"
-#include "tree_generator.hpp"
 #include "world_constants.hpp"
 #include "block_type.hpp"
 #include <glm/gtc/noise.hpp>
 
-TreeSpawner::TreeSpawner(double density) : m_density(density) {}
+TreeSpawner::TreeSpawner(double density, std::unique_ptr<TreeGenerator> generator)
+    : m_density(density), m_generator(std::move(generator)) {}
 
-void TreeSpawner::spawn(Chunk &chunk) {
-  TreeGenerator tree_generator;
+void TreeSpawner::spawn(Chunk &chunk, std::function<bool(Chunk &, int, int, int)> isValidSpawn) {
   for (int x = TREE_BORDER_THRESHOLD; x <= Chunk::W - 1 - TREE_BORDER_THRESHOLD;
        ++x) {
     for (int z = TREE_BORDER_THRESHOLD;
@@ -20,7 +19,7 @@ void TreeSpawner::spawn(Chunk &chunk) {
         }
       }
 
-      if (y > 0 && chunk.getBlock(x, y, z) == BlockType::GRASS) {
+      if (y > 0 && isValidSpawn(chunk, x, y, z)) {
         const double tree_noise =
             (glm::perlin(glm::vec3((chunk.world_x * Chunk::W + x) * 0.8,
                                    y * 0.02,
@@ -29,7 +28,7 @@ void TreeSpawner::spawn(Chunk &chunk) {
              0.5);
 
         if (tree_noise > m_density) {
-          tree_generator.generate(chunk, x, y, z);
+          m_generator->generate(chunk, x, y, z);
         }
       }
     }

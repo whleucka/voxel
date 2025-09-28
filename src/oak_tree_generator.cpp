@@ -1,7 +1,7 @@
-#include "tree_generator.hpp"
+#include "oak_tree_generator.hpp"
 #include "block_type.hpp"
 
-void TreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
+void OakTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
   // set trunk
   int h = (rand() % 4) + 8;
   for (int j = 1; j <= h; j++) {
@@ -17,7 +17,7 @@ void TreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
   for (int dy = -t_d; dy <= t_h; dy++) {
     for (int dx = -radius; dx <= radius; dx++) {
       for (int dz = -radius; dz <= radius; dz++) {
-        if (rand() % 100 > 35)
+        if (rand() % 100 > 69)
           continue;
         if (dx * dx + dz * dz + dy * dy <= radius * radius + 1) {
           if (chunk.getBlock(x + dx, top + dy, z + dz) !=

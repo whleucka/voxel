@@ -2,9 +2,13 @@
 #include "block_type.hpp"
 #include "terrain_generator.hpp"
 #include "world_constants.hpp"
+#include "oak_tree_generator.hpp"
+#include "pine_tree_generator.hpp"
 #include <glm/gtc/noise.hpp>
 
-ForestBiome::ForestBiome() : m_tree_spawner(0.6) {}
+ForestBiome::ForestBiome()
+    : m_oak_tree_spawner(0.7, std::make_unique<OakTreeGenerator>()),
+      m_pine_tree_spawner(0.5, std::make_unique<PineTreeGenerator>()) {}
 
 static BlockType generateInternalBlock(int x, int y, int z, int world_x,
                                        int world_z) {
@@ -102,5 +106,12 @@ void ForestBiome::generateTerrain(Chunk &chunk) {
 }
 
 void ForestBiome::spawnDecorations(Chunk &chunk) {
-  m_tree_spawner.spawn(chunk);
+  m_oak_tree_spawner.spawn(chunk, [](Chunk &c, int x, int y, int z) {
+    return c.getBlock(x, y, z) == BlockType::GRASS;
+  });
+
+  m_pine_tree_spawner.spawn(chunk, [](Chunk &c, int x, int y, int z) {
+    return c.getBlock(x, y, z) == BlockType::GRASS;
+  });
 }
+

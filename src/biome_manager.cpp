@@ -4,6 +4,7 @@
 #include "forest_biome.hpp"
 #include "ocean_biome.hpp"
 #include "plains_biome.hpp"
+#include "tropical_biome.hpp"
 #include "terrain_generator.hpp"
 #include <glm/gtc/noise.hpp>
 
@@ -19,6 +20,8 @@ std::unique_ptr<Biome> BiomeManager::createBiome(BiomeType type) {
     return std::make_unique<DesertBiome>();
   case BiomeType::OCEAN:
     return std::make_unique<OceanBiome>();
+  case BiomeType::TROPICAL:
+    return std::make_unique<TropicalBiome>();
   }
   return std::make_unique<PlainsBiome>(); // Default to plains
 }
@@ -38,6 +41,8 @@ BiomeType BiomeManager::getBiomeForChunk(int cx, int cz) {
   if (center_height < 80) { // Lowlands
     if (biome_noise < 0.2) {
       return BiomeType::DESERT;
+    } else if (biome_noise < 0.5) {
+      return BiomeType::TROPICAL;
     } else {
       return BiomeType::PLAINS;
     }

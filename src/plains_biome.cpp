@@ -2,9 +2,11 @@
 #include "block_type.hpp"
 #include "terrain_generator.hpp"
 #include "world_constants.hpp"
+#include "oak_tree_generator.hpp"
 #include <glm/gtc/noise.hpp>
 
-PlainsBiome::PlainsBiome() : m_tree_spawner(0.8) {}
+PlainsBiome::PlainsBiome()
+    : m_tree_spawner(0.7, std::make_unique<OakTreeGenerator>()) {}
 
 static BlockType generateInternalBlock(int x, int y, int z, int world_x,
                                        int world_z) {
@@ -23,8 +25,7 @@ static BlockType generateInternalBlock(int x, int y, int z, int world_x,
   return BlockType::DIRT;
 }
 
-static BlockType generateTopBlock(int x, int y, int z, int world_x,
-                                  int world_z) {
+static BlockType generateTopBlock(int y) {
   if (y <= SEA_LEVEL) {
     if (y < SEA_LEVEL - 5) {
       return BlockType::SANDSTONE;
@@ -47,7 +48,7 @@ void PlainsBiome::generateTerrain(Chunk &chunk) {
       for (int y = 0; y < height; y++) {
         BlockType type;
         if (y == height - 1) {
-          type = generateTopBlock(x, y, z, chunk.world_x, chunk.world_z);
+          type = generateTopBlock(y);
         } else {
           type = generateInternalBlock(x, y, z, chunk.world_x, chunk.world_z);
         }
@@ -71,5 +72,7 @@ void PlainsBiome::generateTerrain(Chunk &chunk) {
 }
 
 void PlainsBiome::spawnDecorations(Chunk &chunk) {
-  m_tree_spawner.spawn(chunk);
+  m_tree_spawner.spawn(chunk, [](Chunk &c, int x, int y, int z) {
+    return c.getBlock(x, y, z) == BlockType::GRASS;
+  });
 }
