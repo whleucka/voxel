@@ -5,7 +5,7 @@ const float FREQ = 0.03f;
 const float AMP = 35.0f;
 const float OCTAVES = 4.0f;
 const float LACUNARITY = 1.2f;
-const float GAIN = 0.4f;
+const float GAIN = 0.5f;
 
 static double fbm(glm::vec3 p, int octaves, double lacunarity, double gain) {
   double sum = 0.0;
