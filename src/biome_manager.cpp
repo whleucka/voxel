@@ -36,13 +36,13 @@ BiomeType BiomeManager::getBiomeForChunk(int cx, int cz) {
   }
 
   if (center_height < 80) { // Lowlands
-    if (biome_noise < 0.33) {
+    if (biome_noise < 0.2) {
       return BiomeType::DESERT;
     } else {
       return BiomeType::PLAINS;
     }
   } else { // Highlands
-    if (biome_noise < 0.5) {
+    if (biome_noise < 0.4) {
       return BiomeType::PLAINS; // Grassy hills
     } else {
       return BiomeType::FOREST; // Mountain forests

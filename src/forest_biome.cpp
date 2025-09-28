@@ -4,6 +4,8 @@
 #include "world_constants.hpp"
 #include <glm/gtc/noise.hpp>
 
+ForestBiome::ForestBiome() : m_tree_spawner(0.6) {}
+
 static BlockType generateInternalBlock(int x, int y, int z, int world_x,
                                        int world_z) {
   const double stone_noise =
@@ -100,55 +102,5 @@ void ForestBiome::generateTerrain(Chunk &chunk) {
 }
 
 void ForestBiome::spawnDecorations(Chunk &chunk) {
-  for (int x = TREE_BORDER_THRESHOLD; x <= Chunk::W - 1 - TREE_BORDER_THRESHOLD;
-       ++x) {
-    for (int z = TREE_BORDER_THRESHOLD;
-         z <= Chunk::L - 1 - TREE_BORDER_THRESHOLD; ++z) {
-      int y = 0;
-      for (int i = Chunk::H - 1; i > 0; --i) {
-        if (chunk.getBlock(x, i, z) != BlockType::AIR) {
-          y = i;
-          break;
-        }
-      }
-
-      if (y > 0 && chunk.getBlock(x, y, z) == BlockType::GRASS) {
-        const double tree_noise =
-            (glm::perlin(glm::vec3((chunk.world_x * Chunk::W + x) * 0.8,
-                                   y * 0.02,
-                                   (chunk.world_z * Chunk::L + z) * 0.8)) *
-                 0.5 +
-             0.5);
-
-        if (tree_noise > 0.6) {
-          // set trunk
-          int h = (rand() % 6) + 10;
-          for (int j = 1; j <= h; j++) {
-            chunk.setBlock(x, y + j, z, BlockType::TREE);
-          }
-
-          // set leaves
-          int radius = (rand() % 2) + 4;
-          int top = y + h;
-          int t_h = (rand() % 3) + h - radius; // leaf height
-          int t_d = (rand() % 2) + 4;          // leaf depth
-
-          for (int dy = -t_d; dy <= t_h; dy++) {
-            for (int dx = -radius; dx <= radius; dx++) {
-              for (int dz = -radius; dz <= radius; dz++) {
-                if (rand() % 100 > 35)
-                  continue;
-                if (dx * dx + dz * dz + dy * dy <= radius * radius + 1) {
-                  if (chunk.getBlock(x + dx, top + dy, z + dz) !=
-                      BlockType::TREE)
-                    chunk.setBlock(x + dx, top + dy, z + dz,
-                                   BlockType::TREE_LEAF);
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
+  m_tree_spawner.spawn(chunk);
 }

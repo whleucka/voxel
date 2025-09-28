@@ -39,11 +39,11 @@ void DesertBiome::generateTerrain(Chunk &chunk) {
         chunk.setBlock(x, y, z, type);
       }
 
-      // for (int y = height; y < SEA_LEVEL; y++) {
-      //     if (chunk.getBlock(x, y, z) == BlockType::AIR) {
-      //         chunk.setBlock(x, y, z, BlockType::WATER);
-      //     }
-      // }
+      for (int y = height; y < SEA_LEVEL; y++) {
+        if (chunk.getBlock(x, y, z) == BlockType::AIR) {
+          chunk.setBlock(x, y, z, BlockType::WATER);
+        }
+      }
 
       const double cloud_noise =
           glm::perlin(glm::vec2((chunk.world_x * Chunk::W + x) * 0.03245,

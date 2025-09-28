@@ -4,6 +4,8 @@
 #include "world_constants.hpp"
 #include <glm/gtc/noise.hpp>
 
+PlainsBiome::PlainsBiome() : m_tree_spawner(0.8) {}
+
 static BlockType generateInternalBlock(int x, int y, int z, int world_x,
                                        int world_z) {
   const double stone_noise =
@@ -23,46 +25,15 @@ static BlockType generateInternalBlock(int x, int y, int z, int world_x,
 
 static BlockType generateTopBlock(int x, int y, int z, int world_x,
                                   int world_z) {
-  const double snow_noise = glm::perlin(glm::vec2(
-      (world_x * Chunk::W + x) * 0.02, (world_z * Chunk::L + z) * 0.02));
-  const int block_rand = (rand() % 100) + 1;
-
-  if (y > SNOW_LEVEL + snow_noise * 5.0) {
-    if (block_rand <= 95) {
-      return BlockType::SNOW;
-    } else if (block_rand <= 98) {
-      return BlockType::SNOW_STONE;
-    } else {
-      return BlockType::SNOW_DIRT;
-    }
-  } else if (y > SNOW_LEVEL) {
-    return BlockType::SNOW;
-  } else if (y <= SEA_LEVEL) {
+  if (y <= SEA_LEVEL) {
     if (y < SEA_LEVEL - 5) {
       return BlockType::SANDSTONE;
     } else {
       return BlockType::SAND;
     }
   } else {
-    if (y < SNOW_LEVEL) {
-      if (y > SNOW_LEVEL - 2) {
-        if (block_rand <= 80) {
-          return BlockType::SNOW_STONE;
-        } else {
-          return BlockType::SNOW_DIRT;
-        }
-      } else {
-        if (block_rand <= 5) {
-          return BlockType::COBBLESTONE;
-        } else if (block_rand <= 15) {
-          return BlockType::STONE;
-        } else {
-          return BlockType::GRASS;
-        }
-      }
-    }
+    return BlockType::GRASS;
   }
-  return BlockType::DIRT;
 }
 
 void PlainsBiome::generateTerrain(Chunk &chunk) {
@@ -100,5 +71,5 @@ void PlainsBiome::generateTerrain(Chunk &chunk) {
 }
 
 void PlainsBiome::spawnDecorations(Chunk &chunk) {
-  // No decorations for plains yet
+  m_tree_spawner.spawn(chunk);
 }

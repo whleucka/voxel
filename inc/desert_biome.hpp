@@ -4,6 +4,6 @@
 
 class DesertBiome : public Biome {
 public:
-    void generateTerrain(Chunk& chunk) override;
-    void spawnDecorations(Chunk& chunk) override;
+  void generateTerrain(Chunk &chunk) override;
+  void spawnDecorations(Chunk &chunk) override;
 };
