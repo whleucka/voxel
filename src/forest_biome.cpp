@@ -7,7 +7,7 @@
 #include <glm/gtc/noise.hpp>
 
 ForestBiome::ForestBiome()
-    : m_oak_tree_spawner(0.7, std::make_unique<OakTreeGenerator>()),
+    : m_oak_tree_spawner(0.75, std::make_unique<OakTreeGenerator>()),
       m_pine_tree_spawner(0.5, std::make_unique<PineTreeGenerator>()) {}
 
 static BlockType generateInternalBlock(int x, int y, int z, int world_x,
@@ -21,9 +21,18 @@ static BlockType generateInternalBlock(int x, int y, int z, int world_x,
 
   if ((bedrock_noise > 0.1 && y <= 6) || (y < 5)) {
     return BlockType::BEDROCK;
-  } else if ((stone_noise > 0.4) || (y >= 5 && y <= 15)) {
-    return BlockType::STONE;
   }
+
+  if (y > 80) { // Higher altitudes are more likely to be stone
+    if (stone_noise > 0.3) {
+      return BlockType::STONE;
+    }
+  } else {
+    if (stone_noise > 0.4) {
+      return BlockType::STONE;
+    }
+  }
+
   return BlockType::DIRT;
 }
 
@@ -31,44 +40,20 @@ static BlockType generateTopBlock(int x, int y, int z, int world_x,
                                   int world_z) {
   const double snow_noise = glm::perlin(glm::vec2(
       (world_x * Chunk::W + x) * 0.02, (world_z * Chunk::L + z) * 0.02));
-  const int block_rand = (rand() % 100) + 1;
 
   if (y > SNOW_LEVEL + snow_noise * 5.0) {
-    if (block_rand <= 95) {
-      return BlockType::SNOW;
-    } else if (block_rand <= 98) {
-      return BlockType::SNOW_STONE;
-    } else {
-      return BlockType::SNOW_DIRT;
-    }
-  } else if (y > SNOW_LEVEL) {
     return BlockType::SNOW;
-  } else if (y <= SEA_LEVEL) {
+  } else if (y > TREE_LINE) {
+    return BlockType::STONE;
+  } else if (y > SEA_LEVEL) {
+    return BlockType::GRASS;
+  } else {
     if (y < SEA_LEVEL - 5) {
       return BlockType::SANDSTONE;
     } else {
       return BlockType::SAND;
     }
-  } else {
-    if (y < SNOW_LEVEL) {
-      if (y > SNOW_LEVEL - 2) {
-        if (block_rand <= 80) {
-          return BlockType::SNOW_STONE;
-        } else {
-          return BlockType::SNOW_DIRT;
-        }
-      } else {
-        if (block_rand <= 5) {
-          return BlockType::COBBLESTONE;
-        } else if (block_rand <= 15) {
-          return BlockType::STONE;
-        } else {
-          return BlockType::GRASS;
-        }
-      }
-    }
   }
-  return BlockType::DIRT;
 }
 
 void ForestBiome::generateTerrain(Chunk &chunk) {
@@ -107,11 +92,11 @@ void ForestBiome::generateTerrain(Chunk &chunk) {
 
 void ForestBiome::spawnDecorations(Chunk &chunk) {
   m_oak_tree_spawner.spawn(chunk, [](Chunk &c, int x, int y, int z) {
-    return c.getBlock(x, y, z) == BlockType::GRASS;
+    return c.getBlock(x, y, z) == BlockType::GRASS && y < TREE_LINE;
   });
 
   m_pine_tree_spawner.spawn(chunk, [](Chunk &c, int x, int y, int z) {
-    return c.getBlock(x, y, z) == BlockType::GRASS;
+    return c.getBlock(x, y, z) == BlockType::GRASS && y < TREE_LINE;
   });
 }
 

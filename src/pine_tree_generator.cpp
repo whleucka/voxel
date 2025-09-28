@@ -9,13 +9,13 @@ void PineTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
   }
 
   // set leaves
-  int leaf_height = h - 4;
+  int leaf_height = h - 6;
   for (int i = 0; i < leaf_height; i++) {
-    int radius = static_cast<int>((static_cast<float>(leaf_height - i) / leaf_height) * 3.0f);
+    int radius = static_cast<int>((static_cast<float>(leaf_height - i) / leaf_height) * 4.0f);
     for (int dx = -radius; dx <= radius; dx++) {
       for (int dz = -radius; dz <= radius; dz++) {
         if (dx * dx + dz * dz <= radius * radius) {
-          chunk.setBlock(x + dx, y + 4 + i, z + dz, BlockType::TREE_LEAF);
+          chunk.setBlock(x + dx, y + 6 + i, z + dz, BlockType::TREE_LEAF);
         }
       }
     }
