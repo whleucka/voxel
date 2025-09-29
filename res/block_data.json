@@ -1,160 +1,160 @@
 {
-  "blocks": {
-    "air": {
-      "uv": [15, 15],
-      "opaque": false,
-      "transparent": true,
-      "fluid": false,
-      "solid": false,
-      "selectable": false
-    },
-    "dirt": {
-      "uv": [2, 0],
-      "opaque": true,
-      "transparent": false,
-      "fluid": false,
-      "solid": true,
-      "selectable": true
-    },
-    "grass": {
-      "uv_top": [0, 0],
-      "uv_side": [1, 0],
-      "uv_bottom": [2, 0],
-      "opaque": true,
-      "transparent": false,
-      "fluid": false,
-      "solid": true,
-      "selectable": true
-    },
-    "stone": {
-      "uv": [3, 0],
-      "opaque": true,
-      "transparent": false,
-      "fluid": false,
-      "solid": true,
-      "selectable": true
-    },
-    "bedrock": {
-      "uv": [4, 0],
-      "opaque": true,
-      "transparent": false,
-      "fluid": false,
-      "solid": true,
-      "selectable": true
-    },
-    "sand": {
-      "uv": [5, 0],
-      "opaque": true,
-      "transparent": false,
-      "fluid": false,
-      "solid": true,
-      "selectable": true
-    },
-    "cobblestone": {
-      "uv": [6, 0],
-      "opaque": true,
-      "transparent": false,
-      "fluid": false,
-      "solid": true,
-      "selectable": true
-    },
-    "water": {
-      "uv": [7, 0],
-      "opaque": false,
-      "transparent": true,
-      "fluid": true,
-      "solid": false,
-      "selectable": false
-    },
-    "snow": {
-      "uv": [8, 0],
-      "opaque": true,
-      "transparent": false,
-      "fluid": false,
-      "solid": true,
-      "selectable": true
-    },
-    "snow-stone": {
-      "uv_top": [8, 0],
-      "uv_side": [9, 0],
-      "uv_bottom": [3, 0],
-      "opaque": true,
-      "transparent": false,
-      "fluid": false,
-      "solid": true,
-      "selectable": true
-    },
-    "snow-dirt": {
-      "uv_top": [8, 0],
-      "uv_side": [10, 0],
-      "uv_bottom": [2, 0],
-      "opaque": true,
-      "transparent": false,
-      "fluid": false,
-      "solid": true,
-      "selectable": true
-    },
-    "sandstone": {
-        "uv": [11, 0],
-        "opaque": true,
-        "transparent": false,
-        "fluid": false,
-        "solid": true,
-        "selectable": true
-    },
-    "oak-leaf": {
-        "uv": [12, 0],
-        "opaque": true,
-        "transparent": false,
-        "fluid": false,
-        "solid": false,
-        "selectable": true
-    },
-    "oak-log": {
-      "uv_top": [14, 0],
-      "uv_side": [13, 0],
-      "uv_bottom": [14, 0],
-      "opaque": true,
-      "transparent": false,
-      "fluid": false,
-      "solid": true,
-      "selectable": true
-    },
-    "pine-log": {
-      "uv_top": [0, 1],
-      "uv_side": [15, 0],
-      "uv_bottom": [0, 1],
-      "opaque": true,
-      "transparent": false,
-      "fluid": false,
-      "solid": true,
-      "selectable": true
-    },
-    "pine-leaf": {
-        "uv": [1, 1],
-        "opaque": true,
-        "transparent": false,
-        "fluid": false,
-        "solid": false,
-        "selectable": true
-    },
-    "palm-log": {
-      "uv_top": [3, 1],
-      "uv_side": [2, 1],
-      "uv_bottom": [3, 1],
-      "opaque": true,
-      "transparent": false,
-      "fluid": false,
-      "solid": true,
-      "selectable": true
-    },
-    "palm-leaf": {
-        "uv": [4, 1],
-        "opaque": true,
-        "transparent": false,
-        "fluid": false,
-        "solid": false,
-        "selectable": true
+    "blocks": {
+        "air": {
+            "uv": [15, 15],
+            "opaque": false,
+            "transparent": true,
+            "fluid": false,
+            "solid": false,
+            "selectable": false
+        },
+        "dirt": {
+            "uv": [2, 0],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "grass": {
+            "uv_top": [0, 0],
+            "uv_side": [1, 0],
+            "uv_bottom": [2, 0],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "stone": {
+            "uv": [3, 0],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "bedrock": {
+            "uv": [4, 0],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "sand": {
+            "uv": [5, 0],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "cobblestone": {
+            "uv": [6, 0],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "water": {
+            "uv": [7, 0],
+            "opaque": false,
+            "transparent": true,
+            "fluid": true,
+            "solid": false,
+            "selectable": false
+        },
+        "snow": {
+            "uv": [8, 0],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "snow-stone": {
+            "uv_top": [8, 0],
+            "uv_side": [9, 0],
+            "uv_bottom": [3, 0],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "snow-dirt": {
+            "uv_top": [8, 0],
+            "uv_side": [10, 0],
+            "uv_bottom": [2, 0],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "sandstone": {
+            "uv": [11, 0],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "oak-log": {
+            "uv_top": [14, 0],
+            "uv_side": [13, 0],
+            "uv_bottom": [14, 0],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "oak-leaf": {
+            "uv": [12, 0],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "pine-log": {
+            "uv_top": [0, 1],
+            "uv_side": [15, 0],
+            "uv_bottom": [0, 1],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "pine-leaf": {
+            "uv": [1, 1],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "palm-log": {
+            "uv_top": [3, 1],
+            "uv_side": [2, 1],
+            "uv_bottom": [3, 1],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        },
+        "palm-leaf": {
+            "uv": [4, 1],
+            "opaque": true,
+            "transparent": false,
+            "fluid": false,
+            "solid": true,
+            "selectable": true
+        }
     }
-  }
 }
