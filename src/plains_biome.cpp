@@ -60,13 +60,6 @@ void PlainsBiome::generateTerrain(Chunk &chunk) {
           chunk.setBlock(x, y, z, BlockType::WATER);
         }
       }
-
-      const double cloud_noise =
-          glm::perlin(glm::vec2((chunk.world_x * Chunk::W + x) * 0.03245,
-                                (chunk.world_z * Chunk::L + z) * 0.05376));
-      if (cloud_noise > 0.4) {
-        chunk.setBlock(x, CLOUD_LEVEL, z, BlockType::CLOUD);
-      }
     }
   }
 }

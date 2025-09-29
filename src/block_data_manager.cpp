@@ -56,12 +56,18 @@ static std::string BlockTypeToString(BlockType type) {
     return "snow-dirt";
   case BlockType::SANDSTONE:
     return "sandstone";
-  case BlockType::TREE_LEAF:
-    return "tree-leaf";
-  case BlockType::TREE:
-    return "tree";
-  case BlockType::CLOUD:
-    return "cloud";
+  case BlockType::OAK_LEAF:
+    return "oak-leaf";
+  case BlockType::OAK_LOG:
+    return "oak-log";
+  case BlockType::PINE_LEAF:
+    return "pine-leaf";
+  case BlockType::PINE_LOG:
+    return "pine-log";
+  case BlockType::PALM_LEAF:
+    return "palm-leaf";
+  case BlockType::PALM_LOG:
+    return "palm-log";
   default:
     return "dirt";
   }

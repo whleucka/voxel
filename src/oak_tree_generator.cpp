@@ -5,7 +5,7 @@ void OakTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
   // set trunk
   int h = (rand() % 4) + 8;
   for (int j = 1; j <= h; j++) {
-    chunk.setBlock(x, y + j, z, BlockType::TREE);
+    chunk.setBlock(x, y + j, z, BlockType::OAK_LOG);
   }
 
   // set leaves
@@ -21,9 +21,9 @@ void OakTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
           continue;
         if (dx * dx + dz * dz + dy * dy <= radius * radius + 1) {
           if (chunk.getBlock(x + dx, top + dy, z + dz) !=
-              BlockType::TREE)
+              BlockType::OAK_LOG)
             chunk.setBlock(x + dx, top + dy, z + dz,
-                           BlockType::TREE_LEAF);
+                           BlockType::OAK_LEAF);
         }
       }
     }

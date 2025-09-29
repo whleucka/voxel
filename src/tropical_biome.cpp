@@ -7,8 +7,8 @@
 #include <glm/gtc/noise.hpp>
 
 TropicalBiome::TropicalBiome()
-    : m_palm_tree_spawner(0.6, std::make_unique<PalmTreeGenerator>()),
-      m_oak_tree_spawner(0.8, std::make_unique<OakTreeGenerator>()) {}
+    : m_palm_tree_spawner(0.5, std::make_unique<PalmTreeGenerator>()),
+      m_oak_tree_spawner(0.85, std::make_unique<OakTreeGenerator>()) {}
 
 static BlockType generateInternalBlock(int x, int y, int z, int world_x,
                                        int world_z) {
@@ -61,13 +61,6 @@ void TropicalBiome::generateTerrain(Chunk &chunk) {
         if (chunk.getBlock(x, y, z) == BlockType::AIR) {
           chunk.setBlock(x, y, z, BlockType::WATER);
         }
-      }
-
-      const double cloud_noise =
-          glm::perlin(glm::vec2((chunk.world_x * Chunk::W + x) * 0.03245,
-                                (chunk.world_z * Chunk::L + z) * 0.05376));
-      if (cloud_noise > 0.4) {
-        chunk.setBlock(x, CLOUD_LEVEL, z, BlockType::CLOUD);
       }
     }
   }

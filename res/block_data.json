@@ -102,7 +102,7 @@
         "solid": true,
         "selectable": true
     },
-    "tree-leaf": {
+    "oak-leaf": {
         "uv": [12, 0],
         "opaque": true,
         "transparent": false,
@@ -110,7 +110,7 @@
         "solid": false,
         "selectable": true
     },
-    "tree": {
+    "oak-log": {
       "uv_top": [14, 0],
       "uv_side": [13, 0],
       "uv_bottom": [14, 0],
@@ -120,13 +120,41 @@
       "solid": true,
       "selectable": true
     },
-    "cloud": {
-        "uv": [15, 0],
-        "opaque": false,
+    "pine-log": {
+      "uv_top": [0, 1],
+      "uv_side": [15, 0],
+      "uv_bottom": [0, 1],
+      "opaque": true,
+      "transparent": false,
+      "fluid": false,
+      "solid": true,
+      "selectable": true
+    },
+    "pine-leaf": {
+        "uv": [1, 1],
+        "opaque": true,
         "transparent": false,
         "fluid": false,
         "solid": false,
-        "selectable": false
+        "selectable": true
+    },
+    "palm-log": {
+      "uv_top": [3, 1],
+      "uv_side": [2, 1],
+      "uv_bottom": [3, 1],
+      "opaque": true,
+      "transparent": false,
+      "fluid": false,
+      "solid": true,
+      "selectable": true
+    },
+    "palm-leaf": {
+        "uv": [4, 1],
+        "opaque": true,
+        "transparent": false,
+        "fluid": false,
+        "solid": false,
+        "selectable": true
     }
   }
 }

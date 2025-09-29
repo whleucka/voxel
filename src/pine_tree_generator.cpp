@@ -5,7 +5,7 @@ void PineTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
   // set trunk
   int h = (rand() % 6) + 12;
   for (int j = 1; j < h; j++) {
-    chunk.setBlock(x, y + j, z, BlockType::TREE);
+    chunk.setBlock(x, y + j, z, BlockType::PINE_LOG);
   }
 
   // set leaves
@@ -15,10 +15,10 @@ void PineTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
     for (int dx = -radius; dx <= radius; dx++) {
       for (int dz = -radius; dz <= radius; dz++) {
         if (dx * dx + dz * dz <= radius * radius) {
-          chunk.setBlock(x + dx, y + 6 + i, z + dz, BlockType::TREE_LEAF);
+          chunk.setBlock(x + dx, y + 6 + i, z + dz, BlockType::PINE_LEAF);
         }
       }
     }
   }
-  chunk.setBlock(x, y + h, z, BlockType::TREE_LEAF);
+  chunk.setBlock(x, y + h, z, BlockType::PINE_LEAF);
 }
