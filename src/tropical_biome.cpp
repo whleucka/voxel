@@ -7,7 +7,7 @@
 #include <glm/gtc/noise.hpp>
 
 TropicalBiome::TropicalBiome()
-    : m_palm_tree_spawner(0.5, std::make_unique<PalmTreeGenerator>()),
+    : m_palm_tree_spawner(0.7, std::make_unique<PalmTreeGenerator>()),
       m_oak_tree_spawner(0.85, std::make_unique<OakTreeGenerator>()) {}
 
 static BlockType generateInternalBlock(int x, int y, int z, int world_x,

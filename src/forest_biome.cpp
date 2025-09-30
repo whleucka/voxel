@@ -7,8 +7,8 @@
 #include <glm/gtc/noise.hpp>
 
 ForestBiome::ForestBiome()
-    : m_oak_tree_spawner(0.75, std::make_unique<OakTreeGenerator>()),
-      m_pine_tree_spawner(0.5, std::make_unique<PineTreeGenerator>()) {}
+    : m_oak_tree_spawner(0.85, std::make_unique<OakTreeGenerator>()),
+      m_pine_tree_spawner(0.7, std::make_unique<PineTreeGenerator>()) {}
 
 static BlockType generateInternalBlock(int x, int y, int z, int world_x,
                                        int world_z) {

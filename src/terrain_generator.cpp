@@ -1,7 +1,7 @@
 #include "terrain_generator.hpp"
 #include <glm/gtc/noise.hpp>
 
-const float FREQ = 0.03f;
+const float FREQ = 0.04f;
 const float AMP = 35.0f;
 const float OCTAVES = 4.0f;
 const float LACUNARITY = 1.2f;
@@ -32,8 +32,8 @@ int TerrainGenerator::getHeight(float x, float z, float* biome_noise_out) {
 
     int perlin_height =
         static_cast<int>(
-            hNoise * 25
-            + mountain_factor * 80
+            hNoise * 30
+            + mountain_factor * 170
             ) +
         AMP;
     
