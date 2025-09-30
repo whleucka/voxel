@@ -2,6 +2,7 @@
 #include "stb_image.h"
 #include "texture_manager.hpp"
 #include "world.hpp"
+#include <GLFW/glfw3.h> // Added for glfwGetTime()
 #include <iostream>
 
 const glm::vec3 night(0.0f / 255.0f, 0.0f / 255.0f, 3.0f / 255.0f);
@@ -133,7 +134,7 @@ void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
   glEnable(GL_CULL_FACE); // Re-enable culling
 }
 
-void Renderer::drawClouds(const CloudManager &cloud_manager, const Camera &camera, int screen_width, int screen_height, float time) {
+void Renderer::drawClouds(const CloudManager &cloud_manager, const Camera &camera, int screen_width, int screen_height, float time_fraction) {
   cloud_shader->use();
 
   glm::mat4 projection = glm::perspective(
@@ -142,7 +143,8 @@ void Renderer::drawClouds(const CloudManager &cloud_manager, const Camera &camer
   glm::mat4 view = camera.getViewMatrix();
   cloud_shader->setMat4("u_proj", projection);
   cloud_shader->setMat4("u_view", view);
-  cloud_shader->setFloat("u_time", time); // Pass time in seconds
+  cloud_shader->setFloat("u_time_fraction", time_fraction); // Pass time fraction
+  cloud_shader->setFloat("u_time", glfwGetTime()); // Pass time in seconds for animation
 
   glDisable(GL_BLEND);
   glEnable(GL_DEPTH_TEST);

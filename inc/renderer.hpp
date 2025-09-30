@@ -20,7 +20,7 @@ public:
   void draw(const std::vector<Chunk *> &chunks, const Camera &camera,
             int screen_width, int screen_height, float time_fraction);
   void drawHighlight(const Camera &camera, const glm::vec3 &block_pos);
-  void drawClouds(const CloudManager &cloud_manager, const Camera &camera, int screen_width, int screen_height, float time);
+  void drawClouds(const CloudManager &cloud_manager, const Camera &camera,                  int screen_width, int screen_height, float time_fraction);
 
 private:
   Shader *block_shader;

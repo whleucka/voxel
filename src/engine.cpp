@@ -277,7 +277,7 @@ void Engine::render() {
       world.getVisibleChunks(player->getCamera(), width, height);
 
   // Render clouds
-  renderer.drawClouds(cloud_manager, player->getCamera(), width, height, last_frame);
+  renderer.drawClouds(cloud_manager, player->getCamera(), width, height, time_fraction);
 
   // Render scene
   renderer.draw(visible_chunks, player->getCamera(), width, height,
