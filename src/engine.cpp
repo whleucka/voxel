@@ -158,6 +158,8 @@ bool Engine::init() {
   renderer.init();
   loadAtlas("res/block_atlas.png");
 
+  cloud_manager.generateCloudMesh();
+
   world.processUploads();
 
   // Initial "safe" spawn
@@ -240,14 +242,43 @@ void Engine::update() {
 }
 
 void Engine::render() {
+  // Set sky color based on time of day
+  float time_fraction = game_clock.fractionOfDay();
+  float t = time_fraction; // 0..1
+  float ang = t * 2.0f * glm::pi<float>() -
+              glm::half_pi<float>(); // rises ~0.25, sets ~0.75
+  glm::vec3 sunDir =
+      glm::normalize(glm::vec3(std::cos(ang), std::sin(ang), 0.25f));
+
+  float h = sunDir.y;
+
+  // Two smoothsteps: twilight below/above horizon
+  float duskDawnBelow =
+      glm::smoothstep(-0.15f, 0.00f, h); // -0.15→0: night → sunset
+  float dawnNoonAbove =
+      glm::smoothstep(0.00f, 0.25f, h); // 0→0.25: sunset → day
+
+  glm::vec3 sky_color;
+  if (h <= 0.0f) {
+    // Below horizon: mostly night, a touch of sunset near horizon
+    sky_color = glm::mix(glm::vec3(0.0f / 255.0f, 0.0f / 255.0f, 3.0f / 255.0f), glm::vec3(1.0f, 0.5f, 0.2f), duskDawnBelow);
+  } else {
+    // Above horizon: start at sunset near horizon, fade to day as sun climbs
+    sky_color = glm::mix(glm::vec3(1.0f, 0.5f, 0.2f), glm::vec3(0.4f, 0.7f, 1.0f), dawnNoonAbove);
+  }
+
+  float horizonGlow = 1.0f - glm::smoothstep(0.05f, 0.25f, std::abs(h));
+  sky_color = glm::mix(sky_color, glm::vec3(1.0f, 0.5f, 0.2f), 0.25f * horizonGlow);
+
+  glClearColor(sky_color.r, sky_color.g, sky_color.b, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Gather chunk pointers from world
   std::vector<Chunk *> visible_chunks =
       world.getVisibleChunks(player->getCamera(), width, height);
 
-  // Set sky color based on time of day
-  float time_fraction = game_clock.fractionOfDay();
+  // Render clouds
+  renderer.drawClouds(cloud_manager, player->getCamera(), width, height, last_frame);
 
   // Render scene
   renderer.draw(visible_chunks, player->getCamera(), width, height,

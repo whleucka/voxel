@@ -2,6 +2,7 @@
 #include "stb_image.h"
 #include "texture_manager.hpp"
 #include "world.hpp"
+#include <iostream>
 
 const glm::vec3 night(0.0f / 255.0f, 0.0f / 255.0f, 3.0f / 255.0f);
 const glm::vec3 day(0.4f, 0.7f, 1.0f);
@@ -21,6 +22,7 @@ void Renderer::init() {
   block_shader = new Shader("shaders/block.vert", "shaders/block.frag");
   highlight_shader =
       new Shader("shaders/highlight.vert", "shaders/highlight.frag");
+  cloud_shader = new Shader("shaders/cloud.vert", "shaders/cloud.frag");
   wire_cube = new WireCube();
 }
 
@@ -54,7 +56,6 @@ void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
   sky_color = glm::mix(sky_color, sunset, 0.25f * horizonGlow);
 
   glViewport(0, 0, screen_width, screen_height);
-  glClearColor(sky_color.r, sky_color.g, sky_color.b, 1.0f);
 
   block_shader->use();
 
@@ -130,6 +131,29 @@ void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
   glDepthMask(GL_TRUE);
   glDisable(GL_BLEND); // leave GL clean
   glEnable(GL_CULL_FACE); // Re-enable culling
+}
+
+void Renderer::drawClouds(const CloudManager &cloud_manager, const Camera &camera, int screen_width, int screen_height, float time) {
+  cloud_shader->use();
+
+  glm::mat4 projection = glm::perspective(
+      glm::radians(45.0f), (float)screen_width / (float)screen_height, 0.1f,
+      2048.0f); // Increased far plane for clouds
+  glm::mat4 view = camera.getViewMatrix();
+  cloud_shader->setMat4("projection", projection);
+  cloud_shader->setMat4("view", view);
+  cloud_shader->setFloat("u_time", time); // Pass time in seconds
+
+  glDisable(GL_CULL_FACE);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glDepthMask(GL_FALSE);
+
+  cloud_manager.render(*cloud_shader);
+
+  glDepthMask(GL_TRUE);
+  glDisable(GL_BLEND);
+  glEnable(GL_CULL_FACE);
 }
 
 void Renderer::drawHighlight(const Camera &camera, const glm::vec3 &block_pos) {

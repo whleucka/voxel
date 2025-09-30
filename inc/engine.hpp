@@ -4,6 +4,7 @@
 #include "game_clock.hpp"
 #include "renderer.hpp"
 #include "world.hpp"
+#include "cloud_manager.hpp"
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
 #include <glm/glm.hpp>
@@ -44,6 +45,7 @@ private:
   Player *player;
   World world;
   Renderer renderer;
+  CloudManager cloud_manager;
 
   bool has_highlighted_block = false;
   glm::vec3 highlighted_block_pos;
