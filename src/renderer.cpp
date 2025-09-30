@@ -140,8 +140,8 @@ void Renderer::drawClouds(const CloudManager &cloud_manager, const Camera &camer
       glm::radians(45.0f), (float)screen_width / (float)screen_height, 0.1f,
       2048.0f); // Increased far plane for clouds
   glm::mat4 view = camera.getViewMatrix();
-  cloud_shader->setMat4("projection", projection);
-  cloud_shader->setMat4("view", view);
+  cloud_shader->setMat4("u_proj", projection);
+  cloud_shader->setMat4("u_view", view);
   cloud_shader->setFloat("u_time", time); // Pass time in seconds
 
   glDisable(GL_CULL_FACE);
