@@ -7,6 +7,5 @@ struct Vertex {
   glm::vec2 uvLocal;  // location=2  (in blocks; e.g. {0,h},{w,h}…)
   glm::vec2 uvBase;   // location=3  (tile base (u0,v0) in atlas [0..1])
   float ao;           // location=4  (ambient occlusion)
-  float isCloud;      // location=5
 };
-static_assert(sizeof(Vertex) == 48, "Vertex must be 48 bytes");
+static_assert(sizeof(Vertex) == 44, "Vertex must be 44 bytes");

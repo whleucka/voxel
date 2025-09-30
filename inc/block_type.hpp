@@ -22,5 +22,4 @@ enum class BlockType : uint8_t {
   PALM_LOG,
   PALM_LEAF,
   WATER,
-  CLOUD,
 };

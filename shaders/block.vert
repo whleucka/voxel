@@ -4,10 +4,8 @@ layout(location=1) in vec3 aNormal;
 layout(location=2) in vec2 aUvLocal;
 layout(location=3) in vec2 aUvBase;
 layout(location=4) in float aAO;
-layout(location=5) in float aIsCloud;
 
 uniform mat4 model, view, projection;
-uniform vec3 cloudOffset;
 
 out vec3 vNormal;
 out vec3 vWorldPos;
@@ -16,7 +14,7 @@ out vec2 vUvBase;
 out float vAO;
 
 void main() {
-    vec4 worldPos = model * vec4(aPos + aIsCloud * cloudOffset, 1.0);
+    vec4 worldPos = model * vec4(aPos, 1.0);
     gl_Position = projection * view * worldPos;
 
     // model is pure translate for chunks, but this is still fine:

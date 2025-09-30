@@ -17,7 +17,7 @@ public:
 
   void init();
   void draw(const std::vector<Chunk *> &chunks, const Camera &camera,
-            int screen_width, int screen_height, float time_fraction, const glm::vec3& cloud_offset);
+            int screen_width, int screen_height, float time_fraction);
   void drawHighlight(const Camera &camera, const glm::vec3 &block_pos);
 
 private:

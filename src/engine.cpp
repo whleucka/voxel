@@ -216,10 +216,6 @@ void Engine::update() {
   world.update(player->getCamera());
   world.processUploads();
 
-  // Update cloud offset
-  cloud_offset.x += Chunk::CLOUD_SPEED * delta_time;
-  cloud_offset.z += Chunk::CLOUD_SPEED * delta_time;
-
   // Raycast for highlighted block
   auto &cam = player->getCamera();
   auto result = world.raycast(cam.getPosition(), cam.getFront(), 5.0f);
@@ -255,7 +251,7 @@ void Engine::render() {
 
   // Render scene
   renderer.draw(visible_chunks, player->getCamera(), width, height,
-                time_fraction, cloud_offset);
+                time_fraction);
 
   if (has_highlighted_block) {
     renderer.drawHighlight(player->getCamera(), highlighted_block_pos);

@@ -48,8 +48,6 @@ private:
   bool has_highlighted_block = false;
   glm::vec3 highlighted_block_pos;
 
-  glm::vec3 cloud_offset = glm::vec3(0.0f);
-
   static void framebufferSizeCallback(GLFWwindow *window, int w, int h);
   void drawCrosshairImGui();
   void processInput();
