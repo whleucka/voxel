@@ -14,8 +14,8 @@ uniform float u_time;
 void main() {
     vAO = aAO;
     vec3 world_pos = aPos;
-    world_pos.x += u_time * 0.1;
-    world_pos.z += u_time * 0.05;
+    world_pos.x += u_time * 0.5;
+    world_pos.z += u_time * 0.1;
     gl_Position = u_proj * u_view * vec4(world_pos, 1.0);
 }
 
