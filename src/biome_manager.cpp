@@ -34,23 +34,38 @@ BiomeType BiomeManager::getBiomeForChunk(int cx, int cz) {
   int center_height =
       TerrainGenerator::getHeight(chunk_center_x, chunk_center_z, &biome_noise);
 
+  // Normalize latitude factor (-1 at south pole, 0 at equator, +1 at north pole)
+  float latitude = (chunk_center_z / 5000.0f); // adjust denominator to stretch zones
+  latitude = glm::clamp(latitude, -1.0f, 1.0f);
+  float lat_abs = fabs(latitude);
+
+  // --- Stage detection from height ---
   if (center_height < SEA_LEVEL) {
     return BiomeType::OCEAN;
   }
 
-  if (center_height < 80) { // Lowlands
-    if (biome_noise < 0.2) {
-      return BiomeType::DESERT;
-    } else if (biome_noise < 0.5) {
-      return BiomeType::TROPICAL;
+  if (center_height >= SEA_LEVEL && center_height < SEA_LEVEL + 10) {
+    // Shelf stage → deserts / tropics / plains
+    if (lat_abs < 0.3f) { // near equator
+      if (biome_noise < 0.5f) return BiomeType::TROPICAL;
+      else return BiomeType::PLAINS;
+    } else if (lat_abs < 0.7f) { // mid-latitudes
+      if (biome_noise < 0.4f) return BiomeType::DESERT;
+      else return BiomeType::PLAINS;
     } else {
-      return BiomeType::PLAINS;
-    }
-  } else { // Highlands
-    if (biome_noise < 0.4) {
-      return BiomeType::PLAINS; // Grassy hills
-    } else {
-      return BiomeType::FOREST; // Mountain forests
+      return BiomeType::PLAINS; // higher latitudes default to plains
     }
   }
+
+  // Inland lowlands
+  if (center_height < 160) {
+    if (biome_noise < 0.5f) {
+      return BiomeType::PLAINS;
+    } else {
+      return BiomeType::FOREST;
+    }
+  }
+
+  // High mountains
+  return BiomeType::FOREST;
 }

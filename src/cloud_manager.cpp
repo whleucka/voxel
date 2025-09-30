@@ -5,7 +5,7 @@
 #include <iostream>
 
 CloudManager::CloudManager()
-    : m_width(256), m_depth(256), m_height(CLOUD_LEVEL), renderDistance(3) {}
+    : m_width(512), m_depth(512), m_height(CLOUD_LEVEL), renderDistance(3) {}
 
 void CloudManager::generateChunk(int cx, int cz, Mesh& mesh) {
     int originX = cx * m_width;
@@ -14,15 +14,15 @@ void CloudManager::generateChunk(int cx, int cz, Mesh& mesh) {
     std::vector<Vertex> verts;
     std::vector<unsigned int> inds;
 
-    const float thickness = 4.0f; // vertical thickness
+    const float thickness = 4.0f;
     float topY    = (float)m_height;
     float bottomY = topY - thickness;
 
-    int cellSize = 16; // Minecraft block cloud size
+    int cellSize = 16;
     int cellsX = m_width / cellSize;
     int cellsZ = m_depth / cellSize;
 
-    // --- Build coarse cloud map ---
+    // Build coarse cloud map
     std::vector<uint8_t> cloud_map(cellsX * cellsZ, 0);
     for (int cxCell = 0; cxCell < cellsX; ++cxCell) {
         for (int czCell = 0; czCell < cellsZ; ++czCell) {
@@ -44,7 +44,7 @@ void CloudManager::generateChunk(int cx, int cz, Mesh& mesh) {
         return cloud_map[cxCell + czCell * cellsX] != 0;
     };
 
-    // --- Emit geometry for visible faces only ---
+    // Emit geometry for visible faces only
     for (int cxCell = 0; cxCell < cellsX; ++cxCell) {
       for (int czCell = 0; czCell < cellsZ; ++czCell) {
         if (isFilled(cxCell, czCell)) {
