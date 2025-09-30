@@ -10,7 +10,14 @@ void OceanBiome::generateTerrain(Chunk &chunk) {
       const int world_x = chunk.world_x * Chunk::W + x;
       const int world_z = chunk.world_z * Chunk::L + z;
 
-      int height = TerrainGenerator::getHeight(world_x, world_z);
+      float biome_noise_val;
+      int height = TerrainGenerator::getHeight(world_x, world_z, &biome_noise_val);
+
+      // Use biome_noise to make oceans deeper
+      // When biome_noise_val is low (e.g., 0.0-0.3), depth_factor is high (e.g., 1.0-0.7)
+      // When biome_noise_val is high (e.g., 0.7-1.0), depth_factor is low (e.g., 0.3-0.0)
+      float depth_factor = glm::smoothstep(0.0f, 1.0f, 1.0f - biome_noise_val);
+      height = static_cast<int>(height * (1.0f - 0.7f * depth_factor)); // Reduce height by up to 70%
 
       for (int y = 0; y < height; y++) {
         if (y < 5) {

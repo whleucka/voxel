@@ -89,7 +89,7 @@ void ForestBiome::spawnDecorations(Chunk &chunk) {
   });
 
   m_pine_tree_spawner.spawn(chunk, [](Chunk &c, int x, int y, int z) {
-    return c.getBlock(x, y, z) == BlockType::GRASS && y < TREE_LINE;
+    return (c.getBlock(x, y, z) == BlockType::GRASS || c.getBlock(x, y, z) == BlockType::STONE) && y < TREE_LINE;
   });
 }
 
