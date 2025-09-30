@@ -26,26 +26,33 @@ int TerrainGenerator::getHeight(float x, float z, float *biome_noise_out) {
   glm::vec3 pos((x + 0.1f) * FREQ, (z + 0.1f) * FREQ, 0.0);
   double hNoise = fbm(pos, OCTAVES, LACUNARITY, GAIN);
 
-  glm::vec2 biome_pos(x * 0.0025f,
-                      z * 0.0025f); // finer biome scale (smaller oceans)
+  // Biome-scale noise
+  glm::vec2 biome_pos(x * 0.0055f, z * 0.0055f);
   double biome_noise = glm::perlin(biome_pos) * 0.5 + 0.5;
 
-  double ocean_factor = glm::smoothstep(
-      0.35, 0.15, biome_noise);
-  double mountain_factor =
-      glm::smoothstep(0.55, 0.75, biome_noise);
+  // ----- Ocean -----
+  double ocean_factor = 1.0 - biome_noise;
+  ocean_factor = glm::clamp(ocean_factor, 0.0, 1.0);
+  double ocean_depth =
+      ocean_factor * ocean_factor * 6.0;
 
-  int perlin_height =
-      static_cast<int>(
-          hNoise * 25 -
-          ocean_factor * 25 // oceans
-          + mountain_factor * 140 // mountains
-          ) +
-      AMP;
+  // ----- Lowlands -----
+  double land_factor = glm::smoothstep(0.15, 0.65, biome_noise);
+  double land_variation =
+      hNoise * 50.0 * land_factor;
+
+  // ----- Mountains -----
+  double mountain_factor = glm::smoothstep(0.45, 0.85, biome_noise);
+  double mountain_height =
+      mountain_factor * 150.0;
+
+  // ----- Final terrain height -----
+  int terrain_height =
+      static_cast<int>(land_variation - ocean_depth + mountain_height) + AMP;
 
   if (biome_noise_out) {
     *biome_noise_out = biome_noise;
   }
 
-  return perlin_height;
+  return terrain_height;
 }
