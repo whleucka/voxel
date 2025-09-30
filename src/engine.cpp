@@ -155,15 +155,13 @@ bool Engine::init() {
 
   BlockDataManager::getInstance().load("res/block_data.json");
 
+  // Initial "safe" spawn
+  player = new Player(&world, glm::vec3(0, 200, 0));
+
   renderer.init();
   loadAtlas("res/block_atlas.png");
 
-  cloud_manager.generateCloudMesh();
-
   world.processUploads();
-
-  // Initial "safe" spawn
-  player = new Player(&world, glm::vec3(0, 200, 0));
 
   return true;
 }
@@ -215,6 +213,7 @@ void Engine::update() {
 
   game_clock.update(delta_time);
   player->update(delta_time);
+  cloud_manager.update(player->getPosition());
   world.update(player->getCamera());
   world.processUploads();
 

@@ -144,16 +144,10 @@ void Renderer::drawClouds(const CloudManager &cloud_manager, const Camera &camer
   cloud_shader->setMat4("u_view", view);
   cloud_shader->setFloat("u_time", time); // Pass time in seconds
 
-  glDisable(GL_CULL_FACE);
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glDepthMask(GL_FALSE);
-
-  cloud_manager.render(*cloud_shader);
-
-  glDepthMask(GL_TRUE);
   glDisable(GL_BLEND);
-  glEnable(GL_CULL_FACE);
+  glEnable(GL_DEPTH_TEST);
+  glDepthMask(GL_TRUE);
+  cloud_manager.render(*cloud_shader);
 }
 
 void Renderer::drawHighlight(const Camera &camera, const glm::vec3 &block_pos) {
