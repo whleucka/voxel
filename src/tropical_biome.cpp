@@ -1,9 +1,9 @@
 #include "tropical_biome.hpp"
 #include "block_type.hpp"
+#include "oak_tree_generator.hpp"
+#include "palm_tree_generator.hpp"
 #include "terrain_generator.hpp"
 #include "world_constants.hpp"
-#include "palm_tree_generator.hpp"
-#include "oak_tree_generator.hpp"
 #include <glm/gtc/noise.hpp>
 
 TropicalBiome::TropicalBiome()
@@ -86,4 +86,3 @@ void TropicalBiome::spawnDecorations(Chunk &chunk) {
     return c.getBlock(x, y, z) == BlockType::GRASS;
   });
 }
-

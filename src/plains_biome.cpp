@@ -1,8 +1,8 @@
 #include "plains_biome.hpp"
 #include "block_type.hpp"
+#include "oak_tree_generator.hpp"
 #include "terrain_generator.hpp"
 #include "world_constants.hpp"
-#include "oak_tree_generator.hpp"
 #include <glm/gtc/noise.hpp>
 
 PlainsBiome::PlainsBiome()

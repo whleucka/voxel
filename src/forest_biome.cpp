@@ -1,9 +1,9 @@
 #include "forest_biome.hpp"
 #include "block_type.hpp"
-#include "terrain_generator.hpp"
-#include "world_constants.hpp"
 #include "oak_tree_generator.hpp"
 #include "pine_tree_generator.hpp"
+#include "terrain_generator.hpp"
+#include "world_constants.hpp"
 #include <glm/gtc/noise.hpp>
 
 ForestBiome::ForestBiome()
@@ -89,7 +89,8 @@ void ForestBiome::spawnDecorations(Chunk &chunk) {
   });
 
   m_pine_tree_spawner.spawn(chunk, [](Chunk &c, int x, int y, int z) {
-    return (c.getBlock(x, y, z) == BlockType::GRASS || c.getBlock(x, y, z) == BlockType::STONE) && y < TREE_LINE;
+    return (c.getBlock(x, y, z) == BlockType::GRASS ||
+            c.getBlock(x, y, z) == BlockType::STONE) &&
+           y < TREE_LINE;
   });
 }
-

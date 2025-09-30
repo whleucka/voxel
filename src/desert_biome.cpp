@@ -1,8 +1,8 @@
 #include "desert_biome.hpp"
 #include "block_type.hpp"
+#include "palm_tree_generator.hpp"
 #include "terrain_generator.hpp"
 #include "world_constants.hpp"
-#include "palm_tree_generator.hpp"
 #include <glm/gtc/noise.hpp>
 
 DesertBiome::DesertBiome()
@@ -20,9 +20,7 @@ static BlockType generateInternalBlock(int x, int y, int z, int world_x,
   return BlockType::SANDSTONE;
 }
 
-static BlockType generateTopBlock() {
-  return BlockType::SAND;
-}
+static BlockType generateTopBlock() { return BlockType::SAND; }
 
 void DesertBiome::generateTerrain(Chunk &chunk) {
   for (int x = 0; x < Chunk::W; ++x) {
