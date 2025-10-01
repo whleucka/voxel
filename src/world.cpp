@@ -478,6 +478,6 @@ void World::remeshChunk(int cx, int cz) {
     }
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    std::cout << "remeshChunk took " << duration.count() << "ms" << std::endl;
+    // std::cout << "remeshChunk took " << duration.count() << "ms" << std::endl;
   });
 }
