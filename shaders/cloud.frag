@@ -1,9 +1,15 @@
 #version 330 core
 
 in float vAO;
+in vec3 vWorldPos;
+
 out vec4 FragColor;
 
 uniform float u_time_fraction; // Added uniform for time of day
+uniform vec3 cameraPos;
+uniform vec3 fogColor;
+uniform float fogStart;
+uniform float fogEnd;
 
 float remap(float value, float inMin, float inMax, float outMin, float outMax) {
     return outMin + (value - inMin) * (outMax - outMin) / (inMax - inMin);
@@ -20,5 +26,12 @@ void main()
     // Calculate daylight factor (similar to sunVis for blocks)
     float daylight = clamp(remap(h, -0.02, 0.10, 0.0, 1.0), 0.0, 1.0);
 
-    FragColor = vec4(baseColor * vAO * daylight, 1.0);
+    vec3 litColor = baseColor * vAO * daylight;
+
+    // Fog
+    float dist = length(vWorldPos - cameraPos);
+    float fogFactor = clamp((fogEnd - dist) / max(fogEnd - fogStart, 0.0001), 0.0, 1.0);
+
+    vec3 finalColor = mix(fogColor, litColor, fogFactor);
+    FragColor = vec4(finalColor, 1.0);
 }

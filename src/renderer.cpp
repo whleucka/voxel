@@ -100,8 +100,8 @@ void Renderer::draw(const std::vector<Chunk *> &chunks, const Camera &camera,
       (World::render_distance + 1.0f) * chunkSize; // for a little buffer
 
   // Place fog near the edge of visibility
-  float fogStart = 0.65f * radiusWU; // starts ~65% of the way out
-  float fogEnd = 0.98f * radiusWU;   // fully fogged just before the edge
+  float fogStart = 0.65f * radiusWU * 2.0f; // starts ~65% of the way out
+  float fogEnd = 0.98f * radiusWU * 2.0f;   // fully fogged just before the edge
 
   block_shader->setFloat("fogStart", fogStart);
   block_shader->setFloat("fogEnd", fogEnd);
@@ -145,6 +145,33 @@ void Renderer::drawClouds(const CloudManager &cloud_manager, const Camera &camer
   cloud_shader->setMat4("u_view", view);
   cloud_shader->setFloat("u_time_fraction", time_fraction); // Pass time fraction
   cloud_shader->setFloat("u_time", glfwGetTime()); // Pass time in seconds for animation
+
+  // Fog
+  float t = time_fraction; // 0..1
+  float ang = t * 2.0f * glm::pi<float>() -
+              glm::half_pi<float>(); // rises ~0.25, sets ~0.75
+  glm::vec3 sunDir = glm::normalize(glm::vec3(std::cos(ang), std::sin(ang), 0.25f));
+  float h = sunDir.y;
+  float duskDawnBelow = glm::smoothstep(-0.15f, 0.00f, h);
+  float dawnNoonAbove = glm::smoothstep(0.00f, 0.25f, h);
+  glm::vec3 sky_color;
+  if (h <= 0.0f) {
+    sky_color = glm::mix(night, sunset, duskDawnBelow);
+  } else {
+    sky_color = glm::mix(sunset, day, dawnNoonAbove);
+  }
+  float horizonGlow = 1.0f - glm::smoothstep(0.05f, 0.25f, std::abs(h));
+  sky_color = glm::mix(sky_color, sunset, 0.25f * horizonGlow);
+
+  cloud_shader->setVec3("fogColor", glm::vec3(sky_color.r, sky_color.g, sky_color.b));
+  float chunkSize = float(Chunk::W);
+  float radiusWU = (World::render_distance + 1.0f) * chunkSize;
+  float fogStart = 0.65f * radiusWU * 2.0f;
+  float fogEnd = 0.98f * radiusWU * 2.0f;
+
+  cloud_shader->setFloat("fogStart", fogStart);
+  cloud_shader->setFloat("fogEnd", fogEnd);
+  cloud_shader->setVec3("cameraPos", camera.getPosition());
 
   glDisable(GL_BLEND);
   glEnable(GL_DEPTH_TEST);

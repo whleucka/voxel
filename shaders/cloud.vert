@@ -5,6 +5,8 @@ layout (location = 2) in vec2 aUvLocal;
 layout (location = 3) in vec2 aUvBase;
 layout (location = 4) in float aAO;
 
+out vec3 vNormal;
+out vec3 vWorldPos;
 out float vAO;
 
 uniform mat4 u_view;
@@ -13,9 +15,11 @@ uniform float u_time;
 
 void main() {
     vAO = aAO;
+    vNormal = aNormal;
     vec3 world_pos = aPos;
     world_pos.x += u_time * 0.5;
     world_pos.z += u_time * 0.1;
+    vWorldPos = world_pos;
     gl_Position = u_proj * u_view * vec4(world_pos, 1.0);
 }
 
