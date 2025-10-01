@@ -27,6 +27,8 @@ public:
   bool debug = false;
   bool wireframe = false;
 
+  void handleKeyPress(int key, int action);
+
 private:
   GLFWwindow *window;
   int width, height;
@@ -49,7 +51,9 @@ private:
 
   bool has_highlighted_block = false;
   glm::vec3 highlighted_block_pos;
+  BlockType selected_block_type = BlockType::STONE;
 
+  void changeSelectedBlockType(BlockType type);
   static void framebufferSizeCallback(GLFWwindow *window, int w, int h);
   void drawCrosshairImGui();
   void processInput();

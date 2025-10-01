@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <glm/gtc/matrix_transform.hpp>
+#include <chrono>
 #include <iostream>
 
 // std::cout per chunk will hitch. Gate it
@@ -455,6 +456,7 @@ void World::remeshChunk(int cx, int cz) {
 
 
   thread_pool.enqueue([this, chunk_ptr, key]() {
+    auto start = std::chrono::high_resolution_clock::now();
     auto sample = [this, chunk_ptr](int gx, int gy, int gz) -> BlockType {
       int local_x = gx - chunk_ptr->world_x * Chunk::W;
       int local_y = gy;
@@ -474,5 +476,8 @@ void World::remeshChunk(int cx, int cz) {
       pending_uploads.push_back({key, &chunk_ptr->opaqueMesh, std::move(opaque_mesh)});
       pending_uploads.push_back({key, &chunk_ptr->transparentMesh, std::move(transparent_mesh)});
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "remeshChunk took " << duration.count() << "ms" << std::endl;
   });
 }

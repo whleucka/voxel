@@ -22,17 +22,13 @@ size_t getMemoryUsage() {
 }
 
 void keyCallback(GLFWwindow *window, int key, int, int action, int) {
-  // This is better than processInput, because I don't have to worry about key
-  // held vs key pressed, etc
-  if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
-    Engine *engine =
-        reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
-    engine->debug = !engine->debug;
+  Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
+  if (!engine) {
+    return;
   }
-  if (key == GLFW_KEY_F4 && action == GLFW_PRESS) {
-    Engine *engine =
-        reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
-    engine->wireframe = !engine->wireframe;
+
+  if (action == GLFW_PRESS) {
+    engine->handleKeyPress(key, action);
   }
 }
 
@@ -319,6 +315,7 @@ void Engine::imgui() {
     ImGui::Text("Player: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
     ImGui::Text("Memory usage: %zu MB", getMemoryUsage());
     ImGui::Text("Chunks loaded: %zu", world.getLoadedChunkCount());
+    ImGui::Text("Selected block: %s", BlockDataManager::getInstance().getName(selected_block_type).c_str());
     ImGui::Checkbox("Wireframe mode", &wireframe);
     ImGui::End();
   }
@@ -352,7 +349,7 @@ void Engine::handleMouseClick(int button, int action, int) {
       auto [block_pos, normal] = *result;
       if (button == GLFW_MOUSE_BUTTON_RIGHT) {
         glm::ivec3 new_pos = block_pos + normal;
-        world.setBlock(new_pos.x, new_pos.y, new_pos.z, BlockType::GRASS);
+        world.setBlock(new_pos.x, new_pos.y, new_pos.z, selected_block_type);
       } else if (button == GLFW_MOUSE_BUTTON_LEFT) {
         world.setBlock(block_pos.x, block_pos.y, block_pos.z, BlockType::AIR);
       }
@@ -373,6 +370,57 @@ void Engine::handleMouseClick(int button, int action, int) {
       }
       if (block_pos.z % Chunk::L == Chunk::L - 1) {
         world.remeshChunk(cx, cz + 1);
+      }
+    }
+  }
+}
+
+void Engine::changeSelectedBlockType(BlockType type) {
+  selected_block_type = type;
+}
+
+void Engine::handleKeyPress(int key, int action) {
+  if (action == GLFW_PRESS) {
+    if (key == GLFW_KEY_F3) {
+      debug = !debug;
+    }
+    if (key == GLFW_KEY_F4) {
+      wireframe = !wireframe;
+    }
+
+    if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9) {
+      int block_num = key - GLFW_KEY_0;
+      switch (block_num) {
+      case 1:
+        changeSelectedBlockType(BlockType::STONE);
+        break;
+      case 2:
+        changeSelectedBlockType(BlockType::COBBLESTONE);
+        break;
+      case 3:
+        changeSelectedBlockType(BlockType::DIRT);
+        break;
+      case 4:
+        changeSelectedBlockType(BlockType::GRASS);
+        break;
+      case 5:
+        changeSelectedBlockType(BlockType::SAND);
+        break;
+      case 6:
+        changeSelectedBlockType(BlockType::SANDSTONE);
+        break;
+      case 7:
+        changeSelectedBlockType(BlockType::SNOW);
+        break;
+      case 8:
+        changeSelectedBlockType(BlockType::OAK_LOG);
+        break;
+      case 9:
+        changeSelectedBlockType(BlockType::PINE_LOG);
+        break;
+      case 0:
+        changeSelectedBlockType(BlockType::PALM_LOG);
+        break;
       }
     }
   }

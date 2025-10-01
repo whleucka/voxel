@@ -30,7 +30,7 @@ void BlockDataManager::load(const std::string &path) {
   }
 }
 
-static std::string BlockTypeToString(BlockType type) {
+std::string BlockDataManager::getName(BlockType type) const {
   switch (type) {
   case BlockType::AIR:
     return "air";
@@ -74,7 +74,7 @@ static std::string BlockTypeToString(BlockType type) {
 }
 
 glm::vec2 BlockDataManager::getUV(BlockType type, BlockFace face) const {
-  const std::string type_str = BlockTypeToString(type);
+  const std::string type_str = getName(type);
 
   if (!data.is_object())
     return {0, 0};
@@ -112,7 +112,7 @@ glm::vec2 BlockDataManager::getUV(BlockType type, BlockFace face) const {
 }
 
 bool BlockDataManager::isOpaque(BlockType type) const {
-  const std::string type_str = BlockTypeToString(type);
+  const std::string type_str = getName(type);
   if (!data.is_object()) return false;
   auto itBlocks = data.find("blocks");
   if (itBlocks == data.end() || !itBlocks->is_object()) return false;
@@ -127,7 +127,7 @@ bool BlockDataManager::isOpaque(BlockType type) const {
 }
 
 bool BlockDataManager::isTransparent(BlockType type) const {
-  const std::string type_str = BlockTypeToString(type);
+  const std::string type_str = getName(type);
   if (!data.is_object()) return false;
   auto itBlocks = data.find("blocks");
   if (itBlocks == data.end() || !itBlocks->is_object()) return false;
@@ -142,7 +142,7 @@ bool BlockDataManager::isTransparent(BlockType type) const {
 }
 
 bool BlockDataManager::isFluid(BlockType type) const {
-  const std::string type_str = BlockTypeToString(type);
+  const std::string type_str = getName(type);
   if (!data.is_object()) return false;
   auto itBlocks = data.find("blocks");
   if (itBlocks == data.end() || !itBlocks->is_object()) return false;
@@ -157,7 +157,7 @@ bool BlockDataManager::isFluid(BlockType type) const {
 }
 
 bool BlockDataManager::isSolid(BlockType type) const {
-  const std::string type_str = BlockTypeToString(type);
+  const std::string type_str = getName(type);
   if (!data.is_object()) return false;
   auto itBlocks = data.find("blocks");
   if (itBlocks == data.end() || !itBlocks->is_object()) return false;
@@ -172,7 +172,7 @@ bool BlockDataManager::isSolid(BlockType type) const {
 }
 
 bool BlockDataManager::isSelectable(BlockType type) const {
-  const std::string type_str = BlockTypeToString(type);
+  const std::string type_str = getName(type);
   if (!data.is_object()) return false;
   auto itBlocks = data.find("blocks");
   if (itBlocks == data.end() || !itBlocks->is_object()) return false;

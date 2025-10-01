@@ -17,6 +17,7 @@ public:
   }
 
   void load(const std::string &path);
+  std::string getName(BlockType type) const;
   glm::vec2 getUV(BlockType type, BlockFace face) const;
 
   bool isOpaque(BlockType type) const;

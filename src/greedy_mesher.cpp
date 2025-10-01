@@ -88,12 +88,14 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
   std::vector<Vertex> vO, vT;
   std::vector<unsigned int> iO, iT;
 
-  auto isOccluding = [&](int x, int y, int z) {
-    BlockType type = sample(x, y, z);
-    return !isAir(type) && BlockDataManager::getInstance().isOpaque(type);
-  };
+  std::vector<bool> is_opaque_cache(256, false);
+  std::vector<bool> is_transparent_cache(256, false);
+  for (int i = 0; i < 256; ++i) {
+    is_opaque_cache[i] = BlockDataManager::getInstance().isOpaque(static_cast<BlockType>(i));
+    is_transparent_cache[i] = BlockDataManager::getInstance().isTransparent(static_cast<BlockType>(i));
+  }
 
-  auto vertexAO = [&](int x, int y, int z, const glm::vec3 &normal) {
+  auto vertexAO = [&](int x, int y, int z, const glm::vec3 &normal, const std::vector<bool>& is_opaque_cache) {
     int side1_dx = 0, side1_dy = 0, side1_dz = 0;
     int side2_dx = 0, side2_dy = 0, side2_dz = 0;
     int corner_dx = 0, corner_dy = 0, corner_dz = 0;
@@ -109,9 +111,9 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
     corner_dy = side1_dy + side2_dy;
     corner_dz = side1_dz + side2_dz;
 
-    bool side1 = isOccluding(x + side1_dx, y + side1_dy, z + side1_dz);
-    bool side2 = isOccluding(x + side2_dx, y + side2_dy, z + side2_dz);
-    bool corner = isOccluding(x + corner_dx, y + corner_dy, z + corner_dz);
+    bool side1 = is_opaque_cache[static_cast<uint8_t>(sample(x + side1_dx, y + side1_dy, z + side1_dz))];
+    bool side2 = is_opaque_cache[static_cast<uint8_t>(sample(x + side2_dx, y + side2_dy, z + side2_dz))];
+    bool corner = is_opaque_cache[static_cast<uint8_t>(sample(x + corner_dx, y + corner_dy, z + corner_dz))];
 
     int occlusion = 0;
     if (side1 && side2) {
@@ -169,7 +171,7 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
           }
           const BlockType nb = (y + 1 < Y) ? sample(baseX + x, y + 1, baseZ + z)
                                            : BlockType::AIR;
-          const bool draw = isAir(nb) || (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+          const bool draw = isAir(nb) || (is_opaque_cache[static_cast<uint8_t>(bt)] != is_opaque_cache[static_cast<uint8_t>(nb)]);
           if (!draw) {
             mask[x + z * X].set = false;
             continue;
@@ -194,13 +196,13 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
         glm::vec2 LUV[4] = {{0, h}, {w, h}, {w, 0}, {0, 0}};
         
         float ao[4];
-        ao[0] = vertexAO(baseX + u, y + 1, baseZ + v + h, {0, 1, 0});
-        ao[1] = vertexAO(baseX + u + w, y + 1, baseZ + v + h, {0, 1, 0});
-        ao[2] = vertexAO(baseX + u + w, y + 1, baseZ + v, {0, 1, 0});
-        ao[3] = vertexAO(baseX + u, y + 1, baseZ + v, {0, 1, 0});
+        ao[0] = vertexAO(baseX + u, y + 1, baseZ + v + h, {0, 1, 0}, is_opaque_cache);
+        ao[1] = vertexAO(baseX + u + w, y + 1, baseZ + v + h, {0, 1, 0}, is_opaque_cache);
+        ao[2] = vertexAO(baseX + u + w, y + 1, baseZ + v, {0, 1, 0}, is_opaque_cache);
+        ao[3] = vertexAO(baseX + u, y + 1, baseZ + v, {0, 1, 0}, is_opaque_cache);
 
-        auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + u, y, baseZ + v)) ? vT : vO;
-        auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + u, y, baseZ + v)) ? iT : iO;
+        auto &VV = is_transparent_cache[static_cast<uint8_t>(sample(baseX + u, y, baseZ + v))] ? vT : vO;
+        auto &II = is_transparent_cache[static_cast<uint8_t>(sample(baseX + u, y, baseZ + v))] ? iT : iO;
         pushQuadTiled(VV, II, P, {0, 1, 0}, LUV, tileBase, ao);
       };
 
@@ -220,10 +222,10 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
                                    ? sample(baseX + x, y - 1, baseZ + z)
                                    : BlockType::AIR;
           bool draw = isAir(nb) || 
-            (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+            (is_opaque_cache[static_cast<uint8_t>(bt)] != is_opaque_cache[static_cast<uint8_t>(nb)]);
 
           // Extra rule: if current block is fluid, and neighbor is opaque → skip
-          if (BlockDataManager::getInstance().isFluid(bt) && BlockDataManager::getInstance().isOpaque(nb)) {
+          if (BlockDataManager::getInstance().isFluid(bt) && is_opaque_cache[static_cast<uint8_t>(nb)]) {
             draw = false;
           }
           if (!draw) {
@@ -250,13 +252,13 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
         glm::vec2 LUV[4] = {{0, 0}, {w, 0}, {w, h}, {0, h}};
 
         float ao[4];
-        ao[0] = vertexAO(baseX + u, y, baseZ + v, {0, -1, 0});
-        ao[1] = vertexAO(baseX + u + w, y, baseZ + v, {0, -1, 0});
-        ao[2] = vertexAO(baseX + u + w, y, baseZ + v + h, {0, -1, 0});
-        ao[3] = vertexAO(baseX + u, y, baseZ + v + h, {0, -1, 0});
+        ao[0] = vertexAO(baseX + u, y, baseZ + v, {0, -1, 0}, is_opaque_cache);
+        ao[1] = vertexAO(baseX + u + w, y, baseZ + v, {0, -1, 0}, is_opaque_cache);
+        ao[2] = vertexAO(baseX + u + w, y, baseZ + v + h, {0, -1, 0}, is_opaque_cache);
+        ao[3] = vertexAO(baseX + u, y, baseZ + v + h, {0, -1, 0}, is_opaque_cache);
 
-        auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + u, y, baseZ + v)) ? vT : vO;
-        auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + u, y, baseZ + v)) ? iT : iO;
+        auto &VV = is_transparent_cache[static_cast<uint8_t>(sample(baseX + u, y, baseZ + v))] ? vT : vO;
+        auto &II = is_transparent_cache[static_cast<uint8_t>(sample(baseX + u, y, baseZ + v))] ? iT : iO;
         pushQuadTiled(VV, II, P, {0, -1, 0}, LUV, tileBase, ao);
       };
       greedy2D(X, Z, mask, emitBottom, same);
@@ -278,9 +280,9 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
           }
           const BlockType nb = edgeFluidNeighbor(bt, x, y, z, /*nx=*/0, /*nz=*/+1);
           bool draw = isAir(nb) ||
-            (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+            (is_opaque_cache[static_cast<uint8_t>(bt)] != is_opaque_cache[static_cast<uint8_t>(nb)]);
 
-          if (BlockDataManager::getInstance().isFluid(bt) && BlockDataManager::getInstance().isOpaque(nb)) {
+          if (BlockDataManager::getInstance().isFluid(bt) && is_opaque_cache[static_cast<uint8_t>(nb)]) {
             draw = false;
           }
           if (!draw) {
@@ -306,13 +308,13 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
         glm::vec2 LUV[4] = {{0, 0}, {w, 0}, {w, h}, {0, h}};
 
         float ao[4];
-        ao[0] = vertexAO(baseX + u, v, baseZ + z + 1, {0, 0, 1});
-        ao[1] = vertexAO(baseX + u + w, v, baseZ + z + 1, {0, 0, 1});
-        ao[2] = vertexAO(baseX + u + w, v + h, baseZ + z + 1, {0, 0, 1});
-        ao[3] = vertexAO(baseX + u, v + h, baseZ + z + 1, {0, 0, 1});
+        ao[0] = vertexAO(baseX + u, v, baseZ + z + 1, {0, 0, 1}, is_opaque_cache);
+        ao[1] = vertexAO(baseX + u + w, v, baseZ + z + 1, {0, 0, 1}, is_opaque_cache);
+        ao[2] = vertexAO(baseX + u + w, v + h, baseZ + z + 1, {0, 0, 1}, is_opaque_cache);
+        ao[3] = vertexAO(baseX + u, v + h, baseZ + z + 1, {0, 0, 1}, is_opaque_cache);
 
-        auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + u, v, baseZ + z)) ? vT : vO;
-        auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + u, v, baseZ + z)) ? iT : iO;
+        auto &VV = is_transparent_cache[static_cast<uint8_t>(sample(baseX + u, v, baseZ + z))] ? vT : vO;
+        auto &II = is_transparent_cache[static_cast<uint8_t>(sample(baseX + u, v, baseZ + z))] ? iT : iO;
         pushQuadTiled(VV, II, P, {0, 0, 1}, LUV, tileBase, ao);
       };
       greedy2D(X, Y, mask, emitFront, same);
@@ -329,9 +331,9 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
           }
           const BlockType nb = edgeFluidNeighbor(bt, x, y, z, /*nx=*/0, /*nz=*/-1);
           bool draw = isAir(nb) ||
-            (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+            (is_opaque_cache[static_cast<uint8_t>(bt)] != is_opaque_cache[static_cast<uint8_t>(nb)]);
 
-          if (BlockDataManager::getInstance().isFluid(bt) && BlockDataManager::getInstance().isOpaque(nb)) {
+          if (BlockDataManager::getInstance().isFluid(bt) && is_opaque_cache[static_cast<uint8_t>(nb)]) {
             draw = false;
           }
           if (!draw) {
@@ -358,13 +360,13 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
         glm::vec2 LUV[4] = {{w, 0}, {0, 0}, {0, h}, {w, h}};
 
         float ao[4];
-        ao[0] = vertexAO(baseX + u + w, v, baseZ + z, {0, 0, -1});
-        ao[1] = vertexAO(baseX + u, v, baseZ + z, {0, 0, -1});
-        ao[2] = vertexAO(baseX + u, v + h, baseZ + z, {0, 0, -1});
-        ao[3] = vertexAO(baseX + u + w, v + h, baseZ + z, {0, 0, -1});
+        ao[0] = vertexAO(baseX + u + w, v, baseZ + z, {0, 0, -1}, is_opaque_cache);
+        ao[1] = vertexAO(baseX + u, v, baseZ + z, {0, 0, -1}, is_opaque_cache);
+        ao[2] = vertexAO(baseX + u, v + h, baseZ + z, {0, 0, -1}, is_opaque_cache);
+        ao[3] = vertexAO(baseX + u + w, v + h, baseZ + z, {0, 0, -1}, is_opaque_cache);
 
-        auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + u, v, baseZ + z)) ? vT : vO;
-        auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + u, v, baseZ + z)) ? iT : iO;
+        auto &VV = is_transparent_cache[static_cast<uint8_t>(sample(baseX + u, v, baseZ + z))] ? vT : vO;
+        auto &II = is_transparent_cache[static_cast<uint8_t>(sample(baseX + u, v, baseZ + z))] ? iT : iO;
         pushQuadTiled(VV, II, P, {0, 0, -1}, LUV, tileBase, ao);
       };
       greedy2D(X, Y, mask, emitBack, same);
@@ -386,9 +388,9 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
           }
           const BlockType nb = edgeFluidNeighbor(bt, x, y, z, /*nx=*/+1, /*nz=*/0);
           bool draw = isAir(nb) ||
-            (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+            (is_opaque_cache[static_cast<uint8_t>(bt)] != is_opaque_cache[static_cast<uint8_t>(nb)]);
 
-          if (BlockDataManager::getInstance().isFluid(bt) && BlockDataManager::getInstance().isOpaque(nb)) {
+          if (BlockDataManager::getInstance().isFluid(bt) && is_opaque_cache[static_cast<uint8_t>(nb)]) {
             draw = false;
           }
           if (!draw) {
@@ -415,13 +417,13 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
         glm::vec2 LUV[4] = {{w, 0}, {0, 0}, {0, h}, {w, h}};
 
         float ao[4];
-        ao[0] = vertexAO(baseX + x + 1, v, baseZ + u + w, {1, 0, 0});
-        ao[1] = vertexAO(baseX + x + 1, v, baseZ + u, {1, 0, 0});
-        ao[2] = vertexAO(baseX + x + 1, v + h, baseZ + u, {1, 0, 0});
-        ao[3] = vertexAO(baseX + x + 1, v + h, baseZ + u + w, {1, 0, 0});
+        ao[0] = vertexAO(baseX + x + 1, v, baseZ + u + w, {1, 0, 0}, is_opaque_cache);
+        ao[1] = vertexAO(baseX + x + 1, v, baseZ + u, {1, 0, 0}, is_opaque_cache);
+        ao[2] = vertexAO(baseX + x + 1, v + h, baseZ + u, {1, 0, 0}, is_opaque_cache);
+        ao[3] = vertexAO(baseX + x + 1, v + h, baseZ + u + w, {1, 0, 0}, is_opaque_cache);
 
-        auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + x, v, baseZ + u)) ? vT : vO;
-        auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + x, v, baseZ + u)) ? iT : iO;
+        auto &VV = is_transparent_cache[static_cast<uint8_t>(sample(baseX + x, v, baseZ + u))] ? vT : vO;
+        auto &II = is_transparent_cache[static_cast<uint8_t>(sample(baseX + x, v, baseZ + u))] ? iT : iO;
         pushQuadTiled(VV, II, P, {1, 0, 0}, LUV, tileBase, ao);
       };
       greedy2D(Z, Y, mask, emitRight, same);
@@ -438,9 +440,9 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
           }
           const BlockType nb = edgeFluidNeighbor(bt, x, y, z, /*nx=*/-1, /*nz=*/0);
           bool draw = isAir(nb) ||
-            (BlockDataManager::getInstance().isOpaque(bt) != BlockDataManager::getInstance().isOpaque(nb));
+            (is_opaque_cache[static_cast<uint8_t>(bt)] != is_opaque_cache[static_cast<uint8_t>(nb)]);
 
-          if (BlockDataManager::getInstance().isFluid(bt) && BlockDataManager::getInstance().isOpaque(nb)) {
+          if (BlockDataManager::getInstance().isFluid(bt) && is_opaque_cache[static_cast<uint8_t>(nb)]) {
             draw = false;
           }
           if (!draw) {
@@ -466,13 +468,13 @@ std::pair<CpuMesh, CpuMesh> GreedyMesher::build_cpu(const Chunk &chunk, SampleFn
         glm::vec2 LUV[4] = {{0, 0}, {w, 0}, {w, h}, {0, h}};
 
         float ao[4];
-        ao[0] = vertexAO(baseX + x, v, baseZ + u, {-1, 0, 0});
-        ao[1] = vertexAO(baseX + x, v, baseZ + u + w, {-1, 0, 0});
-        ao[2] = vertexAO(baseX + x, v + h, baseZ + u + w, {-1, 0, 0});
-        ao[3] = vertexAO(baseX + x, v + h, baseZ + u, {-1, 0, 0});
+        ao[0] = vertexAO(baseX + x, v, baseZ + u, {-1, 0, 0}, is_opaque_cache);
+        ao[1] = vertexAO(baseX + x, v, baseZ + u + w, {-1, 0, 0}, is_opaque_cache);
+        ao[2] = vertexAO(baseX + x, v + h, baseZ + u + w, {-1, 0, 0}, is_opaque_cache);
+        ao[3] = vertexAO(baseX + x, v + h, baseZ + u, {-1, 0, 0}, is_opaque_cache);
 
-        auto &VV = BlockDataManager::getInstance().isTransparent(sample(baseX + x, v, baseZ + u)) ? vT : vO;
-        auto &II = BlockDataManager::getInstance().isTransparent(sample(baseX + x, v, baseZ + u)) ? iT : iO;
+        auto &VV = is_transparent_cache[static_cast<uint8_t>(sample(baseX + x, v, baseZ + u))] ? vT : vO;
+        auto &II = is_transparent_cache[static_cast<uint8_t>(sample(baseX + x, v, baseZ + u))] ? iT : iO;
         pushQuadTiled(VV, II, P, {-1, 0, 0}, LUV, tileBase, ao);
       };
       greedy2D(Z, Y, mask, emitLeft, same);
