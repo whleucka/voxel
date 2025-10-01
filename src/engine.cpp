@@ -350,33 +350,46 @@ void Engine::handleMouseClick(int button, int action, int) {
       if (button == GLFW_MOUSE_BUTTON_RIGHT) {
         glm::ivec3 new_pos = block_pos + normal;
         world.setBlock(new_pos.x, new_pos.y, new_pos.z, selected_block_type);
+
+        int cx = floorDiv(new_pos.x, Chunk::W);
+        int cz = floorDiv(new_pos.z, Chunk::L);
+        world.remeshChunk(cx, cz);
+
+        if (new_pos.x % Chunk::W == 0) {
+          world.remeshChunk(cx - 1, cz);
+        }
+        if (new_pos.x % Chunk::W == Chunk::W - 1) {
+          world.remeshChunk(cx + 1, cz);
+        }
+        if (new_pos.z % Chunk::L == 0) {
+          world.remeshChunk(cx, cz - 1);
+        }
+        if (new_pos.z % Chunk::L == Chunk::L - 1) {
+          world.remeshChunk(cx, cz + 1);
+        }
       } else if (button == GLFW_MOUSE_BUTTON_LEFT) {
         world.setBlock(block_pos.x, block_pos.y, block_pos.z, BlockType::AIR);
-      }
 
-      int cx = floorDiv(block_pos.x, Chunk::W);
-      int cz = floorDiv(block_pos.z, Chunk::L);
-      world.remeshChunk(cx, cz);
+        int cx = floorDiv(block_pos.x, Chunk::W);
+        int cz = floorDiv(block_pos.z, Chunk::L);
+        world.remeshChunk(cx, cz);
 
-      // Also update neighbors if the block is on a chunk boundary
-      if (block_pos.x % Chunk::W == 0) {
-        world.remeshChunk(cx - 1, cz);
-      }
-      if (block_pos.x % Chunk::W == Chunk::W - 1) {
-        world.remeshChunk(cx + 1, cz);
-      }
-      if (block_pos.z % Chunk::L == 0) {
-        world.remeshChunk(cx, cz - 1);
-      }
-      if (block_pos.z % Chunk::L == Chunk::L - 1) {
-        world.remeshChunk(cx, cz + 1);
+        // Also update neighbors if the block is on a chunk boundary
+        if (block_pos.x % Chunk::W == 0) {
+          world.remeshChunk(cx - 1, cz);
+        }
+        if (block_pos.x % Chunk::W == Chunk::W - 1) {
+          world.remeshChunk(cx + 1, cz);
+        }
+        if (block_pos.z % Chunk::L == 0) {
+          world.remeshChunk(cx, cz - 1);
+        }
+        if (block_pos.z % Chunk::L == Chunk::L - 1) {
+          world.remeshChunk(cx, cz + 1);
+        }
       }
     }
   }
-}
-
-void Engine::changeSelectedBlockType(BlockType type) {
-  selected_block_type = type;
 }
 
 void Engine::handleKeyPress(int key, int action) {
@@ -392,34 +405,34 @@ void Engine::handleKeyPress(int key, int action) {
       int block_num = key - GLFW_KEY_0;
       switch (block_num) {
       case 1:
-        changeSelectedBlockType(BlockType::STONE);
+        selected_block_type = BlockType::STONE;
         break;
       case 2:
-        changeSelectedBlockType(BlockType::COBBLESTONE);
+        selected_block_type = BlockType::COBBLESTONE;
         break;
       case 3:
-        changeSelectedBlockType(BlockType::DIRT);
+        selected_block_type = BlockType::DIRT;
         break;
       case 4:
-        changeSelectedBlockType(BlockType::GRASS);
+        selected_block_type = BlockType::GRASS;
         break;
       case 5:
-        changeSelectedBlockType(BlockType::SAND);
+        selected_block_type = BlockType::SAND;
         break;
       case 6:
-        changeSelectedBlockType(BlockType::SANDSTONE);
+        selected_block_type = BlockType::OAK_LOG;
         break;
       case 7:
-        changeSelectedBlockType(BlockType::SNOW);
+        selected_block_type = BlockType::OAK_LEAF;
         break;
       case 8:
-        changeSelectedBlockType(BlockType::OAK_LOG);
+        selected_block_type = BlockType::PINE_LOG;
         break;
       case 9:
-        changeSelectedBlockType(BlockType::PINE_LOG);
+        selected_block_type = BlockType::PINE_LEAF;
         break;
       case 0:
-        changeSelectedBlockType(BlockType::PALM_LOG);
+        selected_block_type = BlockType::PALM_LOG;
         break;
       }
     }
