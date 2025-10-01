@@ -29,13 +29,13 @@ int TerrainGenerator::getHeight(float x, float z, float *biome_noise_out) {
 
   // --- Continental mask (defines large-scale landmasses) ---
   // Lower frequency = bigger continents
-  float continent = glm::perlin(glm::vec2(x, z) * 0.002f) * 0.5f + 0.5f;
+  float continent = glm::perlin(glm::vec2(x, z) * 0.0008f) * 0.5f + 0.5f;
 
   // Stage weights
   float ocean_factor  = glm::smoothstep(0.0f, 0.35f, 1.0f - continent);
-  float shelf_factor  = glm::smoothstep(0.35f, 0.55f, continent) *
-                        (1.0f - glm::smoothstep(0.55f, 0.75f, continent));
-  float inland_factor = glm::smoothstep(0.55f, 0.75f, continent);
+  float shelf_factor  = glm::smoothstep(0.10f, 0.65f, continent) *
+                        (1.0f - glm::smoothstep(0.45f, 0.8f, continent));
+  float inland_factor = glm::smoothstep(0.45f, 0.90f, continent);
 
   // --- Ocean (two layers of noise for seabed) ---
   double ocean_base = SEA_LEVEL - 12.0;
@@ -57,7 +57,7 @@ int TerrainGenerator::getHeight(float x, float z, float *biome_noise_out) {
   // --- Inland plains & mountains ---
   double plains_height = AMP + hNoise * 40.0;
 
-  double mountain_factor = glm::smoothstep(0.65, 0.95, biome_noise);
+  double mountain_factor = glm::smoothstep(0.45, 0.95, biome_noise);
   double plains_factor   = 1.0 - mountain_factor;
 
   double mountain_shape = pow(hNoise, 1.2); // sharper peaks

@@ -6,7 +6,7 @@
 #include <glm/gtc/noise.hpp>
 
 PlainsBiome::PlainsBiome()
-    : m_tree_spawner(0.7, std::make_unique<OakTreeGenerator>()) {}
+    : m_tree_spawner(0.85, std::make_unique<OakTreeGenerator>()) {}
 
 static BlockType generateInternalBlock(int x, int y, int z, int world_x,
                                        int world_z) {
