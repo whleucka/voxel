@@ -1,16 +1,8 @@
-#include "engine.hpp"
-#include <iostream>
-#include <GLFW/glfw3.h>
-#include <time.h>
-
-void glfw_error_callback(int error, const char* description) {
-    std::cerr << "GLFW Error (" << error << "): " << description << std::endl;
-}
+#include "core/constants.hpp"
+#include "core/engine.hpp"
 
 int main() {
-  srand(time(NULL));
-  glfwSetErrorCallback(glfw_error_callback);
-  Engine engine(800, 600, "Voxel 3D");
+  Engine engine(kScreenWidth, kScreenHeight, kAppTitle);
   if (!engine.init())
     return -1;
   engine.run();

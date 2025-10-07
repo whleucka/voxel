@@ -1,2 +1,5 @@
-bin/
-obj/
+/bin/
+/obj/
+imgui.ini
+compile_commands.json
+.cache/
