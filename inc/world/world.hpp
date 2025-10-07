@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 #include <memory>
 #include <unordered_map>
+#include "util/thread_pool.hpp"
 
 class World {
 public:
@@ -20,6 +21,8 @@ public:
   const Chunk* getChunk(int x, int z) const;
 
 private: 
+  ThreadPool thread_pool;
+  std::mutex chunks_mutex;
   GameClock game_clock;
   Renderer *renderer = nullptr;
   std::unordered_map<ChunkKey, std::unique_ptr<Chunk>, ChunkKeyHash> chunks;

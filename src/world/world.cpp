@@ -1,6 +1,7 @@
 #include "world/world.hpp"
 #include "render/renderer.hpp"
 #include <memory>
+#include <mutex>
 
 World::World() : renderer(new Renderer) {}
 
@@ -21,13 +22,16 @@ void World::init() {
   }
 }
 
-void World::addChunk(int wx, int wz) {
-  ChunkKey key{wx, wz};
-  auto [chunk, inserted] = chunks.emplace(key, std::make_unique<Chunk>(wx, wz));
-
-  if (inserted) {
-    chunk->second->uploadGPU(renderer->getTextureManager());
-  }
+void World::addChunk(int x, int z) {
+  ChunkKey key{x, z};
+  thread_pool.enqueue([this, x, z, key]() {
+    auto chunk = std::make_unique<Chunk>(x, z);
+    chunk->uploadGPU(renderer->getTextureManager());
+    {
+      std::lock_guard<std::mutex> lk(chunks_mutex);
+      chunks.emplace(key, chunk);
+    }
+  });
 }
 
 Chunk *World::getChunk(int x, int z) {
