@@ -12,7 +12,7 @@ public:
   ~Renderer();
 
   void init();
-  void drawChunks(const std::unordered_map<ChunkKey, std::unique_ptr<Chunk>, ChunkKeyHash> &chunks, const glm::mat4 &view, const glm::mat4 &projection);
+  void drawChunks(const std::vector<std::shared_ptr<Chunk>> &chunks, const glm::mat4 &view, const glm::mat4 &projection);
   TextureManager &getTextureManager() { return *texture_manager; }
 
 private:

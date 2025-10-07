@@ -5,9 +5,7 @@
 
 Chunk::Chunk(int x, int z)
     : pos({x, z}),
-      blocks(kChunkWidth * kChunkHeight * kChunkDepth, BlockType::AIR) {
-  init();
-}
+      blocks(kChunkWidth * kChunkHeight * kChunkDepth, BlockType::AIR) {}
 
 Chunk::~Chunk() {}
 
@@ -18,8 +16,12 @@ void Chunk::init() {
   biome->fillWater(*this);
 }
 
-void Chunk::uploadGPU(TextureManager &texture_manager) {
+void Chunk::generateMesh(TextureManager &texture_manager) {
   mesh.generate(*this, texture_manager);
+}
+
+void Chunk::uploadGPU() {
+  mesh.upload();
 }
 
 BlockType &Chunk::at(int x, int y, int z) {

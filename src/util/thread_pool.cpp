@@ -28,11 +28,3 @@ ThreadPool::~ThreadPool() {
   for (auto &worker : workers)
     worker.join();
 }
-
-void ThreadPool::enqueue(std::function<void()> job) {
-  {
-    std::lock_guard<std::mutex> lock(queue_mutex);
-    jobs.push(std::move(job));
-  }
-  condition.notify_one();
-}

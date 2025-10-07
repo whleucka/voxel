@@ -13,7 +13,7 @@ World::~World() {
 void World::init() {
   renderer->init();
 
-  int world_size = 5;
+  int world_size = 15;
 
   for (int x = 0; x < world_size; x++) {
     for (int z = 0; z < world_size; z++) {
@@ -24,36 +24,62 @@ void World::init() {
 
 void World::addChunk(int x, int z) {
   ChunkKey key{x, z};
-  thread_pool.enqueue([this, x, z, key]() {
-    auto chunk = std::make_unique<Chunk>(x, z);
-    chunk->uploadGPU(renderer->getTextureManager());
+  auto chunk = std::make_shared<Chunk>(x, z);
+  thread_pool.enqueue([this, chunk, key]() {
+    // Init chunk (generate terrain, block types)
+    chunk->init();
     {
       std::lock_guard<std::mutex> lk(chunks_mutex);
+      // Add new chunk
       chunks.emplace(key, chunk);
+      // Queue for mesh generation
+      generation_queue.push(chunk);
     }
   });
 }
 
-Chunk *World::getChunk(int x, int z) {
-  ChunkKey key{x, z};
-  auto it = chunks.find(key);
-  if (it != chunks.end()) {
-    return it->second.get();
+void World::update(float) {
+  std::lock_guard<std::mutex> lk(chunks_mutex);
+  // Generate the pending chunk meshes
+  while (!generation_queue.empty()) {
+    auto chunk = generation_queue.front();
+    generation_queue.pop();
+    chunk->generateMesh(renderer->getTextureManager());
+    // Queue for GPU upload
+    upload_queue.push(chunk);
   }
-  return nullptr;
-}
-
-const Chunk *World::getChunk(int x, int z) const {
-  ChunkKey key{x, z};
-  auto it = chunks.find(key);
-  if (it != chunks.end()) {
-    return it->second.get();
+  while (!upload_queue.empty()) {
+    // Send chunk to GPU for rendering
+    upload_queue.front()->uploadGPU();
+    upload_queue.pop();
   }
-  return nullptr;
 }
-
-void World::update(float) {}
 
 void World::render(glm::mat4 &view, glm::mat4 &projection) {
-  renderer->drawChunks(chunks, view, projection);
+  std::vector<std::shared_ptr<Chunk>> chunk_vector;
+  {
+    std::lock_guard<std::mutex> lk(chunks_mutex);
+    for (auto const &[key, val] : chunks) {
+      chunk_vector.push_back(val);
+    }
+  }
+  renderer->drawChunks(chunk_vector, view, projection);
+}
+
+std::shared_ptr<Chunk> World::getChunk(int x, int z) {
+  ChunkKey key{x, z};
+  auto it = chunks.find(key);
+  if (it != chunks.end()) {
+    return it->second;
+  }
+  return nullptr;
+}
+
+std::shared_ptr<const Chunk> World::getChunk(int x, int z) const {
+  ChunkKey key{x, z};
+  auto it = chunks.find(key);
+  if (it != chunks.end()) {
+    return it->second;
+  }
+  return nullptr;
 }

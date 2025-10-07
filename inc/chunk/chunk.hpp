@@ -25,7 +25,8 @@ public:
   ~Chunk();
 
   void init();
-  void uploadGPU(TextureManager &texture_manager);
+  void generateMesh(TextureManager &texture_manager);
+  void uploadGPU();
 
   BlockType &at(int x, int y, int z);
   const BlockType &at(int x, int y, int z) const;

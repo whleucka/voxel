@@ -15,6 +15,7 @@ public:
   ~ChunkMesh();
 
   void generate(Chunk &chunk, TextureManager &texture_manager);
+  void upload();
   void render();
 
 private:

@@ -15,15 +15,13 @@ void Renderer::init() {
   texture_manager->loadAtlas("res/block_atlas.png");
 }
 
-void Renderer::drawChunks(
-    const std::unordered_map<ChunkKey, std::unique_ptr<Chunk>, ChunkKeyHash>
-        &chunks,
-    const glm::mat4 &view, const glm::mat4 &projection) {
+void Renderer::drawChunks(const std::vector<std::shared_ptr<Chunk>> &chunks,
+                          const glm::mat4 &view, const glm::mat4 &projection) {
   block_shader->use();
   texture_manager->bind(GL_TEXTURE0);
   block_shader->setInt("uTexture", 0);
 
-  for (auto &[key, chunk] : chunks) {
+  for (auto &chunk : chunks) {
     block_shader->setMat4("model", chunk->getModelMatrix());
     block_shader->setMat4("view", view);
     block_shader->setMat4("projection", projection);

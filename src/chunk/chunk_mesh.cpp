@@ -152,7 +152,9 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
       }
     }
   }
+}
 
+void ChunkMesh::upload() {
   glBindVertexArray(VAO);
 
   glBindBuffer(GL_ARRAY_BUFFER, VBO);

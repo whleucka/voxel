@@ -12,7 +12,14 @@ public:
   ThreadPool(size_t numThreads = std::thread::hardware_concurrency());
   ~ThreadPool();
 
-  void enqueue(std::function<void()> job);
+  template <class F>
+  void enqueue(F &&f) {
+    {
+      std::unique_lock<std::mutex> lock(queue_mutex);
+      jobs.push(std::function<void()>(std::forward<F>(f)));
+    }
+    condition.notify_one();
+  }
 
 private:
   std::vector<std::thread> workers;
