@@ -24,16 +24,14 @@ public:
   Chunk(int x, int z);
   ~Chunk();
 
+  void generate();
   void uploadGPU(TextureManager &texture_manager);
 
   BlockType &at(int x, int y, int z);
-
   const BlockType &at(int x, int y, int z) const;
 
   ChunkMesh &getMesh() { return mesh; }
-
   glm::mat4 getModelMatrix() const;
-
   glm::vec2 getPos() { return pos; }
 
 private:

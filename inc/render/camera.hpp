@@ -2,7 +2,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-enum Camera_Movement { FORWARD, BACKWARD, LEFT, RIGHT, UP, DOWN };
+enum CameraMovement { FORWARD = 0, BACKWARD, LEFT, RIGHT, UP, DOWN };
 
 class Camera {
 public:
@@ -33,7 +33,7 @@ public:
     return glm::lookAt(position, position + front, up);
   }
 
-  void processKeyboard(Camera_Movement dir, float dt) {
+  void processKeyboard(CameraMovement dir, float dt) {
     float v = movement_speed * dt;
     if (dir == FORWARD)
       position += front * v;

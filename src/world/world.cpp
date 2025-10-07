@@ -1,5 +1,4 @@
 #include "world/world.hpp"
-#include "core/constants.hpp"
 #include "render/renderer.hpp"
 #include <memory>
 
@@ -12,7 +11,8 @@ World::~World() {
 
 void World::init() {
   renderer->init();
-  int world_size = 7;
+
+  int world_size = 20;
 
   for (int x = 0; x < world_size; x++) {
     for (int z = 0; z < world_size; z++) {
@@ -23,26 +23,9 @@ void World::init() {
 
 void World::addChunk(int wx, int wz) {
   ChunkKey key{wx, wz};
-
   auto [chunk, inserted] = chunks.emplace(key, std::make_unique<Chunk>(wx, wz));
 
   if (inserted) {
-    for (int x = 0; x < kChunkWidth; x++) {
-      for (int z = 0; z < kChunkDepth; z++) {
-        const int world_x = wx * kChunkWidth + x;
-        const int world_z = wz * kChunkDepth + z;
-        int h = terrain_manager.getHeight({world_x, world_z});
-        for (int y = 0; y < h; y++) {
-          if (y == h - 1) {
-            // Top block
-            chunk->second->at(x, y, z) = BlockType::GRASS;
-          } else {
-            chunk->second->at(x, y, z) = BlockType::DIRT;
-          }
-        }
-      }
-    }
-
     chunk->second->uploadGPU(renderer->getTextureManager());
   }
 }

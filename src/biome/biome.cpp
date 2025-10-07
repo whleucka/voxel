@@ -1,6 +1,8 @@
-#include "world/terrain_manager.hpp"
+#include "biome/biome.hpp"
+#include "block/block_type.hpp"
 #include "core/constants.hpp"
 #include "util/noise.hpp"
+#include <glm/fwd.hpp>
 
 const float FREQ = 0.04f;
 const float AMP = 35.0f;
@@ -8,11 +10,42 @@ const float OCTAVES = 4.0f;
 const float LACUNARITY = 1.2f;
 const float GAIN = 0.5f;
 
-TerrainManager::TerrainManager() {}
+void Biome::generateTerrain(Chunk &chunk) {
+  glm::vec2 pos = chunk.getPos();
+  for (int x = 0; x < kChunkWidth; x++) {
+    for (int z = 0; z < kChunkDepth; z++) {
+      const int world_x = pos[0] * kChunkWidth + x;
+      const int world_z = pos[1] * kChunkDepth + z;
+      int h = getHeight({world_x, world_z});
+      for (int y = 0; y < h; y++) {
+        if (y == h - 1) {
+          chunk.at(x, y, z) = generateTopBlock();
+        } else {
+          chunk.at(x, y, z) = generateInternalBlock(x, y, z);
+        }
+      }
+    }
+  }
+}
 
-TerrainManager::~TerrainManager() {}
+void Biome::fillWater(Chunk &chunk) {
+  glm::vec2 pos = chunk.getPos();
+  for (int x = 0; x < kChunkWidth; x++) {
+    for (int z = 0; z < kChunkDepth; z++) {
+      const int world_x = pos[0] * kChunkWidth + x;
+      const int world_z = pos[1] * kChunkDepth + z;
+      int h = getHeight({world_x, world_z});
+      for (int y = 0; y < h; y++) {
+        const BlockType& type = chunk.at(x, y, z);
+        if (y <= kSeaLevel && type == BlockType::AIR) {
+          chunk.at(x, y, z) = BlockType::WATER;
+        }
+      }
+    }
+  }
+}
 
-int TerrainManager::getHeight(glm::vec2 pos, float *biome_noise_out) {
+int Biome::getHeight(glm::vec2 pos, float *biome_noise_out) {
   int x = pos[0];
   int z = pos[1];
   glm::vec3 position((x + 0.1f) * FREQ, (z + 0.1f) * FREQ, 0.0);

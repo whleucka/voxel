@@ -3,7 +3,6 @@
 #include "chunk/chunk.hpp"
 #include "render/renderer.hpp"
 #include "world/game_clock.hpp"
-#include "world/terrain_manager.hpp"
 #include <glm/glm.hpp>
 #include <memory>
 #include <unordered_map>
@@ -21,7 +20,6 @@ public:
   const Chunk* getChunk(int x, int z) const;
 
 private: 
-  TerrainManager terrain_manager;
   GameClock game_clock;
   Renderer *renderer = nullptr;
   std::unordered_map<ChunkKey, std::unique_ptr<Chunk>, ChunkKeyHash> chunks;
