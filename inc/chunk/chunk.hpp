@@ -24,7 +24,7 @@ public:
   Chunk(int x, int z);
   ~Chunk();
 
-  void generate();
+  void init();
   void uploadGPU(TextureManager &texture_manager);
 
   BlockType &at(int x, int y, int z);

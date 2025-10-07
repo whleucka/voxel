@@ -6,12 +6,12 @@
 Chunk::Chunk(int x, int z)
     : pos({x, z}),
       blocks(kChunkWidth * kChunkHeight * kChunkDepth, BlockType::AIR) {
-  generate();
+  init();
 }
 
 Chunk::~Chunk() {}
 
-void Chunk::generate() {
+void Chunk::init() {
   BiomeType biome_type = BiomeManager::getBiomeForChunk(pos[0], pos[1]);
   std::unique_ptr<Biome> biome = BiomeManager::createBiome(biome_type);
   biome->generateTerrain(*this);
