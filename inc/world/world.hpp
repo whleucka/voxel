@@ -26,6 +26,6 @@ private:
   GameClock game_clock;
   Renderer *renderer = nullptr;
   std::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash> chunks;
-  std::queue<std::shared_ptr<Chunk>> generation_queue; // Queue for mesh generation
+  std::queue<std::shared_ptr<Chunk>> mesh_queue; // Queue for mesh generation
   std::queue<std::shared_ptr<Chunk>> upload_queue; // Queue for GPU upload
 };

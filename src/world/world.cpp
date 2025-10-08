@@ -13,7 +13,7 @@ World::~World() {
 void World::init() {
   renderer->init();
 
-  int world_size = 15;
+  int world_size = 7;
 
   for (int x = 0; x < world_size; x++) {
     for (int z = 0; z < world_size; z++) {
@@ -33,7 +33,7 @@ void World::addChunk(int x, int z) {
       // Add new chunk
       chunks.emplace(key, chunk);
       // Queue for mesh generation
-      generation_queue.push(chunk);
+      mesh_queue.push(chunk);
     }
   });
 }
@@ -41,9 +41,9 @@ void World::addChunk(int x, int z) {
 void World::update(float) {
   std::lock_guard<std::mutex> lk(chunks_mutex);
   // Generate the pending chunk meshes
-  while (!generation_queue.empty()) {
-    auto chunk = generation_queue.front();
-    generation_queue.pop();
+  while (!mesh_queue.empty()) {
+    auto chunk = mesh_queue.front();
+    mesh_queue.pop();
     chunk->generateMesh(renderer->getTextureManager());
     // Queue for GPU upload
     upload_queue.push(chunk);
@@ -56,14 +56,14 @@ void World::update(float) {
 }
 
 void World::render(glm::mat4 &view, glm::mat4 &projection) {
-  std::vector<std::shared_ptr<Chunk>> chunk_vector;
+  std::vector<std::shared_ptr<Chunk>> render_chunks;
   {
     std::lock_guard<std::mutex> lk(chunks_mutex);
     for (auto const &[key, val] : chunks) {
-      chunk_vector.push_back(val);
+      render_chunks.push_back(val);
     }
   }
-  renderer->drawChunks(chunk_vector, view, projection);
+  renderer->drawChunks(render_chunks, view, projection);
 }
 
 std::shared_ptr<Chunk> World::getChunk(int x, int z) {
