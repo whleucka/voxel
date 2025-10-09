@@ -39,19 +39,33 @@ void World::addChunk(int x, int z) {
 }
 
 void World::update(float) {
-  std::lock_guard<std::mutex> lk(chunks_mutex);
-  // Generate the pending chunk meshes
-  while (!mesh_queue.empty()) {
-    auto chunk = mesh_queue.front();
-    mesh_queue.pop();
+  std::shared_ptr<Chunk> chunk;
+
+  while (true) {
+    {
+      std::lock_guard<std::mutex> lk(chunks_mutex);
+      if (mesh_queue.empty())
+        break;
+      chunk = mesh_queue.front();
+      mesh_queue.pop();
+    }
     chunk->generateMesh(renderer->getTextureManager());
-    // Queue for GPU upload
-    upload_queue.push(chunk);
+
+    {
+      std::lock_guard<std::mutex> lk(chunks_mutex);
+      upload_queue.push(chunk);
+    }
   }
-  while (!upload_queue.empty()) {
-    // Send chunk to GPU for rendering
-    upload_queue.front()->uploadGPU();
-    upload_queue.pop();
+
+  while (true) {
+    {
+      std::lock_guard<std::mutex> lk(chunks_mutex);
+      if (upload_queue.empty())
+        break;
+      chunk = upload_queue.front();
+      upload_queue.pop();
+    }
+    chunk->uploadGPU();
   }
 }
 
