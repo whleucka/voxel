@@ -7,6 +7,13 @@
 
 namespace {
 
+// helper: turn your 4-corner atlas uvs into offset+span
+inline void uvOffsetSpan(const std::array<glm::vec2,4>& uvs,
+                         glm::vec2& offset, glm::vec2& span) {
+  offset = uvs[0];                 // TL
+  span   = uvs[2] - uvs[0];        // BR - TL -> (du,dv)
+}
+
 void addQuad(std::vector<BlockVertex> &vertices, std::vector<unsigned int> &indices, const glm::ivec3 &pos, const glm::ivec2 &size, const std::array<glm::vec2, 4> &uvs, Face face);
 
 void addQuad(std::vector<BlockVertex> &vertices,
@@ -17,46 +24,58 @@ void addQuad(std::vector<BlockVertex> &vertices,
              Face face) {
   int start_index = vertices.size();
 
+  glm::vec2 offset, span;
+  uvOffsetSpan(uvs, offset, span);
+
+  // optional tiny padding to avoid bleeding between atlas tiles
+  const float px = 0.5f / 512.0f;    // 0.5 texel on a 512 atlas
+  offset += glm::vec2(px);
+  span   -= glm::vec2(2.0f * px);
+
+  auto V = [&](float bx, float by, glm::vec3 P, glm::vec3 N) {
+    vertices.push_back({P, N, {bx, by}, offset, span});
+  };
+
   switch (face) {
     case Face::Top: // +Y
-      vertices.push_back({{pos.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f}, {0,1,0}, uvs[0]}); // TL
-      vertices.push_back({{pos.x + size.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f}, {0,1,0}, uvs[1]}); // TR
-      vertices.push_back({{pos.x + size.x - 0.5f, pos.y + 0.5f, pos.z + size.y - 0.5f}, {0,1,0}, uvs[2]}); // BR
-      vertices.push_back({{pos.x - 0.5f, pos.y + 0.5f, pos.z + size.y - 0.5f}, {0,1,0}, uvs[3]}); // BL
+      V(0, 0, {pos.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f}, {0,1,0}); // TL
+      V(size.x, 0, {pos.x + size.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f}, {0,1,0}); // TR
+      V(size.x, size.y, {pos.x + size.x - 0.5f, pos.y + 0.5f, pos.z + size.y - 0.5f}, {0,1,0}); // BR
+      V(0, size.y, {pos.x - 0.5f, pos.y + 0.5f, pos.z + size.y - 0.5f}, {0,1,0}); // BL
       break;
 
     case Face::Bottom: // -Y
-      vertices.push_back({{pos.x - 0.5f, pos.y - 0.5f, pos.z + size.y - 0.5f}, {0,-1,0}, uvs[0]}); // TL
-      vertices.push_back({{pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z + size.y - 0.5f}, {0,-1,0}, uvs[1]}); // TR
-      vertices.push_back({{pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,-1,0}, uvs[2]}); // BR
-      vertices.push_back({{pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,-1,0}, uvs[3]}); // BL
+      V(0, 0, {pos.x - 0.5f, pos.y - 0.5f, pos.z + size.y - 0.5f}, {0,-1,0}); // TL
+      V(size.x, 0, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z + size.y - 0.5f}, {0,-1,0}); // TR
+      V(size.x, size.y, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,-1,0}); // BR
+      V(0, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,-1,0}); // BL
       break;
 
     case Face::Front: // +Z
-      vertices.push_back({{pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z + 0.5f}, {0,0,1}, uvs[0]}); // TL
-      vertices.push_back({{pos.x + size.x - 0.5f, pos.y + size.y - 0.5f, pos.z + 0.5f}, {0,0,1}, uvs[1]}); // TR
-      vertices.push_back({{pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f}, {0,0,1}, uvs[2]}); // BR
-      vertices.push_back({{pos.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f}, {0,0,1}, uvs[3]}); // BL
+      V(0, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z + 0.5f}, {0,0,1}); // TL
+      V(size.x, 0, {pos.x + size.x - 0.5f, pos.y + size.y - 0.5f, pos.z + 0.5f}, {0,0,1}); // TR
+      V(size.x, size.y, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f}, {0,0,1}); // BR
+      V(0, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f}, {0,0,1}); // BL
       break;
     case Face::Back: // -Z
-      vertices.push_back({{pos.x + size.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {0,0,-1}, uvs[0]}); // TL
-      vertices.push_back({{pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {0,0,-1}, uvs[1]}); // TR
-      vertices.push_back({{pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,0,-1}, uvs[2]}); // BR
-      vertices.push_back({{pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,0,-1}, uvs[3]}); // BL
+      V(0, 0, {pos.x + size.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {0,0,-1}); // TL
+      V(size.x, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {0,0,-1}); // TR
+      V(size.x, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,0,-1}); // BR
+      V(0, size.y, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,0,-1}); // BL
       break;
 
     case Face::Right: // +X
-      vertices.push_back({{pos.x + 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {1,0,0}, uvs[0]}); // TL
-      vertices.push_back({{pos.x + 0.5f, pos.y + size.y - 0.5f, pos.z + size.x - 0.5f}, {1,0,0}, uvs[1]}); // TR
-      vertices.push_back({{pos.x + 0.5f, pos.y - 0.5f, pos.z + size.x - 0.5f}, {1,0,0}, uvs[2]}); // BR
-      vertices.push_back({{pos.x + 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {1,0,0}, uvs[3]}); // BL
+      V(0, 0, {pos.x + 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {1,0,0}); // TL
+      V(size.x, 0, {pos.x + 0.5f, pos.y + size.y - 0.5f, pos.z + size.x - 0.5f}, {1,0,0}); // TR
+      V(size.x, size.y, {pos.x + 0.5f, pos.y - 0.5f, pos.z + size.x - 0.5f}, {1,0,0}); // BR
+      V(0, size.y, {pos.x + 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {1,0,0}); // BL
       break;
 
     case Face::Left: // -X
-      vertices.push_back({{pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z + size.x - 0.5f}, {-1,0,0}, uvs[0]}); // TL
-      vertices.push_back({{pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {-1,0,0}, uvs[1]}); // TR
-      vertices.push_back({{pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {-1,0,0}, uvs[2]}); // BR
-      vertices.push_back({{pos.x - 0.5f, pos.y - 0.5f, pos.z + size.x - 0.5f}, {-1,0,0}, uvs[3]}); // BL
+      V(0, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z + size.x - 0.5f}, {-1,0,0}); // TL
+      V(size.x, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {-1,0,0}); // TR
+      V(size.x, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {-1,0,0}); // BR
+      V(0, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z + size.x - 0.5f}, {-1,0,0}); // BL
       break;
   }
 
@@ -456,6 +475,16 @@ void ChunkMesh::upload() {
   glEnableVertexAttribArray(2);
   glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(BlockVertex),
                         (void *)offsetof(BlockVertex, uv));
+
+  // tileOffset
+  glEnableVertexAttribArray(3);
+  glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(BlockVertex),
+                        (void *)offsetof(BlockVertex, tileOffset));
+
+  // tileSpan
+  glEnableVertexAttribArray(4);
+  glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(BlockVertex),
+                        (void *)offsetof(BlockVertex, tileSpan));
 
   glBindVertexArray(0);
 }
