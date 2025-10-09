@@ -8,7 +8,7 @@ Chunk::Chunk(int x, int z)
     : pos({x, z}),
       blocks(kChunkWidth * kChunkHeight * kChunkDepth, BlockType::AIR) {}
 
-Chunk::~Chunk() {}
+
 
 void Chunk::init() {
   BiomeType biome_type = BiomeManager::getBiomeForChunk(pos[0], pos[1]);
@@ -26,9 +26,7 @@ void Chunk::uploadGPU() {
 }
 
 BlockType &Chunk::at(int x, int y, int z) {
-  return const_cast<BlockType &>(
-    std::as_const(*this).at(x, y, z)
-  );
+  return blocks[x + kChunkWidth * (z + kChunkDepth * y)];
 }
 
 const BlockType &Chunk::at(int x, int y, int z) const {
@@ -44,7 +42,5 @@ BlockType Chunk::safeAt(int x, int y, int z) const {
 }
 
 glm::mat4 Chunk::getModelMatrix() const {
-  glm::mat4 model(1.0f);
-  glm::vec3 world_pos(pos[0] * kChunkWidth, 0, pos[1] * kChunkDepth);
-  return glm::translate(model, world_pos);
+  return glm::translate(glm::mat4(1.0f), glm::vec3(pos[0] * kChunkWidth, 0, pos[1] * kChunkDepth));
 }

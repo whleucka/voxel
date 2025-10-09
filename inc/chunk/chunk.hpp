@@ -22,7 +22,7 @@ struct ChunkKeyHash {
 class Chunk {
 public:
   Chunk(int x, int z);
-  ~Chunk();
+  ~Chunk() = default;
 
   void init();
   void generateMesh(TextureManager &texture_manager);
