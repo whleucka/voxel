@@ -9,19 +9,23 @@
 
 ## Features
 
-*   **Custom textures:** Custom block textures created with GIMP.
-*   **Chunk-based World:** Efficiently manages and renders large voxel worlds using a chunk system.
-*   **Basic Block Types:** Supports various block types (e.g., dirt, grass, stone, water, etc) with texture atlasing.
-*   **First-Person Camera:** Implements a standard first-person camera for exploration.
-*   **Shader-based Rendering:** Utilizes modern OpenGL shaders for rendering blocks and the world.
-*   **Collision detection:** Simple aabb collision detection.
-*   **Debug UI:** Integrated Dear ImGui for in-game debugging and parameter tweaking.
+- **Custom Textures:** Unique block textures hand-crafted in GIMP for a distinct look and feel.  
+- **Chunk-Based World:** Efficient world streaming with chunk management, greedy meshing, and back-face/frustum culling for high performance.  
+- **Block Variety:** Core voxel types (dirt, grass, stone, water, etc.) with proper texture atlasing and UV mapping.  
+- **Modern Rendering Pipeline:** Shader-driven OpenGL rendering with support for lighting, transparency, and depth-sorted passes.  
+- **Debug Interface:** Built-in Dear ImGui panel for live debugging, tweaking parameters, and profiling engine performance.  
 
 
-## Voxel Engine Next Steps
+## Next Steps
 
-*   **Biomes:** clouds, trees, flowers, etc
+- **Biomes & Environment:** Expand procedural generation with biome-specific features — trees, flowers, vegetation, clouds, and terrain variation.  
+- **First-Person Camera:** Add a controllable camera for free exploration of the voxel world.  
+- **Physics & Collision:** Implement simple AABB collision detection and movement constraints for the player.  
+- **Lighting & Shadows:** Introduce directional light and shadow mapping for more depth and realism.  
+- **Saving & Loading:** Add persistent world serialization for chunks and player state.  
+- **Optimization Pass:** Continue improving mesh generation, multi-threading, and memory usage for larger worlds.  
 
+---
 
 ## Getting Started
 
@@ -57,30 +61,21 @@ sudo apt install build-essential libglfw3-dev libgl-dev libx11-dev libxrandr-dev
 After successful compilation, you can run the game using:
 
 ```bash
-./bin/voxel
+./bin/app
 ```
 
 Drawing blocks couldn't be *that* hard... *Right?*
 
 ## Controls
 
-*   **F3:** Show debug info/stats.
-*   **F4:** Toggle wireframe.
+*   **F1:** Show debug info/stats.
+*   **F2:** Toggle wireframe.
+*   **F3:** Toggle V-sync.
 *   **W, A, S, D:** Move camera forward, left, backward, right.
 *   **Space:** Jump.
 *   **Mouse:** Look around.
 *   **ESC:** Exit program.
 
-## Project Structure
-
-*   `src/`: Contains all C++ source files.
-*   `inc/`: Header files for the project.
-*   `shaders/`: GLSL shader programs (`.vert` for vertex, `.frag` for fragment).
-*   `assets/`: Textures and other game assets.
-*   `res/`: Contains game resource.
-*   `bin/`: Compiled executable.
-*   `obj/`: Object files generated during compilation.
-*   `makefile`: Build instructions for the project.
 
 ## Contributing
 
