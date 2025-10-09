@@ -7,54 +7,56 @@
 
 namespace {
 
-void addFace(std::vector<BlockVertex> &vertices,
+void addQuad(std::vector<BlockVertex> &vertices, std::vector<unsigned int> &indices, const glm::ivec3 &pos, const glm::ivec2 &size, const std::array<glm::vec2, 4> &uvs, Face face);
+
+void addQuad(std::vector<BlockVertex> &vertices,
              std::vector<unsigned int> &indices,
-             int x, int y, int z,
+             const glm::ivec3 &pos,
+             const glm::ivec2 &size,
              const std::array<glm::vec2, 4> &uvs,
              Face face) {
   int start_index = vertices.size();
 
   switch (face) {
     case Face::Top: // +Y
-      vertices.push_back({{x - 0.5f, y + 0.5f, z - 0.5f}, {0,1,0}, uvs[0]}); // TL
-      vertices.push_back({{x + 0.5f, y + 0.5f, z - 0.5f}, {0,1,0}, uvs[1]}); // TR
-      vertices.push_back({{x + 0.5f, y + 0.5f, z + 0.5f}, {0,1,0}, uvs[2]}); // BR
-      vertices.push_back({{x - 0.5f, y + 0.5f, z + 0.5f}, {0,1,0}, uvs[3]}); // BL
+      vertices.push_back({{pos.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f}, {0,1,0}, uvs[0]}); // TL
+      vertices.push_back({{pos.x + size.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f}, {0,1,0}, uvs[1]}); // TR
+      vertices.push_back({{pos.x + size.x - 0.5f, pos.y + 0.5f, pos.z + size.y - 0.5f}, {0,1,0}, uvs[2]}); // BR
+      vertices.push_back({{pos.x - 0.5f, pos.y + 0.5f, pos.z + size.y - 0.5f}, {0,1,0}, uvs[3]}); // BL
       break;
 
     case Face::Bottom: // -Y
-      vertices.push_back({{x - 0.5f, y - 0.5f, z + 0.5f}, {0,-1,0}, uvs[0]}); // TL
-      vertices.push_back({{x + 0.5f, y - 0.5f, z + 0.5f}, {0,-1,0}, uvs[1]}); // TR
-      vertices.push_back({{x + 0.5f, y - 0.5f, z - 0.5f}, {0,-1,0}, uvs[2]}); // BR
-      vertices.push_back({{x - 0.5f, y - 0.5f, z - 0.5f}, {0,-1,0}, uvs[3]}); // BL
+      vertices.push_back({{pos.x - 0.5f, pos.y - 0.5f, pos.z + size.y - 0.5f}, {0,-1,0}, uvs[0]}); // TL
+      vertices.push_back({{pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z + size.y - 0.5f}, {0,-1,0}, uvs[1]}); // TR
+      vertices.push_back({{pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,-1,0}, uvs[2]}); // BR
+      vertices.push_back({{pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,-1,0}, uvs[3]}); // BL
       break;
 
     case Face::Front: // +Z
-      vertices.push_back({{x - 0.5f, y + 0.5f, z + 0.5f}, {0,0,1}, uvs[0]}); // TL
-      vertices.push_back({{x + 0.5f, y + 0.5f, z + 0.5f}, {0,0,1}, uvs[1]}); // TR
-      vertices.push_back({{x + 0.5f, y - 0.5f, z + 0.5f}, {0,0,1}, uvs[2]}); // BR
-      vertices.push_back({{x - 0.5f, y - 0.5f, z + 0.5f}, {0,0,1}, uvs[3]}); // BL
+      vertices.push_back({{pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z + 0.5f}, {0,0,1}, uvs[0]}); // TL
+      vertices.push_back({{pos.x + size.x - 0.5f, pos.y + size.y - 0.5f, pos.z + 0.5f}, {0,0,1}, uvs[1]}); // TR
+      vertices.push_back({{pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f}, {0,0,1}, uvs[2]}); // BR
+      vertices.push_back({{pos.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f}, {0,0,1}, uvs[3]}); // BL
       break;
-
     case Face::Back: // -Z
-      vertices.push_back({{x + 0.5f, y + 0.5f, z - 0.5f}, {0,0,-1}, uvs[0]}); // TL
-      vertices.push_back({{x - 0.5f, y + 0.5f, z - 0.5f}, {0,0,-1}, uvs[1]}); // TR
-      vertices.push_back({{x - 0.5f, y - 0.5f, z - 0.5f}, {0,0,-1}, uvs[2]}); // BR
-      vertices.push_back({{x + 0.5f, y - 0.5f, z - 0.5f}, {0,0,-1}, uvs[3]}); // BL
+      vertices.push_back({{pos.x + size.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {0,0,-1}, uvs[0]}); // TL
+      vertices.push_back({{pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {0,0,-1}, uvs[1]}); // TR
+      vertices.push_back({{pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,0,-1}, uvs[2]}); // BR
+      vertices.push_back({{pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,0,-1}, uvs[3]}); // BL
       break;
 
     case Face::Right: // +X
-      vertices.push_back({{x + 0.5f, y + 0.5f, z - 0.5f}, {1,0,0}, uvs[0]}); // TL
-      vertices.push_back({{x + 0.5f, y + 0.5f, z + 0.5f}, {1,0,0}, uvs[1]}); // TR
-      vertices.push_back({{x + 0.5f, y - 0.5f, z + 0.5f}, {1,0,0}, uvs[2]}); // BR
-      vertices.push_back({{x + 0.5f, y - 0.5f, z - 0.5f}, {1,0,0}, uvs[3]}); // BL
+      vertices.push_back({{pos.x + 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {1,0,0}, uvs[0]}); // TL
+      vertices.push_back({{pos.x + 0.5f, pos.y + size.y - 0.5f, pos.z + size.x - 0.5f}, {1,0,0}, uvs[1]}); // TR
+      vertices.push_back({{pos.x + 0.5f, pos.y - 0.5f, pos.z + size.x - 0.5f}, {1,0,0}, uvs[2]}); // BR
+      vertices.push_back({{pos.x + 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {1,0,0}, uvs[3]}); // BL
       break;
 
     case Face::Left: // -X
-      vertices.push_back({{x - 0.5f, y + 0.5f, z + 0.5f}, {-1,0,0}, uvs[0]}); // TL
-      vertices.push_back({{x - 0.5f, y + 0.5f, z - 0.5f}, {-1,0,0}, uvs[1]}); // TR
-      vertices.push_back({{x - 0.5f, y - 0.5f, z - 0.5f}, {-1,0,0}, uvs[2]}); // BR
-      vertices.push_back({{x - 0.5f, y - 0.5f, z + 0.5f}, {-1,0,0}, uvs[3]}); // BL
+      vertices.push_back({{pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z + size.x - 0.5f}, {-1,0,0}, uvs[0]}); // TL
+      vertices.push_back({{pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {-1,0,0}, uvs[1]}); // TR
+      vertices.push_back({{pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {-1,0,0}, uvs[2]}); // BR
+      vertices.push_back({{pos.x - 0.5f, pos.y - 0.5f, pos.z + size.x - 0.5f}, {-1,0,0}, uvs[3]}); // BL
       break;
   }
 
@@ -104,50 +106,331 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
   vertices.clear();
   indices.clear();
 
-  // FIXME: not a good idea here
-  for (int y = 0; y < kChunkHeight; ++y) {
+  // Front face
+  {
+    // mask of visited blocks
+    bool mask[kChunkHeight][kChunkWidth] = {false};
+
     for (int z = 0; z < kChunkDepth; ++z) {
-      for (int x = 0; x < kChunkWidth; ++x) {
-        BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR)
-          continue;
+      for (int y = 0; y < kChunkHeight; ++y) {
+        for (int x = 0; x < kChunkWidth; ++x) {
+          if (mask[y][x])
+            continue;
 
-        const auto &tex = block_uv_map.at(type);
+          BlockType type = chunk.at(x, y, z);
+          if (type == BlockType::AIR)
+            continue;
 
-        // Top face
-        if (y == kChunkHeight - 1 || chunk.at(x, y + 1, z) == BlockType::AIR) {
-          auto top_uv = texture_manager.getQuadUV(tex.top.x, tex.top.y);
-          addFace(vertices, indices, x, y, z, top_uv, Face::Top);
+          // check if face is visible
+          if (z == kChunkDepth - 1 || chunk.at(x, y, z + 1) == BlockType::AIR) {
+            const auto &tex = block_uv_map.at(type);
+            auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
+
+            // greedy expansion in width
+            int width = 1;
+            while (x + width < kChunkWidth && !mask[y][x + width] && chunk.at(x + width, y, z) == type && (z == kChunkDepth - 1 || chunk.at(x + width, y, z + 1) == BlockType::AIR)) {
+              width++;
+            }
+
+            // greedy expansion in height
+            int height = 1;
+            bool can_expand_height = true;
+            while (y + height < kChunkHeight && can_expand_height) {
+              for (int i = 0; i < width; ++i) {
+                if (mask[y + height][x + i] || chunk.at(x + i, y + height, z) != type || (z != kChunkDepth - 1 && chunk.at(x + i, y + height, z + 1) != BlockType::AIR)) {
+                  can_expand_height = false;
+                  break;
+                }
+              }
+              if (can_expand_height) {
+                height++;
+              }
+            }
+
+            // mark expanded blocks as visited
+            for (int i = 0; i < height; ++i) {
+              for (int j = 0; j < width; ++j) {
+                mask[y + i][x + j] = true;
+              }
+            }
+
+            addQuad(vertices, indices, {x, y, z}, {width, height}, side_uv, Face::Front);
+          }
         }
+      }
+    }
+  }
 
-        // Bottom face
-        if (y == 0 || chunk.at(x, y - 1, z) == BlockType::AIR) {
-          auto bottom_uv = texture_manager.getQuadUV(tex.bottom.x, tex.bottom.y);
-          addFace(vertices, indices, x, y, z, bottom_uv, Face::Bottom);
+  // Back face
+  {
+    // mask of visited blocks
+    bool mask[kChunkHeight][kChunkWidth] = {false};
+
+    for (int z = kChunkDepth - 1; z >= 0; --z) {
+      for (int y = 0; y < kChunkHeight; ++y) {
+        for (int x = 0; x < kChunkWidth; ++x) {
+          if (mask[y][x])
+            continue;
+
+          BlockType type = chunk.at(x, y, z);
+          if (type == BlockType::AIR)
+            continue;
+
+          // check if face is visible
+          if (z == 0 || chunk.at(x, y, z - 1) == BlockType::AIR) {
+            const auto &tex = block_uv_map.at(type);
+            auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
+
+            // greedy expansion in width
+            int width = 1;
+            while (x + width < kChunkWidth && !mask[y][x + width] && chunk.at(x + width, y, z) == type && (z == 0 || chunk.at(x + width, y, z - 1) == BlockType::AIR)) {
+              width++;
+            }
+
+            // greedy expansion in height
+            int height = 1;
+            bool can_expand_height = true;
+            while (y + height < kChunkHeight && can_expand_height) {
+              for (int i = 0; i < width; ++i) {
+                if (mask[y + height][x + i] || chunk.at(x + i, y + height, z) != type || (z != 0 && chunk.at(x + i, y + height, z - 1) != BlockType::AIR)) {
+                  can_expand_height = false;
+                  break;
+                }
+              }
+              if (can_expand_height) {
+                height++;
+              }
+            }
+
+            // mark expanded blocks as visited
+            for (int i = 0; i < height; ++i) {
+              for (int j = 0; j < width; ++j) {
+                mask[y + i][x + j] = true;
+              }
+            }
+
+            addQuad(vertices, indices, {x, y, z}, {width, height}, side_uv, Face::Back);
+          }
         }
+      }
+    }
+  }
 
-        // Left face
-        if (x == 0 || chunk.at(x - 1, y, z) == BlockType::AIR) {
-          auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
-          addFace(vertices, indices, x, y, z, side_uv, Face::Left);
+  // Top face
+  {
+    // mask of visited blocks
+    bool mask[kChunkDepth][kChunkWidth] = {false};
+
+    for (int y = 0; y < kChunkHeight; ++y) {
+      for (int z = 0; z < kChunkDepth; ++z) {
+        for (int x = 0; x < kChunkWidth; ++x) {
+          if (mask[z][x])
+            continue;
+
+          BlockType type = chunk.at(x, y, z);
+          if (type == BlockType::AIR)
+            continue;
+
+          // check if face is visible
+          if (y == kChunkHeight - 1 || chunk.at(x, y + 1, z) == BlockType::AIR) {
+            const auto &tex = block_uv_map.at(type);
+            auto top_uv = texture_manager.getQuadUV(tex.top.x, tex.top.y);
+
+            // greedy expansion in width
+            int width = 1;
+            while (x + width < kChunkWidth && !mask[z][x + width] && chunk.at(x + width, y, z) == type && (y == kChunkHeight - 1 || chunk.at(x + width, y + 1, z) == BlockType::AIR)) {
+              width++;
+            }
+
+            // greedy expansion in depth
+            int depth = 1;
+            bool can_expand_depth = true;
+            while (z + depth < kChunkDepth && can_expand_depth) {
+              for (int i = 0; i < width; ++i) {
+                if (mask[z + depth][x + i] || chunk.at(x + i, y, z + depth) != type || (y != kChunkHeight - 1 && chunk.at(x + i, y + 1, z + depth) != BlockType::AIR)) {
+                  can_expand_depth = false;
+                  break;
+                }
+              }
+              if (can_expand_depth) {
+                depth++;
+              }
+            }
+
+            // mark expanded blocks as visited
+            for (int i = 0; i < depth; ++i) {
+              for (int j = 0; j < width; ++j) {
+                mask[z + i][x + j] = true;
+              }
+            }
+
+            addQuad(vertices, indices, {x, y, z}, {width, depth}, top_uv, Face::Top);
+          }
         }
+      }
+    }
+  }
 
-        // Right face
-        if (x == kChunkWidth - 1 || chunk.at(x + 1, y, z) == BlockType::AIR) {
-          auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
-          addFace(vertices, indices, x, y, z, side_uv, Face::Right);
+  // Bottom face
+  {
+    // mask of visited blocks
+    bool mask[kChunkDepth][kChunkWidth] = {false};
+
+    for (int y = kChunkHeight - 1; y >= 0; --y) {
+      for (int z = 0; z < kChunkDepth; ++z) {
+        for (int x = 0; x < kChunkWidth; ++x) {
+          if (mask[z][x])
+            continue;
+
+          BlockType type = chunk.at(x, y, z);
+          if (type == BlockType::AIR)
+            continue;
+
+          // check if face is visible
+          if (y == 0 || chunk.at(x, y - 1, z) == BlockType::AIR) {
+            const auto &tex = block_uv_map.at(type);
+            auto bottom_uv = texture_manager.getQuadUV(tex.bottom.x, tex.bottom.y);
+
+            // greedy expansion in width
+            int width = 1;
+            while (x + width < kChunkWidth && !mask[z][x + width] && chunk.at(x + width, y, z) == type && (y == 0 || chunk.at(x + width, y - 1, z) == BlockType::AIR)) {
+              width++;
+            }
+
+            // greedy expansion in depth
+            int depth = 1;
+            bool can_expand_depth = true;
+            while (z + depth < kChunkDepth && can_expand_depth) {
+              for (int i = 0; i < width; ++i) {
+                if (mask[z + depth][x + i] || chunk.at(x + i, y, z + depth) != type || (y != 0 && chunk.at(x + i, y - 1, z + depth) != BlockType::AIR)) {
+                  can_expand_depth = false;
+                  break;
+                }
+              }
+              if (can_expand_depth) {
+                depth++;
+              }
+            }
+
+            // mark expanded blocks as visited
+            for (int i = 0; i < depth; ++i) {
+              for (int j = 0; j < width; ++j) {
+                mask[z + i][x + j] = true;
+              }
+            }
+
+            addQuad(vertices, indices, {x, y, z}, {width, depth}, bottom_uv, Face::Bottom);
+          }
         }
+      }
+    }
+  }
 
-        // Front face
-        if (z == kChunkDepth - 1 || chunk.at(x, y, z + 1) == BlockType::AIR) {
-          auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
-          addFace(vertices, indices, x, y, z, side_uv, Face::Front);
+  // Right face
+  {
+    // mask of visited blocks
+    bool mask[kChunkHeight][kChunkDepth] = {false};
+
+    for (int x = 0; x < kChunkWidth; ++x) {
+      for (int y = 0; y < kChunkHeight; ++y) {
+        for (int z = 0; z < kChunkDepth; ++z) {
+          if (mask[y][z])
+            continue;
+
+          BlockType type = chunk.at(x, y, z);
+          if (type == BlockType::AIR)
+            continue;
+
+          // check if face is visible
+          if (x == kChunkWidth - 1 || chunk.at(x + 1, y, z) == BlockType::AIR) {
+            const auto &tex = block_uv_map.at(type);
+            auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
+
+            // greedy expansion in depth
+            int depth = 1;
+            while (z + depth < kChunkDepth && !mask[y][z + depth] && chunk.at(x, y, z + depth) == type && (x == kChunkWidth - 1 || chunk.at(x + 1, y, z + depth) == BlockType::AIR)) {
+              depth++;
+            }
+
+            // greedy expansion in height
+            int height = 1;
+            bool can_expand_height = true;
+            while (y + height < kChunkHeight && can_expand_height) {
+              for (int i = 0; i < depth; ++i) {
+                if (mask[y + height][z + i] || chunk.at(x, y + height, z + i) != type || (x != kChunkWidth - 1 && chunk.at(x + 1, y + height, z + i) != BlockType::AIR)) {
+                  can_expand_height = false;
+                  break;
+                }
+              }
+              if (can_expand_height) {
+                height++;
+              }
+            }
+
+            // mark expanded blocks as visited
+            for (int i = 0; i < height; ++i) {
+              for (int j = 0; j < depth; ++j) {
+                mask[y + i][z + j] = true;
+              }
+            }
+
+            addQuad(vertices, indices, {x, y, z}, {depth, height}, side_uv, Face::Right);
+          }
         }
+      }
+    }
+  }
 
-        // Back face
-        if (z == 0 || chunk.at(x, y, z - 1) == BlockType::AIR) {
-          auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
-          addFace(vertices, indices, x, y, z, side_uv, Face::Back);
+  // Left face
+  {
+    // mask of visited blocks
+    bool mask[kChunkHeight][kChunkDepth] = {false};
+
+    for (int x = kChunkWidth - 1; x >= 0; --x) {
+      for (int y = 0; y < kChunkHeight; ++y) {
+        for (int z = 0; z < kChunkDepth; ++z) {
+          if (mask[y][z])
+            continue;
+
+          BlockType type = chunk.at(x, y, z);
+          if (type == BlockType::AIR)
+            continue;
+
+          // check if face is visible
+          if (x == 0 || chunk.at(x - 1, y, z) == BlockType::AIR) {
+            const auto &tex = block_uv_map.at(type);
+            auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
+
+            // greedy expansion in depth
+            int depth = 1;
+            while (z + depth < kChunkDepth && !mask[y][z + depth] && chunk.at(x, y, z + depth) == type && (x == 0 || chunk.at(x - 1, y, z + depth) == BlockType::AIR)) {
+              depth++;
+            }
+
+            // greedy expansion in height
+            int height = 1;
+            bool can_expand_height = true;
+            while (y + height < kChunkHeight && can_expand_height) {
+              for (int i = 0; i < depth; ++i) {
+                if (mask[y + height][z + i] || chunk.at(x, y + height, z + i) != type || (x != 0 && chunk.at(x - 1, y + height, z + i) != BlockType::AIR)) {
+                  can_expand_height = false;
+                  break;
+                }
+              }
+              if (can_expand_height) {
+                height++;
+              }
+            }
+
+            // mark expanded blocks as visited
+            for (int i = 0; i < height; ++i) {
+              for (int j = 0; j < depth; ++j) {
+                mask[y + i][z + j] = true;
+              }
+            }
+
+            addQuad(vertices, indices, {x, y, z}, {depth, height}, side_uv, Face::Left);
+          }
         }
       }
     }
