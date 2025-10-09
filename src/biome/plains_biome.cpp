@@ -7,7 +7,7 @@ BlockType PlainsBiome::generateInternalBlock(int, int, int) {
     return BlockType::DIRT;
 }
 
-BlockType PlainsBiome::generateTopBlock() {
+BlockType PlainsBiome::generateTopBlock(int) {
     return BlockType::GRASS;
 }
 

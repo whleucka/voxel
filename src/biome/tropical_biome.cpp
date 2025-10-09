@@ -7,7 +7,7 @@ BlockType TropicalBiome::generateInternalBlock(int, int, int) {
     return BlockType::DIRT;
 }
 
-BlockType TropicalBiome::generateTopBlock() {
+BlockType TropicalBiome::generateTopBlock(int) {
     return BlockType::GRASS;
 }
 

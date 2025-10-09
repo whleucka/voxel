@@ -29,8 +29,7 @@ BiomeType BiomeManager::getBiomeForChunk(int cx, int cz) {
   float chunk_center_z = (cz + 0.5f) * kChunkDepth;
 
   float biome_noise;
-  int center_height =
-      Biome::getHeight({chunk_center_x, chunk_center_z}, &biome_noise);
+  int center_height = Biome::getHeight({chunk_center_x, chunk_center_z}, &biome_noise);
 
   // Normalize latitude factor (-1 at south pole, 0 at equator,
   // +1 at north pole)

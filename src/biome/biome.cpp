@@ -16,7 +16,7 @@ void Biome::generateTerrain(Chunk &chunk) {
       }
       for (int y = 0; y < h; y++) {
         if (y == h - 1) {
-          chunk.at(x, y, z) = generateTopBlock();
+          chunk.at(x, y, z) = generateTopBlock(y);
         } else {
           chunk.at(x, y, z) = generateInternalBlock(x, y, z);
         }

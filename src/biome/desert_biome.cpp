@@ -7,7 +7,7 @@ BlockType DesertBiome::generateInternalBlock(int, int, int) {
     return BlockType::SANDSTONE;
 }
 
-BlockType DesertBiome::generateTopBlock() {
+BlockType DesertBiome::generateTopBlock(int) {
     return BlockType::SAND;
 }
 

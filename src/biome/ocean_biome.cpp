@@ -7,7 +7,7 @@ BlockType OceanBiome::generateInternalBlock(int, int, int) {
     return BlockType::WATER;
 }
 
-BlockType OceanBiome::generateTopBlock() {
+BlockType OceanBiome::generateTopBlock(int) {
     return BlockType::WATER;
 }
 
