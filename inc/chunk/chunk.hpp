@@ -30,6 +30,7 @@ public:
 
   BlockType &at(int x, int y, int z);
   const BlockType &at(int x, int y, int z) const;
+  BlockType safeAt(int x, int y, int z) const;
 
   ChunkMesh &getMesh() { return mesh; }
   glm::mat4 getModelMatrix() const;
