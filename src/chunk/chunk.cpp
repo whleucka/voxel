@@ -2,6 +2,7 @@
 #include "render/texture_manager.hpp"
 #include "biome/biome_manager.hpp"
 #include "core/constants.hpp"
+#include <utility>
 
 Chunk::Chunk(int x, int z)
     : pos({x, z}),
@@ -25,7 +26,9 @@ void Chunk::uploadGPU() {
 }
 
 BlockType &Chunk::at(int x, int y, int z) {
-  return blocks[x + kChunkWidth * (z + kChunkDepth * y)];
+  return const_cast<BlockType &>(
+    std::as_const(*this).at(x, y, z)
+  );
 }
 
 const BlockType &Chunk::at(int x, int y, int z) const {

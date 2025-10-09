@@ -75,19 +75,12 @@ void World::render(glm::mat4 &view, glm::mat4 &projection) {
 }
 
 std::shared_ptr<Chunk> World::getChunk(int x, int z) {
-  ChunkKey key{x, z};
-  auto it = chunks.find(key);
-  if (it != chunks.end()) {
-    return it->second;
-  }
-  return nullptr;
+  return std::const_pointer_cast<Chunk>(
+    std::as_const(*this).getChunk(x, z)
+  );
 }
 
 std::shared_ptr<const Chunk> World::getChunk(int x, int z) const {
-  ChunkKey key{x, z};
-  auto it = chunks.find(key);
-  if (it != chunks.end()) {
-    return it->second;
-  }
-  return nullptr;
+  auto it = chunks.find({x, z});
+  return it != chunks.end() ? it->second : nullptr;
 }
