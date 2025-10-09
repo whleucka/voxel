@@ -33,6 +33,7 @@ INC := -I$(CURDIR)/$(INCDIR) \
        -I$(CURDIR)/external/stb \
        -I$(CURDIR)/external/glad/include \
        -I$(CURDIR)/external/KHR \
+       -I$(CURDIR)/external/robin_hood \
        -I/usr/local/include
 
 # --- Source files ---

@@ -4,7 +4,7 @@
 #include "render/shader.hpp"
 #include "render/texture_manager.hpp"
 #include <memory>
-#include <unordered_map>
+#include "robin_hood/robin_hood.h"
 
 class Renderer {
 public:
@@ -12,7 +12,7 @@ public:
   ~Renderer();
 
   void init();
-  void drawChunks(const std::vector<std::shared_ptr<Chunk>> &chunks, const glm::mat4 &view, const glm::mat4 &projection);
+  void drawChunks(const robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash> &chunks, const glm::mat4 &view, const glm::mat4 &projection);
   TextureManager &getTextureManager() { return *texture_manager; }
 
 private:

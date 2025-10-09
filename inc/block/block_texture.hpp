@@ -2,7 +2,7 @@
 
 #include "block/block_type.hpp"
 #include <glm/glm.hpp>
-#include <unordered_map>
+#include "robin_hood/robin_hood.h"
 
 struct BlockTexture {
   glm::ivec2 top;
@@ -10,7 +10,7 @@ struct BlockTexture {
   glm::ivec2 side;
 };
 
-static std::unordered_map<BlockType, BlockTexture> block_uv_map = {
+static robin_hood::unordered_map<BlockType, BlockTexture> block_uv_map = {
     {BlockType::GRASS, {{0, 0}, {2, 0}, {1, 0}}},
     {BlockType::DIRT, {{2, 0}, {2, 0}, {2, 0}}},
     {BlockType::STONE, {{3, 0}, {3, 0}, {3, 0}}},
