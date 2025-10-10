@@ -4,7 +4,7 @@
 OceanBiome::OceanBiome() {
 }
 
-BlockType OceanBiome::generateTopBlock(int y) {
+BlockType OceanBiome::generateTopBlock(int) {
     return BlockType::SANDSTONE;
 }
 

@@ -2,7 +2,6 @@
 #include "render/texture_manager.hpp"
 #include "biome/biome_manager.hpp"
 #include "core/constants.hpp"
-#include <utility>
 
 Chunk::Chunk(int x, int z)
     : pos({x, z}),
@@ -14,6 +13,7 @@ void Chunk::init() {
   BiomeType biome_type = BiomeManager::getBiomeForChunk(pos[0], pos[1]);
   std::unique_ptr<Biome> biome = BiomeManager::createBiome(biome_type);
   biome->generateTerrain(*this);
+  biome->generateMinerals(*this);
   biome->fillWater(*this);
 }
 

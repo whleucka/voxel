@@ -62,22 +62,59 @@ void Biome::fillWater(Chunk &chunk) {
 }
 
 void Biome::generateMinerals(Chunk &chunk) {
+  glm::vec2 pos = chunk.getPos();
+
+  for (int x = 0; x < kChunkWidth; ++x) {
+    for (int z = 0; z < kChunkDepth; ++z) {
+      for (int y = 6; y < kChunkHeight - 5; ++y) {
+        BlockType &block = chunk.at(x, y, z);
+
+        if (block == BlockType::STONE) {
+          float n = glm::perlin(glm::vec3(
+            (pos.x * kChunkWidth + x) * 0.05f,
+            y * 0.05f,
+            (pos.y * kChunkDepth + z) * 0.05f
+          ));
+
+          // RARE ORES
+          if (n >= 0.75f) {
+            int gem_chance = rand() % 10 + 1;
+            if (gem_chance <= 3)
+              block = BlockType::EMERALD_ORE;
+            else if (gem_chance <= 6)
+              block = BlockType::RUBY_ORE;
+            else
+              block = BlockType::GOLD_ORE;
+          } else if (n >= 0.6f) {
+            block = BlockType::IRON_ORE;
+          } else if (n >= 0.45f) {
+            block = BlockType::COAL_ORE;
+          }
+        }
+      }
+    }
+  }
 }
 
-BlockType Biome::generateInternalBlock(int x, int y, int z) {
+BlockType Biome::generateInternalBlock(int, int y, int) {
+  int rando = rand() % 10 + 1;
+
   // Always bedrock at the bottom few layers
-  if (y <= 5)
-    return BlockType::BEDROCK;
+  if (y <= 5) {
+    return rando > 9 ? BlockType::STONE : BlockType::BEDROCK;
+  }
 
   // The deeper you go, the denser the rock
-  if (y < kSeaLevel - 20)
-    return BlockType::STONE;
+  if (y < kSeaLevel - 20) {
+    return rando > 9 ? BlockType::BEDROCK : BlockType::STONE;
+  }
 
-  if (y < kSeaLevel - 10)
-    return BlockType::COBBLESTONE;
+  if (y < kSeaLevel - 10) {
+    return rando > 9 ? BlockType::STONE : BlockType::COBBLESTONE;
+  }
 
   // Upper layers are dirt
-  return BlockType::DIRT;
+  return rando > 8 ? BlockType::COBBLESTONE : BlockType::DIRT;
 }
 
 int Biome::getHeight(glm::vec2 pos, float *biome_noise_out) {
@@ -108,8 +145,7 @@ int Biome::getHeight(glm::vec2 pos, float *biome_noise_out) {
   // --- Land elevation ---
   float plains = glm::mix(sea_norm - 0.02f, 0.60f, e);
   float peaks = glm::mix(0.55f, 0.95f, std::pow(e, 1.4f));
-  float mountain =
-      glm::mix(plains, peaks, glm::smoothstep(0.5f, 0.85f, biome_n));
+  float mountain = glm::mix(plains, peaks, glm::smoothstep(0.5f, 0.85f, biome_n));
 
   // --- Blend ocean vs land ---
   float coast = glm::smoothstep(0.25f, 0.65f, c);

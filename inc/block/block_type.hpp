@@ -21,4 +21,10 @@ enum class BlockType : uint8_t {
   PALM_LOG,
   PALM_LEAF,
   WATER,
+  COAL_ORE,
+  GOLD_ORE,
+  DIAMOND_ORE,
+  IRON_ORE,
+  EMERALD_ORE,
+  RUBY_ORE,
 };
