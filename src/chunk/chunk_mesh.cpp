@@ -1,5 +1,5 @@
 #include "chunk/chunk_mesh.hpp"
-#include "block/block_texture.hpp"
+#include "block/block_data.hpp"
 #include "chunk/chunk.hpp"
 #include "core/constants.hpp"
 
@@ -141,7 +141,7 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
 
           // check if face is visible
           if (z == kChunkDepth - 1 || chunk.safeAt(x, y, z + 1) == BlockType::AIR) {
-            const auto &tex = block_uv_map.at(type);
+            const auto &tex = block_data.at(type);
             auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
 
             // greedy expansion in width
@@ -195,7 +195,7 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
 
           // check if face is visible
           if (z == 0 || chunk.safeAt(x, y, z - 1) == BlockType::AIR) {
-            const auto &tex = block_uv_map.at(type);
+            const auto &tex = block_data.at(type);
             auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
 
             // greedy expansion in width
@@ -249,7 +249,7 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
 
           // check if face is visible
           if (y == kChunkHeight - 1 || chunk.safeAt(x, y + 1, z) == BlockType::AIR) {
-            const auto &tex = block_uv_map.at(type);
+            const auto &tex = block_data.at(type);
             auto top_uv = texture_manager.getQuadUV(tex.top.x, tex.top.y);
 
             // greedy expansion in width
@@ -303,7 +303,7 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
 
           // check if face is visible
           if (y == 0 || chunk.safeAt(x, y - 1, z) == BlockType::AIR) {
-            const auto &tex = block_uv_map.at(type);
+            const auto &tex = block_data.at(type);
             auto bottom_uv = texture_manager.getQuadUV(tex.bottom.x, tex.bottom.y);
 
             // greedy expansion in width
@@ -357,7 +357,7 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
 
           // check if face is visible
           if (x == kChunkWidth - 1 || chunk.safeAt(x + 1, y, z) == BlockType::AIR) {
-            const auto &tex = block_uv_map.at(type);
+            const auto &tex = block_data.at(type);
             auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
 
             // greedy expansion in depth
@@ -411,7 +411,7 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
 
           // check if face is visible
           if (x == 0 || chunk.safeAt(x - 1, y, z) == BlockType::AIR) {
-            const auto &tex = block_uv_map.at(type);
+            const auto &tex = block_data.at(type);
             auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
 
             // greedy expansion in depth

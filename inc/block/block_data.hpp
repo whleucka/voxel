@@ -1,8 +1,8 @@
 #pragma once
 
 #include "block/block_type.hpp"
-#include <glm/glm.hpp>
 #include "robin_hood/robin_hood.h"
+#include <glm/glm.hpp>
 
 struct BlockTexture {
   glm::ivec2 top;
@@ -10,7 +10,7 @@ struct BlockTexture {
   glm::ivec2 side;
 };
 
-static robin_hood::unordered_map<BlockType, BlockTexture> block_uv_map = {
+static robin_hood::unordered_map<BlockType, BlockTexture> block_data = {
     {BlockType::GRASS, {{0, 0}, {2, 0}, {1, 0}}},
     {BlockType::DIRT, {{2, 0}, {2, 0}, {2, 0}}},
     {BlockType::STONE, {{3, 0}, {3, 0}, {3, 0}}},
@@ -34,4 +34,5 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_uv_map = {
     {BlockType::IRON_ORE, {{8, 1}, {8, 1}, {8, 1}}},
     {BlockType::EMERALD_ORE, {{9, 1}, {9, 1}, {9, 1}}},
     {BlockType::RUBY_ORE, {{10, 1}, {10, 1}, {10, 1}}},
+    {BlockType::COPPER_ORE, {{11, 1}, {11, 1}, {11, 1}}},
 };

@@ -77,9 +77,11 @@ void Biome::generateMinerals(Chunk &chunk) {
           ));
 
           // RARE ORES
-          if (n >= 0.75f) {
+          if (n >= 0.8f) {
             int gem_chance = rand() % 10 + 1;
-            if (gem_chance <= 3)
+            if (gem_chance == 1)
+              block = BlockType::DIAMOND_ORE;
+            else if (gem_chance <= 4)
               block = BlockType::EMERALD_ORE;
             else if (gem_chance <= 6)
               block = BlockType::RUBY_ORE;
@@ -87,7 +89,9 @@ void Biome::generateMinerals(Chunk &chunk) {
               block = BlockType::GOLD_ORE;
           } else if (n >= 0.6f) {
             block = BlockType::IRON_ORE;
-          } else if (n >= 0.45f) {
+          } else if (n >= 0.5f) {
+            block = BlockType::COPPER_ORE;
+          } else if (n >= 0.4f) {
             block = BlockType::COAL_ORE;
           }
         }

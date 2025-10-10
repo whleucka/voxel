@@ -27,4 +27,5 @@ enum class BlockType : uint8_t {
   IRON_ORE,
   EMERALD_ORE,
   RUBY_ORE,
+  COPPER_ORE,
 };
