@@ -1,13 +1,17 @@
 #pragma once
 
 #include "biome/biome.hpp"
+#include "biome/tree_spawner.hpp"
 
-class TropicalBiome: public Biome {
+class TropicalBiome : public Biome {
 public:
   TropicalBiome();
   ~TropicalBiome() override = default;
   // BlockType generateInternalBlock(int x, int y, int z) override;
   BlockType generateTopBlock(int y) override;
   void spawnDecorations(Chunk &chunk) override;
-};
 
+private:
+  TreeSpawner oak_tree_spawner;
+  TreeSpawner palm_tree_spawner;
+};
