@@ -52,7 +52,9 @@ bool Engine::init() {
   glfwSetKeyCallback(window, keyCallback);
   glfwSetCursorPosCallback(window, mouseCallback);
   glfwSetFramebufferSizeCallback(window, windowResize);
-  glfwSetInputMode(window, GLFW_CURSOR, g_settings.show_cursor ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+  glfwSetInputMode(window, GLFW_CURSOR,
+                   g_settings.show_cursor ? GLFW_CURSOR_NORMAL
+                                          : GLFW_CURSOR_DISABLED);
 
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
     std::cerr << "Failed to initialize GLAD\n";
@@ -96,7 +98,7 @@ void Engine::run() {
     delta_time = currentFrame - last_frame;
     last_frame = currentFrame;
 
-    processInput();
+    processInput(window);
     update();
     render();
 
@@ -105,19 +107,20 @@ void Engine::run() {
   }
 }
 
-void Engine::processInput() {
+void Engine::processInput(GLFWwindow *window) {
   // Close program
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     glfwSetWindowShouldClose(window, true);
 
-  if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-    camera.processKeyboard(FORWARD, delta_time);
-  if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-    camera.processKeyboard(BACKWARD, delta_time);
-  if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-    camera.processKeyboard(LEFT, delta_time);
-  if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-    camera.processKeyboard(RIGHT, delta_time);
+  world.getPlayer()->processKeyboard(
+      delta_time, glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS,
+      glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS,
+      glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS,
+      glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS,
+      glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS,
+      glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS,
+      glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS,
+      glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS);
 }
 
 void Engine::update() {
@@ -138,13 +141,13 @@ void Engine::render() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Render scene
-  glm::mat4 view = camera.getViewMatrix();
-  glm::mat4 proj =
-      glm::perspective(glm::radians(camera.zoom),            // field of view
-                       (float)win_width / (float)win_height, // aspect ratio
-                       0.1f,                                 // near plane
-                       100.0f                                // far plane
-      );
+  glm::mat4 view = world.getPlayer()->getCamera().getViewMatrix();
+  glm::mat4 proj = glm::perspective(
+      glm::radians(world.getPlayer()->getCamera().zoom), // field of view
+      (float)win_width / (float)win_height,              // aspect ratio
+      0.1f,                                              // near plane
+      1000.0f                                            // far plane
+  );
 
   world.render(view, proj);
   debug();
@@ -162,8 +165,9 @@ void Engine::debug() {
     ImGui::Text("FPS: %.1f", io.Framerate);
     ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
     ImGui::Text("Memory usage: %zu MB", getMemoryUsage());
-    glm::vec3 pos = camera.getPosition();
-    ImGui::Text("Camera: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
+    glm::vec3 pos = world.getPlayer()->getPosition();
+    ImGui::Text("Player: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
+    ImGui::Checkbox("Fly mode", world.getPlayer()->getFlyModePtr());
     ImGui::Checkbox("Wireframe mode", &g_settings.wireframe);
     ImGui::Checkbox("VSync", &g_settings.vsync);
     ImGui::Checkbox("Fullscreen", &g_settings.fullscreen);
@@ -183,6 +187,11 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
   if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
     g_settings.vsync = !g_settings.vsync;
     glfwSwapInterval(g_settings.vsync ? 1 : 0);
+  }
+  if (key == GLFW_KEY_T && action == GLFW_PRESS) {
+    Engine *engine =
+        reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
+    engine->world.getPlayer()->toggleFlyMode();
   }
   if (key == GLFW_KEY_F11 && action == GLFW_PRESS) {
     Engine *engine =
@@ -223,7 +232,7 @@ void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
   engine->last_x = xpos;
   engine->last_y = ypos;
 
-  engine->camera.processMouseMovement(xoffset, yoffset);
+  engine->world.getPlayer()->processMouseMovement(xoffset, yoffset);
 }
 
 void Engine::windowResize(GLFWwindow *window, int w, int h) {

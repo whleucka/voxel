@@ -22,7 +22,6 @@ private:
   int win_width, win_height;
   int win_pos_x, win_pos_y;
 
-  Camera camera;
   World world;
 
   bool first_mouse = true;
@@ -38,7 +37,7 @@ private:
                                       int height);
   static void mouseCallback(GLFWwindow *window, double xpos, double ypos);
   static void windowResize(GLFWwindow *window, int width, int height);
-  void processInput();
+  void processInput(GLFWwindow *window);
   void update();
   void render();
   void debug();

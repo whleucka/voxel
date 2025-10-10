@@ -7,7 +7,7 @@ using Lock = std::lock_guard<std::mutex>;
 
 World::World()
     : renderer(std::make_unique<Renderer>()),
-      player(std::make_unique<Player>(0, 125, 0)) {}
+      player(std::make_unique<Player>(glm::vec3(25.0f, 125.0f, 25.0f))) {}
 
 void World::init() {
   renderer->init();
