@@ -11,7 +11,9 @@ constexpr int kScreenWidth = 800;
 
 constexpr int kSeaLevel = (kChunkHeight * 2) / 5;
 constexpr int kSnowLevel = 130;
+constexpr int kTreeLevel = 180;
 
+constexpr int kBiomeTreeBorder = 4;
 constexpr float kBiomeFreq = 0.04f;
 constexpr float kBiomeAmp = 35.0f;
 constexpr float kBiomeOctaves = 4.0f;

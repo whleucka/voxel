@@ -15,6 +15,7 @@ void Chunk::init() {
   biome->generateTerrain(*this);
   biome->generateMinerals(*this);
   biome->fillWater(*this);
+  biome->spawnDecorations(*this);
 }
 
 void Chunk::generateMesh(TextureManager &texture_manager) {
