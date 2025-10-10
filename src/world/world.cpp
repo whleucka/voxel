@@ -5,9 +5,9 @@
 
 using Lock = std::lock_guard<std::mutex>;
 
-World::World() : renderer(std::make_unique<Renderer>()) {}
-
-World::~World() = default;
+World::World()
+    : renderer(std::make_unique<Renderer>()),
+      player(std::make_unique<Player>(0, 125, 0)) {}
 
 void World::init() {
   renderer->init();
@@ -37,9 +37,9 @@ void World::addChunk(int x, int z) {
   });
 }
 
-void World::update(float) {
+void World::update(float dt) {
+  player->update(dt);
   std::queue<std::shared_ptr<Chunk>> mesh_local, upload_local;
-
   {
     Lock lock(chunks_mutex);
     std::swap(mesh_queue, mesh_local);
@@ -75,9 +75,7 @@ void World::render(glm::mat4 &view, glm::mat4 &projection) {
 }
 
 std::shared_ptr<Chunk> World::getChunk(int x, int z) {
-  return std::const_pointer_cast<Chunk>(
-    std::as_const(*this).getChunk(x, z)
-  );
+  return std::const_pointer_cast<Chunk>(std::as_const(*this).getChunk(x, z));
 }
 
 std::shared_ptr<const Chunk> World::getChunk(int x, int z) const {
