@@ -5,7 +5,8 @@
 class MountainBiome: public Biome {
 public:
   MountainBiome();
-  BlockType generateInternalBlock(int x, int y, int z) override;
+  ~MountainBiome() override = default;
+  // BlockType generateInternalBlock(int x, int y, int z) override;
   BlockType generateTopBlock(int y) override;
   void spawnDecorations(Chunk &chunk) override;
 };

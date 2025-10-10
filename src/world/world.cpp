@@ -12,7 +12,7 @@ World::World()
 void World::init() {
   renderer->init();
 
-  int world_size = 15;
+  int world_size = 25;
 
   for (int x = 0; x < world_size; x++) {
     for (int z = 0; z < world_size; z++) {

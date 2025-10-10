@@ -9,8 +9,8 @@ constexpr int kChunkWidth = 16;
 constexpr int kScreenHeight = 600;
 constexpr int kScreenWidth = 800;
 
-constexpr int kSeaLevel    = (kChunkHeight * 2) / 10;
-constexpr int kSnowLevel = 85;
+constexpr int kSeaLevel = (kChunkHeight * 2) / 5;
+constexpr int kSnowLevel = 130;
 
 constexpr float kBiomeFreq = 0.04f;
 constexpr float kBiomeAmp = 35.0f;
@@ -20,8 +20,8 @@ constexpr float kBiomeGain = 0.5f;
 
 constexpr float kPlayerHeight = 1.5f;
 constexpr float kPlayerRadius = 0.5f;
-constexpr float kPlayerMoveSpeed = 5.0f;
-constexpr float kPlayerSprintSpeed = 10.f;
+constexpr float kPlayerMoveSpeed = 10.0f;
+constexpr float kPlayerSprintSpeed = 20.f;
 constexpr float kPlayerJumpStrength = 5.0f;
 constexpr float kPlayerWaterSpeed = 2.5f;
 constexpr float kPlayerWaterJumpStrength = 1.0f;

@@ -5,7 +5,8 @@
 class OceanBiome: public Biome {
 public:
   OceanBiome();
-  BlockType generateInternalBlock(int x, int y, int z) override;
+  ~OceanBiome() override = default;
+  // BlockType generateInternalBlock(int x, int y, int z) override;
   BlockType generateTopBlock(int y) override;
   void spawnDecorations(Chunk &chunk) override;
 };

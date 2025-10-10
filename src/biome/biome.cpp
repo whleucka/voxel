@@ -16,10 +16,26 @@ void Biome::generateTerrain(Chunk &chunk) {
       }
       for (int y = 0; y < kChunkHeight; ++y) {
         if (y < h) {
-          if (y == h - 1)
-            chunk.at(x, y, z) = generateTopBlock(y);
-          else
+          if (y == h - 1) {
+            BlockType top = generateTopBlock(y);
+            if (y >= kSnowLevel) {
+              if (top == BlockType::STONE) {
+                top = BlockType::SNOW_STONE;
+              } else if (top == BlockType::DIRT || top == BlockType::GRASS) {
+                top = BlockType::SNOW_DIRT;
+              }
+            }
+            if (y <= kSeaLevel) {
+              if (y > kSeaLevel - 3) {
+                top = BlockType::SAND;
+              } else {
+                top = BlockType::SANDSTONE;
+              }
+            }
+            chunk.at(x, y, z) = top;
+          } else {
             chunk.at(x, y, z) = generateInternalBlock(x, y, z);
+          }
         } else {
           chunk.at(x, y, z) = BlockType::AIR;
         }
@@ -45,10 +61,29 @@ void Biome::fillWater(Chunk &chunk) {
   }
 }
 
+void Biome::generateMinerals(Chunk &chunk) {
+}
+
+BlockType Biome::generateInternalBlock(int x, int y, int z) {
+  // Always bedrock at the bottom few layers
+  if (y <= 5)
+    return BlockType::BEDROCK;
+
+  // The deeper you go, the denser the rock
+  if (y < kSeaLevel - 20)
+    return BlockType::STONE;
+
+  if (y < kSeaLevel - 10)
+    return BlockType::COBBLESTONE;
+
+  // Upper layers are dirt
+  return BlockType::DIRT;
+}
+
 int Biome::getHeight(glm::vec2 pos, float *biome_noise_out) {
   constexpr int HMIN = 2;
   constexpr int HMAX = kChunkHeight - 1;
-  constexpr int SEA  = kSeaLevel;
+  constexpr int SEA = kSeaLevel;
   const float sea_norm = float(SEA) / float(HMAX);
 
   // --- Continents (0=ocean, 1=land) ---
@@ -62,7 +97,8 @@ int Biome::getHeight(glm::vec2 pos, float *biome_noise_out) {
   // --- Biome noise (plains vs mountains) ---
   glm::vec2 bpos = pos * 0.0045f;
   float biome_n = glm::clamp(glm::perlin(bpos) * 0.5f + 0.5f, 0.0f, 1.0f);
-  if (biome_noise_out) *biome_noise_out = biome_n;
+  if (biome_noise_out)
+    *biome_noise_out = biome_n;
 
   // --- Ocean floor ---
   float ocean_floor = glm::mix(0.05f, sea_norm - 0.15f, e);
@@ -70,9 +106,10 @@ int Biome::getHeight(glm::vec2 pos, float *biome_noise_out) {
   ocean_floor = glm::clamp(ocean_floor, 0.0f, sea_norm - 0.02f);
 
   // --- Land elevation ---
-  float plains   = glm::mix(sea_norm - 0.02f, 0.60f, e);
-  float peaks    = glm::mix(0.55f, 0.95f, std::pow(e, 1.4f));
-  float mountain = glm::mix(plains, peaks, glm::smoothstep(0.5f, 0.85f, biome_n));
+  float plains = glm::mix(sea_norm - 0.02f, 0.60f, e);
+  float peaks = glm::mix(0.55f, 0.95f, std::pow(e, 1.4f));
+  float mountain =
+      glm::mix(plains, peaks, glm::smoothstep(0.5f, 0.85f, biome_n));
 
   // --- Blend ocean vs land ---
   float coast = glm::smoothstep(0.25f, 0.65f, c);
