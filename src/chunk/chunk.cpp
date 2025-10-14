@@ -18,8 +18,8 @@ void Chunk::init() {
   biome->spawnDecorations(*this);
 }
 
-void Chunk::generateMesh(TextureManager &texture_manager) {
-  mesh.generate(*this, texture_manager);
+void Chunk::generateMesh(World *world, TextureManager &texture_manager) {
+  mesh.generate(world, *this, texture_manager);
 }
 
 void Chunk::uploadGPU() {

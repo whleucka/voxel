@@ -1,9 +1,9 @@
 #include "world/world.hpp"
+#include "core/constants.hpp"
 #include "render/renderer.hpp"
 #include <memory>
 #include <mutex>
-
-using Lock = std::lock_guard<std::mutex>;
+#include "util/lock.hpp"
 
 World::World()
     : renderer(std::make_unique<Renderer>()),
@@ -12,13 +12,11 @@ World::World()
 void World::init() {
   renderer->init();
 
-  int world_size = 5;
+  glm::vec3 playerPos = player->getPosition();
+  last_chunk_x = static_cast<int>(floor(playerPos.x / kChunkWidth));
+  last_chunk_z = static_cast<int>(floor(playerPos.z / kChunkDepth));
 
-  for (int x = 0; x < world_size; x++) {
-    for (int z = 0; z < world_size; z++) {
-      addChunk(x, z);
-    }
-  }
+  updateLoadedChunks();
 }
 
 void World::addChunk(int x, int z) {
@@ -39,6 +37,17 @@ void World::addChunk(int x, int z) {
 
 void World::update(float dt) {
   player->update(dt);
+
+  glm::vec3 pos = player->getPosition();
+  int current_chunk_x = static_cast<int>(floor(pos.x / kChunkWidth));
+  int current_chunk_z = static_cast<int>(floor(pos.z / kChunkDepth));
+
+  if (current_chunk_x != last_chunk_x || current_chunk_z != last_chunk_z) {
+    last_chunk_x = current_chunk_x;
+    last_chunk_z = current_chunk_z;
+    updateLoadedChunks();
+  }
+
   std::queue<std::shared_ptr<Chunk>> mesh_local, upload_local;
   {
     Lock lock(chunks_mutex);
@@ -48,7 +57,7 @@ void World::update(float dt) {
   while (!mesh_local.empty()) {
     auto chunk = mesh_local.front();
     mesh_local.pop();
-    chunk->generateMesh(renderer->getTextureManager());
+    chunk->generateMesh(this, renderer->getTextureManager());
     upload_local.push(chunk);
   }
 
@@ -69,6 +78,42 @@ void World::update(float dt) {
   }
 }
 
+void World::updateLoadedChunks() {
+  constexpr int r = kRenderDistance;
+  robin_hood::unordered_set<ChunkKey, ChunkKeyHash> keep;
+
+  for (int dx = -r; dx <= r; ++dx) {
+    for (int dz = -r; dz <= r; ++dz) {
+      if (dx * dx + dz * dz > r * r) continue;
+      int cx = last_chunk_x + dx;
+      int cz = last_chunk_z + dz;
+      keep.insert({cx, cz});
+
+      if (!getChunk(cx, cz)) {
+        addChunk(cx, cz);
+      }
+    }
+  }
+
+  // unload chunks outside radius — but defer erasure safely
+  std::vector<ChunkKey> to_remove;
+  {
+    Lock lock(chunks_mutex);
+    for (auto &[key, _] : chunks) {
+      if (!keep.count(key))
+        to_remove.push_back(key);
+    }
+
+    for (auto &key : to_remove)
+      chunks.erase(key);
+  }
+}
+
+void World::unloadChunk(int x, int z) {
+  Lock lock(chunks_mutex);
+  chunks.erase({x, z});
+}
+
 void World::render(glm::mat4 &view, glm::mat4 &projection) {
   std::lock_guard<std::mutex> lk(chunks_mutex);
   renderer->drawChunks(chunks, view, projection);
@@ -79,6 +124,8 @@ std::shared_ptr<Chunk> World::getChunk(int x, int z) {
 }
 
 std::shared_ptr<const Chunk> World::getChunk(int x, int z) const {
+  Lock lock(chunks_mutex);
   auto it = chunks.find({x, z});
-  return it != chunks.end() ? it->second : nullptr;
+  if (it == chunks.end()) return nullptr;
+  return it->second;
 }

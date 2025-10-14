@@ -6,6 +6,8 @@
 #include <glm/glm.hpp>
 #include <vector>
 
+class World;
+
 struct ChunkKey {
   int x, z;
   bool operator==(const ChunkKey &other) const noexcept {
@@ -25,7 +27,7 @@ public:
   ~Chunk() = default;
 
   void init();
-  void generateMesh(TextureManager &texture_manager);
+  void generateMesh(World *world, TextureManager &texture_manager);
   void uploadGPU();
 
   BlockType &at(int x, int y, int z);

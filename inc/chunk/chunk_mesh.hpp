@@ -6,6 +6,7 @@
 #include <vector>
 
 class Chunk;
+class World;
 
 enum Face { Top, Bottom, Left, Right, Front, Back };
 
@@ -14,7 +15,7 @@ public:
   ChunkMesh();
   ~ChunkMesh();
 
-  void generate(Chunk &chunk, TextureManager &texture_manager);
+  void generate(World *world, Chunk &chunk, TextureManager &texture_manager);
   void upload();
   void render();
 

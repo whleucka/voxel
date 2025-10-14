@@ -1,5 +1,6 @@
 #include "biome/oak_tree_generator.hpp"
 #include "block/block_type.hpp"
+#include "core/constants.hpp"
 
 void OakTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
   // set trunk
@@ -20,8 +21,14 @@ void OakTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
         if (rand() % 100 > 69)
           continue;
         if (dx * dx + dz * dz + dy * dy <= radius * radius + 1) {
-          if (chunk.at(x + dx, top + dy, z + dz) != BlockType::OAK_LOG)
-            chunk.at(x + dx, top + dy, z + dz) = BlockType::OAK_LEAF;
+          int block_x = x + dx;
+          int block_y = top + dy;
+          int block_z = z + dz;
+          if (block_x >= 0 && block_x < kChunkWidth && block_y >= 0 &&
+              block_y < kChunkHeight && block_z >= 0 && block_z < kChunkDepth) {
+            if (chunk.at(block_x, block_y, block_z) != BlockType::OAK_LOG)
+              chunk.at(block_x, block_y, block_z) = BlockType::OAK_LEAF;
+          }
         }
       }
     }

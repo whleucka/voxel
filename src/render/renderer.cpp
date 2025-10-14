@@ -22,6 +22,7 @@ void Renderer::drawChunks(const robin_hood::unordered_map<ChunkKey, std::shared_
   block_shader->setInt("uTexture", 0);
 
   for (auto &[key, chunk] : chunks) {
+    if (!chunk) continue;
     block_shader->setMat4("model", chunk->getModelMatrix());
     block_shader->setMat4("view", view);
     block_shader->setMat4("projection", projection);

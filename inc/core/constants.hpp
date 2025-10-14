@@ -6,6 +6,8 @@ constexpr int kChunkHeight = 256;
 constexpr int kChunkDepth = 16;
 constexpr int kChunkWidth = 16;
 
+constexpr int kRenderDistance = 5;
+
 constexpr int kScreenHeight = 600;
 constexpr int kScreenWidth = 800;
 

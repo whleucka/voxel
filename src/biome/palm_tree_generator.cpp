@@ -1,5 +1,6 @@
 #include "biome/palm_tree_generator.hpp"
 #include "block/block_type.hpp"
+#include "core/constants.hpp"
 
 void PalmTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
   int h = (rand() % 6) + 12;

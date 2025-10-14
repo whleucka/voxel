@@ -1,11 +1,37 @@
 #include "chunk/chunk_mesh.hpp"
+#include "world/world.hpp"
 #include "block/block_data.hpp"
 #include "chunk/chunk.hpp"
 #include "core/constants.hpp"
 
+
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace {
+
+BlockType getBlock(World *world, Chunk &chunk, int x, int y, int z) {
+  if (y < 0 || y >= kChunkHeight) {
+    return BlockType::AIR;
+  }
+
+  const int chunk_x = chunk.getPos()[0];
+  const int chunk_z = chunk.getPos()[1];
+
+  const int world_x = chunk_x * kChunkWidth + x;
+  const int world_z = chunk_z * kChunkDepth + z;
+
+  const int target_chunk_x = floor((float)world_x / kChunkWidth);
+  const int target_chunk_z = floor((float)world_z / kChunkDepth);
+
+  if (target_chunk_x != chunk_x || target_chunk_z != chunk_z) {
+    auto n = world->getChunk(target_chunk_x, target_chunk_z);
+    const int local_x = world_x - target_chunk_x * kChunkWidth;
+    const int local_z = world_z - target_chunk_z * kChunkDepth;
+    return n ? n->at(local_x, y, local_z) : BlockType::AIR;
+  }
+
+  return chunk.at(x, y, z);
+}
 
 // helper: turn your 4-corner atlas uvs into offset+span
 inline void uvOffsetSpan(const std::array<glm::vec2,4>& uvs,
@@ -121,7 +147,7 @@ ChunkMesh::~ChunkMesh() {
   glDeleteBuffers(1, &EBO);
 }
 
-void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
+void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_manager) {
   vertices.clear();
   indices.clear();
 
@@ -140,13 +166,13 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
             continue;
 
           // check if face is visible
-          if (z == kChunkDepth - 1 || chunk.safeAt(x, y, z + 1) == BlockType::AIR) {
+          if (z == kChunkDepth - 1 || getBlock(world, chunk, x, y, z + 1) == BlockType::AIR) {
             const auto &tex = block_data.at(type);
             auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
 
             // greedy expansion in width
             int width = 1;
-            while (x + width < kChunkWidth && !mask[x + width][y] && chunk.safeAt(x + width, y, z) == type && (z == kChunkDepth - 1 || chunk.safeAt(x + width, y, z + 1) == BlockType::AIR)) {
+            while (x + width < kChunkWidth && !mask[x + width][y] && chunk.safeAt(x + width, y, z) == type && (z == kChunkDepth - 1 || getBlock(world, chunk, x + width, y, z + 1) == BlockType::AIR)) {
               width++;
             }
 
@@ -155,7 +181,7 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
             bool can_expand_height = true;
             while (y + height < kChunkHeight && can_expand_height) {
               for (int i = 0; i < width; ++i) {
-                if (mask[x + i][y + height] || chunk.safeAt(x + i, y + height, z) != type || (z != kChunkDepth - 1 && chunk.safeAt(x + i, y + height, z + 1) != BlockType::AIR)) {
+                if (mask[x + i][y + height] || chunk.safeAt(x + i, y + height, z) != type || (z != kChunkDepth - 1 && getBlock(world, chunk, x + i, y + height, z + 1) != BlockType::AIR)) {
                   can_expand_height = false;
                   break;
                 }
@@ -194,13 +220,13 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
             continue;
 
           // check if face is visible
-          if (z == 0 || chunk.safeAt(x, y, z - 1) == BlockType::AIR) {
+          if (z == 0 || getBlock(world, chunk, x, y, z - 1) == BlockType::AIR) {
             const auto &tex = block_data.at(type);
             auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
 
             // greedy expansion in width
             int width = 1;
-            while (x + width < kChunkWidth && !mask[x + width][y] && chunk.safeAt(x + width, y, z) == type && (z == 0 || chunk.safeAt(x + width, y, z - 1) == BlockType::AIR)) {
+            while (x + width < kChunkWidth && !mask[x + width][y] && chunk.safeAt(x + width, y, z) == type && (z == 0 || getBlock(world, chunk, x + width, y, z - 1) == BlockType::AIR)) {
               width++;
             }
 
@@ -209,7 +235,7 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
             bool can_expand_height = true;
             while (y + height < kChunkHeight && can_expand_height) {
               for (int i = 0; i < width; ++i) {
-                if (mask[x + i][y + height] || chunk.safeAt(x + i, y + height, z) != type || (z != 0 && chunk.safeAt(x + i, y + height, z - 1) != BlockType::AIR)) {
+                if (mask[x + i][y + height] || chunk.safeAt(x + i, y + height, z) != type || (z != 0 && getBlock(world, chunk, x + i, y + height, z - 1) != BlockType::AIR)) {
                   can_expand_height = false;
                   break;
                 }
@@ -248,13 +274,13 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
             continue;
 
           // check if face is visible
-          if (y == kChunkHeight - 1 || chunk.safeAt(x, y + 1, z) == BlockType::AIR) {
+          if (y == kChunkHeight - 1 || getBlock(world, chunk, x, y + 1, z) == BlockType::AIR) {
             const auto &tex = block_data.at(type);
             auto top_uv = texture_manager.getQuadUV(tex.top.x, tex.top.y);
 
             // greedy expansion in width
             int width = 1;
-            while (x + width < kChunkWidth && !mask[z][x + width] && chunk.safeAt(x + width, y, z) == type && (y == kChunkHeight - 1 || chunk.safeAt(x + width, y + 1, z) == BlockType::AIR)) {
+            while (x + width < kChunkWidth && !mask[z][x + width] && chunk.safeAt(x + width, y, z) == type && (y == kChunkHeight - 1 || getBlock(world, chunk, x + width, y + 1, z) == BlockType::AIR)) {
               width++;
             }
 
@@ -263,7 +289,7 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
             bool can_expand_depth = true;
             while (z + depth < kChunkDepth && can_expand_depth) {
               for (int i = 0; i < width; ++i) {
-                if (mask[z + depth][x + i] || chunk.safeAt(x + i, y, z + depth) != type || (y != kChunkHeight - 1 && chunk.safeAt(x + i, y + 1, z + depth) != BlockType::AIR)) {
+                if (mask[z + depth][x + i] || chunk.safeAt(x + i, y, z + depth) != type || (y != kChunkHeight - 1 && getBlock(world, chunk, x + i, y + 1, z + depth) != BlockType::AIR)) {
                   can_expand_depth = false;
                   break;
                 }
@@ -302,13 +328,13 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
             continue;
 
           // check if face is visible
-          if (y == 0 || chunk.safeAt(x, y - 1, z) == BlockType::AIR) {
+          if (y == 0 || getBlock(world, chunk, x, y - 1, z) == BlockType::AIR) {
             const auto &tex = block_data.at(type);
             auto bottom_uv = texture_manager.getQuadUV(tex.bottom.x, tex.bottom.y);
 
             // greedy expansion in width
             int width = 1;
-            while (x + width < kChunkWidth && !mask[z][x + width] && chunk.safeAt(x + width, y, z) == type && (y == 0 || chunk.safeAt(x + width, y - 1, z) == BlockType::AIR)) {
+            while (x + width < kChunkWidth && !mask[z][x + width] && chunk.safeAt(x + width, y, z) == type && (y == 0 || getBlock(world, chunk, x + width, y - 1, z) == BlockType::AIR)) {
               width++;
             }
 
@@ -317,7 +343,7 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
             bool can_expand_depth = true;
             while (z + depth < kChunkDepth && can_expand_depth) {
               for (int i = 0; i < width; ++i) {
-                if (mask[z + depth][x + i] || chunk.safeAt(x + i, y, z + depth) != type || (y != 0 && chunk.safeAt(x + i, y - 1, z + depth) != BlockType::AIR)) {
+                if (mask[z + depth][x + i] || chunk.safeAt(x + i, y, z + depth) != type || (y != 0 && getBlock(world, chunk, x + i, y - 1, z + depth) != BlockType::AIR)) {
                   can_expand_depth = false;
                   break;
                 }
@@ -356,13 +382,13 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
             continue;
 
           // check if face is visible
-          if (x == kChunkWidth - 1 || chunk.safeAt(x + 1, y, z) == BlockType::AIR) {
+          if (x == kChunkWidth - 1 || getBlock(world, chunk, x + 1, y, z) == BlockType::AIR) {
             const auto &tex = block_data.at(type);
             auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
 
             // greedy expansion in depth
             int depth = 1;
-            while (z + depth < kChunkDepth && !mask[y][z + depth] && chunk.safeAt(x, y, z + depth) == type && (x == kChunkWidth - 1 || chunk.safeAt(x + 1, y, z + depth) == BlockType::AIR)) {
+            while (z + depth < kChunkDepth && !mask[y][z + depth] && chunk.safeAt(x, y, z + depth) == type && (x == kChunkWidth - 1 || getBlock(world, chunk, x + 1, y, z + depth) == BlockType::AIR)) {
               depth++;
             }
 
@@ -371,7 +397,7 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
             bool can_expand_height = true;
             while (y + height < kChunkHeight && can_expand_height) {
               for (int i = 0; i < depth; ++i) {
-                if (mask[y + height][z + i] || chunk.safeAt(x, y + height, z + i) != type || (x != kChunkWidth - 1 && chunk.safeAt(x + 1, y + height, z + i) != BlockType::AIR)) {
+                if (mask[y + height][z + i] || chunk.safeAt(x, y + height, z + i) != type || (x != kChunkWidth - 1 && getBlock(world, chunk, x + 1, y + height, z + i) != BlockType::AIR)) {
                   can_expand_height = false;
                   break;
                 }
@@ -410,13 +436,13 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
             continue;
 
           // check if face is visible
-          if (x == 0 || chunk.safeAt(x - 1, y, z) == BlockType::AIR) {
+          if (x == 0 || getBlock(world, chunk, x - 1, y, z) == BlockType::AIR) {
             const auto &tex = block_data.at(type);
             auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
 
             // greedy expansion in depth
             int depth = 1;
-            while (z + depth < kChunkDepth && !mask[y][z + depth] && chunk.safeAt(x, y, z + depth) == type && (x == 0 || chunk.safeAt(x - 1, y, z + depth) == BlockType::AIR)) {
+            while (z + depth < kChunkDepth && !mask[y][z + depth] && chunk.safeAt(x, y, z + depth) == type && (x == 0 || getBlock(world, chunk, x - 1, y, z + depth) == BlockType::AIR)) {
               depth++;
             }
 
@@ -425,7 +451,7 @@ void ChunkMesh::generate(Chunk &chunk, TextureManager &texture_manager) {
             bool can_expand_height = true;
             while (y + height < kChunkHeight && can_expand_height) {
               for (int i = 0; i < depth; ++i) {
-                if (mask[y + height][z + i] || chunk.safeAt(x, y + height, z + i) != type || (x != 0 && chunk.safeAt(x - 1, y + height, z + i) != BlockType::AIR)) {
+                if (mask[y + height][z + i] || chunk.safeAt(x, y + height, z + i) != type || (x != 0 && getBlock(world, chunk, x - 1, y + height, z + i) != BlockType::AIR)) {
                   can_expand_height = false;
                   break;
                 }

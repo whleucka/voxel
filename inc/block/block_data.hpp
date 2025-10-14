@@ -27,7 +27,7 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = {
     {BlockType::PINE_LOG, {{0, 1}, {0, 1}, {15, 0}}},
     {BlockType::PINE_LEAF, {{1, 1}, {1, 1}, {1, 1}}},
     {BlockType::PALM_LOG, {{3, 1}, {3, 1}, {2, 1}}},
-    {BlockType::PINE_LEAF, {{4, 1}, {4, 1}, {4, 1}}},
+    {BlockType::PALM_LEAF, {{4, 1}, {4, 1}, {4, 1}}},
     {BlockType::COAL_ORE, {{5, 1}, {5, 1}, {5, 1}}},
     {BlockType::GOLD_ORE, {{6, 1}, {6, 1}, {6, 1}}},
     {BlockType::DIAMOND_ORE, {{7, 1}, {7, 1}, {7, 1}}},
