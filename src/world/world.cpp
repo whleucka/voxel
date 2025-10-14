@@ -129,3 +129,8 @@ std::shared_ptr<const Chunk> World::getChunk(int x, int z) const {
   if (it == chunks.end()) return nullptr;
   return it->second;
 }
+
+size_t World::getChunkCount() const {
+  Lock lock(chunks_mutex);
+  return chunks.size();
+}

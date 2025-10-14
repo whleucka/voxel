@@ -165,6 +165,7 @@ void Engine::debug() {
     ImGui::Text("FPS: %.1f", io.Framerate);
     ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
     ImGui::Text("Memory usage: %zu MB", getMemoryUsage());
+    ImGui::Text("Chunks loaded: %zu", world.getChunkCount());
     glm::vec3 pos = world.getPlayer()->getPosition();
     ImGui::Text("Player: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
     ImGui::Checkbox("Fly mode", world.getPlayer()->getFlyModePtr());

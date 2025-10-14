@@ -21,6 +21,7 @@ public:
   std::shared_ptr<Chunk> getChunk(int x, int z);
   std::shared_ptr<const Chunk> getChunk(int x, int z) const;
   std::unique_ptr<Player> &getPlayer() { return player; }
+  size_t getChunkCount() const;
 
 private:
   void updateLoadedChunks();
