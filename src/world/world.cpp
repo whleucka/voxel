@@ -12,6 +12,8 @@ World::World()
 void World::init() {
   renderer->init();
 
+  spiral_offsets = generateSpiralOrder(kRenderDistance);
+
   glm::vec3 pos = {kChunkWidth * 0.5f, 125.0f, kChunkDepth * 0.5f};
 
   player->setPosition(pos);
@@ -22,6 +24,32 @@ void World::init() {
   last_chunk_x = static_cast<int>(std::floor(p.x / kChunkWidth));
   last_chunk_z = static_cast<int>(std::floor(p.z / kChunkDepth));
   updateLoadedChunks();
+}
+
+std::vector<glm::ivec2> World::generateSpiralOrder(int radius) {
+  std::vector<glm::ivec2> spiral;
+  spiral.reserve((2 * radius + 1) * (2 * radius + 1));
+
+  int x = 0, z = 0;
+  int dx = 0, dz = -1;
+  int max = (2 * radius + 1);
+
+  for (int i = 0; i < max * max; ++i) {
+    if (std::abs(x) <= radius && std::abs(z) <= radius)
+      spiral.emplace_back(x, z);
+
+    // turn right at corners
+    if (x == z || (x < 0 && x == -z) || (x > 0 && x == 1 - z)) {
+      int tmp = dx;
+      dx = -dz;
+      dz = tmp;
+    }
+
+    x += dx;
+    z += dz;
+  }
+
+  return spiral;
 }
 
 void World::addChunk(int x, int z) {
@@ -74,47 +102,35 @@ void World::update(float dt) {
 
 void World::updateLoadedChunks() {
   constexpr int r = kRenderDistance;
-
-  // 1) Build candidate list within the disk
-  struct Coord { int cx, cz; int d2; };
-  std::vector<Coord> todo;
-  todo.reserve((2*r+1)*(2*r+1));
-
-  for (int dx = -r; dx <= r; ++dx) {
-    for (int dz = -r; dz <= r; ++dz) {
-      int d2 = dx*dx + dz*dz;
-      if (d2 > r*r) continue;
-      todo.push_back({ last_chunk_x + dx, last_chunk_z + dz, d2 });
-    }
-  }
-
-  // 2) Sort by distance (nearest first). Optional: stable bias by camera forward later.
-  std::sort(todo.begin(), todo.end(),
-            [](const Coord& a, const Coord& b){ return a.d2 < b.d2; });
-
-  // 3) Mark which chunks to keep
   robin_hood::unordered_set<ChunkKey, ChunkKeyHash> keep;
-  keep.reserve(todo.size());
-  for (const auto& c : todo) keep.insert({c.cx, c.cz});
+  keep.reserve((2 * r + 1) * (2 * r + 1));
 
-  // 4) Enqueue only a small number of *nearest* missing chunks per frame
-  int added = 0;
-  for (const auto& c : todo) {
-    if (added >= kMaxChunksPerFrame) break;
-    if (!getChunk(c.cx, c.cz)) {
-      addChunk(c.cx, c.cz);
-      ++added;
+  int chunksAdded = 0;
+
+  for (const auto &offset : spiral_offsets) {
+    int cx = last_chunk_x + offset.x;
+    int cz = last_chunk_z + offset.y;
+
+    if (offset.x * offset.x + offset.y * offset.y > r * r)
+      continue;
+
+    keep.insert({cx, cz});
+
+    if (!getChunk(cx, cz) && chunksAdded < kMaxChunksPerFrame) {
+      addChunk(cx, cz);
+      ++chunksAdded;
     }
   }
 
-  // 5) Unload everything outside the disk
+  // Unload chunks outside radius
   std::vector<ChunkKey> to_remove;
   {
     WriteLock lock(chunks_mutex);
-    for (auto& [key, _] : chunks) {
-      if (!keep.count(key)) to_remove.push_back(key);
-    }
-    for (auto& key : to_remove) chunks.erase(key);
+    for (auto &[key, _] : chunks)
+      if (!keep.count(key))
+        to_remove.push_back(key);
+    for (auto &key : to_remove)
+      chunks.erase(key);
   }
 }
 

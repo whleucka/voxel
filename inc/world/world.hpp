@@ -1,14 +1,14 @@
 #pragma once
 
 #include "chunk/chunk.hpp"
-#include "render/renderer.hpp"
-#include "world/game_clock.hpp"
 #include "player/player.hpp"
+#include "render/renderer.hpp"
+#include "robin_hood/robin_hood.h"
 #include "util/lock.hpp"
+#include "util/thread_pool.hpp"
+#include "world/game_clock.hpp"
 #include <glm/glm.hpp>
 #include <memory>
-#include "robin_hood/robin_hood.h"
-#include "util/thread_pool.hpp"
 
 class World {
 public:
@@ -25,17 +25,21 @@ public:
   size_t getChunkCount() const;
 
 private:
+  std::vector<glm::ivec2> generateSpiralOrder(int radius);
+  std::vector<glm::ivec2> spiral_offsets;
   void updateLoadedChunks();
   void unloadChunk(int x, int z);
 
   ThreadPool gen_pool{4};
   ThreadPool mesh_pool{4};
   mutable SharedMutex chunks_mutex;
+
   GameClock game_clock;
   std::unique_ptr<Renderer> renderer;
   std::unique_ptr<Player> player;
 
-  robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash> chunks;
+  robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash>
+      chunks;
   std::queue<std::shared_ptr<Chunk>> mesh_queue;
   std::queue<std::shared_ptr<Chunk>> upload_queue;
 
