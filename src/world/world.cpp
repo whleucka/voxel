@@ -2,35 +2,48 @@
 #include "core/constants.hpp"
 #include "render/renderer.hpp"
 #include "util/lock.hpp"
+#include <glm/fwd.hpp>
 #include <memory>
-#include <mutex>
 
 World::World()
     : renderer(std::make_unique<Renderer>()),
-      player(std::make_unique<Player>(glm::vec3(25.0f, 125.0f, 25.0f))) {}
+      player(std::make_unique<Player>(glm::vec3(0.0f, 0.0f, 0.0f))) {}
 
 void World::init() {
   renderer->init();
 
-  glm::vec3 playerPos = player->getPosition();
-  last_chunk_x = static_cast<int>(floor(playerPos.x / kChunkWidth));
-  last_chunk_z = static_cast<int>(floor(playerPos.z / kChunkDepth));
+  glm::vec3 pos = {kChunkWidth * 0.5f, 125.0f, kChunkDepth * 0.5f};
 
+  player->setPosition(pos);
+  player->getCamera().setPosition(pos);
+
+  // Now compute chunk center and kick off loading
+  const glm::vec3 p = player->getPosition();
+  last_chunk_x = static_cast<int>(std::floor(p.x / kChunkWidth));
+  last_chunk_z = static_cast<int>(std::floor(p.z / kChunkDepth));
   updateLoadedChunks();
 }
 
 void World::addChunk(int x, int z) {
   ChunkKey key{x, z};
   auto chunk = std::make_shared<Chunk>(x, z);
-  thread_pool.enqueue([this, chunk, key]() {
-    // Init chunk (generate terrain, block types)
-    chunk->init();
+
+  gen_pool.enqueue([this, chunk, key]() {
+    chunk->init(); // generate terrain
+
+    // Once generation is done, queue for meshing
+    mesh_pool.enqueue([this, chunk]() {
+      chunk->buildMeshData(this, renderer->getTextureManager());
+      {
+        WriteLock lock(chunks_mutex);
+        upload_queue.push(chunk);
+      }
+    });
+
+    // Safely add the chunk to the world (even before meshing)
     {
-      Lock lock(chunks_mutex);
-      // Add new chunk
+      WriteLock lock(chunks_mutex);
       chunks.emplace(key, chunk);
-      // Queue for mesh generation
-      mesh_queue.push(chunk);
     }
   });
 }
@@ -48,31 +61,9 @@ void World::update(float dt) {
     updateLoadedChunks();
   }
 
-  // --- Process mesh queue ---
-  std::queue<std::shared_ptr<Chunk>> mesh_local;
-  {
-    Lock lock(chunks_mutex);
-    std::swap(mesh_queue, mesh_local);
-  }
-
-  while (!mesh_local.empty()) {
-    auto chunk = mesh_local.front();
-    mesh_local.pop();
-
-    thread_pool.enqueue([this, chunk]() {
-      chunk->buildMeshData(this, renderer->getTextureManager());
-      {
-        Lock lock(chunks_mutex);
-        upload_queue.push(chunk);
-      }
-    });
-  }
-
-  // --- Upload meshes to GPU ---
   int uploads_this_frame = 0;
-
   {
-    Lock lock(chunks_mutex);
+    WriteLock lock(chunks_mutex);
     while (!upload_queue.empty() && uploads_this_frame < kMaxUploadsPerFrame) {
       upload_queue.front()->uploadGPU();
       upload_queue.pop();
@@ -83,43 +74,57 @@ void World::update(float dt) {
 
 void World::updateLoadedChunks() {
   constexpr int r = kRenderDistance;
-  robin_hood::unordered_set<ChunkKey, ChunkKeyHash> keep;
+
+  // 1) Build candidate list within the disk
+  struct Coord { int cx, cz; int d2; };
+  std::vector<Coord> todo;
+  todo.reserve((2*r+1)*(2*r+1));
 
   for (int dx = -r; dx <= r; ++dx) {
     for (int dz = -r; dz <= r; ++dz) {
-      if (dx * dx + dz * dz > r * r)
-        continue;
-      int cx = last_chunk_x + dx;
-      int cz = last_chunk_z + dz;
-      keep.insert({cx, cz});
-
-      if (!getChunk(cx, cz)) {
-        addChunk(cx, cz);
-      }
+      int d2 = dx*dx + dz*dz;
+      if (d2 > r*r) continue;
+      todo.push_back({ last_chunk_x + dx, last_chunk_z + dz, d2 });
     }
   }
 
-  // unload chunks outside radius — but defer erasure safely
+  // 2) Sort by distance (nearest first). Optional: stable bias by camera forward later.
+  std::sort(todo.begin(), todo.end(),
+            [](const Coord& a, const Coord& b){ return a.d2 < b.d2; });
+
+  // 3) Mark which chunks to keep
+  robin_hood::unordered_set<ChunkKey, ChunkKeyHash> keep;
+  keep.reserve(todo.size());
+  for (const auto& c : todo) keep.insert({c.cx, c.cz});
+
+  // 4) Enqueue only a small number of *nearest* missing chunks per frame
+  int added = 0;
+  for (const auto& c : todo) {
+    if (added >= kMaxChunksPerFrame) break;
+    if (!getChunk(c.cx, c.cz)) {
+      addChunk(c.cx, c.cz);
+      ++added;
+    }
+  }
+
+  // 5) Unload everything outside the disk
   std::vector<ChunkKey> to_remove;
   {
-    Lock lock(chunks_mutex);
-    for (auto &[key, _] : chunks) {
-      if (!keep.count(key))
-        to_remove.push_back(key);
+    WriteLock lock(chunks_mutex);
+    for (auto& [key, _] : chunks) {
+      if (!keep.count(key)) to_remove.push_back(key);
     }
-
-    for (auto &key : to_remove)
-      chunks.erase(key);
+    for (auto& key : to_remove) chunks.erase(key);
   }
 }
 
 void World::unloadChunk(int x, int z) {
-  Lock lock(chunks_mutex);
+  WriteLock lock(chunks_mutex);
   chunks.erase({x, z});
 }
 
 void World::render(glm::mat4 &view, glm::mat4 &projection) {
-  std::lock_guard<std::mutex> lk(chunks_mutex);
+  ReadLock lock(chunks_mutex);
   renderer->drawChunks(chunks, view, projection);
 }
 
@@ -128,7 +133,7 @@ std::shared_ptr<Chunk> World::getChunk(int x, int z) {
 }
 
 std::shared_ptr<const Chunk> World::getChunk(int x, int z) const {
-  Lock lock(chunks_mutex);
+  ReadLock lock(chunks_mutex);
   auto it = chunks.find({x, z});
   if (it == chunks.end())
     return nullptr;
@@ -136,6 +141,6 @@ std::shared_ptr<const Chunk> World::getChunk(int x, int z) const {
 }
 
 size_t World::getChunkCount() const {
-  Lock lock(chunks_mutex);
+  ReadLock lock(chunks_mutex);
   return chunks.size();
 }

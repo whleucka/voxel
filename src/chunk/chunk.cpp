@@ -43,5 +43,6 @@ BlockType Chunk::safeAt(int x, int y, int z) const {
 }
 
 glm::mat4 Chunk::getModelMatrix() const {
-  return glm::translate(glm::mat4(1.0f), glm::vec3(pos[0] * kChunkWidth, 0, pos[1] * kChunkDepth));
+  return glm::translate(glm::mat4(1.0f),
+                        glm::vec3(pos[0] * kChunkWidth, 0, pos[1] * kChunkDepth));
 }

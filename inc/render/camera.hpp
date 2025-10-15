@@ -1,4 +1,5 @@
 #pragma once
+#include <glm/fwd.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -24,6 +25,7 @@ public:
   Camera() { updateCameraVectors(); }
 
   glm::vec3 getPosition() const { return position; }
+  void setPosition(glm::vec3 pos) { position = pos; }
   glm::vec3 getFront() { return front; }
   glm::vec3 getUp() { return up; }
   glm::vec3 getRight() { return right; }

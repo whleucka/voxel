@@ -36,10 +36,10 @@ public:
 
   ChunkMesh &getMesh() { return mesh; }
   glm::mat4 getModelMatrix() const;
-  glm::vec2 getPos() const { return pos; }
+  glm::ivec2 getPos() const { return pos; }
 
 private:
-  glm::vec2 pos;
+  glm::ivec2 pos;
   std::vector<BlockType> blocks;
   ChunkMesh mesh;
 };
