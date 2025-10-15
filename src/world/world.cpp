@@ -1,9 +1,9 @@
 #include "world/world.hpp"
 #include "core/constants.hpp"
 #include "render/renderer.hpp"
+#include "util/lock.hpp"
 #include <memory>
 #include <mutex>
-#include "util/lock.hpp"
 
 World::World()
     : renderer(std::make_unique<Renderer>()),
@@ -48,7 +48,8 @@ void World::update(float dt) {
     updateLoadedChunks();
   }
 
-  std::queue<std::shared_ptr<Chunk>> mesh_local, upload_local;
+  // --- Process mesh queue ---
+  std::queue<std::shared_ptr<Chunk>> mesh_local;
   {
     Lock lock(chunks_mutex);
     std::swap(mesh_queue, mesh_local);
@@ -57,24 +58,26 @@ void World::update(float dt) {
   while (!mesh_local.empty()) {
     auto chunk = mesh_local.front();
     mesh_local.pop();
-    chunk->generateMesh(this, renderer->getTextureManager());
-    upload_local.push(chunk);
+
+    thread_pool.enqueue([this, chunk]() {
+      chunk->buildMeshData(this, renderer->getTextureManager());
+      {
+        Lock lock(chunks_mutex);
+        upload_queue.push(chunk);
+      }
+    });
   }
+
+  // --- Upload meshes to GPU ---
+  int uploads_this_frame = 0;
 
   {
     Lock lock(chunks_mutex);
-    std::swap(upload_queue, upload_local);
-  }
-
-  std::queue<std::shared_ptr<Chunk>> upload_copy;
-  {
-    Lock lock(chunks_mutex);
-    std::swap(upload_queue, upload_copy);
-  }
-
-  while (!upload_copy.empty()) {
-    upload_copy.front()->uploadGPU();
-    upload_copy.pop();
+    while (!upload_queue.empty() && uploads_this_frame < kMaxUploadsPerFrame) {
+      upload_queue.front()->uploadGPU();
+      upload_queue.pop();
+      ++uploads_this_frame;
+    }
   }
 }
 
@@ -84,7 +87,8 @@ void World::updateLoadedChunks() {
 
   for (int dx = -r; dx <= r; ++dx) {
     for (int dz = -r; dz <= r; ++dz) {
-      if (dx * dx + dz * dz > r * r) continue;
+      if (dx * dx + dz * dz > r * r)
+        continue;
       int cx = last_chunk_x + dx;
       int cz = last_chunk_z + dz;
       keep.insert({cx, cz});
@@ -126,7 +130,8 @@ std::shared_ptr<Chunk> World::getChunk(int x, int z) {
 std::shared_ptr<const Chunk> World::getChunk(int x, int z) const {
   Lock lock(chunks_mutex);
   auto it = chunks.find({x, z});
-  if (it == chunks.end()) return nullptr;
+  if (it == chunks.end())
+    return nullptr;
   return it->second;
 }
 

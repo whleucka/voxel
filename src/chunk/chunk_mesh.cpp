@@ -1,15 +1,150 @@
 #include "chunk/chunk_mesh.hpp"
-#include "world/world.hpp"
 #include "block/block_data.hpp"
 #include "chunk/chunk.hpp"
 #include "core/constants.hpp"
-
+#include "world/world.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace {
 
-BlockType getBlock(World *world, Chunk &chunk, int x, int y, int z) {
+// helper: turn your 4-corner atlas uvs into offset+span
+inline void uvOffsetSpan(const std::array<glm::vec2, 4> &uvs, glm::vec2 &offset,
+                         glm::vec2 &span) {
+  offset = uvs[0];        // TL
+  span = uvs[2] - uvs[0]; // BR - TL -> (du,dv)
+}
+
+void addQuad(std::vector<BlockVertex> &vertices,
+             std::vector<unsigned int> &indices, const glm::ivec3 &pos,
+             const glm::ivec2 &size, const std::array<glm::vec2, 4> &uvs,
+             Face face);
+
+void addQuad(std::vector<BlockVertex> &vertices,
+             std::vector<unsigned int> &indices, const glm::ivec3 &pos,
+             const glm::ivec2 &size, const std::array<glm::vec2, 4> &uvs,
+             Face face) {
+  int start_index = vertices.size();
+
+  glm::vec2 offset, span;
+  uvOffsetSpan(uvs, offset, span);
+
+  // optional tiny padding to avoid bleeding between atlas tiles
+  const float px = 0.5f / 512.0f; // 0.5 texel on a 512 atlas
+  offset += glm::vec2(px);
+  span -= glm::vec2(2.0f * px);
+
+  auto V = [&](float bx, float by, glm::vec3 P, glm::vec3 N) {
+    vertices.push_back({P, N, {bx, by}, offset, span});
+  };
+
+  switch (face) {
+  case Face::Top:                                                   // +Y
+    V(0, 0, {pos.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f}, {0, 1, 0}); // TL
+    V(size.x, 0, {pos.x + size.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f},
+      {0, 1, 0}); // TR
+    V(size.x, size.y,
+      {pos.x + size.x - 0.5f, pos.y + 0.5f, pos.z + size.y - 0.5f},
+      {0, 1, 0}); // BR
+    V(0, size.y, {pos.x - 0.5f, pos.y + 0.5f, pos.z + size.y - 0.5f},
+      {0, 1, 0}); // BL
+    break;
+
+  case Face::Bottom: // -Y
+    V(0, 0, {pos.x - 0.5f, pos.y - 0.5f, pos.z + size.y - 0.5f},
+      {0, -1, 0}); // TL
+    V(size.x, 0, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z + size.y - 0.5f},
+      {0, -1, 0}); // TR
+    V(size.x, size.y, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f},
+      {0, -1, 0});                                                        // BR
+    V(0, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0, -1, 0}); // BL
+    break;
+
+  case Face::Front: // +Z
+    V(0, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z + 0.5f},
+      {0, 0, 1}); // TL
+    V(size.x, 0, {pos.x + size.x - 0.5f, pos.y + size.y - 0.5f, pos.z + 0.5f},
+      {0, 0, 1}); // TR
+    V(size.x, size.y, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f},
+      {0, 0, 1});                                                        // BR
+    V(0, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f}, {0, 0, 1}); // BL
+    break;
+  case Face::Back: // -Z
+    V(0, 0, {pos.x + size.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f},
+      {0, 0, -1}); // TL
+    V(size.x, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f},
+      {0, 0, -1}); // TR
+    V(size.x, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f},
+      {0, 0, -1}); // BR
+    V(0, size.y, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f},
+      {0, 0, -1}); // BL
+    break;
+
+  case Face::Right: // +X
+    V(0, 0, {pos.x + 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f},
+      {1, 0, 0}); // TL
+    V(size.x, 0, {pos.x + 0.5f, pos.y + size.y - 0.5f, pos.z + size.x - 0.5f},
+      {1, 0, 0}); // TR
+    V(size.x, size.y, {pos.x + 0.5f, pos.y - 0.5f, pos.z + size.x - 0.5f},
+      {1, 0, 0});                                                        // BR
+    V(0, size.y, {pos.x + 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {1, 0, 0}); // BL
+    break;
+
+  case Face::Left: // -X
+    V(0, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z + size.x - 0.5f},
+      {-1, 0, 0}); // TL
+    V(size.x, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f},
+      {-1, 0, 0}); // TR
+    V(size.x, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f},
+      {-1, 0, 0}); // BR
+    V(0, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z + size.x - 0.5f},
+      {-1, 0, 0}); // BL
+    break;
+  }
+
+  // per-face CCW indices (matching TL,TR,BR,BL vertex order above)
+  switch (face) {
+  // these four need the diagonal the other way
+  case Face::Top:
+  case Face::Bottom:
+  case Face::Front:
+  case Face::Back:
+    indices.push_back(start_index + 0);
+    indices.push_back(start_index + 3);
+    indices.push_back(start_index + 2);
+    indices.push_back(start_index + 2);
+    indices.push_back(start_index + 1);
+    indices.push_back(start_index + 0);
+    break;
+
+  // left/right are already CCW with the current vertex order
+  case Face::Left:
+  case Face::Right:
+    indices.push_back(start_index + 0);
+    indices.push_back(start_index + 1);
+    indices.push_back(start_index + 2);
+    indices.push_back(start_index + 2);
+    indices.push_back(start_index + 3);
+    indices.push_back(start_index + 0);
+    break;
+  }
+}
+
+} // namespace
+
+ChunkMesh::ChunkMesh() {
+  glGenVertexArrays(1, &VAO);
+  glGenBuffers(1, &VBO);
+  glGenBuffers(1, &EBO);
+}
+
+ChunkMesh::~ChunkMesh() {
+  glDeleteVertexArrays(1, &VAO);
+  glDeleteBuffers(1, &VBO);
+  glDeleteBuffers(1, &EBO);
+}
+
+BlockType ChunkMesh::getBlock(World *world, const Chunk &chunk, int x, int y, int z) {
   if (y < 0 || y >= kChunkHeight) {
     return BlockType::AIR;
   }
@@ -33,121 +168,12 @@ BlockType getBlock(World *world, Chunk &chunk, int x, int y, int z) {
   return chunk.at(x, y, z);
 }
 
-// helper: turn your 4-corner atlas uvs into offset+span
-inline void uvOffsetSpan(const std::array<glm::vec2,4>& uvs,
-                         glm::vec2& offset, glm::vec2& span) {
-  offset = uvs[0];                 // TL
-  span   = uvs[2] - uvs[0];        // BR - TL -> (du,dv)
-}
-
-void addQuad(std::vector<BlockVertex> &vertices, std::vector<unsigned int> &indices, const glm::ivec3 &pos, const glm::ivec2 &size, const std::array<glm::vec2, 4> &uvs, Face face);
-
-void addQuad(std::vector<BlockVertex> &vertices,
-             std::vector<unsigned int> &indices,
-             const glm::ivec3 &pos,
-             const glm::ivec2 &size,
-             const std::array<glm::vec2, 4> &uvs,
-             Face face) {
-  int start_index = vertices.size();
-
-  glm::vec2 offset, span;
-  uvOffsetSpan(uvs, offset, span);
-
-  // optional tiny padding to avoid bleeding between atlas tiles
-  const float px = 0.5f / 512.0f;    // 0.5 texel on a 512 atlas
-  offset += glm::vec2(px);
-  span   -= glm::vec2(2.0f * px);
-
-  auto V = [&](float bx, float by, glm::vec3 P, glm::vec3 N) {
-    vertices.push_back({P, N, {bx, by}, offset, span});
-  };
-
-  switch (face) {
-    case Face::Top: // +Y
-      V(0, 0, {pos.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f}, {0,1,0}); // TL
-      V(size.x, 0, {pos.x + size.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f}, {0,1,0}); // TR
-      V(size.x, size.y, {pos.x + size.x - 0.5f, pos.y + 0.5f, pos.z + size.y - 0.5f}, {0,1,0}); // BR
-      V(0, size.y, {pos.x - 0.5f, pos.y + 0.5f, pos.z + size.y - 0.5f}, {0,1,0}); // BL
-      break;
-
-    case Face::Bottom: // -Y
-      V(0, 0, {pos.x - 0.5f, pos.y - 0.5f, pos.z + size.y - 0.5f}, {0,-1,0}); // TL
-      V(size.x, 0, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z + size.y - 0.5f}, {0,-1,0}); // TR
-      V(size.x, size.y, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,-1,0}); // BR
-      V(0, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,-1,0}); // BL
-      break;
-
-    case Face::Front: // +Z
-      V(0, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z + 0.5f}, {0,0,1}); // TL
-      V(size.x, 0, {pos.x + size.x - 0.5f, pos.y + size.y - 0.5f, pos.z + 0.5f}, {0,0,1}); // TR
-      V(size.x, size.y, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f}, {0,0,1}); // BR
-      V(0, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f}, {0,0,1}); // BL
-      break;
-    case Face::Back: // -Z
-      V(0, 0, {pos.x + size.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {0,0,-1}); // TL
-      V(size.x, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {0,0,-1}); // TR
-      V(size.x, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,0,-1}); // BR
-      V(0, size.y, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0,0,-1}); // BL
-      break;
-
-    case Face::Right: // +X
-      V(0, 0, {pos.x + 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {1,0,0}); // TL
-      V(size.x, 0, {pos.x + 0.5f, pos.y + size.y - 0.5f, pos.z + size.x - 0.5f}, {1,0,0}); // TR
-      V(size.x, size.y, {pos.x + 0.5f, pos.y - 0.5f, pos.z + size.x - 0.5f}, {1,0,0}); // BR
-      V(0, size.y, {pos.x + 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {1,0,0}); // BL
-      break;
-
-    case Face::Left: // -X
-      V(0, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z + size.x - 0.5f}, {-1,0,0}); // TL
-      V(size.x, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f}, {-1,0,0}); // TR
-      V(size.x, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {-1,0,0}); // BR
-      V(0, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z + size.x - 0.5f}, {-1,0,0}); // BL
-      break;
-  }
-
-  // per-face CCW indices (matching TL,TR,BR,BL vertex order above)
-  switch (face) {
-    // these four need the diagonal the other way
-    case Face::Top:
-    case Face::Bottom:
-    case Face::Front:
-    case Face::Back:
-      indices.push_back(start_index + 0);
-      indices.push_back(start_index + 3);
-      indices.push_back(start_index + 2);
-      indices.push_back(start_index + 2);
-      indices.push_back(start_index + 1);
-      indices.push_back(start_index + 0);
-      break;
-
-    // left/right are already CCW with the current vertex order
-    case Face::Left:
-    case Face::Right:
-      indices.push_back(start_index + 0);
-      indices.push_back(start_index + 1);
-      indices.push_back(start_index + 2);
-      indices.push_back(start_index + 2);
-      indices.push_back(start_index + 3);
-      indices.push_back(start_index + 0);
-      break;
-  }
-}
-
-} // namespace
-
-ChunkMesh::ChunkMesh() {
-  glGenVertexArrays(1, &VAO);
-  glGenBuffers(1, &VBO);
-  glGenBuffers(1, &EBO);
-}
-
-ChunkMesh::~ChunkMesh() {
-  glDeleteVertexArrays(1, &VAO);
-  glDeleteBuffers(1, &VBO);
-  glDeleteBuffers(1, &EBO);
-}
-
-void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_manager) {
+void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
+                            TextureManager &texture_manager) {
+  // NOTE: this body is your current `generate(...)` minus any GL calls.
+  // (Your pasted generate() already has no GL; perfect—just move that code
+  // here.)
+  gpuUploaded = false; // invalidate previous upload
   vertices.clear();
   indices.clear();
 
@@ -166,13 +192,18 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
             continue;
 
           // check if face is visible
-          if (z == kChunkDepth - 1 || getBlock(world, chunk, x, y, z + 1) == BlockType::AIR) {
+          if (z == kChunkDepth - 1 ||
+              getBlock(world, chunk, x, y, z + 1) == BlockType::AIR) {
             const auto &tex = block_data.at(type);
             auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
 
             // greedy expansion in width
             int width = 1;
-            while (x + width < kChunkWidth && !mask[x + width][y] && chunk.safeAt(x + width, y, z) == type && (z == kChunkDepth - 1 || getBlock(world, chunk, x + width, y, z + 1) == BlockType::AIR)) {
+            while (x + width < kChunkWidth && !mask[x + width][y] &&
+                   chunk.safeAt(x + width, y, z) == type &&
+                   (z == kChunkDepth - 1 ||
+                    getBlock(world, chunk, x + width, y, z + 1) ==
+                        BlockType::AIR)) {
               width++;
             }
 
@@ -181,7 +212,11 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
             bool can_expand_height = true;
             while (y + height < kChunkHeight && can_expand_height) {
               for (int i = 0; i < width; ++i) {
-                if (mask[x + i][y + height] || chunk.safeAt(x + i, y + height, z) != type || (z != kChunkDepth - 1 && getBlock(world, chunk, x + i, y + height, z + 1) != BlockType::AIR)) {
+                if (mask[x + i][y + height] ||
+                    chunk.safeAt(x + i, y + height, z) != type ||
+                    (z != kChunkDepth - 1 &&
+                     getBlock(world, chunk, x + i, y + height, z + 1) !=
+                         BlockType::AIR)) {
                   can_expand_height = false;
                   break;
                 }
@@ -198,7 +233,8 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
               }
             }
 
-            addQuad(vertices, indices, {x, y, z}, {width, height}, side_uv, Face::Front);
+            addQuad(vertices, indices, {x, y, z}, {width, height}, side_uv,
+                    Face::Front);
           }
         }
       }
@@ -226,7 +262,10 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
 
             // greedy expansion in width
             int width = 1;
-            while (x + width < kChunkWidth && !mask[x + width][y] && chunk.safeAt(x + width, y, z) == type && (z == 0 || getBlock(world, chunk, x + width, y, z - 1) == BlockType::AIR)) {
+            while (x + width < kChunkWidth && !mask[x + width][y] &&
+                   chunk.safeAt(x + width, y, z) == type &&
+                   (z == 0 || getBlock(world, chunk, x + width, y, z - 1) ==
+                                  BlockType::AIR)) {
               width++;
             }
 
@@ -235,7 +274,10 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
             bool can_expand_height = true;
             while (y + height < kChunkHeight && can_expand_height) {
               for (int i = 0; i < width; ++i) {
-                if (mask[x + i][y + height] || chunk.safeAt(x + i, y + height, z) != type || (z != 0 && getBlock(world, chunk, x + i, y + height, z - 1) != BlockType::AIR)) {
+                if (mask[x + i][y + height] ||
+                    chunk.safeAt(x + i, y + height, z) != type ||
+                    (z != 0 && getBlock(world, chunk, x + i, y + height,
+                                        z - 1) != BlockType::AIR)) {
                   can_expand_height = false;
                   break;
                 }
@@ -252,7 +294,8 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
               }
             }
 
-            addQuad(vertices, indices, {x, y, z}, {width, height}, side_uv, Face::Back);
+            addQuad(vertices, indices, {x, y, z}, {width, height}, side_uv,
+                    Face::Back);
           }
         }
       }
@@ -274,13 +317,18 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
             continue;
 
           // check if face is visible
-          if (y == kChunkHeight - 1 || getBlock(world, chunk, x, y + 1, z) == BlockType::AIR) {
+          if (y == kChunkHeight - 1 ||
+              getBlock(world, chunk, x, y + 1, z) == BlockType::AIR) {
             const auto &tex = block_data.at(type);
             auto top_uv = texture_manager.getQuadUV(tex.top.x, tex.top.y);
 
             // greedy expansion in width
             int width = 1;
-            while (x + width < kChunkWidth && !mask[z][x + width] && chunk.safeAt(x + width, y, z) == type && (y == kChunkHeight - 1 || getBlock(world, chunk, x + width, y + 1, z) == BlockType::AIR)) {
+            while (x + width < kChunkWidth && !mask[z][x + width] &&
+                   chunk.safeAt(x + width, y, z) == type &&
+                   (y == kChunkHeight - 1 ||
+                    getBlock(world, chunk, x + width, y + 1, z) ==
+                        BlockType::AIR)) {
               width++;
             }
 
@@ -289,7 +337,11 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
             bool can_expand_depth = true;
             while (z + depth < kChunkDepth && can_expand_depth) {
               for (int i = 0; i < width; ++i) {
-                if (mask[z + depth][x + i] || chunk.safeAt(x + i, y, z + depth) != type || (y != kChunkHeight - 1 && getBlock(world, chunk, x + i, y + 1, z + depth) != BlockType::AIR)) {
+                if (mask[z + depth][x + i] ||
+                    chunk.safeAt(x + i, y, z + depth) != type ||
+                    (y != kChunkHeight - 1 &&
+                     getBlock(world, chunk, x + i, y + 1, z + depth) !=
+                         BlockType::AIR)) {
                   can_expand_depth = false;
                   break;
                 }
@@ -306,7 +358,8 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
               }
             }
 
-            addQuad(vertices, indices, {x, y, z}, {width, depth}, top_uv, Face::Top);
+            addQuad(vertices, indices, {x, y, z}, {width, depth}, top_uv,
+                    Face::Top);
           }
         }
       }
@@ -330,11 +383,15 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
           // check if face is visible
           if (y == 0 || getBlock(world, chunk, x, y - 1, z) == BlockType::AIR) {
             const auto &tex = block_data.at(type);
-            auto bottom_uv = texture_manager.getQuadUV(tex.bottom.x, tex.bottom.y);
+            auto bottom_uv =
+                texture_manager.getQuadUV(tex.bottom.x, tex.bottom.y);
 
             // greedy expansion in width
             int width = 1;
-            while (x + width < kChunkWidth && !mask[z][x + width] && chunk.safeAt(x + width, y, z) == type && (y == 0 || getBlock(world, chunk, x + width, y - 1, z) == BlockType::AIR)) {
+            while (x + width < kChunkWidth && !mask[z][x + width] &&
+                   chunk.safeAt(x + width, y, z) == type &&
+                   (y == 0 || getBlock(world, chunk, x + width, y - 1, z) ==
+                                  BlockType::AIR)) {
               width++;
             }
 
@@ -343,7 +400,10 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
             bool can_expand_depth = true;
             while (z + depth < kChunkDepth && can_expand_depth) {
               for (int i = 0; i < width; ++i) {
-                if (mask[z + depth][x + i] || chunk.safeAt(x + i, y, z + depth) != type || (y != 0 && getBlock(world, chunk, x + i, y - 1, z + depth) != BlockType::AIR)) {
+                if (mask[z + depth][x + i] ||
+                    chunk.safeAt(x + i, y, z + depth) != type ||
+                    (y != 0 && getBlock(world, chunk, x + i, y - 1,
+                                        z + depth) != BlockType::AIR)) {
                   can_expand_depth = false;
                   break;
                 }
@@ -360,7 +420,8 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
               }
             }
 
-            addQuad(vertices, indices, {x, y, z}, {width, depth}, bottom_uv, Face::Bottom);
+            addQuad(vertices, indices, {x, y, z}, {width, depth}, bottom_uv,
+                    Face::Bottom);
           }
         }
       }
@@ -382,13 +443,18 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
             continue;
 
           // check if face is visible
-          if (x == kChunkWidth - 1 || getBlock(world, chunk, x + 1, y, z) == BlockType::AIR) {
+          if (x == kChunkWidth - 1 ||
+              getBlock(world, chunk, x + 1, y, z) == BlockType::AIR) {
             const auto &tex = block_data.at(type);
             auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
 
             // greedy expansion in depth
             int depth = 1;
-            while (z + depth < kChunkDepth && !mask[y][z + depth] && chunk.safeAt(x, y, z + depth) == type && (x == kChunkWidth - 1 || getBlock(world, chunk, x + 1, y, z + depth) == BlockType::AIR)) {
+            while (z + depth < kChunkDepth && !mask[y][z + depth] &&
+                   chunk.safeAt(x, y, z + depth) == type &&
+                   (x == kChunkWidth - 1 ||
+                    getBlock(world, chunk, x + 1, y, z + depth) ==
+                        BlockType::AIR)) {
               depth++;
             }
 
@@ -397,7 +463,11 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
             bool can_expand_height = true;
             while (y + height < kChunkHeight && can_expand_height) {
               for (int i = 0; i < depth; ++i) {
-                if (mask[y + height][z + i] || chunk.safeAt(x, y + height, z + i) != type || (x != kChunkWidth - 1 && getBlock(world, chunk, x + 1, y + height, z + i) != BlockType::AIR)) {
+                if (mask[y + height][z + i] ||
+                    chunk.safeAt(x, y + height, z + i) != type ||
+                    (x != kChunkWidth - 1 &&
+                     getBlock(world, chunk, x + 1, y + height, z + i) !=
+                         BlockType::AIR)) {
                   can_expand_height = false;
                   break;
                 }
@@ -414,7 +484,8 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
               }
             }
 
-            addQuad(vertices, indices, {x, y, z}, {depth, height}, side_uv, Face::Right);
+            addQuad(vertices, indices, {x, y, z}, {depth, height}, side_uv,
+                    Face::Right);
           }
         }
       }
@@ -442,7 +513,10 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
 
             // greedy expansion in depth
             int depth = 1;
-            while (z + depth < kChunkDepth && !mask[y][z + depth] && chunk.safeAt(x, y, z + depth) == type && (x == 0 || getBlock(world, chunk, x - 1, y, z + depth) == BlockType::AIR)) {
+            while (z + depth < kChunkDepth && !mask[y][z + depth] &&
+                   chunk.safeAt(x, y, z + depth) == type &&
+                   (x == 0 || getBlock(world, chunk, x - 1, y, z + depth) ==
+                                  BlockType::AIR)) {
               depth++;
             }
 
@@ -451,7 +525,10 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
             bool can_expand_height = true;
             while (y + height < kChunkHeight && can_expand_height) {
               for (int i = 0; i < depth; ++i) {
-                if (mask[y + height][z + i] || chunk.safeAt(x, y + height, z + i) != type || (x != 0 && getBlock(world, chunk, x - 1, y + height, z + i) != BlockType::AIR)) {
+                if (mask[y + height][z + i] ||
+                    chunk.safeAt(x, y + height, z + i) != type ||
+                    (x != 0 && getBlock(world, chunk, x - 1, y + height,
+                                        z + i) != BlockType::AIR)) {
                   can_expand_height = false;
                   break;
                 }
@@ -468,15 +545,20 @@ void ChunkMesh::generate(World *world, Chunk &chunk, TextureManager &texture_man
               }
             }
 
-            addQuad(vertices, indices, {x, y, z}, {depth, height}, side_uv, Face::Left);
+            addQuad(vertices, indices, {x, y, z}, {depth, height}, side_uv,
+                    Face::Left);
           }
         }
       }
     }
   }
+  cpuReady = !vertices.empty();
 }
 
 void ChunkMesh::upload() {
+  if (!cpuReady)
+    return; // nothing to upload yet
+
   glBindVertexArray(VAO);
 
   glBindBuffer(GL_ARRAY_BUFFER, VBO);
@@ -487,39 +569,37 @@ void ChunkMesh::upload() {
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int),
                indices.data(), GL_STATIC_DRAW);
 
-  // Position
+  // attribs...
   glEnableVertexAttribArray(0);
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(BlockVertex),
                         (void *)0);
 
-  // Normal
   glEnableVertexAttribArray(1);
   glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(BlockVertex),
                         (void *)offsetof(BlockVertex, normal));
 
-  // UV
   glEnableVertexAttribArray(2);
   glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(BlockVertex),
                         (void *)offsetof(BlockVertex, uv));
 
-  // tileOffset
   glEnableVertexAttribArray(3);
   glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(BlockVertex),
                         (void *)offsetof(BlockVertex, tileOffset));
 
-  // tileSpan
   glEnableVertexAttribArray(4);
   glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(BlockVertex),
                         (void *)offsetof(BlockVertex, tileSpan));
 
   glBindVertexArray(0);
+
+  gpuUploaded = true;
 }
 
 void ChunkMesh::render() {
-  if (vertices.empty())
+  if (!gpuUploaded)
     return;
 
   glBindVertexArray(VAO);
-  glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+  glDrawElements(GL_TRIANGLES, (GLsizei)indices.size(), GL_UNSIGNED_INT, 0);
   glBindVertexArray(0);
 }

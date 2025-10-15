@@ -27,7 +27,7 @@ public:
   ~Chunk() = default;
 
   void init();
-  void generateMesh(World *world, TextureManager &texture_manager);
+  void buildMeshData(World* world, TextureManager& texture_manager);
   void uploadGPU();
 
   BlockType &at(int x, int y, int z);
@@ -36,7 +36,7 @@ public:
 
   ChunkMesh &getMesh() { return mesh; }
   glm::mat4 getModelMatrix() const;
-  glm::vec2 getPos() { return pos; }
+  glm::vec2 getPos() const { return pos; }
 
 private:
   glm::vec2 pos;

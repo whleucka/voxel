@@ -2,6 +2,8 @@
 
 #include "block/block_vertex.hpp"
 #include "render/texture_manager.hpp"
+#include <atomic>
+#include "block/block_type.hpp"
 #include <glad/glad.h>
 #include <vector>
 
@@ -15,12 +17,22 @@ public:
   ChunkMesh();
   ~ChunkMesh();
 
-  void generate(World *world, Chunk &chunk, TextureManager &texture_manager);
-  void upload();
-  void render();
+  static BlockType getBlock(World*, const Chunk&, int, int, int);
+  void generateCPU(World* world, const Chunk& chunk, TextureManager& texture_manager); // CPU-only
+  void upload();     // GL only (main thread)
+  void render();     // draw only when uploaded
+
+  bool isUploaded() const { return gpuUploaded; }
 
 private:
-  unsigned int VAO, VBO, EBO = 0;
+  // GL objects
+  GLuint VAO{}, VBO{}, EBO{};
+
+  // CPU data
   std::vector<BlockVertex> vertices;
   std::vector<unsigned int> indices;
+
+  // simple state
+  std::atomic<bool> cpuReady{false};
+  std::atomic<bool> gpuUploaded{false};
 };
