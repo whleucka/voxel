@@ -27,29 +27,38 @@ void World::init() {
 }
 
 std::vector<glm::ivec2> World::generateSpiralOrder(int radius) {
-  std::vector<glm::ivec2> spiral;
-  spiral.reserve((2 * radius + 1) * (2 * radius + 1));
+    std::vector<glm::ivec2> spiral;
+    spiral.reserve((2 * radius + 1) * (2 * radius + 1));
 
-  int x = 0, z = 0;
-  int dx = 0, dz = -1;
-  int max = (2 * radius + 1);
-
-  for (int i = 0; i < max * max; ++i) {
-    if (std::abs(x) <= radius && std::abs(z) <= radius)
-      spiral.emplace_back(x, z);
-
-    // turn right at corners
-    if (x == z || (x < 0 && x == -z) || (x > 0 && x == 1 - z)) {
-      int tmp = dx;
-      dx = -dz;
-      dz = tmp;
+    // generate rings from center out
+    spiral.emplace_back(0, 0);
+    for (int r = 1; r <= radius; ++r) {
+        int x = -r, z = -r;
+        // Move right
+        for (int i = 0; i < 2 * r; i++) {
+            spiral.emplace_back(x++, z);
+        }
+        // Move up
+        for (int i = 0; i < 2 * r; i++) {
+            spiral.emplace_back(x, z++);
+        }
+        // Move left
+        for (int i = 0; i < 2 * r; i++) {
+            spiral.emplace_back(x--, z);
+        }
+        // Move down
+        for (int i = 0; i < 2 * r; i++) {
+            spiral.emplace_back(x, z--);
+        }
     }
 
-    x += dx;
-    z += dz;
-  }
+    // optional: sort exact center-out by distance
+    std::sort(spiral.begin(), spiral.end(),
+              [](auto &a, auto &b) {
+                  return (a.x*a.x + a.y*a.y) < (b.x*b.x + b.y*b.y);
+              });
 
-  return spiral;
+    return spiral;
 }
 
 void World::addChunk(int x, int z) {
