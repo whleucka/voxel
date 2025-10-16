@@ -25,6 +25,8 @@ public:
   size_t getChunkCount() const;
 
 private:
+  void preloadChunks();
+  bool isChunkInFrustum(const glm::vec4 planes[6], const glm::vec3 &min, const glm::vec3 &max);
   std::vector<glm::ivec2> generateSpiralOrder(int radius);
   std::vector<glm::ivec2> spiral_offsets;
   void updateLoadedChunks();

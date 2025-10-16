@@ -23,42 +23,43 @@ void World::init() {
   const glm::vec3 p = player->getPosition();
   last_chunk_x = static_cast<int>(std::floor(p.x / kChunkWidth));
   last_chunk_z = static_cast<int>(std::floor(p.z / kChunkDepth));
+
+  preloadChunks();
   updateLoadedChunks();
 }
 
 std::vector<glm::ivec2> World::generateSpiralOrder(int radius) {
-    std::vector<glm::ivec2> spiral;
-    spiral.reserve((2 * radius + 1) * (2 * radius + 1));
+  std::vector<glm::ivec2> spiral;
+  spiral.reserve((2 * radius + 1) * (2 * radius + 1));
 
-    // generate rings from center out
-    spiral.emplace_back(0, 0);
-    for (int r = 1; r <= radius; ++r) {
-        int x = -r, z = -r;
-        // Move right
-        for (int i = 0; i < 2 * r; i++) {
-            spiral.emplace_back(x++, z);
-        }
-        // Move up
-        for (int i = 0; i < 2 * r; i++) {
-            spiral.emplace_back(x, z++);
-        }
-        // Move left
-        for (int i = 0; i < 2 * r; i++) {
-            spiral.emplace_back(x--, z);
-        }
-        // Move down
-        for (int i = 0; i < 2 * r; i++) {
-            spiral.emplace_back(x, z--);
-        }
+  // generate rings from center out
+  spiral.emplace_back(0, 0);
+  for (int r = 1; r <= radius; ++r) {
+    int x = -r, z = -r;
+    // Move right
+    for (int i = 0; i < 2 * r; i++) {
+      spiral.emplace_back(x++, z);
     }
+    // Move up
+    for (int i = 0; i < 2 * r; i++) {
+      spiral.emplace_back(x, z++);
+    }
+    // Move left
+    for (int i = 0; i < 2 * r; i++) {
+      spiral.emplace_back(x--, z);
+    }
+    // Move down
+    for (int i = 0; i < 2 * r; i++) {
+      spiral.emplace_back(x, z--);
+    }
+  }
 
-    // optional: sort exact center-out by distance
-    std::sort(spiral.begin(), spiral.end(),
-              [](auto &a, auto &b) {
-                  return (a.x*a.x + a.y*a.y) < (b.x*b.x + b.y*b.y);
-              });
+  // optional: sort exact center-out by distance
+  std::sort(spiral.begin(), spiral.end(), [](auto &a, auto &b) {
+    return (a.x * a.x + a.y * a.y) < (b.x * b.x + b.y * b.y);
+  });
 
-    return spiral;
+  return spiral;
 }
 
 void World::addChunk(int x, int z) {
@@ -109,8 +110,36 @@ void World::update(float dt) {
   }
 }
 
+void World::preloadChunks() {
+  int chunksAdded = 0;
+
+  for (const auto &offset : spiral_offsets) {
+    if (offset.x * offset.x + offset.y * offset.y >
+        kChunkPreloadRadius * kChunkPreloadRadius)
+      continue;
+
+    int cx = last_chunk_x + offset.x;
+    int cz = last_chunk_z + offset.y;
+
+    if (!getChunk(cx, cz)) {
+      addChunk(cx, cz);
+      ++chunksAdded;
+    }
+  }
+}
+
 void World::updateLoadedChunks() {
   constexpr int r = kRenderDistance;
+  constexpr size_t MAX_ALLOWED_CHUNKS = 3000; // tweak as needed
+
+  // Prevent runaway growth
+  {
+    ReadLock lock(chunks_mutex);
+    if (chunks.size() > MAX_ALLOWED_CHUNKS) {
+      return;
+    }
+  }
+
   robin_hood::unordered_set<ChunkKey, ChunkKeyHash> keep;
   keep.reserve((2 * r + 1) * (2 * r + 1));
 
@@ -148,9 +177,47 @@ void World::unloadChunk(int x, int z) {
   chunks.erase({x, z});
 }
 
+bool World::isChunkInFrustum(const glm::vec4 planes[6], const glm::vec3 &min,
+                             const glm::vec3 &max) {
+  for (int i = 0; i < 6; i++) {
+    const glm::vec3 n = glm::vec3(planes[i]);
+    const float d = planes[i].w;
+
+    // pick vertex farthest *in the direction of the plane normal*
+    glm::vec3 positive = {(n.x > 0 ? max.x : min.x), (n.y > 0 ? max.y : min.y),
+                          (n.z > 0 ? max.z : min.z)};
+
+    // plane eq: n·x + d > 0 means in front
+    if (glm::dot(n, positive) + d < 0)
+      return false; // entire box is behind this plane
+  }
+  return true;
+}
+
 void World::render(glm::mat4 &view, glm::mat4 &projection) {
   ReadLock lock(chunks_mutex);
-  renderer->drawChunks(chunks, view, projection);
+
+  glm::mat4 viewProj = projection * view;
+
+  glm::vec4 planes[6];
+  player->getCamera().getFrustumPlanes(planes, viewProj);
+
+  robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash>
+      visibleChunks;
+  visibleChunks.reserve(chunks.size());
+
+  for (const auto &[key, chunk] : chunks) {
+    glm::vec3 min = {key.x * kChunkWidth, 0.0f, key.z * kChunkDepth};
+    glm::vec3 max = {(key.x + 1) * kChunkWidth,
+                     static_cast<float>(kChunkHeight),
+                     (key.z + 1) * kChunkDepth};
+
+    if (isChunkInFrustum(planes, min, max)) {
+      visibleChunks.emplace(key, chunk);
+    }
+  }
+
+  renderer->drawChunks(visibleChunks, view, projection);
 }
 
 std::shared_ptr<Chunk> World::getChunk(int x, int z) {
