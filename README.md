@@ -42,6 +42,12 @@ sudo apt update
 sudo apt install build-essential libglfw3-dev libgl-dev libx11-dev libxrandr-dev libxi-dev libglm-dev
 ```
 
+Arch
+
+```bash
+sudo pacman -S glm glfw
+```
+
 ### Building
 
 1.  **Clone the repository:**
