@@ -32,8 +32,8 @@ private:
   void updateLoadedChunks();
   void unloadChunk(int x, int z);
 
-  ThreadPool gen_pool{4};
-  ThreadPool mesh_pool{4};
+  ThreadPool gen_pool{6};
+  ThreadPool mesh_pool{6};
   mutable SharedMutex chunks_mutex;
 
   GameClock game_clock;

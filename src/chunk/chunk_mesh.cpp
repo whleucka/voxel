@@ -4,107 +4,81 @@
 #include "core/constants.hpp"
 #include "world/world.hpp"
 
-#include <glm/gtc/matrix_transform.hpp>
-
 namespace {
 
-// helper: turn your 4-corner atlas uvs into offset+span
-inline void uvOffsetSpan(const std::array<glm::vec2, 4> &uvs, glm::vec2 &offset,
-                         glm::vec2 &span) {
-  offset = uvs[0];        // TL
-  span = uvs[2] - uvs[0]; // BR - TL -> (du,dv)
+// Helper to pack a float position into int16 (multiply by 2 to preserve 0.5 precision)
+inline int16_t packPos(float v) {
+  return static_cast<int16_t>(v * 2.0f);
 }
 
 void addQuad(std::vector<BlockVertex> &vertices,
-             std::vector<unsigned int> &indices, const glm::ivec3 &pos,
-             const glm::ivec2 &size, const std::array<glm::vec2, 4> &uvs,
-             Face face);
+             std::vector<unsigned int> &indices,
+             int posX, int posY, int posZ,
+             int sizeA, int sizeB,
+             int tileX, int tileY,
+             Face face,
+             int16_t chunkWorldX, int16_t chunkWorldZ) {
+  unsigned int start_index = static_cast<unsigned int>(vertices.size());
+  uint8_t faceId = static_cast<uint8_t>(face);
 
-void addQuad(std::vector<BlockVertex> &vertices,
-             std::vector<unsigned int> &indices, const glm::ivec3 &pos,
-             const glm::ivec2 &size, const std::array<glm::vec2, 4> &uvs,
-             Face face) {
-  int start_index = vertices.size();
-
-  glm::vec2 offset, span;
-  uvOffsetSpan(uvs, offset, span);
-
-  // optional tiny padding to avoid bleeding between atlas tiles
-  const float px = 0.5f / 512.0f; // 0.5 texel on a 512 atlas
-  offset += glm::vec2(px);
-  span -= glm::vec2(2.0f * px);
-
-  auto V = [&](float bx, float by, glm::vec3 P, glm::vec3 N) {
-    vertices.push_back({P, N, {bx, by}, offset, span});
+  // Lambda to add a vertex with packed data
+  auto V = [&](float px, float py, float pz, uint8_t uvX, uint8_t uvY) {
+    vertices.push_back({
+      packPos(px), packPos(py), packPos(pz),
+      faceId,
+      static_cast<uint8_t>(tileX), static_cast<uint8_t>(tileY),
+      uvX, uvY,
+      0, // padding
+      chunkWorldX, chunkWorldZ
+    });
   };
 
   switch (face) {
-  case Face::Top:                                                   // +Y
-    V(0, 0, {pos.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f}, {0, 1, 0}); // TL
-    V(size.x, 0, {pos.x + size.x - 0.5f, pos.y + 0.5f, pos.z - 0.5f},
-      {0, 1, 0}); // TR
-    V(size.x, size.y,
-      {pos.x + size.x - 0.5f, pos.y + 0.5f, pos.z + size.y - 0.5f},
-      {0, 1, 0}); // BR
-    V(0, size.y, {pos.x - 0.5f, pos.y + 0.5f, pos.z + size.y - 0.5f},
-      {0, 1, 0}); // BL
+  case Face::Top:                                                           // +Y
+    V(posX - 0.5f, posY + 0.5f, posZ - 0.5f,              0, 0);            // TL
+    V(posX + sizeA - 0.5f, posY + 0.5f, posZ - 0.5f,      sizeA, 0);        // TR
+    V(posX + sizeA - 0.5f, posY + 0.5f, posZ + sizeB - 0.5f, sizeA, sizeB); // BR
+    V(posX - 0.5f, posY + 0.5f, posZ + sizeB - 0.5f,      0, sizeB);        // BL
     break;
 
-  case Face::Bottom: // -Y
-    V(0, 0, {pos.x - 0.5f, pos.y - 0.5f, pos.z + size.y - 0.5f},
-      {0, -1, 0}); // TL
-    V(size.x, 0, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z + size.y - 0.5f},
-      {0, -1, 0}); // TR
-    V(size.x, size.y, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f},
-      {0, -1, 0});                                                        // BR
-    V(0, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {0, -1, 0}); // BL
+  case Face::Bottom:                                                        // -Y
+    V(posX - 0.5f, posY - 0.5f, posZ + sizeB - 0.5f,      0, 0);            // TL
+    V(posX + sizeA - 0.5f, posY - 0.5f, posZ + sizeB - 0.5f, sizeA, 0);     // TR
+    V(posX + sizeA - 0.5f, posY - 0.5f, posZ - 0.5f,      sizeA, sizeB);    // BR
+    V(posX - 0.5f, posY - 0.5f, posZ - 0.5f,              0, sizeB);        // BL
     break;
 
-  case Face::Front: // +Z
-    V(0, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z + 0.5f},
-      {0, 0, 1}); // TL
-    V(size.x, 0, {pos.x + size.x - 0.5f, pos.y + size.y - 0.5f, pos.z + 0.5f},
-      {0, 0, 1}); // TR
-    V(size.x, size.y, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f},
-      {0, 0, 1});                                                        // BR
-    V(0, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z + 0.5f}, {0, 0, 1}); // BL
-    break;
-  case Face::Back: // -Z
-    V(0, 0, {pos.x + size.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f},
-      {0, 0, -1}); // TL
-    V(size.x, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f},
-      {0, 0, -1}); // TR
-    V(size.x, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f},
-      {0, 0, -1}); // BR
-    V(0, size.y, {pos.x + size.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f},
-      {0, 0, -1}); // BL
+  case Face::Front:                                                         // +Z
+    V(posX - 0.5f, posY + sizeB - 0.5f, posZ + 0.5f,      0, 0);            // TL
+    V(posX + sizeA - 0.5f, posY + sizeB - 0.5f, posZ + 0.5f, sizeA, 0);     // TR
+    V(posX + sizeA - 0.5f, posY - 0.5f, posZ + 0.5f,      sizeA, sizeB);    // BR
+    V(posX - 0.5f, posY - 0.5f, posZ + 0.5f,              0, sizeB);        // BL
     break;
 
-  case Face::Right: // +X
-    V(0, 0, {pos.x + 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f},
-      {1, 0, 0}); // TL
-    V(size.x, 0, {pos.x + 0.5f, pos.y + size.y - 0.5f, pos.z + size.x - 0.5f},
-      {1, 0, 0}); // TR
-    V(size.x, size.y, {pos.x + 0.5f, pos.y - 0.5f, pos.z + size.x - 0.5f},
-      {1, 0, 0});                                                        // BR
-    V(0, size.y, {pos.x + 0.5f, pos.y - 0.5f, pos.z - 0.5f}, {1, 0, 0}); // BL
+  case Face::Back:                                                          // -Z
+    V(posX + sizeA - 0.5f, posY + sizeB - 0.5f, posZ - 0.5f, 0, 0);         // TL
+    V(posX - 0.5f, posY + sizeB - 0.5f, posZ - 0.5f,      sizeA, 0);        // TR
+    V(posX - 0.5f, posY - 0.5f, posZ - 0.5f,              sizeA, sizeB);    // BR
+    V(posX + sizeA - 0.5f, posY - 0.5f, posZ - 0.5f,      0, sizeB);        // BL
     break;
 
-  case Face::Left: // -X
-    V(0, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z + size.x - 0.5f},
-      {-1, 0, 0}); // TL
-    V(size.x, 0, {pos.x - 0.5f, pos.y + size.y - 0.5f, pos.z - 0.5f},
-      {-1, 0, 0}); // TR
-    V(size.x, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z - 0.5f},
-      {-1, 0, 0}); // BR
-    V(0, size.y, {pos.x - 0.5f, pos.y - 0.5f, pos.z + size.x - 0.5f},
-      {-1, 0, 0}); // BL
+  case Face::Right:                                                         // +X
+    V(posX + 0.5f, posY + sizeB - 0.5f, posZ - 0.5f,      0, 0);            // TL
+    V(posX + 0.5f, posY + sizeB - 0.5f, posZ + sizeA - 0.5f, sizeA, 0);     // TR
+    V(posX + 0.5f, posY - 0.5f, posZ + sizeA - 0.5f,      sizeA, sizeB);    // BR
+    V(posX + 0.5f, posY - 0.5f, posZ - 0.5f,              0, sizeB);        // BL
+    break;
+
+  case Face::Left:                                                          // -X
+    V(posX - 0.5f, posY + sizeB - 0.5f, posZ + sizeA - 0.5f, 0, 0);         // TL
+    V(posX - 0.5f, posY + sizeB - 0.5f, posZ - 0.5f,      sizeA, 0);        // TR
+    V(posX - 0.5f, posY - 0.5f, posZ - 0.5f,              sizeA, sizeB);    // BR
+    V(posX - 0.5f, posY - 0.5f, posZ + sizeA - 0.5f,      0, sizeB);        // BL
     break;
   }
 
-  // per-face CCW indices (matching TL,TR,BR,BL vertex order above)
+  // CCW winding indices
   switch (face) {
-  // these four need the diagonal the other way
   case Face::Top:
   case Face::Bottom:
   case Face::Front:
@@ -117,7 +91,6 @@ void addQuad(std::vector<BlockVertex> &vertices,
     indices.push_back(start_index + 0);
     break;
 
-  // left/right are already CCW with the current vertex order
   case Face::Left:
   case Face::Right:
     indices.push_back(start_index + 0);
@@ -169,395 +142,300 @@ BlockType ChunkMesh::getBlock(World *world, const Chunk &chunk, int x, int y, in
 }
 
 void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
-                            TextureManager &texture_manager) {
-  // NOTE: this body is your current `generate(...)` minus any GL calls.
-  // (Your pasted generate() already has no GL; perfect—just move that code
-  // here.)
-  gpuUploaded = false; // invalidate previous upload
+                            TextureManager &) {
+  gpuUploaded = false;
   vertices.clear();
   indices.clear();
 
-  // Front face
-  {
-    for (int z = 0; z < kChunkDepth; ++z) {
-      // mask of visited blocks
-      bool mask[kChunkWidth][kChunkHeight] = {false};
-      for (int y = 0; y < kChunkHeight; ++y) {
-        for (int x = 0; x < kChunkWidth; ++x) {
-          if (mask[x][y])
-            continue;
+  // Compute chunk world offset for batch rendering
+  const int16_t chunkWorldX = static_cast<int16_t>(chunk.getPos().x * kChunkWidth);
+  const int16_t chunkWorldZ = static_cast<int16_t>(chunk.getPos().y * kChunkDepth);
 
-          BlockType type = chunk.at(x, y, z);
-          if (type == BlockType::AIR)
-            continue;
-
-          // check if face is visible
-          if (z == kChunkDepth - 1 ||
-              getBlock(world, chunk, x, y, z + 1) == BlockType::AIR) {
-            const auto &tex = block_data.at(type);
-            auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
-
-            // greedy expansion in width
-            int width = 1;
-            while (x + width < kChunkWidth && !mask[x + width][y] &&
-                   chunk.safeAt(x + width, y, z) == type &&
-                   (z == kChunkDepth - 1 ||
-                    getBlock(world, chunk, x + width, y, z + 1) ==
-                        BlockType::AIR)) {
-              width++;
-            }
-
-            // greedy expansion in height
-            int height = 1;
-            bool can_expand_height = true;
-            while (y + height < kChunkHeight && can_expand_height) {
-              for (int i = 0; i < width; ++i) {
-                if (mask[x + i][y + height] ||
-                    chunk.safeAt(x + i, y + height, z) != type ||
-                    (z != kChunkDepth - 1 &&
-                     getBlock(world, chunk, x + i, y + height, z + 1) !=
-                         BlockType::AIR)) {
-                  can_expand_height = false;
-                  break;
-                }
-              }
-              if (can_expand_height) {
-                height++;
-              }
-            }
-
-            // mark expanded blocks as visited
-            for (int i = 0; i < height; ++i) {
-              for (int j = 0; j < width; ++j) {
-                mask[x + j][y + i] = true;
-              }
-            }
-
-            addQuad(vertices, indices, {x, y, z}, {width, height}, side_uv,
-                    Face::Front);
-          }
-        }
-      }
-    }
-  }
-
-  // Back face
-  {
-    for (int z = kChunkDepth - 1; z >= 0; --z) {
-      // mask of visited blocks
-      bool mask[kChunkWidth][kChunkHeight] = {false};
-      for (int y = 0; y < kChunkHeight; ++y) {
-        for (int x = 0; x < kChunkWidth; ++x) {
-          if (mask[x][y])
-            continue;
-
-          BlockType type = chunk.at(x, y, z);
-          if (type == BlockType::AIR)
-            continue;
-
-          // check if face is visible
-          if (z == 0 || getBlock(world, chunk, x, y, z - 1) == BlockType::AIR) {
-            const auto &tex = block_data.at(type);
-            auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
-
-            // greedy expansion in width
-            int width = 1;
-            while (x + width < kChunkWidth && !mask[x + width][y] &&
-                   chunk.safeAt(x + width, y, z) == type &&
-                   (z == 0 || getBlock(world, chunk, x + width, y, z - 1) ==
-                                  BlockType::AIR)) {
-              width++;
-            }
-
-            // greedy expansion in height
-            int height = 1;
-            bool can_expand_height = true;
-            while (y + height < kChunkHeight && can_expand_height) {
-              for (int i = 0; i < width; ++i) {
-                if (mask[x + i][y + height] ||
-                    chunk.safeAt(x + i, y + height, z) != type ||
-                    (z != 0 && getBlock(world, chunk, x + i, y + height,
-                                        z - 1) != BlockType::AIR)) {
-                  can_expand_height = false;
-                  break;
-                }
-              }
-              if (can_expand_height) {
-                height++;
-              }
-            }
-
-            // mark expanded blocks as visited
-            for (int i = 0; i < height; ++i) {
-              for (int j = 0; j < width; ++j) {
-                mask[x + j][y + i] = true;
-              }
-            }
-
-            addQuad(vertices, indices, {x, y, z}, {width, height}, side_uv,
-                    Face::Back);
-          }
-        }
-      }
-    }
-  }
-
-  // Top face
-  {
+  // Front face (+Z)
+  for (int z = 0; z < kChunkDepth; ++z) {
+    bool mask[kChunkWidth][kChunkHeight] = {false};
     for (int y = 0; y < kChunkHeight; ++y) {
-      // mask of visited blocks
-      bool mask[kChunkDepth][kChunkWidth] = {false};
+      for (int x = 0; x < kChunkWidth; ++x) {
+        if (mask[x][y]) continue;
+
+        BlockType type = chunk.at(x, y, z);
+        if (type == BlockType::AIR) continue;
+
+        if (z == kChunkDepth - 1 ||
+            getBlock(world, chunk, x, y, z + 1) == BlockType::AIR) {
+          const auto &tex = block_data.at(type);
+
+          int width = 1;
+          while (x + width < kChunkWidth && !mask[x + width][y] &&
+                 chunk.safeAt(x + width, y, z) == type &&
+                 (z == kChunkDepth - 1 ||
+                  getBlock(world, chunk, x + width, y, z + 1) == BlockType::AIR)) {
+            width++;
+          }
+
+          int height = 1;
+          bool can_expand = true;
+          while (y + height < kChunkHeight && can_expand) {
+            for (int i = 0; i < width; ++i) {
+              if (mask[x + i][y + height] ||
+                  chunk.safeAt(x + i, y + height, z) != type ||
+                  (z != kChunkDepth - 1 &&
+                   getBlock(world, chunk, x + i, y + height, z + 1) != BlockType::AIR)) {
+                can_expand = false;
+                break;
+              }
+            }
+            if (can_expand) height++;
+          }
+
+          for (int i = 0; i < height; ++i)
+            for (int j = 0; j < width; ++j)
+              mask[x + j][y + i] = true;
+
+          addQuad(vertices, indices, x, y, z, width, height,
+                  tex.side.x, tex.side.y, Face::Front, chunkWorldX, chunkWorldZ);
+        }
+      }
+    }
+  }
+
+  // Back face (-Z)
+  for (int z = kChunkDepth - 1; z >= 0; --z) {
+    bool mask[kChunkWidth][kChunkHeight] = {false};
+    for (int y = 0; y < kChunkHeight; ++y) {
+      for (int x = 0; x < kChunkWidth; ++x) {
+        if (mask[x][y]) continue;
+
+        BlockType type = chunk.at(x, y, z);
+        if (type == BlockType::AIR) continue;
+
+        if (z == 0 || getBlock(world, chunk, x, y, z - 1) == BlockType::AIR) {
+          const auto &tex = block_data.at(type);
+
+          int width = 1;
+          while (x + width < kChunkWidth && !mask[x + width][y] &&
+                 chunk.safeAt(x + width, y, z) == type &&
+                 (z == 0 || getBlock(world, chunk, x + width, y, z - 1) == BlockType::AIR)) {
+            width++;
+          }
+
+          int height = 1;
+          bool can_expand = true;
+          while (y + height < kChunkHeight && can_expand) {
+            for (int i = 0; i < width; ++i) {
+              if (mask[x + i][y + height] ||
+                  chunk.safeAt(x + i, y + height, z) != type ||
+                  (z != 0 && getBlock(world, chunk, x + i, y + height, z - 1) != BlockType::AIR)) {
+                can_expand = false;
+                break;
+              }
+            }
+            if (can_expand) height++;
+          }
+
+          for (int i = 0; i < height; ++i)
+            for (int j = 0; j < width; ++j)
+              mask[x + j][y + i] = true;
+
+          addQuad(vertices, indices, x, y, z, width, height,
+                  tex.side.x, tex.side.y, Face::Back, chunkWorldX, chunkWorldZ);
+        }
+      }
+    }
+  }
+
+  // Top face (+Y)
+  for (int y = 0; y < kChunkHeight; ++y) {
+    bool mask[kChunkDepth][kChunkWidth] = {false};
+    for (int z = 0; z < kChunkDepth; ++z) {
+      for (int x = 0; x < kChunkWidth; ++x) {
+        if (mask[z][x]) continue;
+
+        BlockType type = chunk.at(x, y, z);
+        if (type == BlockType::AIR) continue;
+
+        if (y == kChunkHeight - 1 ||
+            getBlock(world, chunk, x, y + 1, z) == BlockType::AIR) {
+          const auto &tex = block_data.at(type);
+
+          int width = 1;
+          while (x + width < kChunkWidth && !mask[z][x + width] &&
+                 chunk.safeAt(x + width, y, z) == type &&
+                 (y == kChunkHeight - 1 ||
+                  getBlock(world, chunk, x + width, y + 1, z) == BlockType::AIR)) {
+            width++;
+          }
+
+          int depth = 1;
+          bool can_expand = true;
+          while (z + depth < kChunkDepth && can_expand) {
+            for (int i = 0; i < width; ++i) {
+              if (mask[z + depth][x + i] ||
+                  chunk.safeAt(x + i, y, z + depth) != type ||
+                  (y != kChunkHeight - 1 &&
+                   getBlock(world, chunk, x + i, y + 1, z + depth) != BlockType::AIR)) {
+                can_expand = false;
+                break;
+              }
+            }
+            if (can_expand) depth++;
+          }
+
+          for (int i = 0; i < depth; ++i)
+            for (int j = 0; j < width; ++j)
+              mask[z + i][x + j] = true;
+
+          addQuad(vertices, indices, x, y, z, width, depth,
+                  tex.top.x, tex.top.y, Face::Top, chunkWorldX, chunkWorldZ);
+        }
+      }
+    }
+  }
+
+  // Bottom face (-Y)
+  for (int y = kChunkHeight - 1; y >= 0; --y) {
+    bool mask[kChunkDepth][kChunkWidth] = {false};
+    for (int z = 0; z < kChunkDepth; ++z) {
+      for (int x = 0; x < kChunkWidth; ++x) {
+        if (mask[z][x]) continue;
+
+        BlockType type = chunk.at(x, y, z);
+        if (type == BlockType::AIR) continue;
+
+        if (y == 0 || getBlock(world, chunk, x, y - 1, z) == BlockType::AIR) {
+          const auto &tex = block_data.at(type);
+
+          int width = 1;
+          while (x + width < kChunkWidth && !mask[z][x + width] &&
+                 chunk.safeAt(x + width, y, z) == type &&
+                 (y == 0 || getBlock(world, chunk, x + width, y - 1, z) == BlockType::AIR)) {
+            width++;
+          }
+
+          int depth = 1;
+          bool can_expand = true;
+          while (z + depth < kChunkDepth && can_expand) {
+            for (int i = 0; i < width; ++i) {
+              if (mask[z + depth][x + i] ||
+                  chunk.safeAt(x + i, y, z + depth) != type ||
+                  (y != 0 && getBlock(world, chunk, x + i, y - 1, z + depth) != BlockType::AIR)) {
+                can_expand = false;
+                break;
+              }
+            }
+            if (can_expand) depth++;
+          }
+
+          for (int i = 0; i < depth; ++i)
+            for (int j = 0; j < width; ++j)
+              mask[z + i][x + j] = true;
+
+          addQuad(vertices, indices, x, y, z, width, depth,
+                  tex.bottom.x, tex.bottom.y, Face::Bottom, chunkWorldX, chunkWorldZ);
+        }
+      }
+    }
+  }
+
+  // Right face (+X)
+  for (int x = 0; x < kChunkWidth; ++x) {
+    bool mask[kChunkHeight][kChunkDepth] = {false};
+    for (int y = 0; y < kChunkHeight; ++y) {
       for (int z = 0; z < kChunkDepth; ++z) {
-        for (int x = 0; x < kChunkWidth; ++x) {
-          if (mask[z][x])
-            continue;
+        if (mask[y][z]) continue;
 
-          BlockType type = chunk.at(x, y, z);
-          if (type == BlockType::AIR)
-            continue;
+        BlockType type = chunk.at(x, y, z);
+        if (type == BlockType::AIR) continue;
 
-          // check if face is visible
-          if (y == kChunkHeight - 1 ||
-              getBlock(world, chunk, x, y + 1, z) == BlockType::AIR) {
-            const auto &tex = block_data.at(type);
-            auto top_uv = texture_manager.getQuadUV(tex.top.x, tex.top.y);
+        if (x == kChunkWidth - 1 ||
+            getBlock(world, chunk, x + 1, y, z) == BlockType::AIR) {
+          const auto &tex = block_data.at(type);
 
-            // greedy expansion in width
-            int width = 1;
-            while (x + width < kChunkWidth && !mask[z][x + width] &&
-                   chunk.safeAt(x + width, y, z) == type &&
-                   (y == kChunkHeight - 1 ||
-                    getBlock(world, chunk, x + width, y + 1, z) ==
-                        BlockType::AIR)) {
-              width++;
-            }
-
-            // greedy expansion in depth
-            int depth = 1;
-            bool can_expand_depth = true;
-            while (z + depth < kChunkDepth && can_expand_depth) {
-              for (int i = 0; i < width; ++i) {
-                if (mask[z + depth][x + i] ||
-                    chunk.safeAt(x + i, y, z + depth) != type ||
-                    (y != kChunkHeight - 1 &&
-                     getBlock(world, chunk, x + i, y + 1, z + depth) !=
-                         BlockType::AIR)) {
-                  can_expand_depth = false;
-                  break;
-                }
-              }
-              if (can_expand_depth) {
-                depth++;
-              }
-            }
-
-            // mark expanded blocks as visited
-            for (int i = 0; i < depth; ++i) {
-              for (int j = 0; j < width; ++j) {
-                mask[z + i][x + j] = true;
-              }
-            }
-
-            addQuad(vertices, indices, {x, y, z}, {width, depth}, top_uv,
-                    Face::Top);
+          int depth = 1;
+          while (z + depth < kChunkDepth && !mask[y][z + depth] &&
+                 chunk.safeAt(x, y, z + depth) == type &&
+                 (x == kChunkWidth - 1 ||
+                  getBlock(world, chunk, x + 1, y, z + depth) == BlockType::AIR)) {
+            depth++;
           }
+
+          int height = 1;
+          bool can_expand = true;
+          while (y + height < kChunkHeight && can_expand) {
+            for (int i = 0; i < depth; ++i) {
+              if (mask[y + height][z + i] ||
+                  chunk.safeAt(x, y + height, z + i) != type ||
+                  (x != kChunkWidth - 1 &&
+                   getBlock(world, chunk, x + 1, y + height, z + i) != BlockType::AIR)) {
+                can_expand = false;
+                break;
+              }
+            }
+            if (can_expand) height++;
+          }
+
+          for (int i = 0; i < height; ++i)
+            for (int j = 0; j < depth; ++j)
+              mask[y + i][z + j] = true;
+
+          addQuad(vertices, indices, x, y, z, depth, height,
+                  tex.side.x, tex.side.y, Face::Right, chunkWorldX, chunkWorldZ);
         }
       }
     }
   }
 
-  // Bottom face
-  {
-    for (int y = kChunkHeight - 1; y >= 0; --y) {
-      // mask of visited blocks
-      bool mask[kChunkDepth][kChunkWidth] = {false};
+  // Left face (-X)
+  for (int x = kChunkWidth - 1; x >= 0; --x) {
+    bool mask[kChunkHeight][kChunkDepth] = {false};
+    for (int y = 0; y < kChunkHeight; ++y) {
       for (int z = 0; z < kChunkDepth; ++z) {
-        for (int x = 0; x < kChunkWidth; ++x) {
-          if (mask[z][x])
-            continue;
+        if (mask[y][z]) continue;
 
-          BlockType type = chunk.at(x, y, z);
-          if (type == BlockType::AIR)
-            continue;
+        BlockType type = chunk.at(x, y, z);
+        if (type == BlockType::AIR) continue;
 
-          // check if face is visible
-          if (y == 0 || getBlock(world, chunk, x, y - 1, z) == BlockType::AIR) {
-            const auto &tex = block_data.at(type);
-            auto bottom_uv =
-                texture_manager.getQuadUV(tex.bottom.x, tex.bottom.y);
+        if (x == 0 || getBlock(world, chunk, x - 1, y, z) == BlockType::AIR) {
+          const auto &tex = block_data.at(type);
 
-            // greedy expansion in width
-            int width = 1;
-            while (x + width < kChunkWidth && !mask[z][x + width] &&
-                   chunk.safeAt(x + width, y, z) == type &&
-                   (y == 0 || getBlock(world, chunk, x + width, y - 1, z) ==
-                                  BlockType::AIR)) {
-              width++;
-            }
+          int depth = 1;
+          while (z + depth < kChunkDepth && !mask[y][z + depth] &&
+                 chunk.safeAt(x, y, z + depth) == type &&
+                 (x == 0 || getBlock(world, chunk, x - 1, y, z + depth) == BlockType::AIR)) {
+            depth++;
+          }
 
-            // greedy expansion in depth
-            int depth = 1;
-            bool can_expand_depth = true;
-            while (z + depth < kChunkDepth && can_expand_depth) {
-              for (int i = 0; i < width; ++i) {
-                if (mask[z + depth][x + i] ||
-                    chunk.safeAt(x + i, y, z + depth) != type ||
-                    (y != 0 && getBlock(world, chunk, x + i, y - 1,
-                                        z + depth) != BlockType::AIR)) {
-                  can_expand_depth = false;
-                  break;
-                }
-              }
-              if (can_expand_depth) {
-                depth++;
-              }
-            }
-
-            // mark expanded blocks as visited
+          int height = 1;
+          bool can_expand = true;
+          while (y + height < kChunkHeight && can_expand) {
             for (int i = 0; i < depth; ++i) {
-              for (int j = 0; j < width; ++j) {
-                mask[z + i][x + j] = true;
+              if (mask[y + height][z + i] ||
+                  chunk.safeAt(x, y + height, z + i) != type ||
+                  (x != 0 && getBlock(world, chunk, x - 1, y + height, z + i) != BlockType::AIR)) {
+                can_expand = false;
+                break;
               }
             }
-
-            addQuad(vertices, indices, {x, y, z}, {width, depth}, bottom_uv,
-                    Face::Bottom);
+            if (can_expand) height++;
           }
+
+          for (int i = 0; i < height; ++i)
+            for (int j = 0; j < depth; ++j)
+              mask[y + i][z + j] = true;
+
+          addQuad(vertices, indices, x, y, z, depth, height,
+                  tex.side.x, tex.side.y, Face::Left, chunkWorldX, chunkWorldZ);
         }
       }
     }
   }
 
-  // Right face
-  {
-    for (int x = 0; x < kChunkWidth; ++x) {
-      // mask of visited blocks
-      bool mask[kChunkHeight][kChunkDepth] = {false};
-      for (int y = 0; y < kChunkHeight; ++y) {
-        for (int z = 0; z < kChunkDepth; ++z) {
-          if (mask[y][z])
-            continue;
-
-          BlockType type = chunk.at(x, y, z);
-          if (type == BlockType::AIR)
-            continue;
-
-          // check if face is visible
-          if (x == kChunkWidth - 1 ||
-              getBlock(world, chunk, x + 1, y, z) == BlockType::AIR) {
-            const auto &tex = block_data.at(type);
-            auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
-
-            // greedy expansion in depth
-            int depth = 1;
-            while (z + depth < kChunkDepth && !mask[y][z + depth] &&
-                   chunk.safeAt(x, y, z + depth) == type &&
-                   (x == kChunkWidth - 1 ||
-                    getBlock(world, chunk, x + 1, y, z + depth) ==
-                        BlockType::AIR)) {
-              depth++;
-            }
-
-            // greedy expansion in height
-            int height = 1;
-            bool can_expand_height = true;
-            while (y + height < kChunkHeight && can_expand_height) {
-              for (int i = 0; i < depth; ++i) {
-                if (mask[y + height][z + i] ||
-                    chunk.safeAt(x, y + height, z + i) != type ||
-                    (x != kChunkWidth - 1 &&
-                     getBlock(world, chunk, x + 1, y + height, z + i) !=
-                         BlockType::AIR)) {
-                  can_expand_height = false;
-                  break;
-                }
-              }
-              if (can_expand_height) {
-                height++;
-              }
-            }
-
-            // mark expanded blocks as visited
-            for (int i = 0; i < height; ++i) {
-              for (int j = 0; j < depth; ++j) {
-                mask[y + i][z + j] = true;
-              }
-            }
-
-            addQuad(vertices, indices, {x, y, z}, {depth, height}, side_uv,
-                    Face::Right);
-          }
-        }
-      }
-    }
-  }
-
-  // Left face
-  {
-    for (int x = kChunkWidth - 1; x >= 0; --x) {
-      // mask of visited blocks
-      bool mask[kChunkHeight][kChunkDepth] = {false};
-      for (int y = 0; y < kChunkHeight; ++y) {
-        for (int z = 0; z < kChunkDepth; ++z) {
-          if (mask[y][z])
-            continue;
-
-          BlockType type = chunk.at(x, y, z);
-          if (type == BlockType::AIR)
-            continue;
-
-          // check if face is visible
-          if (x == 0 || getBlock(world, chunk, x - 1, y, z) == BlockType::AIR) {
-            const auto &tex = block_data.at(type);
-            auto side_uv = texture_manager.getQuadUV(tex.side.x, tex.side.y);
-
-            // greedy expansion in depth
-            int depth = 1;
-            while (z + depth < kChunkDepth && !mask[y][z + depth] &&
-                   chunk.safeAt(x, y, z + depth) == type &&
-                   (x == 0 || getBlock(world, chunk, x - 1, y, z + depth) ==
-                                  BlockType::AIR)) {
-              depth++;
-            }
-
-            // greedy expansion in height
-            int height = 1;
-            bool can_expand_height = true;
-            while (y + height < kChunkHeight && can_expand_height) {
-              for (int i = 0; i < depth; ++i) {
-                if (mask[y + height][z + i] ||
-                    chunk.safeAt(x, y + height, z + i) != type ||
-                    (x != 0 && getBlock(world, chunk, x - 1, y + height,
-                                        z + i) != BlockType::AIR)) {
-                  can_expand_height = false;
-                  break;
-                }
-              }
-              if (can_expand_height) {
-                height++;
-              }
-            }
-
-            // mark expanded blocks as visited
-            for (int i = 0; i < height; ++i) {
-              for (int j = 0; j < depth; ++j) {
-                mask[y + i][z + j] = true;
-              }
-            }
-
-            addQuad(vertices, indices, {x, y, z}, {depth, height}, side_uv,
-                    Face::Left);
-          }
-        }
-      }
-    }
-  }
   cpuReady = !vertices.empty();
 }
 
 void ChunkMesh::upload() {
   if (!cpuReady)
-    return; // nothing to upload yet
+    return;
 
   glBindVertexArray(VAO);
 
@@ -569,26 +447,33 @@ void ChunkMesh::upload() {
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int),
                indices.data(), GL_STATIC_DRAW);
 
-  // attribs...
+  // Position: 3 x int16 at offset 0
   glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(BlockVertex),
+  glVertexAttribPointer(0, 3, GL_SHORT, GL_FALSE, sizeof(BlockVertex),
                         (void *)0);
 
+  // FaceId + TileX + TileY + UVx + UVy: 5 x uint8 at offset 6
+  // We'll pass these as a single ivec4 + 1 extra, but simpler to use separate attributes
+
+  // FaceId: uint8 at offset 6
   glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(BlockVertex),
-                        (void *)offsetof(BlockVertex, normal));
+  glVertexAttribIPointer(1, 1, GL_UNSIGNED_BYTE, sizeof(BlockVertex),
+                         (void *)offsetof(BlockVertex, faceId));
 
+  // TileXY: 2 x uint8 at offset 7
   glEnableVertexAttribArray(2);
-  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(BlockVertex),
-                        (void *)offsetof(BlockVertex, uv));
+  glVertexAttribIPointer(2, 2, GL_UNSIGNED_BYTE, sizeof(BlockVertex),
+                         (void *)offsetof(BlockVertex, tileX));
 
+  // UV: 2 x uint8 at offset 9
   glEnableVertexAttribArray(3);
-  glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(BlockVertex),
-                        (void *)offsetof(BlockVertex, tileOffset));
+  glVertexAttribIPointer(3, 2, GL_UNSIGNED_BYTE, sizeof(BlockVertex),
+                         (void *)offsetof(BlockVertex, uvX));
 
+  // ChunkOffset: 2 x int16 at offset 12
   glEnableVertexAttribArray(4);
-  glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(BlockVertex),
-                        (void *)offsetof(BlockVertex, tileSpan));
+  glVertexAttribIPointer(4, 2, GL_SHORT, sizeof(BlockVertex),
+                         (void *)offsetof(BlockVertex, chunkX));
 
   glBindVertexArray(0);
 

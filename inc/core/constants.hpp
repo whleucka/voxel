@@ -6,14 +6,14 @@ constexpr int kChunkHeight = 256;
 constexpr int kChunkDepth = 16;
 constexpr int kChunkWidth = 16;
 
-constexpr int kMaxAllowedChunks = 3000;
-constexpr int kChunkPreloadRadius = 14;
-constexpr int kRenderDistance = 24;
-constexpr int kMaxChunksPerFrame = 8;
-constexpr int kMaxUploadsPerFrame = 2;
+constexpr int kMaxAllowedChunks = 12000;
+constexpr int kChunkPreloadRadius = 20;
+constexpr int kRenderDistance = 300;
+constexpr int kMaxChunksPerFrame = 16;
+constexpr int kMaxUploadsPerFrame = 4;
 
-constexpr int kScreenHeight = 600;
-constexpr int kScreenWidth = 800;
+constexpr int kScreenHeight = 900;
+constexpr int kScreenWidth = 1600;
 
 constexpr int kSeaLevel = (kChunkHeight * 2) / 5;
 constexpr int kSnowLevel = 130;

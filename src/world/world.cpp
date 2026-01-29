@@ -12,7 +12,7 @@ World::World()
 void World::init() {
   renderer->init();
 
-  spiral_offsets = generateSpiralOrder(kRenderDistance);
+  spiral_offsets = generateSpiralOrder(kRenderDistance / kChunkWidth);
 
   glm::vec3 pos = {kChunkWidth * 0.5f, 125.0f, kChunkDepth * 0.5f};
 
@@ -129,7 +129,7 @@ void World::preloadChunks() {
 }
 
 void World::updateLoadedChunks() {
-  constexpr int r = kRenderDistance;
+  constexpr int r = kRenderDistance / kChunkWidth;
   constexpr size_t MAX_ALLOWED_CHUNKS = 3000; // tweak as needed
 
   // Prevent runaway growth
