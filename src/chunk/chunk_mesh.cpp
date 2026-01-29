@@ -11,13 +11,34 @@ inline int16_t packPos(float v) {
   return static_cast<int16_t>(v * 2.0f);
 }
 
-void addQuad(std::vector<BlockVertex> &vertices,
-             std::vector<unsigned int> &indices,
+struct MeshBuffers {
+  std::vector<BlockVertex>& vertices;
+  std::vector<unsigned int>& indices;
+  std::vector<BlockVertex>& transparentVertices;
+  std::vector<unsigned int>& transparentIndices;
+};
+
+// Determine if a face should be rendered between current block and neighbor
+inline bool shouldRenderFace(BlockType current, BlockType neighbor) {
+  if (neighbor == BlockType::AIR) return true;
+  if (isTransparent(current)) {
+    // Transparent blocks: only render if neighbor is different type
+    return neighbor != current;
+  }
+  // Opaque blocks: render if neighbor is transparent (visible through it)
+  return isTransparent(neighbor);
+}
+
+void addQuad(MeshBuffers& buffers,
              int posX, int posY, int posZ,
              int sizeA, int sizeB,
              int tileX, int tileY,
              Face face,
-             int16_t chunkWorldX, int16_t chunkWorldZ) {
+             int16_t chunkWorldX, int16_t chunkWorldZ,
+             bool transparent) {
+  auto& vertices = transparent ? buffers.transparentVertices : buffers.vertices;
+  auto& indices = transparent ? buffers.transparentIndices : buffers.indices;
+
   unsigned int start_index = static_cast<unsigned int>(vertices.size());
   uint8_t faceId = static_cast<uint8_t>(face);
 
@@ -106,15 +127,16 @@ void addQuad(std::vector<BlockVertex> &vertices,
 } // namespace
 
 ChunkMesh::ChunkMesh() {
-  glGenVertexArrays(1, &VAO);
-  glGenBuffers(1, &VBO);
-  glGenBuffers(1, &EBO);
+  // GL objects created lazily in upload() on main thread
 }
 
 ChunkMesh::~ChunkMesh() {
-  glDeleteVertexArrays(1, &VAO);
-  glDeleteBuffers(1, &VBO);
-  glDeleteBuffers(1, &EBO);
+  if (VAO) glDeleteVertexArrays(1, &VAO);
+  if (VBO) glDeleteBuffers(1, &VBO);
+  if (EBO) glDeleteBuffers(1, &EBO);
+  if (transparentVAO) glDeleteVertexArrays(1, &transparentVAO);
+  if (transparentVBO) glDeleteBuffers(1, &transparentVBO);
+  if (transparentEBO) glDeleteBuffers(1, &transparentEBO);
 }
 
 BlockType ChunkMesh::getBlock(World *world, const Chunk &chunk, int x, int y, int z) {
@@ -146,10 +168,14 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
   gpuUploaded = false;
   vertices.clear();
   indices.clear();
+  transparentVertices.clear();
+  transparentIndices.clear();
 
   // Compute chunk world offset for batch rendering
   const int16_t chunkWorldX = static_cast<int16_t>(chunk.getPos().x * kChunkWidth);
   const int16_t chunkWorldZ = static_cast<int16_t>(chunk.getPos().y * kChunkDepth);
+
+  MeshBuffers buffers{vertices, indices, transparentVertices, transparentIndices};
 
   // Front face (+Z)
   for (int z = 0; z < kChunkDepth; ++z) {
@@ -160,16 +186,16 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
         BlockType type = chunk.at(x, y, z);
         if (type == BlockType::AIR) continue;
+        if (isLiquid(type)) continue; // Liquids only render top face
 
-        if (z == kChunkDepth - 1 ||
-            getBlock(world, chunk, x, y, z + 1) == BlockType::AIR) {
+        BlockType neighbor = getBlock(world, chunk, x, y, z + 1);
+        if (shouldRenderFace(type, neighbor)) {
           const auto &tex = block_data.at(type);
 
           int width = 1;
           while (x + width < kChunkWidth && !mask[x + width][y] &&
                  chunk.safeAt(x + width, y, z) == type &&
-                 (z == kChunkDepth - 1 ||
-                  getBlock(world, chunk, x + width, y, z + 1) == BlockType::AIR)) {
+                 shouldRenderFace(type, getBlock(world, chunk, x + width, y, z + 1))) {
             width++;
           }
 
@@ -179,8 +205,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int i = 0; i < width; ++i) {
               if (mask[x + i][y + height] ||
                   chunk.safeAt(x + i, y + height, z) != type ||
-                  (z != kChunkDepth - 1 &&
-                   getBlock(world, chunk, x + i, y + height, z + 1) != BlockType::AIR)) {
+                  !shouldRenderFace(type, getBlock(world, chunk, x + i, y + height, z + 1))) {
                 can_expand = false;
                 break;
               }
@@ -192,8 +217,9 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int j = 0; j < width; ++j)
               mask[x + j][y + i] = true;
 
-          addQuad(vertices, indices, x, y, z, width, height,
-                  tex.side.x, tex.side.y, Face::Front, chunkWorldX, chunkWorldZ);
+          addQuad(buffers, x, y, z, width, height,
+                  tex.side.x, tex.side.y, Face::Front, chunkWorldX, chunkWorldZ,
+                  isTransparent(type));
         }
       }
     }
@@ -208,14 +234,16 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
         BlockType type = chunk.at(x, y, z);
         if (type == BlockType::AIR) continue;
+        if (isLiquid(type)) continue; // Liquids only render top face
 
-        if (z == 0 || getBlock(world, chunk, x, y, z - 1) == BlockType::AIR) {
+        BlockType neighbor = getBlock(world, chunk, x, y, z - 1);
+        if (shouldRenderFace(type, neighbor)) {
           const auto &tex = block_data.at(type);
 
           int width = 1;
           while (x + width < kChunkWidth && !mask[x + width][y] &&
                  chunk.safeAt(x + width, y, z) == type &&
-                 (z == 0 || getBlock(world, chunk, x + width, y, z - 1) == BlockType::AIR)) {
+                 shouldRenderFace(type, getBlock(world, chunk, x + width, y, z - 1))) {
             width++;
           }
 
@@ -225,7 +253,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int i = 0; i < width; ++i) {
               if (mask[x + i][y + height] ||
                   chunk.safeAt(x + i, y + height, z) != type ||
-                  (z != 0 && getBlock(world, chunk, x + i, y + height, z - 1) != BlockType::AIR)) {
+                  !shouldRenderFace(type, getBlock(world, chunk, x + i, y + height, z - 1))) {
                 can_expand = false;
                 break;
               }
@@ -237,8 +265,9 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int j = 0; j < width; ++j)
               mask[x + j][y + i] = true;
 
-          addQuad(vertices, indices, x, y, z, width, height,
-                  tex.side.x, tex.side.y, Face::Back, chunkWorldX, chunkWorldZ);
+          addQuad(buffers, x, y, z, width, height,
+                  tex.side.x, tex.side.y, Face::Back, chunkWorldX, chunkWorldZ,
+                  isTransparent(type));
         }
       }
     }
@@ -254,15 +283,14 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         BlockType type = chunk.at(x, y, z);
         if (type == BlockType::AIR) continue;
 
-        if (y == kChunkHeight - 1 ||
-            getBlock(world, chunk, x, y + 1, z) == BlockType::AIR) {
+        BlockType neighbor = getBlock(world, chunk, x, y + 1, z);
+        if (shouldRenderFace(type, neighbor)) {
           const auto &tex = block_data.at(type);
 
           int width = 1;
           while (x + width < kChunkWidth && !mask[z][x + width] &&
                  chunk.safeAt(x + width, y, z) == type &&
-                 (y == kChunkHeight - 1 ||
-                  getBlock(world, chunk, x + width, y + 1, z) == BlockType::AIR)) {
+                 shouldRenderFace(type, getBlock(world, chunk, x + width, y + 1, z))) {
             width++;
           }
 
@@ -272,8 +300,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int i = 0; i < width; ++i) {
               if (mask[z + depth][x + i] ||
                   chunk.safeAt(x + i, y, z + depth) != type ||
-                  (y != kChunkHeight - 1 &&
-                   getBlock(world, chunk, x + i, y + 1, z + depth) != BlockType::AIR)) {
+                  !shouldRenderFace(type, getBlock(world, chunk, x + i, y + 1, z + depth))) {
                 can_expand = false;
                 break;
               }
@@ -285,8 +312,9 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int j = 0; j < width; ++j)
               mask[z + i][x + j] = true;
 
-          addQuad(vertices, indices, x, y, z, width, depth,
-                  tex.top.x, tex.top.y, Face::Top, chunkWorldX, chunkWorldZ);
+          addQuad(buffers, x, y, z, width, depth,
+                  tex.top.x, tex.top.y, Face::Top, chunkWorldX, chunkWorldZ,
+                  isTransparent(type));
         }
       }
     }
@@ -301,14 +329,16 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
         BlockType type = chunk.at(x, y, z);
         if (type == BlockType::AIR) continue;
+        if (isLiquid(type)) continue; // Liquids only render top face
 
-        if (y == 0 || getBlock(world, chunk, x, y - 1, z) == BlockType::AIR) {
+        BlockType neighbor = getBlock(world, chunk, x, y - 1, z);
+        if (shouldRenderFace(type, neighbor)) {
           const auto &tex = block_data.at(type);
 
           int width = 1;
           while (x + width < kChunkWidth && !mask[z][x + width] &&
                  chunk.safeAt(x + width, y, z) == type &&
-                 (y == 0 || getBlock(world, chunk, x + width, y - 1, z) == BlockType::AIR)) {
+                 shouldRenderFace(type, getBlock(world, chunk, x + width, y - 1, z))) {
             width++;
           }
 
@@ -318,7 +348,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int i = 0; i < width; ++i) {
               if (mask[z + depth][x + i] ||
                   chunk.safeAt(x + i, y, z + depth) != type ||
-                  (y != 0 && getBlock(world, chunk, x + i, y - 1, z + depth) != BlockType::AIR)) {
+                  !shouldRenderFace(type, getBlock(world, chunk, x + i, y - 1, z + depth))) {
                 can_expand = false;
                 break;
               }
@@ -330,8 +360,9 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int j = 0; j < width; ++j)
               mask[z + i][x + j] = true;
 
-          addQuad(vertices, indices, x, y, z, width, depth,
-                  tex.bottom.x, tex.bottom.y, Face::Bottom, chunkWorldX, chunkWorldZ);
+          addQuad(buffers, x, y, z, width, depth,
+                  tex.bottom.x, tex.bottom.y, Face::Bottom, chunkWorldX, chunkWorldZ,
+                  isTransparent(type));
         }
       }
     }
@@ -346,16 +377,16 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
         BlockType type = chunk.at(x, y, z);
         if (type == BlockType::AIR) continue;
+        if (isLiquid(type)) continue; // Liquids only render top face
 
-        if (x == kChunkWidth - 1 ||
-            getBlock(world, chunk, x + 1, y, z) == BlockType::AIR) {
+        BlockType neighbor = getBlock(world, chunk, x + 1, y, z);
+        if (shouldRenderFace(type, neighbor)) {
           const auto &tex = block_data.at(type);
 
           int depth = 1;
           while (z + depth < kChunkDepth && !mask[y][z + depth] &&
                  chunk.safeAt(x, y, z + depth) == type &&
-                 (x == kChunkWidth - 1 ||
-                  getBlock(world, chunk, x + 1, y, z + depth) == BlockType::AIR)) {
+                 shouldRenderFace(type, getBlock(world, chunk, x + 1, y, z + depth))) {
             depth++;
           }
 
@@ -365,8 +396,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int i = 0; i < depth; ++i) {
               if (mask[y + height][z + i] ||
                   chunk.safeAt(x, y + height, z + i) != type ||
-                  (x != kChunkWidth - 1 &&
-                   getBlock(world, chunk, x + 1, y + height, z + i) != BlockType::AIR)) {
+                  !shouldRenderFace(type, getBlock(world, chunk, x + 1, y + height, z + i))) {
                 can_expand = false;
                 break;
               }
@@ -378,8 +408,9 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int j = 0; j < depth; ++j)
               mask[y + i][z + j] = true;
 
-          addQuad(vertices, indices, x, y, z, depth, height,
-                  tex.side.x, tex.side.y, Face::Right, chunkWorldX, chunkWorldZ);
+          addQuad(buffers, x, y, z, depth, height,
+                  tex.side.x, tex.side.y, Face::Right, chunkWorldX, chunkWorldZ,
+                  isTransparent(type));
         }
       }
     }
@@ -394,14 +425,16 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
         BlockType type = chunk.at(x, y, z);
         if (type == BlockType::AIR) continue;
+        if (isLiquid(type)) continue; // Liquids only render top face
 
-        if (x == 0 || getBlock(world, chunk, x - 1, y, z) == BlockType::AIR) {
+        BlockType neighbor = getBlock(world, chunk, x - 1, y, z);
+        if (shouldRenderFace(type, neighbor)) {
           const auto &tex = block_data.at(type);
 
           int depth = 1;
           while (z + depth < kChunkDepth && !mask[y][z + depth] &&
                  chunk.safeAt(x, y, z + depth) == type &&
-                 (x == 0 || getBlock(world, chunk, x - 1, y, z + depth) == BlockType::AIR)) {
+                 shouldRenderFace(type, getBlock(world, chunk, x - 1, y, z + depth))) {
             depth++;
           }
 
@@ -411,7 +444,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int i = 0; i < depth; ++i) {
               if (mask[y + height][z + i] ||
                   chunk.safeAt(x, y + height, z + i) != type ||
-                  (x != 0 && getBlock(world, chunk, x - 1, y + height, z + i) != BlockType::AIR)) {
+                  !shouldRenderFace(type, getBlock(world, chunk, x - 1, y + height, z + i))) {
                 can_expand = false;
                 break;
               }
@@ -423,37 +456,34 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int j = 0; j < depth; ++j)
               mask[y + i][z + j] = true;
 
-          addQuad(vertices, indices, x, y, z, depth, height,
-                  tex.side.x, tex.side.y, Face::Left, chunkWorldX, chunkWorldZ);
+          addQuad(buffers, x, y, z, depth, height,
+                  tex.side.x, tex.side.y, Face::Left, chunkWorldX, chunkWorldZ,
+                  isTransparent(type));
         }
       }
     }
   }
 
-  cpuReady = !vertices.empty();
+  cpuReady = !vertices.empty() || !transparentVertices.empty();
 }
 
-void ChunkMesh::upload() {
-  if (!cpuReady)
-    return;
+void ChunkMesh::setupVAO(GLuint vao, GLuint vbo, GLuint ebo,
+                          const std::vector<BlockVertex>& verts,
+                          const std::vector<unsigned int>& inds) {
+  glBindVertexArray(vao);
 
-  glBindVertexArray(VAO);
+  glBindBuffer(GL_ARRAY_BUFFER, vbo);
+  glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(BlockVertex),
+               verts.data(), GL_STATIC_DRAW);
 
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-  glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(BlockVertex),
-               vertices.data(), GL_STATIC_DRAW);
-
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int),
-               indices.data(), GL_STATIC_DRAW);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, inds.size() * sizeof(unsigned int),
+               inds.data(), GL_STATIC_DRAW);
 
   // Position: 3 x int16 at offset 0
   glEnableVertexAttribArray(0);
   glVertexAttribPointer(0, 3, GL_SHORT, GL_FALSE, sizeof(BlockVertex),
                         (void *)0);
-
-  // FaceId + TileX + TileY + UVx + UVy: 5 x uint8 at offset 6
-  // We'll pass these as a single ivec4 + 1 extra, but simpler to use separate attributes
 
   // FaceId: uint8 at offset 6
   glEnableVertexAttribArray(1);
@@ -476,15 +506,48 @@ void ChunkMesh::upload() {
                          (void *)offsetof(BlockVertex, chunkX));
 
   glBindVertexArray(0);
+}
+
+void ChunkMesh::upload() {
+  if (!cpuReady)
+    return;
+
+  if (!vertices.empty()) {
+    if (!VAO) {
+      glGenVertexArrays(1, &VAO);
+      glGenBuffers(1, &VBO);
+      glGenBuffers(1, &EBO);
+    }
+    setupVAO(VAO, VBO, EBO, vertices, indices);
+  }
+
+  if (!transparentVertices.empty()) {
+    if (!transparentVAO) {
+      glGenVertexArrays(1, &transparentVAO);
+      glGenBuffers(1, &transparentVBO);
+      glGenBuffers(1, &transparentEBO);
+    }
+    setupVAO(transparentVAO, transparentVBO, transparentEBO,
+             transparentVertices, transparentIndices);
+  }
 
   gpuUploaded = true;
 }
 
-void ChunkMesh::render() {
-  if (!gpuUploaded)
+void ChunkMesh::renderOpaque() {
+  if (!gpuUploaded || indices.empty())
     return;
 
   glBindVertexArray(VAO);
   glDrawElements(GL_TRIANGLES, (GLsizei)indices.size(), GL_UNSIGNED_INT, 0);
+  glBindVertexArray(0);
+}
+
+void ChunkMesh::renderTransparent() {
+  if (!gpuUploaded || transparentIndices.empty())
+    return;
+
+  glBindVertexArray(transparentVAO);
+  glDrawElements(GL_TRIANGLES, (GLsizei)transparentIndices.size(), GL_UNSIGNED_INT, 0);
   glBindVertexArray(0);
 }

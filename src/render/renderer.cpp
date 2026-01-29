@@ -23,9 +23,24 @@ void Renderer::drawChunks(const robin_hood::unordered_map<ChunkKey, std::shared_
   block_shader->setMat4("view", view);
   block_shader->setMat4("projection", projection);
 
-  // Batch draw all visible chunks
+  // Pass 1: Draw all opaque geometry
+  block_shader->setFloat("uAlpha", 1.0f);
   for (auto &[key, chunk] : chunks) {
     if (!chunk) continue;
-    chunk->getMesh().render();
+    chunk->getMesh().renderOpaque();
   }
+
+  // Pass 2: Draw all transparent geometry with blending
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glDepthMask(GL_FALSE); // Don't write to depth buffer for transparent
+
+  block_shader->setFloat("uAlpha", 0.6f);
+  for (auto &[key, chunk] : chunks) {
+    if (!chunk) continue;
+    chunk->getMesh().renderTransparent();
+  }
+
+  glDepthMask(GL_TRUE);
+  glDisable(GL_BLEND);
 }

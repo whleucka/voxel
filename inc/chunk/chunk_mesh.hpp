@@ -20,17 +20,28 @@ public:
   static BlockType getBlock(World*, const Chunk&, int, int, int);
   void generateCPU(World* world, const Chunk& chunk, TextureManager& texture_manager); // CPU-only
   void upload();     // GL only (main thread)
-  void render();     // draw only when uploaded
+  void renderOpaque();
+  void renderTransparent();
 
   bool isUploaded() const { return gpuUploaded; }
+  bool hasTransparent() const { return !transparentIndices.empty(); }
 
 private:
-  // GL objects
-  GLuint VAO{}, VBO{}, EBO{};
+  void setupVAO(GLuint vao, GLuint vbo, GLuint ebo,
+                const std::vector<BlockVertex>& verts,
+                const std::vector<unsigned int>& inds);
 
-  // CPU data
+  // GL objects - opaque
+  GLuint VAO{}, VBO{}, EBO{};
+  // GL objects - transparent
+  GLuint transparentVAO{}, transparentVBO{}, transparentEBO{};
+
+  // CPU data - opaque
   std::vector<BlockVertex> vertices;
   std::vector<unsigned int> indices;
+  // CPU data - transparent
+  std::vector<BlockVertex> transparentVertices;
+  std::vector<unsigned int> transparentIndices;
 
   // simple state
   std::atomic<bool> cpuReady{false};
