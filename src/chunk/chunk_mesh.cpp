@@ -315,6 +315,15 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           addQuad(buffers, x, y, z, width, depth,
                   tex.top.x, tex.top.y, Face::Top, chunkWorldX, chunkWorldZ,
                   isTransparent(type));
+
+          // For water at the surface (air above), also render bottom face
+          // so it's visible from underwater looking up
+          // Use y+1 so the face renders at (y+1)-0.5 = y+0.5 (same as top face)
+          if (isLiquid(type) && neighbor == BlockType::AIR) {
+            addQuad(buffers, x, y + 1, z, width, depth,
+                    tex.bottom.x, tex.bottom.y, Face::Bottom, chunkWorldX, chunkWorldZ,
+                    true);
+          }
         }
       }
     }

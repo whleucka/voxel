@@ -1,5 +1,6 @@
 #pragma once
 
+#include "block/block_type.hpp"
 #include "chunk/chunk.hpp"
 #include "player/player.hpp"
 #include "render/renderer.hpp"
@@ -23,6 +24,7 @@ public:
   std::shared_ptr<const Chunk> getChunk(int x, int z) const;
   std::unique_ptr<Player> &getPlayer() { return player; }
   size_t getChunkCount() const;
+  BlockType getBlockAt(const glm::vec3& worldPos) const;
 
 private:
   void preloadChunks();

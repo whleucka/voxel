@@ -87,7 +87,7 @@ void World::addChunk(int x, int z) {
 }
 
 void World::update(float dt) {
-  player->update(dt);
+  player->update(dt, this);
 
   glm::vec3 pos = player->getPosition();
   int current_chunk_x = static_cast<int>(floor(pos.x / kChunkWidth));
@@ -217,7 +217,8 @@ void World::render(glm::mat4 &view, glm::mat4 &projection) {
     }
   }
 
-  renderer->drawChunks(visibleChunks, view, projection);
+  renderer->drawChunks(visibleChunks, view, projection,
+                       player->getPosition(), player->isUnderwater());
 }
 
 std::shared_ptr<Chunk> World::getChunk(int x, int z) {
@@ -235,4 +236,27 @@ std::shared_ptr<const Chunk> World::getChunk(int x, int z) const {
 size_t World::getChunkCount() const {
   ReadLock lock(chunks_mutex);
   return chunks.size();
+}
+
+BlockType World::getBlockAt(const glm::vec3& worldPos) const {
+  int bx = static_cast<int>(std::floor(worldPos.x));
+  int by = static_cast<int>(std::floor(worldPos.y));
+  int bz = static_cast<int>(std::floor(worldPos.z));
+
+  if (by < 0 || by >= kChunkHeight) {
+    return BlockType::AIR;
+  }
+
+  int cx = static_cast<int>(std::floor(static_cast<float>(bx) / kChunkWidth));
+  int cz = static_cast<int>(std::floor(static_cast<float>(bz) / kChunkDepth));
+
+  auto chunk = getChunk(cx, cz);
+  if (!chunk) {
+    return BlockType::AIR;
+  }
+
+  int lx = bx - cx * kChunkWidth;
+  int lz = bz - cz * kChunkDepth;
+
+  return chunk->safeAt(lx, by, lz);
 }

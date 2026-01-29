@@ -16,12 +16,15 @@ void Renderer::init() {
 }
 
 void Renderer::drawChunks(const robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash> &chunks,
-                          const glm::mat4 &view, const glm::mat4 &projection) {
+                          const glm::mat4 &view, const glm::mat4 &projection,
+                          const glm::vec3 &cameraPos, bool underwater) {
   block_shader->use();
   texture_manager->bind(GL_TEXTURE0);
   block_shader->setInt("uTexture", 0);
   block_shader->setMat4("view", view);
   block_shader->setMat4("projection", projection);
+  block_shader->setVec3("uCameraPos", cameraPos);
+  block_shader->setBool("uUnderwater", underwater);
 
   // Pass 1: Draw all opaque geometry
   block_shader->setFloat("uAlpha", 1.0f);

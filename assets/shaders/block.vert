@@ -29,6 +29,7 @@ out vec3 vNormal;
 out vec2 vBaseUV;
 out vec2 vTileOffset;
 out vec2 vTileSpan;
+out vec3 vWorldPos;
 
 void main() {
     // Decode local position (was multiplied by 2 to preserve 0.5 precision)
@@ -38,6 +39,9 @@ void main() {
     vec3 worldPos = localPos + vec3(float(aChunkOffset.x), 0.0, float(aChunkOffset.y));
 
     gl_Position = projection * view * vec4(worldPos, 1.0);
+
+    // Pass world position to fragment shader for fog calculation
+    vWorldPos = worldPos;
 
     // Lookup normal from face ID
     vNormal = NORMALS[aFaceId];

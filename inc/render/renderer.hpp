@@ -12,7 +12,9 @@ public:
   ~Renderer();
 
   void init();
-  void drawChunks(const robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash> &chunks, const glm::mat4 &view, const glm::mat4 &projection);
+  void drawChunks(const robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash> &chunks,
+                  const glm::mat4 &view, const glm::mat4 &projection,
+                  const glm::vec3 &cameraPos, bool underwater);
   TextureManager &getTextureManager() { return *texture_manager; }
 
 private:

@@ -1,15 +1,17 @@
 #include "player/player.hpp"
+#include "block/block_data.hpp"
 #include "core/constants.hpp"
+#include "world/world.hpp"
 
 Player::Player(glm::vec3 start_pos) : position(start_pos) {
   camera.position = position;
 }
 
-void Player::update(float dt) {
+void Player::update(float dt, World* world) {
   if (!fly_mode) {
     // applyGravity(dt);
   }
-  // checkWater();
+  checkWater(world);
   camera.position = position;
 }
 
@@ -65,6 +67,11 @@ void Player::applyGravity(float dt) {
   position += velocity * dt;
 }
 
-void Player::checkWater() {
-  // TODO: implement water physics
+void Player::checkWater(World* world) {
+  if (!world) {
+    underwater = false;
+    return;
+  }
+  BlockType block = world->getBlockAt(position);
+  underwater = isLiquid(block);
 }

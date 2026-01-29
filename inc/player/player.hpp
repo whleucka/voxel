@@ -3,12 +3,14 @@
 #include "render/camera.hpp"
 #include <glm/fwd.hpp>
 
+class World;
+
 class Player {
 public:
   Player(glm::vec3 start_pos);
   ~Player() = default;
 
-  void update(float dt);
+  void update(float dt, World* world);
   void processKeyboard(float dt, bool forward, bool backward, bool left,
                        bool right, bool jump, bool sprint, bool up, bool down);
   void processMouseMovement(float xoffset, float yoffset,
@@ -20,13 +22,15 @@ public:
   bool isFlyMode() const { return fly_mode; }
   bool *getFlyModePtr() { return &fly_mode; }
   void toggleFlyMode() { fly_mode = !fly_mode; }
+  bool isUnderwater() const { return underwater; }
 
 private:
   bool fly_mode = false;
+  bool underwater = false;
   Camera camera;
   glm::vec3 position;
   glm::vec3 velocity;
 
   void applyGravity(float dt);
-  void checkWater();
+  void checkWater(World* world);
 };
