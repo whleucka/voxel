@@ -14,7 +14,10 @@ public:
   void init();
   void drawChunks(const robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash> &chunks,
                   const glm::mat4 &view, const glm::mat4 &projection,
-                  const glm::vec3 &cameraPos, bool underwater);
+                  const glm::vec3 &cameraPos, bool underwater, float timeOfDay);
+
+  // Compute sky/fog colour from time-of-day (shared with engine for glClearColor)
+  static glm::vec3 skyColor(float timeOfDay);
   TextureManager &getTextureManager() { return *texture_manager; }
 
 private:

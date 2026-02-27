@@ -1,6 +1,7 @@
 #include "core/engine.hpp"
 #include "core/constants.hpp"
 #include "core/settings.hpp"
+#include "render/renderer.hpp"
 #include "imgui/backends/imgui_impl_glfw.h"
 #include "imgui/backends/imgui_impl_opengl3.h"
 #include "imgui/imgui.h"
@@ -143,6 +144,7 @@ void Engine::processInput(GLFWwindow *window) {
 // ─── Update ────────────────────────────────────────────────────────────
 
 void Engine::update() {
+  game_clock.scale = g_settings.time_scale;
   game_clock.update(delta_time);
   world.update(delta_time);
 
@@ -157,7 +159,10 @@ void Engine::update() {
 // ─── Render ────────────────────────────────────────────────────────────
 
 void Engine::render() {
-  glClearColor(0.53f, 0.81f, 0.92f, 1.0f);
+  // Dynamic sky colour driven by time-of-day
+  float tod = game_clock.fractionOfDay();
+  glm::vec3 sky = Renderer::skyColor(tod);
+  glClearColor(sky.r, sky.g, sky.b, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Render scene
@@ -169,7 +174,7 @@ void Engine::render() {
       1000.0f                                         // far plane
   );
 
-  world.render(view, proj);
+  world.render(view, proj, tod);
 
   // ImGui frame must always be opened here so both renderCrosshair() and
   // debug() can safely submit widgets regardless of game state.
@@ -262,6 +267,14 @@ void Engine::debug() {
     // Adjustable settings
     ImGui::SliderFloat("Mouse sensitivity", &g_settings.mouse_sensitivity, 0.01f, 0.30f, "%.3f");
     ImGui::SliderFloat("FOV", &g_settings.fov, 30.0f, 110.0f, "%.0f");
+
+    ImGui::Separator();
+
+    // Lighting & atmosphere
+    ImGui::Text("Atmosphere");
+    ImGui::SliderFloat("Time scale", &g_settings.time_scale, 0.0f, 720.0f, "%.0f");
+    ImGui::SliderFloat("Fog start",  &g_settings.fog_start,  0.0f, 300.0f, "%.0f");
+    ImGui::SliderFloat("Fog end",    &g_settings.fog_end,    0.0f, 400.0f, "%.0f");
 
     ImGui::End();
   }

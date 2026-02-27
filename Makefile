@@ -22,6 +22,10 @@ else
   CFLAGS    := -std=c++20 -Wall -Wextra -O2
 endif
 
+# Auto-generated header dependency files (-MMD produces .d alongside .o)
+DEPFLAGS    := -MMD -MP
+DEPS        := $(OBJECTS:.o=.d)
+
 # Libraries
 LIB         := -lglfw -lGL -lX11 -lpthread -lXrandr -lXi -ldl
 
@@ -59,12 +63,12 @@ $(TARGET): $(OBJECTS)
 # Compile C++ files
 $(BUILDDIR)/%.$(OBJEXT): $(SRCDIR)/%.$(SRCEXT)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INC) -c -o $@ $<
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INC) -c -o $@ $<
 
 # Compile ImGui files
 $(BUILDDIR)/external/%.o: external/%.cpp
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INC) -c -o $@ $<
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INC) -c -o $@ $<
 
 # Compile Glad (C file)
 $(BUILDDIR)/external/glad/src/glad.o: external/glad/src/glad.c
@@ -103,3 +107,6 @@ compile_commands.json: compile_commands.json.tmp
 	@if ! cmp -s $@ $<; then mv $< $@; else rm $<; fi
 
 .PHONY: all clean cleaner resources directories
+
+# Include auto-generated header dependency rules (silently ignored on first build)
+-include $(DEPS)

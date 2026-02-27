@@ -196,7 +196,7 @@ bool World::isChunkInFrustum(const glm::vec4 planes[6], const glm::vec3 &min,
   return true;
 }
 
-void World::render(glm::mat4 &view, glm::mat4 &projection) {
+void World::render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay) {
   ReadLock lock(chunks_mutex);
 
   glm::mat4 viewProj = projection * view;
@@ -220,7 +220,7 @@ void World::render(glm::mat4 &view, glm::mat4 &projection) {
   }
 
   renderer->drawChunks(visibleChunks, view, projection,
-                       player->getPosition(), player->isUnderwater());
+                       player->getPosition(), player->isUnderwater(), timeOfDay);
 }
 
 std::shared_ptr<Chunk> World::getChunk(int x, int z) {

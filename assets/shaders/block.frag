@@ -12,28 +12,52 @@ uniform float uAlpha;
 uniform vec3 uCameraPos;
 uniform bool uUnderwater;
 
-// Underwater fog settings
-const vec3 WATER_FOG_COLOR = vec3(0.1, 0.3, 0.5);
+// Directional lighting
+uniform vec3 uSunDir;        // normalized sun direction (points toward sun)
+uniform vec3 uSunColor;      // sun color * intensity
+uniform vec3 uAmbientColor;  // ambient (sky + bounce) color
+
+// Atmospheric fog (above water)
+uniform vec3  uFogColor;
+uniform float uFogStart;
+uniform float uFogEnd;
+
+// Underwater fog
+const vec3  WATER_FOG_COLOR   = vec3(0.1, 0.3, 0.5);
 const float WATER_FOG_DENSITY = 0.04;
 
 void main() {
-    // Repeat every 1.0 unit in baseUV space (i.e., each block)
-    vec2 tileUV  = fract(vBaseUV);              // 0..1 per block
+    // ── Atlas sampling ────────────────────────────────────────────────────
+    vec2 tileUV  = fract(vBaseUV);
     vec2 atlasUV = vTileOffset + tileUV * vTileSpan;
     vec4 texColor = texture(uTexture, atlasUV);
 
-    vec3 finalColor = texColor.rgb;
+    // ── Face-based ambient occlusion (Minecraft-style depth cue) ─────────
+    // Gives constant geometric depth even when the sun is on the horizon.
+    float faceShade;
+    if      (vNormal.y >  0.5) faceShade = 1.00;   // top    (+Y) – brightest
+    else if (vNormal.y < -0.5) faceShade = 0.50;   // bottom (-Y) – darkest
+    else if (abs(vNormal.x) > 0.5) faceShade = 0.70; // left / right
+    else                            faceShade = 0.80; // front / back
+
+    // ── Directional (sun/moon) diffuse ────────────────────────────────────
+    float diffuse = max(dot(vNormal, uSunDir), 0.0);
+    vec3  lighting = uAmbientColor + diffuse * uSunColor;
+
+    vec3 finalColor = texColor.rgb * lighting * faceShade;
+
+    // ── Fog ───────────────────────────────────────────────────────────────
+    float dist = length(vWorldPos - uCameraPos);
 
     if (uUnderwater) {
-        // Calculate distance from camera for fog
-        float dist = length(vWorldPos - uCameraPos);
-
-        // Exponential fog factor
+        // Exponential underwater fog
         float fogFactor = 1.0 - exp(-WATER_FOG_DENSITY * dist);
         fogFactor = clamp(fogFactor, 0.0, 1.0);
-
-        // Mix texture color with fog color
         finalColor = mix(finalColor, WATER_FOG_COLOR, fogFactor);
+    } else {
+        // Linear atmospheric fog – starts at uFogStart, full at uFogEnd
+        float fogFactor = clamp((dist - uFogStart) / (uFogEnd - uFogStart), 0.0, 1.0);
+        finalColor = mix(finalColor, uFogColor, fogFactor);
     }
 
     FragColor = vec4(finalColor, texColor.a * uAlpha);
