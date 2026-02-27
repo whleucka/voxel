@@ -159,10 +159,7 @@ void Engine::update() {
 // ─── Render ────────────────────────────────────────────────────────────
 
 void Engine::render() {
-  // Dynamic sky colour driven by time-of-day
-  float tod = game_clock.fractionOfDay();
-  glm::vec3 sky = Renderer::skyColor(tod);
-  glClearColor(sky.r, sky.g, sky.b, 1.0f);
+  glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Render scene
@@ -174,7 +171,7 @@ void Engine::render() {
       1000.0f                                         // far plane
   );
 
-  world.render(view, proj, tod);
+  world.render(view, proj, game_clock.fractionOfDay());
 
   // ImGui frame must always be opened here so both renderCrosshair() and
   // debug() can safely submit widgets regardless of game state.

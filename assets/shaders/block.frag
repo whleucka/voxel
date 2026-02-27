@@ -23,7 +23,7 @@ uniform float uFogStart;
 uniform float uFogEnd;
 
 // Underwater fog
-const vec3 WATER_FOG_COLOR = vec3(0.1, 0.3, 0.5);
+uniform vec3  uWaterFogColor;   // time-of-day adjusted in renderer
 uniform float uWaterFogDensity;
 
 void main() {
@@ -53,12 +53,30 @@ void main() {
         // Exponential underwater fog
         float fogFactor = 1.0 - exp(-uWaterFogDensity * dist);
         fogFactor = clamp(fogFactor, 0.0, 1.0);
-        finalColor = mix(finalColor, WATER_FOG_COLOR, fogFactor);
+        finalColor = mix(finalColor, uWaterFogColor, fogFactor);
     } else {
         // Linear atmospheric fog – starts at uFogStart, full at uFogEnd
         float fogFactor = clamp((dist - uFogStart) / (uFogEnd - uFogStart), 0.0, 1.0);
         finalColor = mix(finalColor, uFogColor, fogFactor);
     }
 
-    FragColor = vec4(finalColor, texColor.a * uAlpha);
+    // ── Water surface: Fresnel opacity + blue-green tint ──────────────────
+    // Applies only to transparent top faces (i.e. water viewed from above).
+    float finalAlpha = texColor.a * uAlpha;
+    if (uAlpha < 1.0 && vNormal.y > 0.5) {
+        // Fresnel: looking straight down → see-through; grazing angle → opaque
+        vec3  viewDir = normalize(uCameraPos - vWorldPos);
+        float NdotV   = clamp(dot(vNormal, viewDir), 0.0, 1.0);
+        float fresnel = pow(1.0 - NdotV, 2.5);
+        finalAlpha = clamp(mix(uAlpha, 0.96, fresnel), 0.0, 1.0);
+
+        // Subtle blue-green tint – quadratic ambient scaling so it
+        // nearly vanishes at night (linear was still ~6-16% teal after sRGB gamma).
+        float brightness = clamp(length(uAmbientColor) * 3.5, 0.0, 1.0);
+        brightness = brightness * brightness;           // quadratic drop-off
+        vec3  waterTint  = vec3(0.04, 0.26, 0.38) * brightness;
+        finalColor = mix(finalColor, waterTint, 0.28 * brightness);
+    }
+
+    FragColor = vec4(finalColor, finalAlpha);
 }

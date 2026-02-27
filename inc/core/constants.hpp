@@ -8,7 +8,7 @@ constexpr int kChunkWidth = 16;
 
 constexpr int kMaxAllowedChunks = 12000;
 constexpr int kChunkPreloadRadius = 20;
-constexpr int kRenderDistance = 300;
+constexpr int kRenderDistance = 320;
 constexpr int kMaxChunksPerFrame = 16;
 constexpr int kMaxUploadsPerFrame = 4;
 

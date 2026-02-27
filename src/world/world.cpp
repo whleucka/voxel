@@ -197,6 +197,10 @@ bool World::isChunkInFrustum(const glm::vec4 planes[6], const glm::vec3 &min,
 }
 
 void World::render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay) {
+  // Sky must be drawn before world geometry (it uses GL_LEQUAL depth and writes
+  // no depth values, so any chunk fragment will correctly overwrite it).
+  renderer->drawSky(view, projection, timeOfDay);
+
   ReadLock lock(chunks_mutex);
 
   glm::mat4 viewProj = projection * view;
