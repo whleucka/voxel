@@ -9,6 +9,7 @@
 #include <glm/ext/scalar_constants.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <cstdio>
 #include <iostream>
 
 Engine::~Engine() { cleanup(); }
@@ -169,6 +170,13 @@ void Engine::render() {
   );
 
   world.render(view, proj);
+
+  // ImGui frame must always be opened here so both renderCrosshair() and
+  // debug() can safely submit widgets regardless of game state.
+  ImGui_ImplOpenGL3_NewFrame();
+  ImGui_ImplGlfw_NewFrame();
+  ImGui::NewFrame();
+
   renderCrosshair();
   debug();
 }
@@ -178,10 +186,6 @@ void Engine::render() {
 void Engine::renderCrosshair() {
   // Don't show crosshair when inventory is open
   if (world.getPlayer()->isInventoryOpen()) return;
-
-  ImGui_ImplOpenGL3_NewFrame();
-  ImGui_ImplGlfw_NewFrame();
-  ImGui::NewFrame();
 
   // Draw crosshair at screen center using ImGui overlay
   ImDrawList* draw = ImGui::GetForegroundDrawList();
@@ -198,16 +202,24 @@ void Engine::renderCrosshair() {
 // ─── Debug Panel ───────────────────────────────────────────────────────
 
 void Engine::debug() {
-  // Note: ImGui::NewFrame() was already called in renderCrosshair()
   if (g_settings.show_debug) {
     auto& player = world.getPlayer();
-    ImGui::Begin("Debug", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+    ImGui::Begin("Debug", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoNav);
     ImGuiIO &io = ImGui::GetIO();
 
     // Performance
     ImGui::Text("Game time: %.2d:%.2d", game_clock.hour(), game_clock.minute());
-    ImGui::Text("FPS: %.1f", io.Framerate);
+
+    static float fps_history[90] = {};
+    static int   fps_idx = 0;
+    fps_history[fps_idx % 90] = io.Framerate;
+    ++fps_idx;
+    char fps_overlay[32];
+    std::snprintf(fps_overlay, sizeof(fps_overlay), "%.1f FPS", io.Framerate);
+    ImGui::PlotLines("##fps", fps_history, 90, fps_idx % 90,
+                     fps_overlay, 0.0f, 300.0f, ImVec2(0, 50));
     ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
+
     ImGui::Text("Memory usage: %zu MB", getMemoryUsage());
     ImGui::Text("Chunks loaded: %zu", world.getChunkCount());
 
