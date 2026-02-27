@@ -26,14 +26,34 @@ constexpr float kBiomeOctaves = 4.0f;
 constexpr float kBiomeLacunarity = 1.2f;
 constexpr float kBiomeGain = 0.5f;
 
-constexpr float kPlayerHeight = 1.5f;
-constexpr float kPlayerRadius = 0.5f;
-constexpr float kPlayerMoveSpeed = 10.0f;
-constexpr float kPlayerSprintSpeed = 20.f;
-constexpr float kPlayerJumpStrength = 5.0f;
-constexpr float kPlayerWaterSpeed = 2.5f;
-constexpr float kPlayerWaterJumpStrength = 1.0f;
+// Player dimensions (AABB)
+constexpr float kPlayerHeight = 1.8f;
+constexpr float kPlayerWidth = 0.6f;           // AABB width and depth
+constexpr float kPlayerHalfWidth = kPlayerWidth / 2.0f;
+constexpr float kPlayerEyeHeight = 1.62f;      // eye level within player box
+constexpr float kPlayerCrouchEyeHeight = 1.27f; // eye level when crouching
+constexpr float kPlayerCrouchHeight = 1.5f;    // AABB height when crouching
 
-constexpr float kGravityForce = -20.0f;
+// Player speeds
+constexpr float kPlayerMoveSpeed = 4.317f;     // Minecraft walk speed (blocks/s)
+constexpr float kPlayerSprintSpeed = 5.612f;   // Minecraft sprint speed (blocks/s)
+constexpr float kPlayerCrouchSpeed = 1.295f;   // Minecraft sneak speed (blocks/s)
+constexpr float kPlayerWaterSpeed = 2.2f;       // swim speed
+constexpr float kPlayerWaterSprintSpeed = 4.0f; // fast swim
+
+// Jump and gravity
+constexpr float kPlayerJumpStrength = 8.0f;    // upward velocity on jump
+constexpr float kPlayerWaterJumpStrength = 2.5f; // swim-up velocity
+constexpr float kGravityForce = -28.0f;        // gravity acceleration
+constexpr float kWaterGravityMultiplier = 0.15f; // reduced gravity in water
+constexpr float kTerminalVelocity = -60.0f;    // max fall speed
+constexpr float kWaterDrag = 0.8f;             // water velocity damping per frame
+
+// Interaction
+constexpr float kPlayerReach = 5.0f;           // block interaction reach distance
+constexpr int kHotbarSlots = 9;                // number of hotbar slots
+
+// Collision
+constexpr float kCollisionEpsilon = 0.001f;    // small offset to prevent z-fighting with block faces
 
 inline const std::string kAppTitle = "3D Voxel Engine";

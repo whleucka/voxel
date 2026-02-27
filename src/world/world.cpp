@@ -1,7 +1,9 @@
 #include "world/world.hpp"
+#include "block/block_data.hpp"
 #include "core/constants.hpp"
 #include "render/renderer.hpp"
 #include "util/lock.hpp"
+#include <cmath>
 #include <glm/fwd.hpp>
 #include <memory>
 
@@ -259,4 +261,116 @@ BlockType World::getBlockAt(const glm::vec3& worldPos) const {
   int lz = bz - cz * kChunkDepth;
 
   return chunk->safeAt(lx, by, lz);
+}
+
+bool World::isSolidBlock(int bx, int by, int bz) const {
+  if (by < 0 || by >= kChunkHeight) return false;
+  BlockType block = getBlockAt(glm::vec3(bx + 0.5f, by + 0.5f, bz + 0.5f));
+  return block != BlockType::AIR && !isLiquid(block);
+}
+
+// ─── DDA Raycast ───────────────────────────────────────────────────────
+// Steps through the voxel grid one cell at a time along a ray.
+// Based on "A Fast Voxel Traversal Algorithm" (Amanatides & Woo, 1987).
+
+RaycastResult World::raycast(const glm::vec3& origin, const glm::vec3& direction,
+                              float max_distance) const {
+  RaycastResult result;
+
+  if (glm::length(direction) < 1e-8f) return result;
+
+  glm::vec3 dir = glm::normalize(direction);
+
+  // Current voxel position
+  int x = static_cast<int>(std::floor(origin.x));
+  int y = static_cast<int>(std::floor(origin.y));
+  int z = static_cast<int>(std::floor(origin.z));
+
+  // Step direction for each axis (+1 or -1)
+  int stepX = (dir.x >= 0) ? 1 : -1;
+  int stepY = (dir.y >= 0) ? 1 : -1;
+  int stepZ = (dir.z >= 0) ? 1 : -1;
+
+  // tMax: distance along ray to next voxel boundary for each axis
+  // tDelta: distance along ray to cross one full voxel for each axis
+  float tMaxX, tMaxY, tMaxZ;
+  float tDeltaX, tDeltaY, tDeltaZ;
+
+  if (std::abs(dir.x) > 1e-8f) {
+    tDeltaX = std::abs(1.0f / dir.x);
+    tMaxX = ((stepX > 0) ? (std::floor(origin.x) + 1.0f - origin.x)
+                          : (origin.x - std::floor(origin.x))) * tDeltaX;
+  } else {
+    tDeltaX = 1e30f;
+    tMaxX = 1e30f;
+  }
+
+  if (std::abs(dir.y) > 1e-8f) {
+    tDeltaY = std::abs(1.0f / dir.y);
+    tMaxY = ((stepY > 0) ? (std::floor(origin.y) + 1.0f - origin.y)
+                          : (origin.y - std::floor(origin.y))) * tDeltaY;
+  } else {
+    tDeltaY = 1e30f;
+    tMaxY = 1e30f;
+  }
+
+  if (std::abs(dir.z) > 1e-8f) {
+    tDeltaZ = std::abs(1.0f / dir.z);
+    tMaxZ = ((stepZ > 0) ? (std::floor(origin.z) + 1.0f - origin.z)
+                          : (origin.z - std::floor(origin.z))) * tDeltaZ;
+  } else {
+    tDeltaZ = 1e30f;
+    tMaxZ = 1e30f;
+  }
+
+  float distance = 0.0f;
+
+  // Maximum iterations to prevent infinite loops
+  int max_steps = static_cast<int>(max_distance * 3.0f) + 1;
+
+  for (int i = 0; i < max_steps; ++i) {
+    // Check current voxel (skip the very first one if player is inside it)
+    BlockType block = getBlockAt(glm::vec3(x + 0.5f, y + 0.5f, z + 0.5f));
+
+    if (block != BlockType::AIR && !isLiquid(block)) {
+      result.hit = true;
+      result.block_pos = glm::ivec3(x, y, z);
+      result.distance = distance;
+      result.block_type = block;
+      return result;
+    }
+
+    // Advance to next voxel boundary (step along the axis with smallest tMax)
+    if (tMaxX < tMaxY) {
+      if (tMaxX < tMaxZ) {
+        distance = tMaxX;
+        if (distance > max_distance) break;
+        x += stepX;
+        result.normal = glm::ivec3(-stepX, 0, 0);
+        tMaxX += tDeltaX;
+      } else {
+        distance = tMaxZ;
+        if (distance > max_distance) break;
+        z += stepZ;
+        result.normal = glm::ivec3(0, 0, -stepZ);
+        tMaxZ += tDeltaZ;
+      }
+    } else {
+      if (tMaxY < tMaxZ) {
+        distance = tMaxY;
+        if (distance > max_distance) break;
+        y += stepY;
+        result.normal = glm::ivec3(0, -stepY, 0);
+        tMaxY += tDeltaY;
+      } else {
+        distance = tMaxZ;
+        if (distance > max_distance) break;
+        z += stepZ;
+        result.normal = glm::ivec3(0, 0, -stepZ);
+        tMaxZ += tDeltaZ;
+      }
+    }
+  }
+
+  return result; // no hit
 }

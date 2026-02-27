@@ -36,10 +36,13 @@ private:
   static void framebufferSizeCallback(GLFWwindow *window, int width,
                                       int height);
   static void mouseCallback(GLFWwindow *window, double xpos, double ypos);
+  static void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods);
+  static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
   static void windowResize(GLFWwindow *window, int width, int height);
   void processInput(GLFWwindow *window);
   void update();
   void render();
+  void renderCrosshair();
   void debug();
   void cleanup();
 };

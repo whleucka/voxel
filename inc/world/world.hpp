@@ -11,6 +11,15 @@
 #include <glm/glm.hpp>
 #include <memory>
 
+// Result of a DDA raycast into the voxel world
+struct RaycastResult {
+  bool hit = false;
+  glm::ivec3 block_pos{0};   // position of the block that was hit
+  glm::ivec3 normal{0};      // face normal (for placement: place at block_pos + normal)
+  float distance = 0.0f;     // distance from ray origin to hit
+  BlockType block_type = BlockType::AIR;
+};
+
 class World {
 public:
   World();
@@ -25,6 +34,11 @@ public:
   std::unique_ptr<Player> &getPlayer() { return player; }
   size_t getChunkCount() const;
   BlockType getBlockAt(const glm::vec3& worldPos) const;
+  bool isSolidBlock(int bx, int by, int bz) const;
+
+  // DDA raycast: find the first solid block along a ray
+  RaycastResult raycast(const glm::vec3& origin, const glm::vec3& direction,
+                        float max_distance) const;
 
 private:
   void preloadChunks();

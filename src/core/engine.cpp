@@ -1,4 +1,5 @@
 #include "core/engine.hpp"
+#include "core/constants.hpp"
 #include "core/settings.hpp"
 #include "imgui/backends/imgui_impl_glfw.h"
 #include "imgui/backends/imgui_impl_opengl3.h"
@@ -51,6 +52,8 @@ bool Engine::init() {
   glfwSetWindowUserPointer(window, this);
   glfwSetKeyCallback(window, keyCallback);
   glfwSetCursorPosCallback(window, mouseCallback);
+  glfwSetMouseButtonCallback(window, mouseButtonCallback);
+  glfwSetScrollCallback(window, scrollCallback);
   glfwSetFramebufferSizeCallback(window, windowResize);
   glfwSetInputMode(window, GLFW_CURSOR,
                    g_settings.show_cursor ? GLFW_CURSOR_NORMAL
@@ -107,21 +110,36 @@ void Engine::run() {
   }
 }
 
+// ─── Input Processing (polled every frame) ─────────────────────────────
+
 void Engine::processInput(GLFWwindow *window) {
   // Close program
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     glfwSetWindowShouldClose(window, true);
 
-  world.getPlayer()->processKeyboard(
-      delta_time, glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS,
-      glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS,
-      glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS,
-      glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS,
-      glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS,
-      glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS,
-      glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS,
-      glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS);
+  // Don't process movement when inventory is open
+  auto& player = world.getPlayer();
+  if (player->isInventoryOpen()) return;
+
+  PlayerInput input;
+  input.forward  = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
+  input.backward = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
+  input.left     = glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS;
+  input.right    = glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS;
+  input.jump     = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+  input.sprint   = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS;
+  input.crouch   = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
+
+  // In fly mode, space = up, shift = down
+  if (player->isFlyMode()) {
+    input.fly_up   = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+    input.fly_down = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
+  }
+
+  player->processKeyboard(delta_time, input);
 }
+
+// ─── Update ────────────────────────────────────────────────────────────
 
 void Engine::update() {
   game_clock.update(delta_time);
@@ -135,92 +153,191 @@ void Engine::update() {
   }
 }
 
-void Engine::render() {
+// ─── Render ────────────────────────────────────────────────────────────
 
+void Engine::render() {
   glClearColor(0.53f, 0.81f, 0.92f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Render scene
   glm::mat4 view = world.getPlayer()->getCamera().getViewMatrix();
   glm::mat4 proj = glm::perspective(
-      glm::radians(world.getPlayer()->getCamera().zoom), // field of view
-      (float)win_width / (float)win_height,              // aspect ratio
-      0.1f,                                              // near plane
-      1000.0f                                            // far plane
+      glm::radians(g_settings.fov),                  // field of view from settings
+      (float)win_width / (float)win_height,           // aspect ratio
+      0.1f,                                           // near plane
+      1000.0f                                         // far plane
   );
 
   world.render(view, proj);
+  renderCrosshair();
   debug();
 }
 
-void Engine::debug() {
+// ─── Crosshair ─────────────────────────────────────────────────────────
+
+void Engine::renderCrosshair() {
+  // Don't show crosshair when inventory is open
+  if (world.getPlayer()->isInventoryOpen()) return;
+
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplGlfw_NewFrame();
   ImGui::NewFrame();
+
+  // Draw crosshair at screen center using ImGui overlay
+  ImDrawList* draw = ImGui::GetForegroundDrawList();
+  float cx = win_width * 0.5f;
+  float cy = win_height * 0.5f;
+  float size = 10.0f;
+  float thickness = 2.0f;
+  ImU32 color = IM_COL32(255, 255, 255, 200);
+
+  draw->AddLine(ImVec2(cx - size, cy), ImVec2(cx + size, cy), color, thickness);
+  draw->AddLine(ImVec2(cx, cy - size), ImVec2(cx, cy + size), color, thickness);
+}
+
+// ─── Debug Panel ───────────────────────────────────────────────────────
+
+void Engine::debug() {
+  // Note: ImGui::NewFrame() was already called in renderCrosshair()
   if (g_settings.show_debug) {
-    // Per frame updates
+    auto& player = world.getPlayer();
     ImGui::Begin("Debug", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
     ImGuiIO &io = ImGui::GetIO();
+
+    // Performance
     ImGui::Text("Game time: %.2d:%.2d", game_clock.hour(), game_clock.minute());
     ImGui::Text("FPS: %.1f", io.Framerate);
     ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
     ImGui::Text("Memory usage: %zu MB", getMemoryUsage());
     ImGui::Text("Chunks loaded: %zu", world.getChunkCount());
-    glm::vec3 pos = world.getPlayer()->getPosition();
-    ImGui::Text("Player: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
-    ImGui::Checkbox("Fly mode", world.getPlayer()->getFlyModePtr());
+
+    ImGui::Separator();
+
+    // Player info
+    glm::vec3 pos = player->getPosition();
+    glm::vec3 vel = player->getVelocity();
+    ImGui::Text("Position: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
+    ImGui::Text("Velocity: (%.2f, %.2f, %.2f)", vel.x, vel.y, vel.z);
+    ImGui::Text("On ground: %s", player->isOnGround() ? "yes" : "no");
+    ImGui::Text("Underwater: %s", player->isUnderwater() ? "yes" : "no");
+    ImGui::Text("Sprinting: %s", player->isSprinting() ? "yes" : "no");
+    ImGui::Text("Crouching: %s", player->isCrouching() ? "yes" : "no");
+    ImGui::Text("Hotbar slot: %d", player->getSelectedHotbarSlot() + 1);
+
+    // Raycast info
+    const Camera& cam = player->getCamera();
+    RaycastResult ray = world.raycast(cam.position, cam.front, kPlayerReach);
+    if (ray.hit) {
+      ImGui::Text("Looking at: (%d, %d, %d) [%s]",
+                  ray.block_pos.x, ray.block_pos.y, ray.block_pos.z,
+                  "solid");
+      ImGui::Text("Face normal: (%d, %d, %d)", ray.normal.x, ray.normal.y, ray.normal.z);
+      ImGui::Text("Distance: %.2f", ray.distance);
+    } else {
+      ImGui::Text("Looking at: (none)");
+    }
+
+    ImGui::Separator();
+
+    // Settings
+    ImGui::Checkbox("Fly mode", player->getFlyModePtr());
     ImGui::Checkbox("Wireframe mode", &g_settings.wireframe);
     ImGui::Checkbox("VSync", &g_settings.vsync);
     ImGui::Checkbox("Fullscreen", &g_settings.fullscreen);
+
+    ImGui::Separator();
+
+    // Adjustable settings
+    ImGui::SliderFloat("Mouse sensitivity", &g_settings.mouse_sensitivity, 0.01f, 0.30f, "%.3f");
+    ImGui::SliderFloat("FOV", &g_settings.fov, 30.0f, 110.0f, "%.0f");
+
     ImGui::End();
   }
   ImGui::Render();
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
+// ─── Key Callback (event-based, for toggle actions) ────────────────────
+
 void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
-  if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
-    g_settings.show_debug = !g_settings.show_debug;
-  }
-  if (key == GLFW_KEY_F2 && action == GLFW_PRESS) {
-    g_settings.wireframe = !g_settings.wireframe;
-  }
-  if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
-    g_settings.vsync = !g_settings.vsync;
-    glfwSwapInterval(g_settings.vsync ? 1 : 0);
-  }
-  if (key == GLFW_KEY_T && action == GLFW_PRESS) {
-    Engine *engine =
-        reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
-    engine->world.getPlayer()->toggleFlyMode();
-  }
-  if (key == GLFW_KEY_F11 && action == GLFW_PRESS) {
-    Engine *engine =
-        reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
-    g_settings.fullscreen = !g_settings.fullscreen;
-    if (g_settings.fullscreen) {
-      // Store current window position and size
-      glfwGetWindowPos(window, &engine->win_pos_x, &engine->win_pos_y);
-      glfwGetWindowSize(window, &engine->win_width, &engine->win_height);
+  Engine *engine =
+      reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
-      // Get primary monitor and its video mode
-      GLFWmonitor *primaryMonitor = glfwGetPrimaryMonitor();
-      const GLFWvidmode *mode = glfwGetVideoMode(primaryMonitor);
+  if (action != GLFW_PRESS) return;
 
-      // Go fullscreen
-      glfwSetWindowMonitor(window, primaryMonitor, 0, 0, mode->width,
-                           mode->height, mode->refreshRate);
-    } else {
-      // Restore windowed mode
-      glfwSetWindowMonitor(window, nullptr, engine->win_pos_x,
-                           engine->win_pos_y, engine->win_width,
-                           engine->win_height, 0);
+  switch (key) {
+    // Debug toggles
+    case GLFW_KEY_F1:
+      g_settings.show_debug = !g_settings.show_debug;
+      break;
+    case GLFW_KEY_F2:
+      g_settings.wireframe = !g_settings.wireframe;
+      break;
+    case GLFW_KEY_F3:
+      g_settings.vsync = !g_settings.vsync;
+      glfwSwapInterval(g_settings.vsync ? 1 : 0);
+      break;
+
+    // Fly mode toggle
+    case GLFW_KEY_T:
+      engine->world.getPlayer()->toggleFlyMode();
+      break;
+
+    // Inventory toggle
+    case GLFW_KEY_E: {
+      auto& player = engine->world.getPlayer();
+      player->toggleInventory();
+      if (player->isInventoryOpen()) {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+      } else {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        engine->first_mouse = true; // prevent mouse jump when closing inventory
+      }
+      break;
     }
+
+    // Hotbar slots 1-9
+    case GLFW_KEY_1: engine->world.getPlayer()->setSelectedHotbarSlot(0); break;
+    case GLFW_KEY_2: engine->world.getPlayer()->setSelectedHotbarSlot(1); break;
+    case GLFW_KEY_3: engine->world.getPlayer()->setSelectedHotbarSlot(2); break;
+    case GLFW_KEY_4: engine->world.getPlayer()->setSelectedHotbarSlot(3); break;
+    case GLFW_KEY_5: engine->world.getPlayer()->setSelectedHotbarSlot(4); break;
+    case GLFW_KEY_6: engine->world.getPlayer()->setSelectedHotbarSlot(5); break;
+    case GLFW_KEY_7: engine->world.getPlayer()->setSelectedHotbarSlot(6); break;
+    case GLFW_KEY_8: engine->world.getPlayer()->setSelectedHotbarSlot(7); break;
+    case GLFW_KEY_9: engine->world.getPlayer()->setSelectedHotbarSlot(8); break;
+
+    // Fullscreen toggle
+    case GLFW_KEY_F11: {
+      g_settings.fullscreen = !g_settings.fullscreen;
+      if (g_settings.fullscreen) {
+        glfwGetWindowPos(window, &engine->win_pos_x, &engine->win_pos_y);
+        glfwGetWindowSize(window, &engine->win_width, &engine->win_height);
+        GLFWmonitor *primaryMonitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode *mode = glfwGetVideoMode(primaryMonitor);
+        glfwSetWindowMonitor(window, primaryMonitor, 0, 0, mode->width,
+                             mode->height, mode->refreshRate);
+      } else {
+        glfwSetWindowMonitor(window, nullptr, engine->win_pos_x,
+                             engine->win_pos_y, engine->win_width,
+                             engine->win_height, 0);
+      }
+      break;
+    }
+
+    default:
+      break;
   }
 }
 
+// ─── Mouse Move Callback ───────────────────────────────────────────────
+
 void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
+
+  // Don't process mouse look when inventory is open
+  if (engine->world.getPlayer()->isInventoryOpen()) return;
+
   if (engine->first_mouse) {
     engine->last_x = xpos;
     engine->last_y = ypos;
@@ -228,7 +345,7 @@ void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
   }
 
   float xoffset = xpos - engine->last_x;
-  float yoffset = engine->last_y - ypos;
+  float yoffset = engine->last_y - ypos; // inverted Y
 
   engine->last_x = xpos;
   engine->last_y = ypos;
@@ -236,12 +353,60 @@ void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
   engine->world.getPlayer()->processMouseMovement(xoffset, yoffset);
 }
 
+// ─── Mouse Button Callback ─────────────────────────────────────────────
+
+void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int) {
+  Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
+
+  // Don't process when inventory is open
+  if (engine->world.getPlayer()->isInventoryOpen()) return;
+
+  if (action != GLFW_PRESS) return;
+
+  auto& player = engine->world.getPlayer();
+  const Camera& cam = player->getCamera();
+  RaycastResult ray = engine->world.raycast(cam.position, cam.front, kPlayerReach);
+
+  if (button == GLFW_MOUSE_BUTTON_LEFT) {
+    // Destroy block (left click)
+    if (ray.hit) {
+      // TODO: implement block destruction via world.setBlockAt()
+      // For now, just detected -- will be implemented with world modification
+    }
+  } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+    // Place block / use item (right click)
+    if (ray.hit) {
+      // Placement position would be: ray.block_pos + ray.normal
+      // TODO: implement block placement via world.setBlockAt()
+    }
+  }
+}
+
+// ─── Scroll Callback (hotbar slot cycling) ─────────────────────────────
+
+void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
+  Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
+  auto& player = engine->world.getPlayer();
+
+  int slot = player->getSelectedHotbarSlot();
+  if (yoffset < 0) {
+    slot = (slot + 1) % kHotbarSlots;
+  } else if (yoffset > 0) {
+    slot = (slot - 1 + kHotbarSlots) % kHotbarSlots;
+  }
+  player->setSelectedHotbarSlot(slot);
+}
+
+// ─── Window Resize ─────────────────────────────────────────────────────
+
 void Engine::windowResize(GLFWwindow *window, int w, int h) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
   glViewport(0, 0, w, h);
   engine->win_width = w;
   engine->win_height = h;
 }
+
+// ─── Cleanup ───────────────────────────────────────────────────────────
 
 void Engine::cleanup() {
   ImGui_ImplOpenGL3_Shutdown();

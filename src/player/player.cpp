@@ -2,58 +2,173 @@
 #include "block/block_data.hpp"
 #include "core/constants.hpp"
 #include "world/world.hpp"
+#include <algorithm>
+#include <cmath>
 
-Player::Player(glm::vec3 start_pos) : position(start_pos) {
-  camera.position = position;
+Player::Player(glm::vec3 start_pos)
+    : position(start_pos), velocity(0.0f) {
+  camera.position = getEyePosition();
 }
+
+glm::vec3 Player::getEyePosition() const {
+  return position + glm::vec3(0.0f, getPlayerEyeHeight(), 0.0f);
+}
+
+float Player::getPlayerHeight() const {
+  return crouching ? kPlayerCrouchHeight : kPlayerHeight;
+}
+
+float Player::getPlayerEyeHeight() const {
+  return crouching ? kPlayerCrouchEyeHeight : kPlayerEyeHeight;
+}
+
+void Player::setSelectedHotbarSlot(int slot) {
+  if (slot >= 0 && slot < kHotbarSlots) {
+    selected_hotbar_slot = slot;
+  }
+}
+
+// ─── Update ────────────────────────────────────────────────────────────
 
 void Player::update(float dt, World* world) {
   if (!fly_mode) {
-    // applyGravity(dt);
+    applyGravity(dt);
+
+    // Apply velocity to position with per-axis collision resolution
+    glm::vec3 old_pos = position;
+
+    // Move along each axis independently and resolve collisions
+    // This prevents getting stuck on corners
+
+    // X axis
+    position.x += velocity.x * dt;
+    if (collidesWithWorld(world, position)) {
+      position.x = old_pos.x;
+      velocity.x = 0.0f;
+    }
+
+    // Y axis
+    float old_y = position.y;
+    position.y += velocity.y * dt;
+    if (collidesWithWorld(world, position)) {
+      position.y = old_y;
+      if (velocity.y < 0.0f) {
+        on_ground = true;
+      }
+      velocity.y = 0.0f;
+    } else {
+      on_ground = false;
+    }
+
+    // Z axis
+    float old_z = position.z;
+    position.z += velocity.z * dt;
+    if (collidesWithWorld(world, position)) {
+      position.z = old_z;
+      velocity.z = 0.0f;
+    }
+
+    // Apply horizontal friction (stop quickly when keys released)
+    float friction = underwater ? kWaterDrag : 0.85f;
+    velocity.x *= friction;
+    velocity.z *= friction;
+
+    // Clamp tiny velocities to zero
+    if (std::abs(velocity.x) < 0.01f) velocity.x = 0.0f;
+    if (std::abs(velocity.z) < 0.01f) velocity.z = 0.0f;
   }
+
   checkWater(world);
-  camera.position = position;
+  camera.position = getEyePosition();
 }
 
-void Player::processKeyboard(float dt, bool forward, bool backward, bool left, bool right,
-                             bool jump, bool sprint, bool up, bool down) {
+// ─── Gravity ───────────────────────────────────────────────────────────
+
+void Player::applyGravity(float dt) {
+  float gravity = kGravityForce;
+
+  if (underwater) {
+    gravity *= kWaterGravityMultiplier;
+    // Apply water drag to vertical velocity
+    velocity.y *= (1.0f - kWaterDrag * dt * 3.0f);
+  }
+
+  velocity.y += gravity * dt;
+
+  // Clamp to terminal velocity
+  if (velocity.y < kTerminalVelocity) {
+    velocity.y = kTerminalVelocity;
+  }
+}
+
+// ─── Keyboard Processing ───────────────────────────────────────────────
+
+void Player::processKeyboard(float dt, const PlayerInput& input) {
   if (fly_mode) {
+    // Fly mode: full 3D movement along camera direction
     glm::vec3 direction = glm::normalize(camera.front);
-    float speed = sprint ? kPlayerSprintSpeed : kPlayerMoveSpeed;
+    float speed = input.sprint ? kPlayerSprintSpeed * 5.0f : kPlayerMoveSpeed * 3.0f;
 
-    if (forward) {
-      position += direction * speed * dt;
-    }
-    if (backward) {
-      position -= direction * speed * dt;
-    }
-    if (left) {
-      position -= camera.right * speed * dt;
-    }
-    if (right) {
-      position += camera.right * speed * dt;
-    }
-    if (up) {
-      position.y += speed * dt;
-    }
-    if (down) {
-      position.y -= speed * dt;
-    }
+    if (input.forward)  position += direction * speed * dt;
+    if (input.backward) position -= direction * speed * dt;
+    if (input.left)     position -= camera.right * speed * dt;
+    if (input.right)    position += camera.right * speed * dt;
+    if (input.fly_up)   position.y += speed * dt;
+    if (input.fly_down) position.y -= speed * dt;
+
+    velocity = glm::vec3(0.0f); // No physics in fly mode
+    return;
+  }
+
+  // ── Walk / Sprint / Crouch mode ──
+
+  // Crouch state
+  crouching = input.crouch;
+
+  // Sprint: only while moving forward, not crouching, and not underwater
+  sprinting = input.sprint && input.forward && !crouching;
+
+  // Determine movement speed
+  float speed;
+  if (underwater) {
+    speed = sprinting ? kPlayerWaterSprintSpeed : kPlayerWaterSpeed;
+  } else if (crouching) {
+    speed = kPlayerCrouchSpeed;
+  } else if (sprinting) {
+    speed = kPlayerSprintSpeed;
   } else {
-    glm::vec3 direction = glm::normalize(glm::vec3(camera.front.x, 0, camera.front.z));
-    float speed = sprint ? kPlayerSprintSpeed : kPlayerMoveSpeed;
+    speed = kPlayerMoveSpeed;
+  }
 
-    if (forward) {
-      position += direction * speed * dt;
-    }
-    if (backward) {
-      position -= direction * speed * dt;
-    }
-    if (left) {
-      position -= camera.right * speed * dt;
-    }
-    if (right) {
-      position += camera.right * speed * dt;
+  // Direction on XZ plane (no vertical component for walking)
+  glm::vec3 flat_front = glm::vec3(camera.front.x, 0.0f, camera.front.z);
+  if (glm::length(flat_front) > 0.001f) {
+    flat_front = glm::normalize(flat_front);
+  }
+  glm::vec3 flat_right = glm::normalize(glm::cross(flat_front, glm::vec3(0, 1, 0)));
+
+  // Build desired horizontal velocity from input
+  glm::vec3 wish_dir(0.0f);
+  if (input.forward)  wish_dir += flat_front;
+  if (input.backward) wish_dir -= flat_front;
+  if (input.left)     wish_dir -= flat_right;
+  if (input.right)    wish_dir += flat_right;
+
+  if (glm::length(wish_dir) > 0.001f) {
+    wish_dir = glm::normalize(wish_dir);
+    velocity.x = wish_dir.x * speed;
+    velocity.z = wish_dir.z * speed;
+  }
+
+  // Jump
+  if (input.jump) {
+    if (underwater) {
+      // In water: swim upward
+      velocity.y = kPlayerWaterJumpStrength;
+    } else if (on_ground) {
+      // On ground: normal jump
+      velocity.y = kPlayerJumpStrength;
+      on_ground = false;
     }
   }
 }
@@ -62,16 +177,80 @@ void Player::processMouseMovement(float xoffset, float yoffset, bool constrainPi
   camera.processMouseMovement(xoffset, yoffset, constrainPitch);
 }
 
-void Player::applyGravity(float dt) {
-  velocity.y += kGravityForce * dt;
-  position += velocity * dt;
-}
+// ─── Water Detection ───────────────────────────────────────────────────
 
 void Player::checkWater(World* world) {
   if (!world) {
     underwater = false;
     return;
   }
-  BlockType block = world->getBlockAt(position);
+  // Check at eye level for underwater visual effect
+  BlockType block = world->getBlockAt(getEyePosition());
   underwater = isLiquid(block);
+}
+
+// ─── Collision Detection ───────────────────────────────────────────────
+
+bool Player::isSolidAt(World* world, int bx, int by, int bz) const {
+  if (!world) return false;
+  if (by < 0 || by >= kChunkHeight) return false;
+
+  BlockType block = world->getBlockAt(glm::vec3(bx + 0.5f, by + 0.5f, bz + 0.5f));
+  return block != BlockType::AIR && !isLiquid(block);
+}
+
+bool Player::collidesWithWorld(World* world, glm::vec3 pos) const {
+  if (!world) return false;
+
+  float height = getPlayerHeight();
+
+  // Player AABB bounds
+  float minX = pos.x - kPlayerHalfWidth;
+  float maxX = pos.x + kPlayerHalfWidth;
+  float minY = pos.y;
+  float maxY = pos.y + height;
+  float minZ = pos.z - kPlayerHalfWidth;
+  float maxZ = pos.z + kPlayerHalfWidth;
+
+  // Check all blocks that overlap the player AABB
+  int bx0 = static_cast<int>(std::floor(minX));
+  int bx1 = static_cast<int>(std::floor(maxX));
+  int by0 = static_cast<int>(std::floor(minY));
+  int by1 = static_cast<int>(std::floor(maxY));
+  int bz0 = static_cast<int>(std::floor(minZ));
+  int bz1 = static_cast<int>(std::floor(maxZ));
+
+  for (int bx = bx0; bx <= bx1; ++bx) {
+    for (int by = by0; by <= by1; ++by) {
+      for (int bz = bz0; bz <= bz1; ++bz) {
+        if (isSolidAt(world, bx, by, bz)) {
+          // Block occupies [bx, bx+1] x [by, by+1] x [bz, bz+1]
+          // Check actual AABB overlap (not just grid overlap)
+          float blockMinX = static_cast<float>(bx);
+          float blockMaxX = static_cast<float>(bx + 1);
+          float blockMinY = static_cast<float>(by);
+          float blockMaxY = static_cast<float>(by + 1);
+          float blockMinZ = static_cast<float>(bz);
+          float blockMaxZ = static_cast<float>(bz + 1);
+
+          bool overlaps =
+              minX < blockMaxX && maxX > blockMinX &&
+              minY < blockMaxY && maxY > blockMinY &&
+              minZ < blockMaxZ && maxZ > blockMinZ;
+
+          if (overlaps) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
+void Player::resolveCollisions(World* world, glm::vec3 old_pos) {
+  // This method is reserved for more advanced collision resolution
+  // Currently using the per-axis approach in update()
+  (void)world;
+  (void)old_pos;
 }

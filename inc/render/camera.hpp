@@ -1,4 +1,5 @@
 #pragma once
+#include "core/settings.hpp"
 #include <glm/fwd.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -7,10 +8,8 @@ enum CameraMovement { FORWARD = 0, BACKWARD, LEFT, RIGHT, UP, DOWN };
 
 class Camera {
 public:
-  // config
+  // config (sensitivity and fov read from g_settings at use-time)
   float movement_speed = 10.0f;
-  float mouse_sensitivity = 0.05f;
-  float zoom = 45.0f;
 
   // state
   glm::vec3 position{0.0f, 0.0f, 0.0f};
@@ -53,8 +52,8 @@ public:
 
   void processMouseMovement(float xoffset, float yoffset,
                             bool constrainPitch = true) {
-    xoffset *= mouse_sensitivity;
-    yoffset *= mouse_sensitivity;
+    xoffset *= g_settings.mouse_sensitivity;
+    yoffset *= g_settings.mouse_sensitivity;
 
     yaw += xoffset;
     pitch += yoffset;
