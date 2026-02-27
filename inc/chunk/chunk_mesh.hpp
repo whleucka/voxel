@@ -24,7 +24,7 @@ public:
   void renderTransparent();
 
   bool isUploaded() const { return gpuUploaded; }
-  bool hasTransparent() const { return !transparentIndices.empty(); }
+  bool hasTransparent() const { return transparent_index_count > 0; }
 
 private:
   void setupVAO(GLuint vao, GLuint vbo, GLuint ebo,
@@ -42,6 +42,11 @@ private:
   // CPU data - transparent
   std::vector<BlockVertex> transparentVertices;
   std::vector<unsigned int> transparentIndices;
+
+  // Index counts snapshotted at upload() time — only ever written on the main
+  // thread, so the render methods never touch the live CPU vectors.
+  GLsizei opaque_index_count{0};
+  GLsizei transparent_index_count{0};
 
   // simple state
   std::atomic<bool> cpuReady{false};

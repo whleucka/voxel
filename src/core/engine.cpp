@@ -456,9 +456,9 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
 
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
     // Destroy block (left click)
-    if (ray.hit) {
-      // TODO: implement block destruction via world.setBlockAt()
-      // For now, just detected -- will be implemented with world modification
+    if (ray.hit && ray.block_type != BlockType::BEDROCK
+                && ray.block_type != BlockType::WATER) {
+      engine->world.setBlockAt(ray.block_pos, BlockType::AIR);
     }
   } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
     // Place block / use item (right click)

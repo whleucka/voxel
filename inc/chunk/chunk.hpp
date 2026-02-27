@@ -4,6 +4,7 @@
 #include "chunk/chunk_mesh.hpp"
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/glm.hpp>
+#include <mutex>
 #include <vector>
 
 class World;
@@ -37,6 +38,8 @@ public:
   ChunkMesh &getMesh() { return mesh; }
   glm::mat4 getModelMatrix() const;
   glm::ivec2 getPos() const { return pos; }
+
+  std::mutex data_mutex; // guards blocks[] during concurrent write/mesh-gen
 
 private:
   glm::ivec2 pos;

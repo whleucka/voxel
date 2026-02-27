@@ -179,6 +179,44 @@ void World::unloadChunk(int x, int z) {
   chunks.erase({x, z});
 }
 
+void World::rebuildChunk(int cx, int cz) {
+  auto chunk = getChunk(cx, cz);
+  if (!chunk) return;
+  mesh_pool.enqueue([this, chunk]() {
+    chunk->buildMeshData(this, renderer->getTextureManager());
+    WriteLock lock(chunks_mutex);
+    upload_queue.push(chunk);
+  });
+}
+
+void World::setBlockAt(const glm::ivec3& worldPos, BlockType type) {
+  int bx = worldPos.x, by = worldPos.y, bz = worldPos.z;
+  if (by < 0 || by >= kChunkHeight) return;
+
+  int cx = static_cast<int>(std::floor(static_cast<float>(bx) / kChunkWidth));
+  int cz = static_cast<int>(std::floor(static_cast<float>(bz) / kChunkDepth));
+
+  auto chunk = getChunk(cx, cz);
+  if (!chunk) return;
+
+  int lx = bx - cx * kChunkWidth;
+  int lz = bz - cz * kChunkDepth;
+
+  {
+    std::lock_guard lock(chunk->data_mutex);
+    chunk->at(lx, by, lz) = type;
+  }
+
+  // Always rebuild the modified chunk
+  rebuildChunk(cx, cz);
+
+  // Rebuild neighbor chunks if the block sits on a chunk edge
+  if (lx == 0)              rebuildChunk(cx - 1, cz);
+  if (lx == kChunkWidth-1)  rebuildChunk(cx + 1, cz);
+  if (lz == 0)              rebuildChunk(cx, cz - 1);
+  if (lz == kChunkDepth-1)  rebuildChunk(cx, cz + 1);
+}
+
 bool World::isChunkInFrustum(const glm::vec4 planes[6], const glm::vec3 &min,
                              const glm::vec3 &max) {
   for (int i = 0; i < 6; i++) {
@@ -285,10 +323,16 @@ RaycastResult World::raycast(const glm::vec3& origin, const glm::vec3& direction
 
   glm::vec3 dir = glm::normalize(direction);
 
+  // Blocks are rendered centered at their integer index: visual block (x,y,z)
+  // occupies [x-0.5, x+0.5].  Without a shift the DDA cell (x) covers [x, x+1],
+  // which is offset +0.5 from the visual face.  Shifting origin by +0.5 makes
+  // cell boundaries fall at half-integers, aligning them with the visual faces.
+  glm::vec3 o = origin + 0.5f;
+
   // Current voxel position
-  int x = static_cast<int>(std::floor(origin.x));
-  int y = static_cast<int>(std::floor(origin.y));
-  int z = static_cast<int>(std::floor(origin.z));
+  int x = static_cast<int>(std::floor(o.x));
+  int y = static_cast<int>(std::floor(o.y));
+  int z = static_cast<int>(std::floor(o.z));
 
   // Step direction for each axis (+1 or -1)
   int stepX = (dir.x >= 0) ? 1 : -1;
@@ -302,8 +346,8 @@ RaycastResult World::raycast(const glm::vec3& origin, const glm::vec3& direction
 
   if (std::abs(dir.x) > 1e-8f) {
     tDeltaX = std::abs(1.0f / dir.x);
-    tMaxX = ((stepX > 0) ? (std::floor(origin.x) + 1.0f - origin.x)
-                          : (origin.x - std::floor(origin.x))) * tDeltaX;
+    tMaxX = ((stepX > 0) ? (std::floor(o.x) + 1.0f - o.x)
+                          : (o.x - std::floor(o.x))) * tDeltaX;
   } else {
     tDeltaX = 1e30f;
     tMaxX = 1e30f;
@@ -311,8 +355,8 @@ RaycastResult World::raycast(const glm::vec3& origin, const glm::vec3& direction
 
   if (std::abs(dir.y) > 1e-8f) {
     tDeltaY = std::abs(1.0f / dir.y);
-    tMaxY = ((stepY > 0) ? (std::floor(origin.y) + 1.0f - origin.y)
-                          : (origin.y - std::floor(origin.y))) * tDeltaY;
+    tMaxY = ((stepY > 0) ? (std::floor(o.y) + 1.0f - o.y)
+                          : (o.y - std::floor(o.y))) * tDeltaY;
   } else {
     tDeltaY = 1e30f;
     tMaxY = 1e30f;
@@ -320,8 +364,8 @@ RaycastResult World::raycast(const glm::vec3& origin, const glm::vec3& direction
 
   if (std::abs(dir.z) > 1e-8f) {
     tDeltaZ = std::abs(1.0f / dir.z);
-    tMaxZ = ((stepZ > 0) ? (std::floor(origin.z) + 1.0f - origin.z)
-                          : (origin.z - std::floor(origin.z))) * tDeltaZ;
+    tMaxZ = ((stepZ > 0) ? (std::floor(o.z) + 1.0f - o.z)
+                          : (o.z - std::floor(o.z))) * tDeltaZ;
   } else {
     tDeltaZ = 1e30f;
     tMaxZ = 1e30f;

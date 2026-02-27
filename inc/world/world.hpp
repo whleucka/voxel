@@ -35,12 +35,14 @@ public:
   size_t getChunkCount() const;
   BlockType getBlockAt(const glm::vec3& worldPos) const;
   bool isSolidBlock(int bx, int by, int bz) const;
+  void setBlockAt(const glm::ivec3& worldPos, BlockType type);
 
   // DDA raycast: find the first solid block along a ray
   RaycastResult raycast(const glm::vec3& origin, const glm::vec3& direction,
                         float max_distance) const;
 
 private:
+  void rebuildChunk(int cx, int cz);
   void preloadChunks();
   bool isChunkInFrustum(const glm::vec4 planes[6], const glm::vec3 &min, const glm::vec3 &max);
   std::vector<glm::ivec2> generateSpiralOrder(int radius);

@@ -165,7 +165,9 @@ BlockType ChunkMesh::getBlock(World *world, const Chunk &chunk, int x, int y, in
 
 void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
                             TextureManager &) {
-  gpuUploaded = false;
+  cpuReady = false;
+  // gpuUploaded intentionally NOT reset — old GPU buffers keep rendering
+  // while this CPU rebuild runs; upload() will overwrite them in-place.
   vertices.clear();
   indices.clear();
   transparentVertices.clear();
@@ -540,23 +542,29 @@ void ChunkMesh::upload() {
              transparentVertices, transparentIndices);
   }
 
+  // Snapshot counts before marking GPU data as live.
+  // These are the only values the render methods will ever read from the CPU
+  // side — the raw vectors may be cleared/rebuilt by the mesh thread at any
+  // time after this point.
+  opaque_index_count      = static_cast<GLsizei>(indices.size());
+  transparent_index_count = static_cast<GLsizei>(transparentIndices.size());
   gpuUploaded = true;
 }
 
 void ChunkMesh::renderOpaque() {
-  if (!gpuUploaded || indices.empty())
+  if (!gpuUploaded || opaque_index_count == 0)
     return;
 
   glBindVertexArray(VAO);
-  glDrawElements(GL_TRIANGLES, (GLsizei)indices.size(), GL_UNSIGNED_INT, 0);
+  glDrawElements(GL_TRIANGLES, opaque_index_count, GL_UNSIGNED_INT, 0);
   glBindVertexArray(0);
 }
 
 void ChunkMesh::renderTransparent() {
-  if (!gpuUploaded || transparentIndices.empty())
+  if (!gpuUploaded || transparent_index_count == 0)
     return;
 
   glBindVertexArray(transparentVAO);
-  glDrawElements(GL_TRIANGLES, (GLsizei)transparentIndices.size(), GL_UNSIGNED_INT, 0);
+  glDrawElements(GL_TRIANGLES, transparent_index_count, GL_UNSIGNED_INT, 0);
   glBindVertexArray(0);
 }
