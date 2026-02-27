@@ -23,8 +23,8 @@ uniform float uFogStart;
 uniform float uFogEnd;
 
 // Underwater fog
-const vec3  WATER_FOG_COLOR   = vec3(0.1, 0.3, 0.5);
-const float WATER_FOG_DENSITY = 0.04;
+const vec3 WATER_FOG_COLOR = vec3(0.1, 0.3, 0.5);
+uniform float uWaterFogDensity;
 
 void main() {
     // ── Atlas sampling ────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ void main() {
 
     if (uUnderwater) {
         // Exponential underwater fog
-        float fogFactor = 1.0 - exp(-WATER_FOG_DENSITY * dist);
+        float fogFactor = 1.0 - exp(-uWaterFogDensity * dist);
         fogFactor = clamp(fogFactor, 0.0, 1.0);
         finalColor = mix(finalColor, WATER_FOG_COLOR, fogFactor);
     } else {

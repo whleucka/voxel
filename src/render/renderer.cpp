@@ -94,8 +94,9 @@ void Renderer::drawChunks(
   block_shader->setVec3("uSunColor",     sunColor);
   block_shader->setVec3("uAmbientColor", ambientColor);
   block_shader->setVec3("uFogColor",     fogColor);
-  block_shader->setFloat("uFogStart",    kFogStart);
-  block_shader->setFloat("uFogEnd",      kFogEnd);
+  block_shader->setFloat("uFogStart",         kFogStart);
+  block_shader->setFloat("uFogEnd",           kFogEnd);
+  block_shader->setFloat("uWaterFogDensity",  g_settings.water_fog_density);
 
   // ── Pass 1: Opaque geometry ───────────────────────────────────────────────
   block_shader->setFloat("uAlpha", 1.0f);

@@ -204,77 +204,135 @@ void Engine::renderCrosshair() {
   draw->AddLine(ImVec2(cx, cy - size), ImVec2(cx, cy + size), color, thickness);
 }
 
-// ─── Debug Panel ───────────────────────────────────────────────────────
+// ─── Debug / Settings Panel ────────────────────────────────────────────
 
 void Engine::debug() {
   if (g_settings.show_debug) {
     auto& player = world.getPlayer();
-    ImGui::Begin("Debug", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoNav);
-    ImGuiIO &io = ImGui::GetIO();
+    ImGuiIO& io  = ImGui::GetIO();
 
-    // Performance
-    ImGui::Text("Game time: %.2d:%.2d", game_clock.hour(), game_clock.minute());
+    ImGui::SetNextWindowSize(ImVec2(360, 0), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Voxel Engine", nullptr,
+                 ImGuiWindowFlags_NoNav | ImGuiWindowFlags_AlwaysAutoResize);
 
-    static float fps_history[90] = {};
-    static int   fps_idx = 0;
-    fps_history[fps_idx % 90] = io.Framerate;
-    ++fps_idx;
-    char fps_overlay[32];
-    std::snprintf(fps_overlay, sizeof(fps_overlay), "%.1f FPS", io.Framerate);
-    ImGui::PlotLines("##fps", fps_history, 90, fps_idx % 90,
-                     fps_overlay, 0.0f, 300.0f, ImVec2(0, 50));
-    ImGui::Text("Frame time: %.3f ms", 1000.0f / io.Framerate);
+    if (ImGui::BeginTabBar("##tabs")) {
 
-    ImGui::Text("Memory usage: %zu MB", getMemoryUsage());
-    ImGui::Text("Chunks loaded: %zu", world.getChunkCount());
+      // ── Debug tab ────────────────────────────────────────────────────
+      if (ImGui::BeginTabItem("Debug")) {
 
-    ImGui::Separator();
+        // Performance
+        if (ImGui::CollapsingHeader("Performance", ImGuiTreeNodeFlags_DefaultOpen)) {
+          static float fps_history[90] = {};
+          static int   fps_idx = 0;
+          fps_history[fps_idx % 90] = io.Framerate;
+          ++fps_idx;
+          char fps_overlay[32];
+          std::snprintf(fps_overlay, sizeof(fps_overlay), "%.1f FPS", io.Framerate);
+          ImGui::PushItemWidth(-1);
+          ImGui::PlotLines("##fps", fps_history, 90, fps_idx % 90,
+                           fps_overlay, 0.0f, 300.0f, ImVec2(0, 50));
+          ImGui::PopItemWidth();
+          ImGui::Text("Frame time : %.3f ms", 1000.0f / io.Framerate);
+          ImGui::Text("Memory     : %zu MB",  getMemoryUsage());
+          ImGui::Text("Chunks     : %zu",     world.getChunkCount());
+          ImGui::Text("Game time  : %02d:%02d", game_clock.hour(), game_clock.minute());
+        }
 
-    // Player info
-    glm::vec3 pos = player->getPosition();
-    glm::vec3 vel = player->getVelocity();
-    ImGui::Text("Position: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
-    ImGui::Text("Velocity: (%.2f, %.2f, %.2f)", vel.x, vel.y, vel.z);
-    ImGui::Text("On ground: %s", player->isOnGround() ? "yes" : "no");
-    ImGui::Text("Underwater: %s", player->isUnderwater() ? "yes" : "no");
-    ImGui::Text("Sprinting: %s", player->isSprinting() ? "yes" : "no");
-    ImGui::Text("Crouching: %s", player->isCrouching() ? "yes" : "no");
-    ImGui::Text("Hotbar slot: %d", player->getSelectedHotbarSlot() + 1);
+        // Player
+        if (ImGui::CollapsingHeader("Player", ImGuiTreeNodeFlags_DefaultOpen)) {
+          glm::vec3 pos = player->getPosition();
+          glm::vec3 vel = player->getVelocity();
+          ImGui::Text("Pos  (%.1f, %.1f, %.1f)", pos.x, pos.y, pos.z);
+          ImGui::Text("Vel  (%.1f, %.1f, %.1f)", vel.x, vel.y, vel.z);
 
-    // Raycast info
-    const Camera& cam = player->getCamera();
-    RaycastResult ray = world.raycast(cam.position, cam.front, kPlayerReach);
-    if (ray.hit) {
-      ImGui::Text("Looking at: (%d, %d, %d) [%s]",
-                  ray.block_pos.x, ray.block_pos.y, ray.block_pos.z,
-                  "solid");
-      ImGui::Text("Face normal: (%d, %d, %d)", ray.normal.x, ray.normal.y, ray.normal.z);
-      ImGui::Text("Distance: %.2f", ray.distance);
-    } else {
-      ImGui::Text("Looking at: (none)");
+          // Compact flag row
+          auto flag = [](const char* label, bool v) {
+            ImGui::TextDisabled("%s", label);
+            ImGui::SameLine();
+            ImGui::TextColored(v ? ImVec4(0.4f,1.f,0.4f,1.f)
+                                 : ImVec4(0.5f,0.5f,0.5f,1.f),
+                               v ? "yes" : "no");
+          };
+          flag("Ground",    player->isOnGround());   ImGui::SameLine(0, 12);
+          flag("Water",     player->isUnderwater());
+          flag("Sprint",    player->isSprinting());  ImGui::SameLine(0, 12);
+          flag("Crouch",    player->isCrouching());
+          ImGui::Text("Hotbar slot : %d", player->getSelectedHotbarSlot() + 1);
+        }
+
+        // World / Raycast
+        if (ImGui::CollapsingHeader("World")) {
+          const Camera&   cam = player->getCamera();
+          RaycastResult   ray = world.raycast(cam.position, cam.front, kPlayerReach);
+          if (ray.hit) {
+            ImGui::Text("Block  (%d, %d, %d)",
+                        ray.block_pos.x, ray.block_pos.y, ray.block_pos.z);
+            ImGui::Text("Normal (%d, %d, %d)",
+                        ray.normal.x, ray.normal.y, ray.normal.z);
+            ImGui::Text("Dist   %.2f", ray.distance);
+          } else {
+            ImGui::TextDisabled("Not looking at a block");
+          }
+        }
+
+        ImGui::EndTabItem();
+      }
+
+      // ── Settings tab ─────────────────────────────────────────────────
+      if (ImGui::BeginTabItem("Settings")) {
+
+        // Controls
+        if (ImGui::CollapsingHeader("Controls", ImGuiTreeNodeFlags_DefaultOpen)) {
+          ImGui::Checkbox("Fly mode", player->getFlyModePtr());
+          ImGui::PushItemWidth(180);
+          ImGui::SliderFloat("Sensitivity", &g_settings.mouse_sensitivity,
+                             0.01f, 0.30f, "%.3f");
+          ImGui::SliderFloat("FOV",         &g_settings.fov,
+                             30.0f, 110.0f, "%.0f deg");
+          ImGui::PopItemWidth();
+        }
+
+        // Rendering
+        if (ImGui::CollapsingHeader("Rendering", ImGuiTreeNodeFlags_DefaultOpen)) {
+          ImGui::Checkbox("VSync",      &g_settings.vsync);
+          ImGui::SameLine();
+          ImGui::Checkbox("Wireframe",  &g_settings.wireframe);
+          ImGui::SameLine();
+          ImGui::Checkbox("Fullscreen", &g_settings.fullscreen);
+
+          ImGui::PushItemWidth(180);
+          ImGui::SliderFloat("Fog start", &g_settings.fog_start,  0.f, 300.f, "%.0f");
+          ImGui::SliderFloat("Fog end",   &g_settings.fog_end,    0.f, 400.f, "%.0f");
+          ImGui::PopItemWidth();
+        }
+
+        // Atmosphere
+        if (ImGui::CollapsingHeader("Atmosphere", ImGuiTreeNodeFlags_DefaultOpen)) {
+          // Time of day: read/write directly on game_clock (in hours 0–24)
+          float tod_hours = game_clock.time_of_day / 3600.0f;
+          ImGui::PushItemWidth(180);
+          if (ImGui::SliderFloat("Time of day", &tod_hours, 0.0f, 24.0f, "%.1f h"))
+            game_clock.time_of_day = tod_hours * 3600.0f;
+
+          ImGui::SliderFloat("Time scale",       &g_settings.time_scale,
+                             0.0f, 720.0f, "%.0f");
+          ImGui::SliderFloat("Water fog",        &g_settings.water_fog_density,
+                             0.0f, 0.20f,  "%.3f");
+          ImGui::PopItemWidth();
+
+          if (ImGui::Button("Freeze time"))  g_settings.time_scale = 0.0f;
+          ImGui::SameLine();
+          if (ImGui::Button("Normal speed")) g_settings.time_scale = 72.0f;
+          ImGui::SameLine();
+          if (ImGui::Button("Fast (10x)"))   g_settings.time_scale = 720.0f;
+        }
+
+        ImGui::EndTabItem();
+      }
+
+      ImGui::EndTabBar();
     }
-
-    ImGui::Separator();
-
-    // Settings
-    ImGui::Checkbox("Fly mode", player->getFlyModePtr());
-    ImGui::Checkbox("Wireframe mode", &g_settings.wireframe);
-    ImGui::Checkbox("VSync", &g_settings.vsync);
-    ImGui::Checkbox("Fullscreen", &g_settings.fullscreen);
-
-    ImGui::Separator();
-
-    // Adjustable settings
-    ImGui::SliderFloat("Mouse sensitivity", &g_settings.mouse_sensitivity, 0.01f, 0.30f, "%.3f");
-    ImGui::SliderFloat("FOV", &g_settings.fov, 30.0f, 110.0f, "%.0f");
-
-    ImGui::Separator();
-
-    // Lighting & atmosphere
-    ImGui::Text("Atmosphere");
-    ImGui::SliderFloat("Time scale", &g_settings.time_scale, 0.0f, 720.0f, "%.0f");
-    ImGui::SliderFloat("Fog start",  &g_settings.fog_start,  0.0f, 300.0f, "%.0f");
-    ImGui::SliderFloat("Fog end",    &g_settings.fog_end,    0.0f, 400.0f, "%.0f");
 
     ImGui::End();
   }
@@ -291,9 +349,15 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
   if (action != GLFW_PRESS) return;
 
   switch (key) {
-    // Debug toggles
+    // Debug panel toggle – release/recapture cursor so ImGui is usable
     case GLFW_KEY_F1:
       g_settings.show_debug = !g_settings.show_debug;
+      if (g_settings.show_debug) {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+      } else {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        engine->first_mouse = true; // prevent camera jump on close
+      }
       break;
     case GLFW_KEY_F2:
       g_settings.wireframe = !g_settings.wireframe;
@@ -360,8 +424,9 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
 void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
-  // Don't process mouse look when inventory is open
+  // Don't process mouse look when inventory or debug panel is open
   if (engine->world.getPlayer()->isInventoryOpen()) return;
+  if (g_settings.show_debug) return;
 
   if (engine->first_mouse) {
     engine->last_x = xpos;
