@@ -1,6 +1,8 @@
 #pragma once
 
+#include "block/block_type.hpp"
 #include "render/camera.hpp"
+#include <array>
 #include <glm/fwd.hpp>
 #include <glm/glm.hpp>
 
@@ -50,6 +52,8 @@ public:
   void toggleInventory() { inventory_open = !inventory_open; }
   int getSelectedHotbarSlot() const { return selected_hotbar_slot; }
   void setSelectedHotbarSlot(int slot);
+  BlockType getHotbarBlock() const;
+  BlockType getHotbarBlock(int slot) const;
 
 private:
   // Movement modes
@@ -69,6 +73,7 @@ private:
   // Inventory
   bool inventory_open = false;
   int selected_hotbar_slot = 0; // 0-8
+  std::array<BlockType, 9> hotbar_blocks;
 
   // Internal methods
   void applyGravity(float dt);

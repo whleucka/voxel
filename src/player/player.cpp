@@ -8,6 +8,17 @@
 Player::Player(glm::vec3 start_pos)
     : position(start_pos), velocity(0.0f) {
   camera.position = getEyePosition();
+
+  // Pre-set hotbar slots with static blocks for testing
+  hotbar_blocks[0] = BlockType::DIRT;
+  hotbar_blocks[1] = BlockType::GRASS;
+  hotbar_blocks[2] = BlockType::STONE;
+  hotbar_blocks[3] = BlockType::COBBLESTONE;
+  hotbar_blocks[4] = BlockType::OAK_LOG;
+  hotbar_blocks[5] = BlockType::OAK_LEAF;
+  hotbar_blocks[6] = BlockType::SAND;
+  hotbar_blocks[7] = BlockType::SNOW;
+  hotbar_blocks[8] = BlockType::DIAMOND_ORE;
 }
 
 glm::vec3 Player::getEyePosition() const {
@@ -26,6 +37,17 @@ void Player::setSelectedHotbarSlot(int slot) {
   if (slot >= 0 && slot < kHotbarSlots) {
     selected_hotbar_slot = slot;
   }
+}
+
+BlockType Player::getHotbarBlock() const {
+  return hotbar_blocks[selected_hotbar_slot];
+}
+
+BlockType Player::getHotbarBlock(int slot) const {
+  if (slot >= 0 && slot < kHotbarSlots) {
+    return hotbar_blocks[slot];
+  }
+  return BlockType::AIR;
 }
 
 // ─── Update ────────────────────────────────────────────────────────────

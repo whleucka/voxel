@@ -1,4 +1,5 @@
 #include "core/engine.hpp"
+#include "block/block_data.hpp"
 #include "core/constants.hpp"
 #include "core/settings.hpp"
 #include "render/renderer.hpp"
@@ -255,7 +256,10 @@ void Engine::debug() {
           flag("Water",     player->isUnderwater());
           flag("Sprint",    player->isSprinting());  ImGui::SameLine(0, 12);
           flag("Crouch",    player->isCrouching());
-          ImGui::Text("Hotbar slot : %d", player->getSelectedHotbarSlot() + 1);
+          ImGui::Text("Hotbar slot : %d [%.*s]",
+                      player->getSelectedHotbarSlot() + 1,
+                      static_cast<int>(blockName(player->getHotbarBlock()).size()),
+                      blockName(player->getHotbarBlock()).data());
         }
 
         // World / Raycast
@@ -461,10 +465,45 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
       engine->world.setBlockAt(ray.block_pos, BlockType::AIR);
     }
   } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-    // Place block / use item (right click)
+    // Place block (right click)
     if (ray.hit) {
-      // Placement position would be: ray.block_pos + ray.normal
-      // TODO: implement block placement via world.setBlockAt()
+      glm::ivec3 place_pos = ray.block_pos + ray.normal;
+
+      // Don't place outside world height bounds
+      if (place_pos.y < 0 || place_pos.y >= kChunkHeight) return;
+
+      // Don't place if the target cell is already occupied by a solid block
+      BlockType existing = engine->world.getBlockAt(
+          glm::vec3(place_pos) + glm::vec3(0.5f));
+      if (existing != BlockType::AIR && !isLiquid(existing)) return;
+
+      // Get the block type from the selected hotbar slot
+      BlockType block_to_place = player->getHotbarBlock();
+      if (block_to_place == BlockType::AIR) return;
+
+      // Prevent placing the block inside the player's AABB
+      float height = player->isCrouching() ? kPlayerCrouchHeight : kPlayerHeight;
+      glm::vec3 ppos = player->getPosition();
+      float pMinX = ppos.x - kPlayerHalfWidth;
+      float pMaxX = ppos.x + kPlayerHalfWidth;
+      float pMinY = ppos.y;
+      float pMaxY = ppos.y + height;
+      float pMinZ = ppos.z - kPlayerHalfWidth;
+      float pMaxZ = ppos.z + kPlayerHalfWidth;
+
+      float bMinX = static_cast<float>(place_pos.x);
+      float bMaxX = bMinX + 1.0f;
+      float bMinY = static_cast<float>(place_pos.y);
+      float bMaxY = bMinY + 1.0f;
+      float bMinZ = static_cast<float>(place_pos.z);
+      float bMaxZ = bMinZ + 1.0f;
+
+      bool overlaps = pMinX < bMaxX && pMaxX > bMinX &&
+                      pMinY < bMaxY && pMaxY > bMinY &&
+                      pMinZ < bMaxZ && pMaxZ > bMinZ;
+      if (overlaps) return;
+
+      engine->world.setBlockAt(place_pos, block_to_place);
     }
   }
 }

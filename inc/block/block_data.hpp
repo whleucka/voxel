@@ -3,6 +3,7 @@
 #include "block/block_type.hpp"
 #include "robin_hood/robin_hood.h"
 #include <glm/glm.hpp>
+#include <string_view>
 
 struct BlockTexture {
   glm::ivec2 top;
@@ -21,6 +22,37 @@ inline bool isFullyTransparent(BlockType type) {
 // Liquid blocks only render top surface, not sides
 inline bool isLiquid(BlockType type) {
   return type == BlockType::WATER;
+}
+
+inline std::string_view blockName(BlockType type) {
+  switch (type) {
+    case BlockType::AIR:          return "Air";
+    case BlockType::BEDROCK:      return "Bedrock";
+    case BlockType::COBBLESTONE:  return "Cobblestone";
+    case BlockType::DIRT:         return "Dirt";
+    case BlockType::GRASS:        return "Grass";
+    case BlockType::SAND:         return "Sand";
+    case BlockType::SANDSTONE:    return "Sandstone";
+    case BlockType::SNOW:         return "Snow";
+    case BlockType::SNOW_DIRT:    return "Snow Dirt";
+    case BlockType::SNOW_STONE:   return "Snow Stone";
+    case BlockType::STONE:        return "Stone";
+    case BlockType::OAK_LOG:      return "Oak Log";
+    case BlockType::OAK_LEAF:     return "Oak Leaf";
+    case BlockType::PINE_LOG:     return "Pine Log";
+    case BlockType::PINE_LEAF:    return "Pine Leaf";
+    case BlockType::PALM_LOG:     return "Palm Log";
+    case BlockType::PALM_LEAF:    return "Palm Leaf";
+    case BlockType::WATER:        return "Water";
+    case BlockType::COAL_ORE:     return "Coal Ore";
+    case BlockType::GOLD_ORE:     return "Gold Ore";
+    case BlockType::DIAMOND_ORE:  return "Diamond Ore";
+    case BlockType::IRON_ORE:     return "Iron Ore";
+    case BlockType::EMERALD_ORE:  return "Emerald Ore";
+    case BlockType::RUBY_ORE:     return "Ruby Ore";
+    case BlockType::COPPER_ORE:   return "Copper Ore";
+    default:                      return "Unknown";
+  }
 }
 
 static robin_hood::unordered_map<BlockType, BlockTexture> block_data = {
