@@ -6,6 +6,7 @@ layout(location=1) in int aFaceId;      // 0-5: Top, Bottom, Left, Right, Front,
 layout(location=2) in ivec2 aTileXY;    // Atlas tile coordinates
 layout(location=3) in ivec2 aUV;        // Base UV (0-255)
 layout(location=4) in ivec2 aChunkOffset; // Chunk world offset (X, Z)
+layout(location=5) in int aAO;            // Ambient occlusion level (0-3)
 
 uniform mat4 view, projection;
 
@@ -30,6 +31,7 @@ out vec2 vBaseUV;
 out vec2 vTileOffset;
 out vec2 vTileSpan;
 out vec3 vWorldPos;
+out float vAO;
 
 void main() {
     // Decode local position (was multiplied by 2 to preserve 0.5 precision)
@@ -54,4 +56,8 @@ void main() {
 
     // Tile span with padding removed from both sides
     vTileSpan = vec2(TILE_STEP - 2.0 * PADDING);
+
+    // Ambient occlusion: convert level (0-3) to shade curve
+    const float AO_CURVE[4] = float[4](0.20, 0.50, 0.75, 1.00);
+    vAO = AO_CURVE[clamp(aAO, 0, 3)];
 }

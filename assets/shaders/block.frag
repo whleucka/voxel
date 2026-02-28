@@ -6,6 +6,7 @@ in vec2 vBaseUV;
 in vec2 vTileOffset;
 in vec2 vTileSpan;
 in vec3 vWorldPos;
+in float vAO;
 
 uniform sampler2D uTexture;
 uniform float uAlpha;
@@ -44,7 +45,7 @@ void main() {
     float diffuse = max(dot(vNormal, uSunDir), 0.0);
     vec3  lighting = uAmbientColor + diffuse * uSunColor;
 
-    vec3 finalColor = texColor.rgb * lighting * faceShade;
+    vec3 finalColor = texColor.rgb * lighting * faceShade * vAO;
 
     // ── Fog ───────────────────────────────────────────────────────────────
     float dist = length(vWorldPos - uCameraPos);
