@@ -4,7 +4,7 @@
 #include <memory>
 
 DesertBiome::DesertBiome()
-    : palm_tree_spawner(0.98, std::make_unique<PalmTreeGenerator>()) {}
+    : palm_tree_spawner(0.93, std::make_unique<PalmTreeGenerator>()) {}
 
 BlockType DesertBiome::generateTopBlock(int) { return BlockType::SAND; }
 

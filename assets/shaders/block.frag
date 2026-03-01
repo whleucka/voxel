@@ -34,11 +34,22 @@ uniform sampler2DShadow uShadowMap;
 uniform bool uShadowsEnabled;
 
 // ── Shadow calculation with PCF ─────────────────────────────────────────
+uniform mat4 uLightSpaceMatrix;
+
 float calcShadow() {
     if (!uShadowsEnabled) return 1.0;
 
-    // Perspective divide (trivial for ortho, but correct for any projection)
-    vec3 projCoords = vLightSpacePos.xyz / vLightSpacePos.w;
+    // Normal offset: push the sample point away from the surface along
+    // its normal before projecting into light space.  This eliminates
+    // self-shadowing artifacts (shimmering slivers at block bases) by
+    // ensuring the lookup point is clearly on the lit side of the geometry.
+    float NdotL = dot(vNormal, uSunDir);
+    float normalOffsetScale = clamp(1.0 - NdotL, 0.0, 1.0) * 0.4 + 0.05;
+    vec3 offsetPos = vWorldPos + vNormal * normalOffsetScale;
+
+    // Project the offset position into light space
+    vec4 lsPos = uLightSpaceMatrix * vec4(offsetPos, 1.0);
+    vec3 projCoords = lsPos.xyz / lsPos.w;
     // Transform from [-1,1] to [0,1] for texture lookup
     projCoords = projCoords * 0.5 + 0.5;
 
@@ -48,8 +59,8 @@ float calcShadow() {
         projCoords.z > 1.0)
         return 1.0;
 
-    // Bias: scale with surface angle to sun to reduce shadow acne
-    float bias = max(0.003 * (1.0 - dot(vNormal, uSunDir)), 0.001);
+    // Small residual bias on top of the polygon offset + normal offset
+    float bias = max(0.001 * (1.0 - NdotL), 0.0002);
     float currentDepth = projCoords.z - bias;
 
     // 3x3 PCF (percentage-closer filtering) for soft shadow edges

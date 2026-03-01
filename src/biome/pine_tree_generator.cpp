@@ -10,38 +10,57 @@ void PineTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
     }
   };
 
-  int h = (rand() % 6) + 12;
+  auto safe_set_leaf = [&](int bx, int by, int bz) {
+    if (bx >= 0 && bx < kChunkWidth && by >= 0 && by < kChunkHeight &&
+        bz >= 0 && bz < kChunkDepth) {
+      BlockType cur = chunk.at(bx, by, bz);
+      if (cur == BlockType::AIR || cur == BlockType::PINE_LEAF)
+        chunk.at(bx, by, bz) = BlockType::PINE_LEAF;
+    }
+  };
 
-  // Trunk
-  for (int j = 1; j < h; j++) {
+  if (y <= 0 || y >= kChunkHeight - 20) return;
+
+  int h = (rand() % 5) + 10; // height 10-14
+
+  // --- Trunk ---
+  for (int j = 1; j <= h; j++) {
     safe_set(x, y + j, z, BlockType::PINE_LOG);
   }
 
-  // Leaves: conical taper
-  int leaf_height = h - 3; // taller canopy
-  for (int i = 0; i < leaf_height; i++) {
-    // Taper radius more aggressively for conical shape
-    int radius =
-        static_cast<int>(((float)(leaf_height - i) / leaf_height) * 5.0f);
+  // --- Conical canopy with tiered layers ---
+  // Leaves start about 40% up the trunk and taper to a point
+  int canopy_start = h * 2 / 5;      // ~40% up
+  int canopy_layers = h - canopy_start;
 
-    // Don't let radius collapse to zero too soon
-    if (radius < 1)
-      radius = 1;
+  for (int i = 0; i < canopy_layers; ++i) {
+    int cy = y + canopy_start + i + 1;
 
-    int yy = y + i + 3; // start leaves higher up trunk
-    for (int dx = -radius; dx <= radius; dx++) {
-      for (int dz = -radius; dz <= radius; dz++) {
-        if (dx * dx + dz * dz <= radius * radius) {
-          // Random skip for natural unevenness
-          if (rand() % 6 != 0) {
-            safe_set(x + dx, yy, z + dz, BlockType::PINE_LEAF);
-          }
-        }
+    // Taper: widest at the bottom of canopy, narrowest at top
+    float t = static_cast<float>(i) / static_cast<float>(canopy_layers);
+    int radius = static_cast<int>((1.0f - t) * 4.0f + 0.5f);
+    if (radius < 1) radius = 1;
+
+    // Every other layer is slightly narrower for a tiered look
+    if (i % 2 == 1 && radius > 1) radius -= 1;
+
+    for (int dx = -radius; dx <= radius; ++dx) {
+      for (int dz = -radius; dz <= radius; ++dz) {
+        float dist_sq = static_cast<float>(dx * dx + dz * dz);
+        float r_sq = static_cast<float>(radius * radius);
+
+        // Circular footprint, skip corners
+        if (dist_sq > r_sq) continue;
+
+        // Light random skip at outer edges only (8% chance)
+        if (dist_sq > r_sq * 0.6f && rand() % 12 == 0) continue;
+
+        safe_set_leaf(x + dx, cy, z + dz);
       }
     }
   }
 
-  // Top spike (classic pine point)
-  safe_set(x, y + h, z, BlockType::PINE_LEAF);
-  safe_set(x, y + h + 1, z, BlockType::PINE_LEAF);
+  // --- Top spike ---
+  safe_set_leaf(x, y + h + 1, z);
+  safe_set_leaf(x, y + h + 2, z);
 }

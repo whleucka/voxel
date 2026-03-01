@@ -43,7 +43,7 @@ struct Settings {
         wireframe(false), vsync(false), fullscreen(true), show_cursor(false),
         fov(70.0f), fog_start(80.0f), fog_end(260.0f),
         mouse_sensitivity(0.05f),
-        time_scale(72.0f), water_fog_density(0.04f),
+        time_scale(35.0f), water_fog_density(0.04f),
         clouds_enabled(true), cloud_height(192.0f),
         cloud_speed(1.0f), cloud_opacity(0.85f),
         shadows_enabled(true), shadow_distance(120.0f) {}

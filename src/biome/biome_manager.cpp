@@ -6,6 +6,8 @@
 #include "biome/plains_biome.hpp"
 #include "biome/tropical_biome.hpp"
 #include "core/constants.hpp"
+#include "core/settings.hpp"
+#include <glm/gtc/noise.hpp>
 #include <glm/vec3.hpp>
 #include <memory>
 
@@ -29,45 +31,62 @@ BiomeType BiomeManager::getBiomeForChunk(int cx, int cz) {
   float chunk_center_z = (cz + 0.5f) * kChunkDepth;
 
   float biome_noise;
-  int center_height = Biome::getHeight({chunk_center_x, chunk_center_z}, &biome_noise);
+  int center_height =
+      Biome::getHeight({chunk_center_x, chunk_center_z}, &biome_noise);
 
-  // Normalize latitude factor (-1 at south pole, 0 at equator,
-  // +1 at north pole)
-  float latitude = (chunk_center_z / 5000.0f);
-  latitude = glm::clamp(latitude, -1.0f, 1.0f);
-  float lat_abs = fabs(latitude);
-
-  // --- Stage detection from height ---
+  // --- Ocean: anything below sea level ---
   if (center_height < kSeaLevel) {
     return BiomeType::OCEAN;
   }
 
-  if (center_height >= kSeaLevel && center_height < kSeaLevel + 10) {
-    // Shelf stage → deserts / tropics / plains
-    if (lat_abs < 0.3f) { // near equator
-      if (biome_noise < 0.5f)
-        return BiomeType::TROPICAL;
-      else
-        return BiomeType::PLAINS;
-    } else if (lat_abs < 0.7f) { // mid-latitudes
-      if (biome_noise < 0.4f)
-        return BiomeType::DESERT;
-      else
-        return BiomeType::PLAINS;
-    } else {
-      return BiomeType::PLAINS; // higher latitudes default to plains
-    }
+  // --- Temperature & moisture noise for biome variety ---
+  // These use different frequencies and offsets so they're independent of
+  // the terrain height noise.  The +1000/+2000 offsets prevent correlation
+  // with the continent/biome_noise used in getHeight().
+  glm::vec2 spos(chunk_center_x + g_settings.noise_offset.x,
+                 chunk_center_z + g_settings.noise_offset.y);
+
+  float temperature =
+      glm::clamp(glm::perlin(glm::vec2((spos.x + 1000.0f) * 0.003f,
+                                        (spos.y + 1000.0f) * 0.003f)) *
+                         0.5f +
+                     0.5f,
+                 0.0f, 1.0f);
+
+  float moisture =
+      glm::clamp(glm::perlin(glm::vec2((spos.x + 2000.0f) * 0.004f,
+                                        (spos.y + 2000.0f) * 0.004f)) *
+                         0.5f +
+                     0.5f,
+                 0.0f, 1.0f);
+
+  // --- High altitude is always mountain ---
+  if (center_height >= 150) {
+    return BiomeType::MOUNTAIN;
   }
 
-  // Inland lowlands
-  if (center_height < 160) {
-    if (biome_noise < 0.5f) {
-      return BiomeType::PLAINS;
-    } else {
-      return BiomeType::MOUNTAIN;
-    }
+  // --- Mid-to-high terrain: mountain if biome noise says so ---
+  if (center_height >= 130 && biome_noise > 0.45f) {
+    return BiomeType::MOUNTAIN;
   }
 
-  // High mountains
-  return BiomeType::MOUNTAIN;
+  // --- Land biome selection based on temperature & moisture ---
+  // Hot + dry  -> Desert
+  // Hot + wet  -> Tropical
+  // Otherwise  -> Plains, with mountain at high biome_noise
+
+  if (temperature > 0.6f && moisture < 0.35f) {
+    return BiomeType::DESERT;
+  }
+
+  if (temperature > 0.55f && moisture > 0.5f) {
+    return BiomeType::TROPICAL;
+  }
+
+  // Elevated terrain with high biome_noise -> mountain
+  if (center_height >= 115 && biome_noise > 0.55f) {
+    return BiomeType::MOUNTAIN;
+  }
+
+  return BiomeType::PLAINS;
 }

@@ -181,8 +181,11 @@ void Renderer::shadowPass(
   glBindFramebuffer(GL_FRAMEBUFFER, shadow_fbo);
   glClear(GL_DEPTH_BUFFER_BIT);
 
-  // Use front-face culling during shadow pass to reduce peter-panning
-  glCullFace(GL_FRONT);
+  // Use polygon offset to push depth values slightly deeper, preventing
+  // shadow acne while keeping front-face geometry in the shadow map so
+  // shadows connect properly at block bases (no gap / shimmering slivers).
+  glEnable(GL_POLYGON_OFFSET_FILL);
+  glPolygonOffset(1.1f, 4.0f);
 
   shadow_shader->use();
   shadow_shader->setMat4("uLightSpaceMatrix", light_space_matrix);
@@ -193,7 +196,7 @@ void Renderer::shadowPass(
   }
 
   // Restore state
-  glCullFace(GL_BACK);
+  glDisable(GL_POLYGON_OFFSET_FILL);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   glViewport(0, 0, viewportWidth, viewportHeight);
 }
