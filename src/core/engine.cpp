@@ -354,6 +354,17 @@ void Engine::debug() {
           if (ImGui::Button("Fast (10x)"))   g_settings.time_scale = 720.0f;
         }
 
+        // Clouds
+        if (ImGui::CollapsingHeader("Clouds", ImGuiTreeNodeFlags_DefaultOpen)) {
+          ImGui::Checkbox("Enabled", &g_settings.clouds_enabled);
+          ImGui::PushItemWidth(180);
+          ImGui::SliderFloat("Height",  &g_settings.cloud_height,
+                             100.0f, 250.0f, "%.0f");
+          ImGui::SliderFloat("Speed",   &g_settings.cloud_speed,
+                             0.0f, 5.0f, "%.1f");
+          ImGui::PopItemWidth();
+        }
+
         ImGui::EndTabItem();
       }
 

@@ -65,4 +65,6 @@ private:
 
   int last_chunk_x = 0;
   int last_chunk_z = 0;
+
+  float cloud_time = 0.0f; // accumulated time for cloud drift
 };

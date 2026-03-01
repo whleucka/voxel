@@ -166,6 +166,7 @@ void World::addChunk(int x, int z) {
 
 void World::update(float dt) {
   player->update(dt, this);
+  cloud_time += dt;
 
   glm::vec3 pos = player->getPosition();
   int current_chunk_x = static_cast<int>(floor(pos.x / kChunkWidth));
@@ -340,6 +341,11 @@ void World::render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay) {
 
   renderer->drawChunks(visibleChunks, view, projection,
                        player->getPosition(), player->isUnderwater(), timeOfDay);
+
+  // Clouds drawn after opaque & transparent terrain so they blend correctly
+  // with the sky behind them while terrain in front occludes them via depth.
+  renderer->drawClouds(view, projection, player->getPosition(), timeOfDay,
+                       cloud_time);
 }
 
 std::shared_ptr<Chunk> World::getChunk(int x, int z) {
