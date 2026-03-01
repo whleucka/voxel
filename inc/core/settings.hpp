@@ -1,6 +1,13 @@
 #pragma once
 
+#include <glm/vec2.hpp>
+#include <cstdint>
+
 struct Settings {
+  // World
+  uint32_t   world_seed;
+  glm::vec2  noise_offset; // added to all noise coordinates for seeding
+
   // UI
   bool show_debug;
 
@@ -21,7 +28,8 @@ struct Settings {
   float water_fog_density; // underwater exponential fog density
 
   Settings()
-      : show_debug(false),
+      : world_seed(0), noise_offset(0.0f, 0.0f),
+        show_debug(false),
         wireframe(false), vsync(false), fullscreen(true), show_cursor(false),
         fov(70.0f), fog_start(80.0f), fog_end(260.0f),
         mouse_sensitivity(0.05f),

@@ -1,6 +1,7 @@
 #include "biome/biome.hpp"
 #include "block/block_type.hpp"
 #include "core/constants.hpp"
+#include "core/settings.hpp"
 #include "util/noise.hpp"
 #include <glm/fwd.hpp>
 
@@ -71,9 +72,9 @@ void Biome::generateMinerals(Chunk &chunk) {
 
         if (block == BlockType::STONE) {
           float n = glm::perlin(glm::vec3(
-            (pos.x * kChunkWidth + x) * 0.05f,
+            (pos.x * kChunkWidth + x + g_settings.noise_offset.x) * 0.05f,
             y * 0.05f,
-            (pos.y * kChunkDepth + z) * 0.05f
+            (pos.y * kChunkDepth + z + g_settings.noise_offset.y) * 0.05f
           ));
 
           // RARE ORES
@@ -127,23 +128,25 @@ int Biome::getHeight(glm::vec2 pos, float *biome_noise_out) {
   constexpr int SEA = kSeaLevel;
   const float sea_norm = float(SEA) / float(HMAX);
 
+  const glm::vec2 spos = pos + g_settings.noise_offset;
+
   // --- Continents (0=ocean, 1=land) ---
-  float c = glm::clamp(glm::perlin(pos * 0.0008f) * 0.5f + 0.5f, 0.0f, 1.0f);
+  float c = glm::clamp(glm::perlin(spos * 0.0008f) * 0.5f + 0.5f, 0.0f, 1.0f);
 
   // --- Local detail ---
-  glm::vec3 p((pos.x + 0.1f) * kBiomeFreq, (pos.y + 0.1f) * kBiomeFreq, 0.0f);
+  glm::vec3 p((spos.x + 0.1f) * kBiomeFreq, (spos.y + 0.1f) * kBiomeFreq, 0.0f);
   double n = fbm(p, kBiomeOctaves, kBiomeLacunarity, kBiomeGain);
   float e = glm::clamp(float(n * 0.5 + 0.5), 0.0f, 1.0f);
 
   // --- Biome noise (plains vs mountains) ---
-  glm::vec2 bpos = pos * 0.0045f;
+  glm::vec2 bpos = spos * 0.0045f;
   float biome_n = glm::clamp(glm::perlin(bpos) * 0.5f + 0.5f, 0.0f, 1.0f);
   if (biome_noise_out)
     *biome_noise_out = biome_n;
 
   // --- Ocean floor ---
   float ocean_floor = glm::mix(0.05f, sea_norm - 0.15f, e);
-  ocean_floor += glm::perlin(pos * 0.003f) * 0.015f;
+  ocean_floor += glm::perlin(spos * 0.003f) * 0.015f;
   ocean_floor = glm::clamp(ocean_floor, 0.0f, sea_norm - 0.02f);
 
   // --- Land elevation ---

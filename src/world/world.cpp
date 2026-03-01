@@ -1,5 +1,7 @@
 #include "world/world.hpp"
+#include "biome/biome.hpp"
 #include "block/block_data.hpp"
+#include "chunk/chunk.hpp"
 #include "core/constants.hpp"
 #include "render/renderer.hpp"
 #include "util/lock.hpp"
@@ -16,7 +18,81 @@ void World::init() {
 
   spiral_offsets = generateSpiralOrder(kRenderDistance / kChunkWidth);
 
-  glm::vec3 pos = {kChunkWidth * 0.5f, 125.0f, kChunkDepth * 0.5f};
+  // Spiral outward (by chunk) using only Biome::getHeight() — pure math, no
+  // chunk allocation — until we find a chunk whose center is above sea level.
+  int spawn_cx = 0, spawn_cz = 0;
+  constexpr int kMaxSpawnSearch = 200;
+  for (int r = 0; r <= kMaxSpawnSearch; ++r) {
+    bool found = false;
+    for (int dx = -r; dx <= r && !found; ++dx) {
+      for (int dz = -r; dz <= r && !found; ++dz) {
+        if (std::abs(dx) != r && std::abs(dz) != r) continue;
+        float wx = (dx + 0.5f) * kChunkWidth;
+        float wz = (dz + 0.5f) * kChunkDepth;
+        if (Biome::getHeight({wx, wz}) > kSeaLevel + 3) {
+          spawn_cx = dx;
+          spawn_cz = dz;
+          found = true;
+        }
+      }
+    }
+    if (found) break;
+  }
+
+  // Generate that land chunk synchronously to scan actual block data.
+  // Do NOT insert it into the chunks map — let preloadChunks handle it through
+  // the normal async pipeline so its mesh gets built and uploaded properly.
+  Chunk spawn_chunk(spawn_cx, spawn_cz);
+  spawn_chunk.init();
+
+  // Scan all columns for grass/dirt with 2 clear air blocks above (player is
+  // 1.8 blocks tall so we need y+1 and y+2 both to be air).
+  auto scanColumn = [&](int lx, int lz, auto predicate) -> int {
+    for (int y = kChunkHeight - 3; y >= 1; --y) {
+      BlockType surface = spawn_chunk.at(lx, y,     lz);
+      BlockType above1  = spawn_chunk.at(lx, y + 1, lz);
+      BlockType above2  = spawn_chunk.at(lx, y + 2, lz);
+      if (predicate(surface) && above1 == BlockType::AIR && above2 == BlockType::AIR)
+        return y + 1;
+    }
+    return -1;
+  };
+
+  auto isGrassDirt = [](BlockType b) {
+    return b == BlockType::GRASS || b == BlockType::DIRT;
+  };
+  auto isSolid = [](BlockType b) {
+    return b != BlockType::AIR && b != BlockType::WATER;
+  };
+
+  float spawn_x = (spawn_cx + 0.5f) * kChunkWidth;
+  float spawn_y = -1.0f;
+  float spawn_z = (spawn_cz + 0.5f) * kChunkDepth;
+
+  // Pass 1: grass or dirt surface
+  for (int lx = 0; lx < kChunkWidth && spawn_y < 0; ++lx)
+    for (int lz = 0; lz < kChunkDepth && spawn_y < 0; ++lz) {
+      int y = scanColumn(lx, lz, isGrassDirt);
+      if (y >= 0) {
+        spawn_x = spawn_cx * kChunkWidth + lx + 0.5f;
+        spawn_y = static_cast<float>(y);
+        spawn_z = spawn_cz * kChunkDepth + lz + 0.5f;
+      }
+    }
+
+  // Pass 2: any solid non-water surface (snow, stone peaks)
+  if (spawn_y < 0)
+    for (int lx = 0; lx < kChunkWidth && spawn_y < 0; ++lx)
+      for (int lz = 0; lz < kChunkDepth && spawn_y < 0; ++lz) {
+        int y = scanColumn(lx, lz, isSolid);
+        if (y >= 0) {
+          spawn_x = spawn_cx * kChunkWidth + lx + 0.5f;
+          spawn_y = static_cast<float>(y);
+          spawn_z = spawn_cz * kChunkDepth + lz + 0.5f;
+        }
+      }
+
+  glm::vec3 pos = {spawn_x, spawn_y, spawn_z};
 
   player->setPosition(pos);
   player->getCamera().setPosition(pos);

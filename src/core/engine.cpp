@@ -12,11 +12,25 @@
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <cstdio>
+#include <cstdlib>
+#include <ctime>
 #include <iostream>
 
 Engine::~Engine() { cleanup(); }
 
 bool Engine::init() {
+  // Seed the world using current time so every launch is unique.
+  g_settings.world_seed = static_cast<uint32_t>(std::time(nullptr));
+  srand(g_settings.world_seed);
+  // Offset noise coordinates to get a unique world each seed.
+  // Capped at 5000 units — large enough for variety, small enough to avoid
+  // degenerate all-ocean regions that appear at extreme offsets.
+  g_settings.noise_offset = glm::vec2(
+      static_cast<float>(g_settings.world_seed % 5000),
+      static_cast<float>((g_settings.world_seed / 5000) % 5000)
+  );
+  std::cout << "World seed: " << g_settings.world_seed << "\n";
+
   if (!glfwInit()) {
     std::cerr << "Failed to initialize GLFW\n";
     return false;
