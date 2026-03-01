@@ -168,7 +168,7 @@ void Engine::render() {
   glm::mat4 proj = glm::perspective(
       glm::radians(g_settings.fov),                  // field of view from settings
       (float)win_width / (float)win_height,           // aspect ratio
-      0.1f,                                           // near plane
+      0.01f,                                          // near plane (small = less wall clipping in tight spaces)
       1000.0f                                         // far plane
   );
 
@@ -189,6 +189,17 @@ void Engine::render() {
 void Engine::renderCrosshair() {
   // Don't show crosshair when inventory is open
   if (world.getPlayer()->isInventoryOpen()) return;
+
+  // Dark overlay when the camera eye is inside a solid block (e.g. clipping into a wall)
+  {
+    glm::vec3 eyePos = world.getPlayer()->getEyePosition();
+    BlockType eyeBlock = world.getBlockAt(eyePos);
+    if (eyeBlock != BlockType::AIR && !isLiquid(eyeBlock)) {
+      ImDrawList* overlay = ImGui::GetForegroundDrawList();
+      overlay->AddRectFilled(ImVec2(0, 0), ImVec2((float)win_width, (float)win_height),
+                             IM_COL32(0, 0, 0, 200));
+    }
+  }
 
   // Draw crosshair at screen center using ImGui overlay
   ImDrawList* draw = ImGui::GetForegroundDrawList();

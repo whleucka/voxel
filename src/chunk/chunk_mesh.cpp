@@ -180,66 +180,70 @@ void addQuad(MeshBuffers& buffers,
              Face face,
              int16_t chunkWorldX, int16_t chunkWorldZ,
              bool transparent,
-             const AO4& ao) {
+             const AO4& ao,
+             uint8_t skyLight) {
   auto& vertices = transparent ? buffers.transparentVertices : buffers.vertices;
   auto& indices = transparent ? buffers.transparentIndices : buffers.indices;
 
   unsigned int start_index = static_cast<unsigned int>(vertices.size());
   uint8_t faceId = static_cast<uint8_t>(face);
 
-  // Lambda to add a vertex with packed data
+  // Lambda to add a vertex with packed data.
+  // ao byte packs: bits[1:0] = AO level (0-3), bits[5:2] = sky light (0-15).
   auto V = [&](float px, float py, float pz, uint8_t uvX, uint8_t uvY, uint8_t aoVal) {
     vertices.push_back({
       packPos(px), packPos(py), packPos(pz),
       faceId,
       static_cast<uint8_t>(tileX), static_cast<uint8_t>(tileY),
       uvX, uvY,
-      aoVal,
+      static_cast<uint8_t>(((skyLight & 0xF) << 2) | (aoVal & 0x3)),
       chunkWorldX, chunkWorldZ
     });
   };
 
+  // Blocks occupy [posX, posX+1] x [posY, posY+1] x [posZ, posZ+1] in world space,
+  // matching the data/physics coordinate system exactly.
   switch (face) {
-  case Face::Top:                                                           // +Y
-    V(posX - 0.5f, posY + 0.5f, posZ - 0.5f,              0, 0,       ao[0]); // TL
-    V(posX + sizeA - 0.5f, posY + 0.5f, posZ - 0.5f,      sizeA, 0,   ao[1]); // TR
-    V(posX + sizeA - 0.5f, posY + 0.5f, posZ + sizeB - 0.5f, sizeA, sizeB, ao[2]); // BR
-    V(posX - 0.5f, posY + 0.5f, posZ + sizeB - 0.5f,      0, sizeB,  ao[3]); // BL
+  case Face::Top:                                                           // +Y  (y = posY+1)
+    V(posX,         posY + 1, posZ,         0, 0,         ao[0]); // TL
+    V(posX + sizeA, posY + 1, posZ,         sizeA, 0,     ao[1]); // TR
+    V(posX + sizeA, posY + 1, posZ + sizeB, sizeA, sizeB, ao[2]); // BR
+    V(posX,         posY + 1, posZ + sizeB, 0, sizeB,     ao[3]); // BL
     break;
 
-  case Face::Bottom:                                                        // -Y
-    V(posX - 0.5f, posY - 0.5f, posZ + sizeB - 0.5f,      0, 0,       ao[0]); // TL
-    V(posX + sizeA - 0.5f, posY - 0.5f, posZ + sizeB - 0.5f, sizeA, 0, ao[1]); // TR
-    V(posX + sizeA - 0.5f, posY - 0.5f, posZ - 0.5f,      sizeA, sizeB, ao[2]); // BR
-    V(posX - 0.5f, posY - 0.5f, posZ - 0.5f,              0, sizeB,   ao[3]); // BL
+  case Face::Bottom:                                                        // -Y  (y = posY)
+    V(posX,         posY, posZ + sizeB, 0, 0,         ao[0]); // TL
+    V(posX + sizeA, posY, posZ + sizeB, sizeA, 0,     ao[1]); // TR
+    V(posX + sizeA, posY, posZ,         sizeA, sizeB, ao[2]); // BR
+    V(posX,         posY, posZ,         0, sizeB,     ao[3]); // BL
     break;
 
-  case Face::Front:                                                         // +Z
-    V(posX - 0.5f, posY + sizeB - 0.5f, posZ + 0.5f,      0, 0,       ao[0]); // TL
-    V(posX + sizeA - 0.5f, posY + sizeB - 0.5f, posZ + 0.5f, sizeA, 0, ao[1]); // TR
-    V(posX + sizeA - 0.5f, posY - 0.5f, posZ + 0.5f,      sizeA, sizeB, ao[2]); // BR
-    V(posX - 0.5f, posY - 0.5f, posZ + 0.5f,              0, sizeB,   ao[3]); // BL
+  case Face::Front:                                                         // +Z  (z = posZ+1)
+    V(posX,         posY + sizeB, posZ + 1, 0, 0,         ao[0]); // TL
+    V(posX + sizeA, posY + sizeB, posZ + 1, sizeA, 0,     ao[1]); // TR
+    V(posX + sizeA, posY,         posZ + 1, sizeA, sizeB, ao[2]); // BR
+    V(posX,         posY,         posZ + 1, 0, sizeB,     ao[3]); // BL
     break;
 
-  case Face::Back:                                                          // -Z
-    V(posX + sizeA - 0.5f, posY + sizeB - 0.5f, posZ - 0.5f, 0, 0,    ao[0]); // TL
-    V(posX - 0.5f, posY + sizeB - 0.5f, posZ - 0.5f,      sizeA, 0,   ao[1]); // TR
-    V(posX - 0.5f, posY - 0.5f, posZ - 0.5f,              sizeA, sizeB, ao[2]); // BR
-    V(posX + sizeA - 0.5f, posY - 0.5f, posZ - 0.5f,      0, sizeB,   ao[3]); // BL
+  case Face::Back:                                                          // -Z  (z = posZ)
+    V(posX + sizeA, posY + sizeB, posZ, 0, 0,         ao[0]); // TL
+    V(posX,         posY + sizeB, posZ, sizeA, 0,     ao[1]); // TR
+    V(posX,         posY,         posZ, sizeA, sizeB, ao[2]); // BR
+    V(posX + sizeA, posY,         posZ, 0, sizeB,     ao[3]); // BL
     break;
 
-  case Face::Right:                                                         // +X
-    V(posX + 0.5f, posY + sizeB - 0.5f, posZ - 0.5f,      0, 0,       ao[0]); // TL
-    V(posX + 0.5f, posY + sizeB - 0.5f, posZ + sizeA - 0.5f, sizeA, 0, ao[1]); // TR
-    V(posX + 0.5f, posY - 0.5f, posZ + sizeA - 0.5f,      sizeA, sizeB, ao[2]); // BR
-    V(posX + 0.5f, posY - 0.5f, posZ - 0.5f,              0, sizeB,   ao[3]); // BL
+  case Face::Right:                                                         // +X  (x = posX+1)
+    V(posX + 1, posY + sizeB, posZ,         0, 0,         ao[0]); // TL
+    V(posX + 1, posY + sizeB, posZ + sizeA, sizeA, 0,     ao[1]); // TR
+    V(posX + 1, posY,         posZ + sizeA, sizeA, sizeB, ao[2]); // BR
+    V(posX + 1, posY,         posZ,         0, sizeB,     ao[3]); // BL
     break;
 
-  case Face::Left:                                                          // -X
-    V(posX - 0.5f, posY + sizeB - 0.5f, posZ + sizeA - 0.5f, 0, 0,    ao[0]); // TL
-    V(posX - 0.5f, posY + sizeB - 0.5f, posZ - 0.5f,      sizeA, 0,   ao[1]); // TR
-    V(posX - 0.5f, posY - 0.5f, posZ - 0.5f,              sizeA, sizeB, ao[2]); // BR
-    V(posX - 0.5f, posY - 0.5f, posZ + sizeA - 0.5f,      0, sizeB,   ao[3]); // BL
+  case Face::Left:                                                          // -X  (x = posX)
+    V(posX, posY + sizeB, posZ + sizeA, 0, 0,         ao[0]); // TL
+    V(posX, posY + sizeB, posZ,         sizeA, 0,     ao[1]); // TR
+    V(posX, posY,         posZ,         sizeA, sizeB, ao[2]); // BR
+    V(posX, posY,         posZ + sizeA, 0, sizeB,     ao[3]); // BL
     break;
   }
 
@@ -332,6 +336,31 @@ BlockType ChunkMesh::getBlock(World *world, const Chunk &chunk, int x, int y, in
   return chunk.at(x, y, z);
 }
 
+uint8_t ChunkMesh::getSkyLight(World *world, const Chunk &chunk, int x, int y, int z) {
+  // Above the chunk height = full sky
+  if (y >= kChunkHeight) return 15;
+  if (y < 0) return 0;
+
+  const int chunk_x = chunk.getPos()[0];
+  const int chunk_z = chunk.getPos()[1];
+
+  const int world_x = chunk_x * kChunkWidth + x;
+  const int world_z = chunk_z * kChunkDepth + z;
+
+  const int target_chunk_x = floor((float)world_x / kChunkWidth);
+  const int target_chunk_z = floor((float)world_z / kChunkDepth);
+
+  if (target_chunk_x != chunk_x || target_chunk_z != chunk_z) {
+    auto n = world->getChunk(target_chunk_x, target_chunk_z);
+    if (!n) return 15; // unloaded neighbor — assume full sky
+    const int local_x = world_x - target_chunk_x * kChunkWidth;
+    const int local_z = world_z - target_chunk_z * kChunkDepth;
+    return n->safeSkyLight(local_x, y, local_z);
+  }
+
+  return chunk.safeSkyLight(x, y, z);
+}
+
 void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
                             TextureManager &) {
   cpuReady = false;
@@ -363,11 +392,13 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (shouldRenderFace(type, neighbor)) {
           const auto &tex = block_data.at(type);
           AO4 ao = computeFaceAO(world, chunk, x, y, z, Face::Front);
+          uint8_t skyLight = getSkyLight(world, chunk, x, y, z + 1);
 
           int width = 1;
           while (x + width < kChunkWidth && !mask[x + width][y] &&
                  chunk.safeAt(x + width, y, z) == type &&
                  shouldRenderFace(type, getBlock(world, chunk, x + width, y, z + 1)) &&
+                 getSkyLight(world, chunk, x + width, y, z + 1) == skyLight &&
                  computeFaceAO(world, chunk, x + width, y, z, Face::Front) == ao) {
             width++;
           }
@@ -379,6 +410,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
               if (mask[x + i][y + height] ||
                   chunk.safeAt(x + i, y + height, z) != type ||
                   !shouldRenderFace(type, getBlock(world, chunk, x + i, y + height, z + 1)) ||
+                  getSkyLight(world, chunk, x + i, y + height, z + 1) != skyLight ||
                   computeFaceAO(world, chunk, x + i, y + height, z, Face::Front) != ao) {
                 can_expand = false;
                 break;
@@ -393,7 +425,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, width, height,
                   tex.side.x, tex.side.y, Face::Front, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), ao);
+                  isTransparent(type), ao, skyLight);
         }
       }
     }
@@ -414,11 +446,13 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (shouldRenderFace(type, neighbor)) {
           const auto &tex = block_data.at(type);
           AO4 ao = computeFaceAO(world, chunk, x, y, z, Face::Back);
+          uint8_t skyLight = getSkyLight(world, chunk, x, y, z - 1);
 
           int width = 1;
           while (x + width < kChunkWidth && !mask[x + width][y] &&
                  chunk.safeAt(x + width, y, z) == type &&
                  shouldRenderFace(type, getBlock(world, chunk, x + width, y, z - 1)) &&
+                 getSkyLight(world, chunk, x + width, y, z - 1) == skyLight &&
                  computeFaceAO(world, chunk, x + width, y, z, Face::Back) == ao) {
             width++;
           }
@@ -430,6 +464,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
               if (mask[x + i][y + height] ||
                   chunk.safeAt(x + i, y + height, z) != type ||
                   !shouldRenderFace(type, getBlock(world, chunk, x + i, y + height, z - 1)) ||
+                  getSkyLight(world, chunk, x + i, y + height, z - 1) != skyLight ||
                   computeFaceAO(world, chunk, x + i, y + height, z, Face::Back) != ao) {
                 can_expand = false;
                 break;
@@ -444,7 +479,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, width, height,
                   tex.side.x, tex.side.y, Face::Back, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), ao);
+                  isTransparent(type), ao, skyLight);
         }
       }
     }
@@ -464,11 +499,13 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (shouldRenderFace(type, neighbor)) {
           const auto &tex = block_data.at(type);
           AO4 ao = computeFaceAO(world, chunk, x, y, z, Face::Top);
+          uint8_t skyLight = getSkyLight(world, chunk, x, y + 1, z);
 
           int width = 1;
           while (x + width < kChunkWidth && !mask[z][x + width] &&
                  chunk.safeAt(x + width, y, z) == type &&
                  shouldRenderFace(type, getBlock(world, chunk, x + width, y + 1, z)) &&
+                 getSkyLight(world, chunk, x + width, y + 1, z) == skyLight &&
                  computeFaceAO(world, chunk, x + width, y, z, Face::Top) == ao) {
             width++;
           }
@@ -480,6 +517,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
               if (mask[z + depth][x + i] ||
                   chunk.safeAt(x + i, y, z + depth) != type ||
                   !shouldRenderFace(type, getBlock(world, chunk, x + i, y + 1, z + depth)) ||
+                  getSkyLight(world, chunk, x + i, y + 1, z + depth) != skyLight ||
                   computeFaceAO(world, chunk, x + i, y, z + depth, Face::Top) != ao) {
                 can_expand = false;
                 break;
@@ -494,7 +532,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, width, depth,
                   tex.top.x, tex.top.y, Face::Top, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), ao);
+                  isTransparent(type), ao, skyLight);
 
           // For water at the surface (air above), also render bottom face
           // so it's visible from underwater looking up
@@ -502,7 +540,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             AO4 noAO = {{3, 3, 3, 3}};
             addQuad(buffers, x, y + 1, z, width, depth,
                     tex.bottom.x, tex.bottom.y, Face::Bottom, chunkWorldX, chunkWorldZ,
-                    true, noAO);
+                    true, noAO, skyLight);
           }
         }
       }
@@ -524,11 +562,13 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (shouldRenderFace(type, neighbor)) {
           const auto &tex = block_data.at(type);
           AO4 ao = computeFaceAO(world, chunk, x, y, z, Face::Bottom);
+          uint8_t skyLight = getSkyLight(world, chunk, x, y - 1, z);
 
           int width = 1;
           while (x + width < kChunkWidth && !mask[z][x + width] &&
                  chunk.safeAt(x + width, y, z) == type &&
                  shouldRenderFace(type, getBlock(world, chunk, x + width, y - 1, z)) &&
+                 getSkyLight(world, chunk, x + width, y - 1, z) == skyLight &&
                  computeFaceAO(world, chunk, x + width, y, z, Face::Bottom) == ao) {
             width++;
           }
@@ -540,6 +580,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
               if (mask[z + depth][x + i] ||
                   chunk.safeAt(x + i, y, z + depth) != type ||
                   !shouldRenderFace(type, getBlock(world, chunk, x + i, y - 1, z + depth)) ||
+                  getSkyLight(world, chunk, x + i, y - 1, z + depth) != skyLight ||
                   computeFaceAO(world, chunk, x + i, y, z + depth, Face::Bottom) != ao) {
                 can_expand = false;
                 break;
@@ -554,7 +595,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, width, depth,
                   tex.bottom.x, tex.bottom.y, Face::Bottom, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), ao);
+                  isTransparent(type), ao, skyLight);
         }
       }
     }
@@ -575,11 +616,13 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (shouldRenderFace(type, neighbor)) {
           const auto &tex = block_data.at(type);
           AO4 ao = computeFaceAO(world, chunk, x, y, z, Face::Right);
+          uint8_t skyLight = getSkyLight(world, chunk, x + 1, y, z);
 
           int depth = 1;
           while (z + depth < kChunkDepth && !mask[y][z + depth] &&
                  chunk.safeAt(x, y, z + depth) == type &&
                  shouldRenderFace(type, getBlock(world, chunk, x + 1, y, z + depth)) &&
+                 getSkyLight(world, chunk, x + 1, y, z + depth) == skyLight &&
                  computeFaceAO(world, chunk, x, y, z + depth, Face::Right) == ao) {
             depth++;
           }
@@ -591,6 +634,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
               if (mask[y + height][z + i] ||
                   chunk.safeAt(x, y + height, z + i) != type ||
                   !shouldRenderFace(type, getBlock(world, chunk, x + 1, y + height, z + i)) ||
+                  getSkyLight(world, chunk, x + 1, y + height, z + i) != skyLight ||
                   computeFaceAO(world, chunk, x, y + height, z + i, Face::Right) != ao) {
                 can_expand = false;
                 break;
@@ -605,7 +649,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, depth, height,
                   tex.side.x, tex.side.y, Face::Right, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), ao);
+                  isTransparent(type), ao, skyLight);
         }
       }
     }
@@ -626,11 +670,13 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (shouldRenderFace(type, neighbor)) {
           const auto &tex = block_data.at(type);
           AO4 ao = computeFaceAO(world, chunk, x, y, z, Face::Left);
+          uint8_t skyLight = getSkyLight(world, chunk, x - 1, y, z);
 
           int depth = 1;
           while (z + depth < kChunkDepth && !mask[y][z + depth] &&
                  chunk.safeAt(x, y, z + depth) == type &&
                  shouldRenderFace(type, getBlock(world, chunk, x - 1, y, z + depth)) &&
+                 getSkyLight(world, chunk, x - 1, y, z + depth) == skyLight &&
                  computeFaceAO(world, chunk, x, y, z + depth, Face::Left) == ao) {
             depth++;
           }
@@ -642,6 +688,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
               if (mask[y + height][z + i] ||
                   chunk.safeAt(x, y + height, z + i) != type ||
                   !shouldRenderFace(type, getBlock(world, chunk, x - 1, y + height, z + i)) ||
+                  getSkyLight(world, chunk, x - 1, y + height, z + i) != skyLight ||
                   computeFaceAO(world, chunk, x, y + height, z + i, Face::Left) != ao) {
                 can_expand = false;
                 break;
@@ -656,7 +703,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, depth, height,
                   tex.side.x, tex.side.y, Face::Left, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), ao);
+                  isTransparent(type), ao, skyLight);
         }
       }
     }

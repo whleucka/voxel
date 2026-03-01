@@ -59,8 +59,8 @@ void Player::update(float dt, World* world) {
     // Apply velocity to position with per-axis collision resolution
     glm::vec3 old_pos = position;
 
-    // Move along each axis independently and resolve collisions
-    // This prevents getting stuck on corners
+    // Move along each axis independently and resolve collisions.
+    // This prevents getting stuck on corners.
 
     // X axis
     position.x += velocity.x * dt;
@@ -83,10 +83,9 @@ void Player::update(float dt, World* world) {
     }
 
     // Z axis
-    float old_z = position.z;
     position.z += velocity.z * dt;
     if (collidesWithWorld(world, position)) {
-      position.z = old_z;
+      position.z = old_pos.z;
       velocity.z = 0.0f;
     }
 

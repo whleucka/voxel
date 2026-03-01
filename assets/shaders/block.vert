@@ -32,6 +32,7 @@ out vec2 vTileOffset;
 out vec2 vTileSpan;
 out vec3 vWorldPos;
 out float vAO;
+out float vSkyLight;
 
 void main() {
     // Decode local position (was multiplied by 2 to preserve 0.5 precision)
@@ -57,7 +58,11 @@ void main() {
     // Tile span with padding removed from both sides
     vTileSpan = vec2(TILE_STEP - 2.0 * PADDING);
 
-    // Ambient occlusion: convert level (0-3) to shade curve
+    // Unpack ao byte: bits[1:0] = AO level (0-3), bits[5:2] = sky light (0-15)
+    int aoLevel  = aAO & 3;
+    int skyLevel = (aAO >> 2) & 15;
+
     const float AO_CURVE[4] = float[4](0.20, 0.50, 0.75, 1.00);
-    vAO = AO_CURVE[clamp(aAO, 0, 3)];
+    vAO = AO_CURVE[clamp(aoLevel, 0, 3)];
+    vSkyLight = float(skyLevel) / 15.0;
 }

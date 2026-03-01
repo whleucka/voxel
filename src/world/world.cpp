@@ -205,6 +205,7 @@ void World::setBlockAt(const glm::ivec3& worldPos, BlockType type) {
   {
     std::lock_guard lock(chunk->data_mutex);
     chunk->at(lx, by, lz) = type;
+    chunk->computeSkyLight(); // re-propagate sky light after block change
   }
 
   // Always rebuild the modified chunk
@@ -323,11 +324,9 @@ RaycastResult World::raycast(const glm::vec3& origin, const glm::vec3& direction
 
   glm::vec3 dir = glm::normalize(direction);
 
-  // Blocks are rendered centered at their integer index: visual block (x,y,z)
-  // occupies [x-0.5, x+0.5].  Without a shift the DDA cell (x) covers [x, x+1],
-  // which is offset +0.5 from the visual face.  Shifting origin by +0.5 makes
-  // cell boundaries fall at half-integers, aligning them with the visual faces.
-  glm::vec3 o = origin + 0.5f;
+  // Blocks occupy [x, x+1] in world space (standard voxel layout).
+  // No shift needed — DDA cell boundaries align directly with block faces.
+  const glm::vec3& o = origin;
 
   // Current voxel position
   int x = static_cast<int>(std::floor(o.x));

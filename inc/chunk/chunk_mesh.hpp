@@ -17,7 +17,8 @@ public:
   ChunkMesh();
   ~ChunkMesh();
 
-  static BlockType getBlock(World*, const Chunk&, int, int, int);
+  static BlockType  getBlock(World*, const Chunk&, int, int, int);
+  static uint8_t    getSkyLight(World*, const Chunk&, int, int, int);
   void generateCPU(World* world, const Chunk& chunk, TextureManager& texture_manager); // CPU-only
   void upload();     // GL only (main thread)
   void renderOpaque();

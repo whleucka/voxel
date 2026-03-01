@@ -35,6 +35,10 @@ public:
   const BlockType &at(int x, int y, int z) const;
   BlockType safeAt(int x, int y, int z) const;
 
+  void computeSkyLight();
+  uint8_t getSkyLight(int x, int y, int z) const;
+  uint8_t safeSkyLight(int x, int y, int z) const;
+
   ChunkMesh &getMesh() { return mesh; }
   glm::mat4 getModelMatrix() const;
   glm::ivec2 getPos() const { return pos; }
@@ -44,5 +48,6 @@ public:
 private:
   glm::ivec2 pos;
   std::vector<BlockType> blocks;
+  std::vector<uint8_t>   skylight;
   ChunkMesh mesh;
 };

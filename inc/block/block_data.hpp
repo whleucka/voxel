@@ -24,6 +24,19 @@ inline bool isLiquid(BlockType type) {
   return type == BlockType::WATER;
 }
 
+// Returns the number of sky-light levels absorbed when light passes through
+// a block.  0 = fully transparent (air), 15 = fully opaque (stone, dirt…).
+inline uint8_t skyLightOpacity(BlockType type) {
+  switch (type) {
+    case BlockType::AIR:       return 0;
+    case BlockType::WATER:     return 2;
+    case BlockType::OAK_LEAF:
+    case BlockType::PINE_LEAF:
+    case BlockType::PALM_LEAF: return 1;
+    default:                   return 15;
+  }
+}
+
 inline std::string_view blockName(BlockType type) {
   switch (type) {
     case BlockType::AIR:          return "Air";
