@@ -9,6 +9,7 @@ layout(location=4) in ivec2 aChunkOffset; // Chunk world offset (X, Z)
 layout(location=5) in int aAO;            // Ambient occlusion level (0-3)
 
 uniform mat4 view, projection;
+uniform mat4 uLightSpaceMatrix;
 
 // Atlas constants
 const float TILE_SIZE = 32.0;
@@ -31,6 +32,7 @@ out vec2 vBaseUV;
 out vec2 vTileOffset;
 out vec2 vTileSpan;
 out vec3 vWorldPos;
+out vec4 vLightSpacePos;
 out float vAO;
 out float vSkyLight;
 
@@ -45,6 +47,9 @@ void main() {
 
     // Pass world position to fragment shader for fog calculation
     vWorldPos = worldPos;
+
+    // Light-space position for shadow mapping
+    vLightSpacePos = uLightSpaceMatrix * vec4(worldPos, 1.0);
 
     // Lookup normal from face ID
     vNormal = NORMALS[aFaceId];

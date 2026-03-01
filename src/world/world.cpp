@@ -312,11 +312,8 @@ bool World::isChunkInFrustum(const glm::vec4 planes[6], const glm::vec3 &min,
   return true;
 }
 
-void World::render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay) {
-  // Sky must be drawn before world geometry (it uses GL_LEQUAL depth and writes
-  // no depth values, so any chunk fragment will correctly overwrite it).
-  renderer->drawSky(view, projection, timeOfDay);
-
+void World::render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay,
+                   int viewportWidth, int viewportHeight) {
   ReadLock lock(chunks_mutex);
 
   glm::mat4 viewProj = projection * view;
@@ -338,6 +335,15 @@ void World::render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay) {
       visibleChunks.emplace(key, chunk);
     }
   }
+
+  // Shadow pass: render depth from sun's perspective (uses all loaded chunks
+  // so that off-screen geometry can still cast shadows into view)
+  renderer->shadowPass(chunks, player->getPosition(), timeOfDay,
+                       viewportWidth, viewportHeight);
+
+  // Sky must be drawn before world geometry (it uses GL_LEQUAL depth and writes
+  // no depth values, so any chunk fragment will correctly overwrite it).
+  renderer->drawSky(view, projection, timeOfDay);
 
   renderer->drawChunks(visibleChunks, view, projection,
                        player->getPosition(), player->isUnderwater(), timeOfDay);

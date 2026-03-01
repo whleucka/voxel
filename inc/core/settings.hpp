@@ -33,6 +33,10 @@ struct Settings {
   float cloud_speed;       // drift speed multiplier
   float cloud_opacity;     // base opacity (0..1)
 
+  // Shadows
+  bool  shadows_enabled;
+  float shadow_distance;   // how far from camera the shadow map covers
+
   Settings()
       : world_seed(0), noise_offset(0.0f, 0.0f),
         show_debug(false),
@@ -41,7 +45,8 @@ struct Settings {
         mouse_sensitivity(0.05f),
         time_scale(72.0f), water_fog_density(0.04f),
         clouds_enabled(true), cloud_height(192.0f),
-        cloud_speed(1.0f), cloud_opacity(0.85f) {}
+        cloud_speed(1.0f), cloud_opacity(0.85f),
+        shadows_enabled(true), shadow_distance(120.0f) {}
 };
 
 inline Settings g_settings;

@@ -27,7 +27,8 @@ public:
 
   void init();
   void update(float delta_time);
-  void render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay);
+  void render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay,
+              int viewportWidth, int viewportHeight);
   void addChunk(int x, int z);
   std::shared_ptr<Chunk> getChunk(int x, int z);
   std::shared_ptr<const Chunk> getChunk(int x, int z) const;

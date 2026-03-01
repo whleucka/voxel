@@ -6,6 +6,7 @@ in vec2 vBaseUV;
 in vec2 vTileOffset;
 in vec2 vTileSpan;
 in vec3 vWorldPos;
+in vec4 vLightSpacePos;
 in float vAO;
 in float vSkyLight;
 
@@ -28,6 +29,43 @@ uniform float uFogEnd;
 uniform vec3  uWaterFogColor;   // time-of-day adjusted in renderer
 uniform float uWaterFogDensity;
 
+// Shadow mapping
+uniform sampler2DShadow uShadowMap;
+uniform bool uShadowsEnabled;
+
+// ── Shadow calculation with PCF ─────────────────────────────────────────
+float calcShadow() {
+    if (!uShadowsEnabled) return 1.0;
+
+    // Perspective divide (trivial for ortho, but correct for any projection)
+    vec3 projCoords = vLightSpacePos.xyz / vLightSpacePos.w;
+    // Transform from [-1,1] to [0,1] for texture lookup
+    projCoords = projCoords * 0.5 + 0.5;
+
+    // Fragments outside the shadow map are fully lit
+    if (projCoords.x < 0.0 || projCoords.x > 1.0 ||
+        projCoords.y < 0.0 || projCoords.y > 1.0 ||
+        projCoords.z > 1.0)
+        return 1.0;
+
+    // Bias: scale with surface angle to sun to reduce shadow acne
+    float bias = max(0.003 * (1.0 - dot(vNormal, uSunDir)), 0.001);
+    float currentDepth = projCoords.z - bias;
+
+    // 3x3 PCF (percentage-closer filtering) for soft shadow edges
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / vec2(textureSize(uShadowMap, 0));
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            vec3 sampleCoord = vec3(projCoords.xy + vec2(x, y) * texelSize, currentDepth);
+            shadow += texture(uShadowMap, sampleCoord);
+        }
+    }
+    shadow /= 9.0;
+
+    return shadow;
+}
+
 void main() {
     // ── Atlas sampling ────────────────────────────────────────────────────
     vec2 tileUV  = fract(vBaseUV);
@@ -44,7 +82,11 @@ void main() {
 
     // ── Directional (sun/moon) diffuse ────────────────────────────────────
     float diffuse = max(dot(vNormal, uSunDir), 0.0);
-    vec3  lighting = uAmbientColor + diffuse * uSunColor;
+
+    // Apply shadow: only the directional (sun) component is shadowed.
+    // Ambient light is unaffected — shadowed areas still receive ambient.
+    float shadow = calcShadow();
+    vec3  lighting = uAmbientColor + shadow * diffuse * uSunColor;
 
     // Sky-light attenuation: 0 = deep cave (5% brightness), 15 = full sky (100%)
     float skyLightFactor = mix(0.05, 1.0, vSkyLight);

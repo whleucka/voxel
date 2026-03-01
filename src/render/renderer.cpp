@@ -7,6 +7,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 Renderer::Renderer() : texture_manager(new TextureManager) {}
 
@@ -14,12 +15,15 @@ Renderer::~Renderer() {
   delete block_shader;
   delete sky_shader;
   delete cloud_shader;
+  delete shadow_shader;
   delete texture_manager;
   if (sky_vao) glDeleteVertexArrays(1, &sky_vao);
   if (sky_vbo) glDeleteBuffers(1, &sky_vbo);
   if (cloud_vao) glDeleteVertexArrays(1, &cloud_vao);
   if (cloud_vbo) glDeleteBuffers(1, &cloud_vbo);
   if (cloud_ebo) glDeleteBuffers(1, &cloud_ebo);
+  if (shadow_fbo) glDeleteFramebuffers(1, &shadow_fbo);
+  if (shadow_depth_tex) glDeleteTextures(1, &shadow_depth_tex);
 }
 
 void Renderer::init() {
@@ -29,9 +33,12 @@ void Renderer::init() {
       new Shader("assets/shaders/sky.vert", "assets/shaders/sky.frag");
   cloud_shader =
       new Shader("assets/shaders/cloud.vert", "assets/shaders/cloud.frag");
+  shadow_shader =
+      new Shader("assets/shaders/shadow_depth.vert", "assets/shaders/shadow_depth.frag");
   texture_manager->loadAtlas("res/block_atlas.png");
   initSkybox();
   initCloudBuffers();
+  initShadowMap();
 }
 
 void Renderer::initSkybox() {
@@ -67,6 +74,128 @@ void Renderer::initSkybox() {
   glEnableVertexAttribArray(0);
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
   glBindVertexArray(0);
+}
+
+// ─── Shadow map initialisation ──────────────────────────────────────────────
+
+void Renderer::initShadowMap() {
+  glGenFramebuffers(1, &shadow_fbo);
+  glGenTextures(1, &shadow_depth_tex);
+
+  glBindTexture(GL_TEXTURE_2D, shadow_depth_tex);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24,
+               kShadowMapSize, kShadowMapSize, 0,
+               GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+  // Areas outside the shadow map should be lit (border depth = 1.0)
+  float borderColor[] = {1.0f, 1.0f, 1.0f, 1.0f};
+  glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+  // Enable hardware shadow comparison (sampler2DShadow)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+
+  glBindFramebuffer(GL_FRAMEBUFFER, shadow_fbo);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                         GL_TEXTURE_2D, shadow_depth_tex, 0);
+  glDrawBuffer(GL_NONE);
+  glReadBuffer(GL_NONE);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+// ─── Light-space matrix computation ────────────────────────────────────────
+
+glm::mat4 Renderer::computeLightSpaceMatrix(const glm::vec3 &sunDir,
+                                             const glm::vec3 &cameraPos) const {
+  float halfSize = g_settings.shadow_distance;
+
+  // ── Build a stable light-view matrix ────────────────────────────────────
+  // sunDir points toward the sun.  Light rays travel in the opposite
+  // direction (-sunDir).  In OpenGL's right-handed view convention the
+  // camera looks along its -Z axis, so the view-space +Z must point
+  // toward the sun (i.e. lightZ = +sunDir).
+  glm::vec3 lightZ = sunDir;   // +Z = toward sun (behind the "camera")
+
+  glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+  if (std::abs(glm::dot(lightZ, worldUp)) > 0.99f) {
+    worldUp = glm::vec3(0.0f, 0.0f, 1.0f);
+  }
+
+  glm::vec3 lightX = glm::normalize(glm::cross(worldUp, lightZ));
+  glm::vec3 lightY = glm::cross(lightZ, lightX);
+
+  // Rotation-only view matrix (no translation — axes are fixed for a given
+  // sun direction regardless of where the camera is).
+  // Rows of a view matrix are the camera's basis vectors; for an
+  // orthonormal basis the inverse (world→view) is the transpose.
+  glm::mat4 lightView(1.0f);
+  lightView[0] = glm::vec4(lightX, 0.0f);
+  lightView[1] = glm::vec4(lightY, 0.0f);
+  lightView[2] = glm::vec4(lightZ, 0.0f);
+  lightView = glm::transpose(lightView);
+
+  // ── Centre the ortho frustum on the camera, snapped to texels ──────────
+  glm::vec3 camLS = glm::vec3(lightView * glm::vec4(cameraPos, 1.0f));
+
+  // Snap X/Y to shadow-map texel grid so the frustum moves in discrete steps
+  float texelSize = (2.0f * halfSize) / static_cast<float>(kShadowMapSize);
+  float snappedX = std::floor(camLS.x / texelSize) * texelSize;
+  float snappedY = std::floor(camLS.y / texelSize) * texelSize;
+
+  // Near/far along the light's -Z (the look direction = toward the scene).
+  // camLS.z is the camera's position along lightZ (toward the sun).
+  // Scene geometry is at smaller Z values (in front of the light camera),
+  // so near = -camLS.z - depth, far = -camLS.z + depth covers the range.
+  glm::mat4 lightProj = glm::ortho(
+      snappedX - halfSize, snappedX + halfSize,
+      snappedY - halfSize, snappedY + halfSize,
+      -camLS.z - 300.0f,   -camLS.z + 300.0f);
+
+  return lightProj * lightView;
+}
+
+// ─── Shadow depth pass ─────────────────────────────────────────────────────
+
+void Renderer::shadowPass(
+    const robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash> &chunks,
+    const glm::vec3 &cameraPos, float timeOfDay,
+    int viewportWidth, int viewportHeight)
+{
+  if (!g_settings.shadows_enabled) return;
+
+  // Compute sun direction (same formula as drawChunks)
+  float angle = (timeOfDay - 0.25f) * 2.0f * glm::pi<float>();
+  float sinA  = std::sin(angle);
+  float cosA  = std::cos(angle);
+  glm::vec3 sunDir = glm::normalize(glm::vec3(cosA * 0.6f, sinA, 0.3f));
+
+  // Don't render shadows when sun is below the horizon
+  if (sinA < -0.05f) return;
+
+  light_space_matrix = computeLightSpaceMatrix(sunDir, cameraPos);
+
+  // Bind shadow FBO and render depth
+  glViewport(0, 0, kShadowMapSize, kShadowMapSize);
+  glBindFramebuffer(GL_FRAMEBUFFER, shadow_fbo);
+  glClear(GL_DEPTH_BUFFER_BIT);
+
+  // Use front-face culling during shadow pass to reduce peter-panning
+  glCullFace(GL_FRONT);
+
+  shadow_shader->use();
+  shadow_shader->setMat4("uLightSpaceMatrix", light_space_matrix);
+
+  for (auto &[key, chunk] : chunks) {
+    if (!chunk) continue;
+    chunk->getMesh().renderOpaque();
+  }
+
+  // Restore state
+  glCullFace(GL_BACK);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glViewport(0, 0, viewportWidth, viewportHeight);
 }
 
 // ─── Draw sky ───────────────────────────────────────────────────────────────
@@ -379,6 +508,15 @@ void Renderer::drawChunks(
   block_shader->use();
   texture_manager->bind(GL_TEXTURE0);
   block_shader->setInt("uTexture", 0);
+
+  // Bind shadow map to texture unit 1
+  glActiveTexture(GL_TEXTURE1);
+  glBindTexture(GL_TEXTURE_2D, shadow_depth_tex);
+  block_shader->setInt("uShadowMap", 1);
+  block_shader->setMat4("uLightSpaceMatrix", light_space_matrix);
+  block_shader->setBool("uShadowsEnabled", g_settings.shadows_enabled);
+  glActiveTexture(GL_TEXTURE0);
+
   block_shader->setMat4("view", view);
   block_shader->setMat4("projection", projection);
   block_shader->setVec3("uCameraPos", cameraPos);

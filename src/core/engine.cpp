@@ -186,7 +186,7 @@ void Engine::render() {
       1000.0f                                         // far plane
   );
 
-  world.render(view, proj, game_clock.fractionOfDay());
+  world.render(view, proj, game_clock.fractionOfDay(), win_width, win_height);
 
   // ImGui frame must always be opened here so both renderCrosshair() and
   // debug() can safely submit widgets regardless of game state.
@@ -352,6 +352,15 @@ void Engine::debug() {
           if (ImGui::Button("Normal speed")) g_settings.time_scale = 72.0f;
           ImGui::SameLine();
           if (ImGui::Button("Fast (10x)"))   g_settings.time_scale = 720.0f;
+        }
+
+        // Shadows
+        if (ImGui::CollapsingHeader("Shadows", ImGuiTreeNodeFlags_DefaultOpen)) {
+          ImGui::Checkbox("Enabled##shadows", &g_settings.shadows_enabled);
+          ImGui::PushItemWidth(180);
+          ImGui::SliderFloat("Distance", &g_settings.shadow_distance,
+                             40.0f, 256.0f, "%.0f");
+          ImGui::PopItemWidth();
         }
 
         // Clouds
