@@ -64,6 +64,7 @@ private:
   // Physics state
   bool on_ground = false;
   bool underwater = false;
+  bool at_water_surface = false;
   glm::vec3 position{0.0f};
   glm::vec3 velocity{0.0f};
 
@@ -83,6 +84,7 @@ private:
   // Collision helpers
   bool isSolidAt(World* world, int bx, int by, int bz) const;
   bool collidesWithWorld(World* world, glm::vec3 pos) const;
+  bool tryAutoStep(World* world, glm::vec3& pos, float old_axis, int axis) const;
   float getPlayerHeight() const;
   float getPlayerEyeHeight() const;
 };

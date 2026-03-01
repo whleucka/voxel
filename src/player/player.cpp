@@ -53,6 +53,8 @@ BlockType Player::getHotbarBlock(int slot) const {
 // ─── Update ────────────────────────────────────────────────────────────
 
 void Player::update(float dt, World* world) {
+  checkWater(world);
+
   if (!fly_mode) {
     applyGravity(dt);
 
@@ -65,8 +67,11 @@ void Player::update(float dt, World* world) {
     // X axis
     position.x += velocity.x * dt;
     if (collidesWithWorld(world, position)) {
-      position.x = old_pos.x;
-      velocity.x = 0.0f;
+      bool can_step = on_ground || at_water_surface;
+      if (!can_step || !tryAutoStep(world, position, old_pos.x, 0)) {
+        position.x = old_pos.x;
+        velocity.x = 0.0f;
+      }
     }
 
     // Y axis
@@ -85,8 +90,11 @@ void Player::update(float dt, World* world) {
     // Z axis
     position.z += velocity.z * dt;
     if (collidesWithWorld(world, position)) {
-      position.z = old_pos.z;
-      velocity.z = 0.0f;
+      bool can_step = on_ground || at_water_surface;
+      if (!can_step || !tryAutoStep(world, position, old_pos.z, 2)) {
+        position.z = old_pos.z;
+        velocity.z = 0.0f;
+      }
     }
 
     // Apply horizontal friction (stop quickly when keys released)
@@ -99,7 +107,6 @@ void Player::update(float dt, World* world) {
     if (std::abs(velocity.z) < 0.01f) velocity.z = 0.0f;
   }
 
-  checkWater(world);
   camera.position = getEyePosition();
 }
 
@@ -112,6 +119,9 @@ void Player::applyGravity(float dt) {
     gravity *= kWaterGravityMultiplier;
     // Apply water drag to vertical velocity
     velocity.y *= (1.0f - kWaterDrag * dt * 3.0f);
+  } else if (at_water_surface) {
+    // Smooth transition: reduced gravity at water surface to help exit
+    gravity *= 0.4f;
   }
 
   velocity.y += gravity * dt;
@@ -186,6 +196,9 @@ void Player::processKeyboard(float dt, const PlayerInput& input) {
     if (underwater) {
       // In water: swim upward
       velocity.y = kPlayerWaterJumpStrength;
+    } else if (at_water_surface) {
+      // At water surface (feet in water, head above): boost out
+      velocity.y = kPlayerJumpStrength;
     } else if (on_ground) {
       // On ground: normal jump
       velocity.y = kPlayerJumpStrength;
@@ -203,11 +216,40 @@ void Player::processMouseMovement(float xoffset, float yoffset, bool constrainPi
 void Player::checkWater(World* world) {
   if (!world) {
     underwater = false;
+    at_water_surface = false;
     return;
   }
   // Check at eye level for underwater visual effect
-  BlockType block = world->getBlockAt(getEyePosition());
-  underwater = isLiquid(block);
+  BlockType eyeBlock = world->getBlockAt(getEyePosition());
+  underwater = isLiquid(eyeBlock);
+
+  // Check at feet level for water surface detection (feet in water, head above)
+  BlockType feetBlock = world->getBlockAt(position + glm::vec3(0.0f, 0.3f, 0.0f));
+  at_water_surface = !underwater && isLiquid(feetBlock);
+}
+
+// ─── Auto-Step ─────────────────────────────────────────────────────────
+
+bool Player::tryAutoStep(World* world, glm::vec3& pos, float /*old_axis*/, int /*axis*/) const {
+  // Try stepping up by increments up to kPlayerStepHeight.
+  // If the player can fit at the stepped-up position, accept it.
+  glm::vec3 stepped = pos;
+  stepped.y += kPlayerStepHeight;
+
+  // Check that the stepped-up position is clear
+  if (!collidesWithWorld(world, stepped)) {
+    // Find the actual ground level by stepping back down
+    for (float dy = kPlayerStepHeight; dy >= 0.0f; dy -= 0.05f) {
+      glm::vec3 test = pos;
+      test.y += dy;
+      if (!collidesWithWorld(world, test)) {
+        pos.y += dy;
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 // ─── Collision Detection ───────────────────────────────────────────────
