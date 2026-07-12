@@ -355,6 +355,11 @@ void Engine::debug() {
             ImGui::Text("Normal (%d, %d, %d)",
                         ray.normal.x, ray.normal.y, ray.normal.z);
             ImGui::Text("Dist   %.2f", ray.distance);
+            // Light at the empty cell in front of the hit face (where a torch
+            // would sit) — handy for verifying block-light propagation.
+            glm::ivec3 lit = ray.block_pos + ray.normal;
+            ImGui::Text("Sky %2u   Block %2u",
+                        world.getSkyLightAt(lit), world.getBlockLightAt(lit));
           } else {
             ImGui::TextDisabled("Not looking at a block");
           }

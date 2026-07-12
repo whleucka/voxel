@@ -2,7 +2,7 @@
 
 // Packed vertex attributes
 layout(location=0) in vec3 aPosPacked;  // int16 * 2, decoded as short
-layout(location=1) in int aFaceId;      // 0-5: Top, Bottom, Left, Right, Front, Back
+layout(location=1) in int aFaceId;      // bits[2:0]=face 0-5, bits[6:3]=block light 0-15
 layout(location=2) in ivec2 aTileXY;    // Atlas tile coordinates
 layout(location=3) in ivec2 aUV;        // Base UV (0-255)
 layout(location=4) in ivec2 aChunkOffset; // Chunk world offset (X, Z)
@@ -35,6 +35,7 @@ out vec3 vWorldPos;
 out vec4 vLightSpacePos;
 out float vAO;
 out float vSkyLight;
+out float vBlockLight;
 
 void main() {
     // Decode local position (was multiplied by 2 to preserve 0.5 precision)
@@ -51,8 +52,12 @@ void main() {
     // Light-space position for shadow mapping
     vLightSpacePos = uLightSpaceMatrix * vec4(worldPos, 1.0);
 
+    // faceId byte packs the face (bits[2:0]) and block light (bits[6:3])
+    int faceId = aFaceId & 7;
+    vBlockLight = float((aFaceId >> 3) & 15) / 15.0;
+
     // Lookup normal from face ID
-    vNormal = NORMALS[aFaceId];
+    vNormal = NORMALS[faceId];
 
     // Pass base UV as float (for texture repeating)
     vBaseUV = vec2(aUV);

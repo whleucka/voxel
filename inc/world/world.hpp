@@ -8,6 +8,7 @@
 #include "util/lock.hpp"
 #include "util/thread_pool.hpp"
 #include "world/world_save.hpp"
+#include <atomic>
 #include <glm/glm.hpp>
 #include <memory>
 #include <mutex>
@@ -48,12 +49,21 @@ public:
   bool isSolidBlock(int bx, int by, int bz) const;
   void setBlockAt(const glm::ivec3& worldPos, BlockType type);
 
+  // Light levels (0-15) at a world block position — used by the debug panel.
+  uint8_t getSkyLightAt(const glm::ivec3& worldPos) const;
+  uint8_t getBlockLightAt(const glm::ivec3& worldPos) const;
+
   // DDA raycast: find the first solid block along a ray
   RaycastResult raycast(const glm::vec3& origin, const glm::vec3& direction,
                         float max_distance) const;
 
 private:
   void rebuildChunk(int cx, int cz);
+  // Cross-chunk block-light: recompute a 5x5 chunk box around (ccx,ccz) into a
+  // temp buffer and persist the inner 3x3, so torch light bleeds across borders.
+  void relightBlockRegion(int ccx, int ccz);
+  // True if any loaded chunk within `radius` chunks of (ccx,ccz) has an emitter.
+  bool anyEmitterInRegion(int ccx, int ccz, int radius) const;
   void preloadChunks();
   bool isChunkInFrustum(const glm::vec4 planes[6], const glm::vec3 &min, const glm::vec3 &max);
   std::vector<glm::ivec2> generateSpiralOrder(int radius);
@@ -85,4 +95,10 @@ private:
 
   bool has_loaded_player = false;
   WorldSave::PlayerData loaded_player;
+
+  // Cross-chunk relight requests queued from generation, drained on the main
+  // thread in update(). Gated by emitters_exist so torch-free worlds pay nothing.
+  std::atomic<bool> emitters_exist{false};
+  std::mutex relight_mutex;
+  std::vector<glm::ivec2> relight_requests;
 };

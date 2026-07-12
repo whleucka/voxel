@@ -28,4 +28,5 @@ enum class BlockType : uint8_t {
   EMERALD_ORE,
   RUBY_ORE,
   COPPER_ORE,
+  GLOWSTONE,   // emits block light (see blockLightEmission)
 };

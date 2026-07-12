@@ -9,6 +9,10 @@ in vec3 vWorldPos;
 in vec4 vLightSpacePos;
 in float vAO;
 in float vSkyLight;
+in float vBlockLight;
+
+// Warm colour cast of block light sources (torches, glowstone, lava).
+const vec3 BLOCK_LIGHT_COLOR = vec3(1.0, 0.80, 0.52);
 
 uniform sampler2D uTexture;
 uniform float uAlpha;
@@ -99,10 +103,20 @@ void main() {
     float shadow = calcShadow();
     vec3  lighting = uAmbientColor + shadow * diffuse * uSunColor;
 
-    // Sky-light attenuation: 0 = deep cave (5% brightness), 15 = full sky (100%)
+    // Sky light: day/night colour (uAmbient + sun) × spatial sky visibility.
+    // 0 = deep cave (5% brightness), 15 = full sky (100%).
     float skyLightFactor = mix(0.05, 1.0, vSkyLight);
+    vec3  skyLit = lighting * skyLightFactor;
 
-    vec3 finalColor = texColor.rgb * lighting * faceShade * vAO * skyLightFactor;
+    // Block light: warm, unshadowed, and independent of time of day, so torches
+    // glow at night and in caves. Smoothstep curve gives a natural falloff.
+    float bl = vBlockLight * vBlockLight * (3.0 - 2.0 * vBlockLight);
+    vec3  blockLit = BLOCK_LIGHT_COLOR * bl;
+
+    // Take the brighter of the two per channel (avoids double-counting).
+    vec3 lightLevel = max(skyLit, blockLit);
+
+    vec3 finalColor = texColor.rgb * lightLevel * faceShade * vAO;
 
     // ── Fog ───────────────────────────────────────────────────────────────
     float dist = length(vWorldPos - uCameraPos);

@@ -37,6 +37,15 @@ inline uint8_t skyLightOpacity(BlockType type) {
   }
 }
 
+// Light a block emits on its own, 0 (none) .. 15 (max, like glowstone).
+// Emissive blocks seed the block-light BFS in Chunk::computeBlockLight().
+inline uint8_t blockLightEmission(BlockType type) {
+  switch (type) {
+    case BlockType::GLOWSTONE: return 15;
+    default:                   return 0;
+  }
+}
+
 inline std::string_view blockName(BlockType type) {
   switch (type) {
     case BlockType::AIR:          return "Air";
@@ -64,6 +73,7 @@ inline std::string_view blockName(BlockType type) {
     case BlockType::EMERALD_ORE:  return "Emerald Ore";
     case BlockType::RUBY_ORE:     return "Ruby Ore";
     case BlockType::COPPER_ORE:   return "Copper Ore";
+    case BlockType::GLOWSTONE:    return "Glowstone";
     default:                      return "Unknown";
   }
 }
@@ -93,4 +103,7 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = {
     {BlockType::EMERALD_ORE, {glm::ivec2{9, 1}, glm::ivec2{9, 1}, glm::ivec2{9, 1}}},
     {BlockType::RUBY_ORE, {glm::ivec2{10, 1}, glm::ivec2{10, 1}, glm::ivec2{10, 1}}},
     {BlockType::COPPER_ORE, {glm::ivec2{11, 1}, glm::ivec2{11, 1}, glm::ivec2{11, 1}}},
+    // Placeholder art: reuses the snow tile (a bright, lamp-like block) until a
+    // dedicated glowstone texture is drawn.
+    {BlockType::GLOWSTONE, {glm::ivec2{8, 0}, glm::ivec2{8, 0}, glm::ivec2{8, 0}}},
 };

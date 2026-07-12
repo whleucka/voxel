@@ -18,7 +18,7 @@ Player::Player(glm::vec3 start_pos)
   hotbar_blocks[5] = BlockType::OAK_LEAF;
   hotbar_blocks[6] = BlockType::SAND;
   hotbar_blocks[7] = BlockType::SNOW;
-  hotbar_blocks[8] = BlockType::DIAMOND_ORE;
+  hotbar_blocks[8] = BlockType::GLOWSTONE; // emits block light (test slot 9)
 }
 
 glm::vec3 Player::getEyePosition() const {

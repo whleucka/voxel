@@ -42,6 +42,19 @@ public:
   uint8_t getSkyLight(int x, int y, int z) const;
   uint8_t safeSkyLight(int x, int y, int z) const;
 
+  void computeBlockLight();
+  uint8_t getBlockLight(int x, int y, int z) const;
+  uint8_t safeBlockLight(int x, int y, int z) const;
+
+  // Emitter bookkeeping (for the cross-chunk relight fast-path gate).
+  bool hasEmitters() const { return emitter_count > 0; }
+  int  emitterCount() const { return emitter_count; }
+  void adjustEmitterCount(int delta) { emitter_count += delta; }
+
+  // Directly overwrite a block-light value by linear index (used when the
+  // World writes cross-chunk light results back into this chunk).
+  void setBlockLightLinear(uint32_t index, uint8_t value);
+
   ChunkMesh &getMesh() { return mesh; }
   glm::mat4 getModelMatrix() const;
   glm::ivec2 getPos() const { return pos; }
@@ -52,5 +65,7 @@ private:
   glm::ivec2 pos;
   std::vector<BlockType> blocks;
   std::vector<uint8_t>   skylight;
+  std::vector<uint8_t>   blocklight;
+  int emitter_count = 0; // number of light-emitting blocks in this chunk
   ChunkMesh mesh;
 };

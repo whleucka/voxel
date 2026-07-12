@@ -8,7 +8,8 @@
 Chunk::Chunk(int x, int z)
     : pos({x, z}),
       blocks(kChunkWidth * kChunkHeight * kChunkDepth, BlockType::AIR),
-      skylight(kChunkWidth * kChunkHeight * kChunkDepth, 0) {}
+      skylight(kChunkWidth * kChunkHeight * kChunkDepth, 0),
+      blocklight(kChunkWidth * kChunkHeight * kChunkDepth, 0) {}
 
 
 
@@ -20,6 +21,7 @@ void Chunk::init() {
   biome->fillWater(*this);
   biome->spawnDecorations(*this);
   computeSkyLight();
+  computeBlockLight();
 }
 
 void Chunk::buildMeshData(World* world, TextureManager& texture_manager) {
@@ -42,6 +44,11 @@ const BlockType &Chunk::at(int x, int y, int z) const {
 void Chunk::setBlockLinear(uint32_t index, BlockType type) {
   if (index < blocks.size())
     blocks[index] = type;
+}
+
+void Chunk::setBlockLightLinear(uint32_t index, uint8_t value) {
+  if (index < blocklight.size())
+    blocklight[index] = value;
 }
 
 BlockType Chunk::safeAt(int x, int y, int z) const {
@@ -124,6 +131,70 @@ void Chunk::computeSkyLight() {
       int idx = nx + kChunkWidth * (nz + kChunkDepth * ny);
       if (newLight > skylight[idx]) {
         skylight[idx] = newLight;
+        queue.push({nx, ny, nz});
+      }
+    }
+  }
+}
+
+uint8_t Chunk::getBlockLight(int x, int y, int z) const {
+  return blocklight[x + kChunkWidth * (z + kChunkDepth * y)];
+}
+
+uint8_t Chunk::safeBlockLight(int x, int y, int z) const {
+  if (x < 0 || x >= kChunkWidth || y < 0 || y >= kChunkHeight ||
+      z < 0 || z >= kChunkDepth)
+    return 0;
+  return getBlockLight(x, y, z);
+}
+
+void Chunk::computeBlockLight() {
+  std::fill(blocklight.begin(), blocklight.end(), 0);
+
+  using Queue = std::queue<std::tuple<int, int, int>>;
+  Queue queue;
+
+  // Seed the BFS with every emissive block at its emission level. This is the
+  // intra-chunk pass; the World runs a cross-chunk relight over the surrounding
+  // chunks when emitters are present (see World::relightBlockRegion).
+  emitter_count = 0;
+  for (int y = 0; y < kChunkHeight; ++y)
+    for (int z = 0; z < kChunkDepth; ++z)
+      for (int x = 0; x < kChunkWidth; ++x) {
+        uint8_t emit = blockLightEmission(at(x, y, z));
+        if (emit > 0) {
+          ++emitter_count;
+          blocklight[x + kChunkWidth * (z + kChunkDepth * y)] = emit;
+          queue.push({x, y, z});
+        }
+      }
+
+  static constexpr int DX[6] = {-1, 1, 0, 0, 0, 0};
+  static constexpr int DY[6] = {0, 0, -1, 1, 0, 0};
+  static constexpr int DZ[6] = {0, 0, 0, 0, -1, 1};
+
+  while (!queue.empty()) {
+    auto [x, y, z] = queue.front();
+    queue.pop();
+    uint8_t light = blocklight[x + kChunkWidth * (z + kChunkDepth * y)];
+    if (light <= 1) continue;
+
+    for (int d = 0; d < 6; ++d) {
+      int nx = x + DX[d], ny = y + DY[d], nz = z + DZ[d];
+      if (nx < 0 || nx >= kChunkWidth || ny < 0 || ny >= kChunkHeight ||
+          nz < 0 || nz >= kChunkDepth) continue;
+
+      // Opaque blocks stop light; semi-transparent ones cost extra.
+      uint8_t opacity = skyLightOpacity(at(nx, ny, nz));
+      if (opacity >= 15) continue;
+
+      uint8_t cost = 1 + opacity;
+      uint8_t newLight = (light > cost) ? static_cast<uint8_t>(light - cost) : 0;
+      if (newLight == 0) continue;
+
+      int idx = nx + kChunkWidth * (nz + kChunkDepth * ny);
+      if (newLight > blocklight[idx]) {
+        blocklight[idx] = newLight;
         queue.push({nx, ny, nz});
       }
     }

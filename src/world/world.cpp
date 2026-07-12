@@ -185,6 +185,7 @@ void World::addChunk(int x, int z) {
       for (const auto &[idx, block] : ce)
         chunk->setBlockLinear(idx, static_cast<BlockType>(block));
       chunk->computeSkyLight();
+      chunk->computeBlockLight();
     }
 
     // Once generation is done, queue for meshing
@@ -201,12 +202,41 @@ void World::addChunk(int x, int z) {
       WriteLock lock(chunks_mutex);
       chunks.emplace(key, chunk);
     }
+
+    // If this chunk carries emitters (replayed torches), record that so the
+    // relight machinery activates.
+    if (chunk->hasEmitters())
+      emitters_exist.store(true, std::memory_order_relaxed);
+
+    // If torches sit near this freshly streamed-in chunk, queue a cross-chunk
+    // relight (handled on the main thread) so light bleeds across the new border.
+    if (anyEmitterInRegion(key.x, key.z, 2)) {
+      std::lock_guard lk(relight_mutex);
+      relight_requests.push_back({key.x, key.z});
+    }
   });
 }
 
 void World::update(float dt) {
   player->update(dt, this);
   cloud_time += dt;
+
+  // Drain cross-chunk relight requests queued as chunks stream in near torches.
+  if (emitters_exist.load(std::memory_order_relaxed)) {
+    std::vector<glm::ivec2> reqs;
+    {
+      std::lock_guard lk(relight_mutex);
+      reqs.swap(relight_requests);
+    }
+    if (!reqs.empty()) {
+      std::sort(reqs.begin(), reqs.end(),
+                [](auto &a, auto &b) { return a.x != b.x ? a.x < b.x : a.y < b.y; });
+      reqs.erase(std::unique(reqs.begin(), reqs.end(),
+                             [](auto &a, auto &b) { return a.x == b.x && a.y == b.y; }),
+                 reqs.end());
+      for (const auto &r : reqs) relightBlockRegion(r.x, r.y);
+    }
+  }
 
   glm::vec3 pos = player->getPosition();
   int current_chunk_x = static_cast<int>(floor(pos.x / kChunkWidth));
@@ -306,6 +336,106 @@ void World::rebuildChunk(int cx, int cz) {
   });
 }
 
+bool World::anyEmitterInRegion(int ccx, int ccz, int radius) const {
+  if (!emitters_exist.load(std::memory_order_relaxed)) return false;
+  for (int cx = ccx - radius; cx <= ccx + radius; ++cx)
+    for (int cz = ccz - radius; cz <= ccz + radius; ++cz) {
+      auto c = getChunk(cx, cz);
+      if (c && c->hasEmitters()) return true;
+    }
+  return false;
+}
+
+// Recompute block light over a 5x5 chunk box (so torches up to 2 chunks away
+// are accounted for) into a temp buffer, then persist the inner 3x3 and remesh
+// it. Clearing + reflooding makes both placement and removal correct, and light
+// crosses chunk borders. Runs on the main thread.
+void World::relightBlockRegion(int ccx, int ccz) {
+  constexpr int KEEP = 1;    // chunks we write back
+  constexpr int COMPUTE = 2; // chunks we flood
+  constexpr int SPAN = 2 * COMPUTE + 1;
+  const int W = SPAN * kChunkWidth;
+  const int D = SPAN * kChunkDepth;
+  const int H = kChunkHeight;
+
+  // Snapshot the box's chunks once (nulls = unloaded → treated as opaque).
+  std::shared_ptr<Chunk> grid[SPAN][SPAN];
+  for (int i = 0; i < SPAN; ++i)
+    for (int j = 0; j < SPAN; ++j)
+      grid[i][j] = getChunk(ccx - COMPUTE + i, ccz - COMPUTE + j);
+
+  auto lidx = [&](int bx, int y, int bz) {
+    return static_cast<size_t>(bx) +
+           W * (static_cast<size_t>(bz) + static_cast<size_t>(D) * y);
+  };
+  std::vector<uint8_t> light(static_cast<size_t>(W) * D * H, 0);
+
+  // Opacity of a box-local voxel (box coords are always >= 0).
+  auto opacityAt = [&](int bx, int y, int bz) -> uint8_t {
+    if (y < 0 || y >= H) return 15;
+    const auto &c = grid[bx / kChunkWidth][bz / kChunkDepth];
+    if (!c) return 15;
+    return skyLightOpacity(c->at(bx % kChunkWidth, y, bz % kChunkDepth));
+  };
+
+  // Seed from every emitter in the box.
+  std::queue<std::tuple<int, int, int>> q;
+  for (int i = 0; i < SPAN; ++i)
+    for (int j = 0; j < SPAN; ++j) {
+      const auto &c = grid[i][j];
+      if (!c || !c->hasEmitters()) continue;
+      for (int y = 0; y < H; ++y)
+        for (int lz = 0; lz < kChunkDepth; ++lz)
+          for (int lx = 0; lx < kChunkWidth; ++lx) {
+            uint8_t emit = blockLightEmission(c->at(lx, y, lz));
+            if (!emit) continue;
+            int bx = i * kChunkWidth + lx;
+            int bz = j * kChunkDepth + lz;
+            size_t k = lidx(bx, y, bz);
+            if (emit > light[k]) { light[k] = emit; q.push({bx, y, bz}); }
+          }
+    }
+
+  // Flood fill within the box.
+  static constexpr int DX[6] = {-1, 1, 0, 0, 0, 0};
+  static constexpr int DY[6] = {0, 0, -1, 1, 0, 0};
+  static constexpr int DZ[6] = {0, 0, 0, 0, -1, 1};
+  while (!q.empty()) {
+    auto [bx, by, bz] = q.front();
+    q.pop();
+    uint8_t l = light[lidx(bx, by, bz)];
+    if (l <= 1) continue;
+    for (int d = 0; d < 6; ++d) {
+      int nx = bx + DX[d], ny = by + DY[d], nz = bz + DZ[d];
+      if (nx < 0 || nx >= W || ny < 0 || ny >= H || nz < 0 || nz >= D) continue;
+      uint8_t op = opacityAt(nx, ny, nz);
+      if (op >= 15) continue;
+      uint8_t cost = 1 + op;
+      uint8_t nl = (l > cost) ? static_cast<uint8_t>(l - cost) : 0;
+      if (nl == 0) continue;
+      size_t k = lidx(nx, ny, nz);
+      if (nl > light[k]) { light[k] = nl; q.push({nx, ny, nz}); }
+    }
+  }
+
+  // Persist the inner KEEP region back into the chunks, then remesh them.
+  for (int i = COMPUTE - KEEP; i <= COMPUTE + KEEP; ++i)
+    for (int j = COMPUTE - KEEP; j <= COMPUTE + KEEP; ++j) {
+      const auto &c = grid[i][j];
+      if (!c) continue;
+      {
+        std::lock_guard lock(c->data_mutex);
+        for (int y = 0; y < H; ++y)
+          for (int lz = 0; lz < kChunkDepth; ++lz)
+            for (int lx = 0; lx < kChunkWidth; ++lx)
+              c->setBlockLightLinear(
+                  lx + kChunkWidth * (lz + kChunkDepth * y),
+                  light[lidx(i * kChunkWidth + lx, y, j * kChunkDepth + lz)]);
+      }
+      rebuildChunk(ccx - COMPUTE + i, ccz - COMPUTE + j);
+    }
+}
+
 void World::setBlockAt(const glm::ivec3& worldPos, BlockType type) {
   int bx = worldPos.x, by = worldPos.y, bz = worldPos.z;
   if (by < 0 || by >= kChunkHeight) return;
@@ -319,11 +449,18 @@ void World::setBlockAt(const glm::ivec3& worldPos, BlockType type) {
   int lx = bx - cx * kChunkWidth;
   int lz = bz - cz * kChunkDepth;
 
+  BlockType oldType;
   {
     std::lock_guard lock(chunk->data_mutex);
+    oldType = chunk->at(lx, by, lz);
     chunk->at(lx, by, lz) = type;
     chunk->computeSkyLight(); // re-propagate sky light after block change
+    // Keep the emitter count in sync for this single-block change.
+    chunk->adjustEmitterCount((blockLightEmission(type) > 0 ? 1 : 0) -
+                              (blockLightEmission(oldType) > 0 ? 1 : 0));
   }
+  if (blockLightEmission(type) > 0)
+    emitters_exist.store(true, std::memory_order_relaxed);
 
   // Record the delta so it survives save/load (breaking a block records AIR).
   {
@@ -332,14 +469,24 @@ void World::setBlockAt(const glm::ivec3& worldPos, BlockType type) {
     edits[{cx, cz}][idx] = static_cast<uint8_t>(type);
   }
 
-  // Always rebuild the modified chunk
-  rebuildChunk(cx, cz);
-
-  // Rebuild neighbor chunks if the block sits on a chunk edge
-  if (lx == 0)              rebuildChunk(cx - 1, cz);
-  if (lx == kChunkWidth-1)  rebuildChunk(cx + 1, cz);
-  if (lz == 0)              rebuildChunk(cx, cz - 1);
-  if (lz == kChunkDepth-1)  rebuildChunk(cx, cz + 1);
+  // Block light: if a torch is involved or nearby, run the cross-chunk relight
+  // (recomputes + remeshes the 3x3 around the edit). Otherwise take the cheap
+  // intra-chunk path and rebuild the edited chunk (+ edge neighbors).
+  bool emitterInvolved =
+      blockLightEmission(type) > 0 || blockLightEmission(oldType) > 0;
+  if (emitterInvolved || anyEmitterInRegion(cx, cz, 2)) {
+    relightBlockRegion(cx, cz);
+  } else {
+    {
+      std::lock_guard lock(chunk->data_mutex);
+      chunk->computeBlockLight();
+    }
+    rebuildChunk(cx, cz);
+    if (lx == 0)              rebuildChunk(cx - 1, cz);
+    if (lx == kChunkWidth-1)  rebuildChunk(cx + 1, cz);
+    if (lz == 0)              rebuildChunk(cx, cz - 1);
+    if (lz == kChunkDepth-1)  rebuildChunk(cx, cz + 1);
+  }
 }
 
 bool World::isChunkInFrustum(const glm::vec4 planes[6], const glm::vec3 &min,
@@ -445,6 +592,24 @@ bool World::isSolidBlock(int bx, int by, int bz) const {
   if (by < 0 || by >= kChunkHeight) return false;
   BlockType block = getBlockAt(glm::vec3(bx + 0.5f, by + 0.5f, bz + 0.5f));
   return block != BlockType::AIR && !isLiquid(block);
+}
+
+uint8_t World::getSkyLightAt(const glm::ivec3 &p) const {
+  if (p.y < 0 || p.y >= kChunkHeight) return 15;
+  int cx = static_cast<int>(std::floor(static_cast<float>(p.x) / kChunkWidth));
+  int cz = static_cast<int>(std::floor(static_cast<float>(p.z) / kChunkDepth));
+  auto chunk = getChunk(cx, cz);
+  if (!chunk) return 0;
+  return chunk->safeSkyLight(p.x - cx * kChunkWidth, p.y, p.z - cz * kChunkDepth);
+}
+
+uint8_t World::getBlockLightAt(const glm::ivec3 &p) const {
+  if (p.y < 0 || p.y >= kChunkHeight) return 0;
+  int cx = static_cast<int>(std::floor(static_cast<float>(p.x) / kChunkWidth));
+  int cz = static_cast<int>(std::floor(static_cast<float>(p.z) / kChunkDepth));
+  auto chunk = getChunk(cx, cz);
+  if (!chunk) return 0;
+  return chunk->safeBlockLight(p.x - cx * kChunkWidth, p.y, p.z - cz * kChunkDepth);
 }
 
 // ─── DDA Raycast ───────────────────────────────────────────────────────
