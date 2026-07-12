@@ -10,6 +10,9 @@ in vec4 vLightSpacePos;
 in float vAO;
 in float vSkyLight;
 in float vBlockLight;
+// Per-block alpha cutoff, looked up from the block's cutout class in block.vert.
+// 0.0 for everything that is not a leaf.
+flat in float vCutoutThreshold;
 
 // Warm colour cast of block light sources (torches, glowstone, lava).
 const vec3 BLOCK_LIGHT_COLOR = vec3(1.0, 0.80, 0.52);
@@ -86,6 +89,13 @@ void main() {
     vec2 tileUV  = fract(vBaseUV);
     vec2 atlasUV = vTileOffset + tileUV * vTileSpan;
     vec4 texColor = texture(uTexture, atlasUV);
+
+    // ── Alpha cutout ──────────────────────────────────────────────────────
+    // Turns the soft edges of the leaf art into see-through holes.  Only leaves
+    // carry a non-zero threshold: the test cannot be global, because the water
+    // tile is a uniform alpha 0.6 and any cut that opens up the leaves would
+    // erase every water surface in the world.
+    if (texColor.a < vCutoutThreshold) discard;
 
     // ── Face-based ambient occlusion (Minecraft-style depth cue) ─────────
     // Gives constant geometric depth even when the sun is on the horizon.

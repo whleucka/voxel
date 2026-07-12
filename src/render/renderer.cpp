@@ -242,6 +242,12 @@ void Renderer::shadowPass(
   shadow_shader->use();
   shadow_shader->setMat4("uLightSpaceMatrix", light_space_matrix);
 
+  // The depth pass samples the atlas so alpha-cutout blocks (leaves) drop their
+  // see-through texels instead of casting shadow from them.
+  glActiveTexture(GL_TEXTURE0);
+  texture_manager->bind(GL_TEXTURE0);
+  shadow_shader->setInt("uTexture", 0);
+
   // Cull shadow casters to the light frustum. The ortho box only covers a
   // shadow_distance-sized region around the camera, so the vast majority of
   // loaded chunks fall outside it and would otherwise be clipped after a

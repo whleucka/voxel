@@ -7,5 +7,6 @@ enum class BiomeType: uint8_t {
   MOUNTAIN,
   DESERT,
   OCEAN,
-  TROPICAL
+  TROPICAL,
+  CHERRY
 };

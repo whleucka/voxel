@@ -29,4 +29,8 @@ enum class BlockType : uint8_t {
   RUBY_ORE,
   COPPER_ORE,
   GLOWSTONE,   // emits block light (see blockLightEmission)
+  // Append new types at the end: the numeric value is persisted in world save
+  // edit deltas, so reordering would remap blocks in existing saves.
+  CHERRY_LOG,
+  CHERRY_LEAF,
 };

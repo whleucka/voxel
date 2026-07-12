@@ -36,6 +36,13 @@ out vec4 vLightSpacePos;
 out float vAO;
 out float vSkyLight;
 out float vBlockLight;
+flat out float vCutoutThreshold;
+
+// Alpha below which a cutout tile's texel becomes a hole, indexed by the 2-bit
+// cutout class in ao bits[7:6].  Order must match CutoutClass in block_data.hpp.
+// Each leaf tile was drawn with a different alpha range, so they cannot share a
+// threshold; 0.0 means "no alpha test" and is what every non-leaf block gets.
+const float CUTOUT_THRESHOLD[4] = float[4](0.0, 0.67, 0.80, 0.92);
 
 void main() {
     // Decode local position (was multiplied by 2 to preserve 0.5 precision)
@@ -68,9 +75,11 @@ void main() {
     // Tile span with padding removed from both sides
     vTileSpan = vec2(TILE_STEP - 2.0 * PADDING);
 
-    // Unpack ao byte: bits[1:0] = AO level (0-3), bits[5:2] = sky light (0-15)
+    // Unpack ao byte: bits[1:0] = AO level (0-3), bits[5:2] = sky light (0-15),
+    // bits[7:6] = cutout class (0-3)
     int aoLevel  = aAO & 3;
     int skyLevel = (aAO >> 2) & 15;
+    vCutoutThreshold = CUTOUT_THRESHOLD[(aAO >> 6) & 3];
 
     const float AO_CURVE[4] = float[4](0.20, 0.50, 0.75, 1.00);
     vAO = AO_CURVE[clamp(aoLevel, 0, 3)];

@@ -16,7 +16,7 @@ struct BlockVertex {
   uint8_t tileY;       // 1 byte  - atlas tile Y coordinate
   uint8_t uvX;         // 1 byte  - baseUV.x (0-255)
   uint8_t uvY;         // 1 byte  - baseUV.y (0-255)
-  uint8_t ao;          // 1 byte  - packed: bits[1:0]=AO level (0-3), bits[5:2]=sky light (0-15)
+  uint8_t ao;          // 1 byte  - packed: bits[1:0]=AO level (0-3), bits[5:2]=sky light (0-15), bits[7:6]=cutout class (0-3)
   int16_t chunkX;      // 2 bytes - chunk world offset X (chunk_x * CHUNK_WIDTH)
   int16_t chunkZ;      // 2 bytes - chunk world offset Z (chunk_z * CHUNK_DEPTH)
 };

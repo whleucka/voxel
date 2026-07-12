@@ -24,6 +24,41 @@ inline bool isLiquid(BlockType type) {
   return type == BlockType::WATER;
 }
 
+// Cutout blocks discard the faint texels of their tile instead of drawing them,
+// which turns the soft edges of the leaf art into see-through holes.  They stay
+// in the opaque pass (depth writes on, no sorting needed) but must not cull the
+// faces behind them, since you can see straight through the holes.
+//
+// The threshold cannot be shared: the four leaf tiles were drawn with very
+// different alpha ranges, so one value would leave pine solid (its alpha floor
+// is 159) while dissolving oak.  These classes each open up ~25% of their tile.
+// The cut is never global — the water tile is a uniform alpha 153, so any
+// threshold that opens the leaves would erase every water surface in the world.
+//
+// Encoded as a 2-bit class in BlockVertex::ao bits[7:6].  The matching alpha
+// values live in the CUTOUT_THRESHOLD table in block.vert / shadow_depth.vert
+// and must stay in the same order.
+enum CutoutClass : uint8_t {
+  kCutoutNone = 0,  // no alpha test
+  kCutoutLow  = 1,  // 0.67 — oak
+  kCutoutMid  = 2,  // 0.80 — palm, cherry
+  kCutoutHigh = 3,  // 0.92 — pine
+};
+
+inline uint8_t cutoutClass(BlockType type) {
+  switch (type) {
+    case BlockType::OAK_LEAF:    return kCutoutLow;
+    case BlockType::PALM_LEAF:
+    case BlockType::CHERRY_LEAF: return kCutoutMid;
+    case BlockType::PINE_LEAF:   return kCutoutHigh;
+    default:                     return kCutoutNone;
+  }
+}
+
+inline bool isCutout(BlockType type) {
+  return cutoutClass(type) != kCutoutNone;
+}
+
 // Returns the number of sky-light levels absorbed when light passes through
 // a block.  0 = fully transparent (air), 15 = fully opaque (stone, dirt…).
 inline uint8_t skyLightOpacity(BlockType type) {
@@ -32,7 +67,8 @@ inline uint8_t skyLightOpacity(BlockType type) {
     case BlockType::WATER:     return 2;
     case BlockType::OAK_LEAF:
     case BlockType::PINE_LEAF:
-    case BlockType::PALM_LEAF: return 1;
+    case BlockType::PALM_LEAF:
+    case BlockType::CHERRY_LEAF: return 1;
     default:                   return 15;
   }
 }
@@ -65,6 +101,8 @@ inline std::string_view blockName(BlockType type) {
     case BlockType::PINE_LEAF:    return "Pine Leaf";
     case BlockType::PALM_LOG:     return "Palm Log";
     case BlockType::PALM_LEAF:    return "Palm Leaf";
+    case BlockType::CHERRY_LOG:   return "Cherry Log";
+    case BlockType::CHERRY_LEAF:  return "Cherry Blossom";
     case BlockType::WATER:        return "Water";
     case BlockType::COAL_ORE:     return "Coal Ore";
     case BlockType::GOLD_ORE:     return "Gold Ore";
@@ -103,6 +141,8 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = {
     {BlockType::EMERALD_ORE, {glm::ivec2{9, 1}, glm::ivec2{9, 1}, glm::ivec2{9, 1}}},
     {BlockType::RUBY_ORE, {glm::ivec2{10, 1}, glm::ivec2{10, 1}, glm::ivec2{10, 1}}},
     {BlockType::COPPER_ORE, {glm::ivec2{11, 1}, glm::ivec2{11, 1}, glm::ivec2{11, 1}}},
+    {BlockType::CHERRY_LEAF, {glm::ivec2{12, 1}, glm::ivec2{12, 1}, glm::ivec2{12, 1}}},
+    {BlockType::CHERRY_LOG, {glm::ivec2{14, 1}, glm::ivec2{14, 1}, glm::ivec2{13, 1}}},
     // Placeholder art: reuses the snow tile (a bright, lamp-like block) until a
     // dedicated glowstone texture is drawn.
     {BlockType::GLOWSTONE, {glm::ivec2{8, 0}, glm::ivec2{8, 0}, glm::ivec2{8, 0}}},

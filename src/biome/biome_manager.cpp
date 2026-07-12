@@ -1,5 +1,6 @@
 #include "biome/biome_manager.hpp"
 #include "biome/biome.hpp"
+#include "biome/cherry_biome.hpp"
 #include "biome/desert_biome.hpp"
 #include "biome/mountain_biome.hpp"
 #include "biome/ocean_biome.hpp"
@@ -21,6 +22,8 @@ std::unique_ptr<Biome> BiomeManager::createBiome(BiomeType type) {
     return std::make_unique<OceanBiome>();
   case BiomeType::TROPICAL:
     return std::make_unique<TropicalBiome>();
+  case BiomeType::CHERRY:
+    return std::make_unique<CherryBiome>();
   default:
     return std::make_unique<PlainsBiome>();
   };
@@ -73,6 +76,7 @@ BiomeType BiomeManager::getBiomeForChunk(int cx, int cz) {
   // --- Land biome selection based on temperature & moisture ---
   // Hot + dry  -> Desert
   // Hot + wet  -> Tropical
+  // Mild + wet -> Cherry
   // Otherwise  -> Plains, with mountain at high biome_noise
 
   if (temperature > 0.6f && moisture < 0.35f) {
@@ -86,6 +90,16 @@ BiomeType BiomeManager::getBiomeForChunk(int cx, int cz) {
   // Elevated terrain with high biome_noise -> mountain
   if (center_height >= 115 && biome_noise > 0.55f) {
     return BiomeType::MOUNTAIN;
+  }
+
+  // Mild + wet -> Cherry blossom grove.  This sits between the cold/dry plains
+  // and the hot/wet tropics: a temperate band carved out of what was plains.
+  // Kept below the snow line because generateTerrain() turns any surface at or
+  // above kSnowLevel into SNOW_DIRT — cherries need grass to spawn on, so a
+  // grove up there would generate as a bare snowfield.
+  if (center_height < kSnowLevel && temperature > 0.35f &&
+      temperature < 0.55f && moisture > 0.55f) {
+    return BiomeType::CHERRY;
   }
 
   return BiomeType::PLAINS;

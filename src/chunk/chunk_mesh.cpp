@@ -22,6 +22,11 @@ struct MeshBuffers {
 // Determine if a face should be rendered between current block and neighbor
 inline bool shouldRenderFace(BlockType current, BlockType neighbor) {
   if (neighbor == BlockType::AIR) return true;
+  // Cutout neighbours (leaves) have see-through holes, so the face behind them
+  // is visible and must be emitted.  This includes leaf-against-leaf, which is
+  // what gives the canopy interior depth instead of looking hollow through the
+  // holes.
+  if (isCutout(neighbor)) return true;
   if (isTransparent(current)) {
     // Transparent blocks: only render if neighbor is different type
     return neighbor != current;
@@ -36,7 +41,8 @@ inline bool shouldRenderFace(BlockType current, BlockType neighbor) {
 // Opaque blocks occlude; transparent/air do not.
 inline bool isAOSolid(World* world, const Chunk& chunk, int x, int y, int z) {
   BlockType b = ChunkMesh::getBlock(world, chunk, x, y, z);
-  return b != BlockType::AIR && !isTransparent(b) && !isLiquid(b);
+  return b != BlockType::AIR && !isTransparent(b) && !isLiquid(b) &&
+         !isCutout(b);
 }
 
 // Computes AO level for a single vertex corner.
@@ -180,6 +186,7 @@ void addQuad(MeshBuffers& buffers,
              Face face,
              int16_t chunkWorldX, int16_t chunkWorldZ,
              bool transparent,
+             uint8_t cutoutClass,
              const AO4& ao,
              uint8_t skyLight,
              uint8_t blockLight) {
@@ -193,14 +200,19 @@ void addQuad(MeshBuffers& buffers,
                                         ((blockLight & 0xF) << 3));
 
   // Lambda to add a vertex with packed data.
-  // ao byte packs: bits[1:0] = AO level (0-3), bits[5:2] = sky light (0-15).
+  // ao byte packs: bits[1:0] = AO level (0-3), bits[5:2] = sky light (0-15),
+  // bits[7:6] = cutout class.  The class travels per-vertex rather than as a
+  // uniform because each leaf tile needs its own alpha threshold, and because a
+  // global test would erase water (a uniform alpha 153 tile).
+  const uint8_t cutoutBits = static_cast<uint8_t>((cutoutClass & 0x3) << 6);
+
   auto V = [&](float px, float py, float pz, uint8_t uvX, uint8_t uvY, uint8_t aoVal) {
     vertices.push_back({
       packPos(px), packPos(py), packPos(pz),
       faceId,
       static_cast<uint8_t>(tileX), static_cast<uint8_t>(tileY),
       uvX, uvY,
-      static_cast<uint8_t>(((skyLight & 0xF) << 2) | (aoVal & 0x3)),
+      static_cast<uint8_t>(cutoutBits | ((skyLight & 0xF) << 2) | (aoVal & 0x3)),
       chunkWorldX, chunkWorldZ
     });
   };
@@ -456,7 +468,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, width, height,
                   tex.side.x, tex.side.y, Face::Front, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), ao, skyLight, blockLight);
+                  isTransparent(type), cutoutClass(type), ao, skyLight, blockLight);
         }
       }
     }
@@ -513,7 +525,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, width, height,
                   tex.side.x, tex.side.y, Face::Back, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), ao, skyLight, blockLight);
+                  isTransparent(type), cutoutClass(type), ao, skyLight, blockLight);
         }
       }
     }
@@ -569,7 +581,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, width, depth,
                   tex.top.x, tex.top.y, Face::Top, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), ao, skyLight, blockLight);
+                  isTransparent(type), cutoutClass(type), ao, skyLight, blockLight);
 
           // For water at the surface (air above), also render bottom face
           // so it's visible from underwater looking up
@@ -577,7 +589,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             AO4 noAO = {{3, 3, 3, 3}};
             addQuad(buffers, x, y + 1, z, width, depth,
                     tex.bottom.x, tex.bottom.y, Face::Bottom, chunkWorldX, chunkWorldZ,
-                    true, noAO, skyLight, blockLight);
+                    true, kCutoutNone, noAO, skyLight, blockLight);
           }
         }
       }
@@ -635,7 +647,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, width, depth,
                   tex.bottom.x, tex.bottom.y, Face::Bottom, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), ao, skyLight, blockLight);
+                  isTransparent(type), cutoutClass(type), ao, skyLight, blockLight);
         }
       }
     }
@@ -692,7 +704,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, depth, height,
                   tex.side.x, tex.side.y, Face::Right, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), ao, skyLight, blockLight);
+                  isTransparent(type), cutoutClass(type), ao, skyLight, blockLight);
         }
       }
     }
@@ -749,7 +761,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, depth, height,
                   tex.side.x, tex.side.y, Face::Left, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), ao, skyLight, blockLight);
+                  isTransparent(type), cutoutClass(type), ao, skyLight, blockLight);
         }
       }
     }
