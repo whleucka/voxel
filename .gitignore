@@ -1,6 +1,7 @@
 /bin/
 /obj/
 imgui.ini
+voxel.properties
 compile_commands.json
 .cache/
 memory/

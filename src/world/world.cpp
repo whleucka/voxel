@@ -3,6 +3,7 @@
 #include "block/block_data.hpp"
 #include "chunk/chunk.hpp"
 #include "core/constants.hpp"
+#include "core/settings.hpp"
 #include "render/renderer.hpp"
 #include "util/lock.hpp"
 #include <cmath>
@@ -16,7 +17,7 @@ World::World()
 void World::init() {
   renderer->init();
 
-  spiral_offsets = generateSpiralOrder(kRenderDistance / kChunkWidth);
+  spiral_offsets = generateSpiralOrder(g_settings.render_distance / kChunkWidth);
 
   // Spiral outward (by chunk) using only Biome::getHeight() — pure math, no
   // chunk allocation — until we find a chunk whose center is above sea level.
@@ -208,7 +209,7 @@ void World::preloadChunks() {
 }
 
 void World::updateLoadedChunks() {
-  constexpr int r = kRenderDistance / kChunkWidth;
+  const int r = g_settings.render_distance / kChunkWidth;
   constexpr size_t MAX_ALLOWED_CHUNKS = 3000; // tweak as needed
 
   // Prevent runaway growth

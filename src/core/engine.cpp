@@ -1,5 +1,6 @@
 #include "core/engine.hpp"
 #include "block/block_data.hpp"
+#include "core/config.hpp"
 #include "core/constants.hpp"
 #include "core/settings.hpp"
 #include "render/renderer.hpp"
@@ -13,14 +14,12 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <cstdio>
 #include <cstdlib>
-#include <ctime>
 #include <iostream>
 
 Engine::~Engine() { cleanup(); }
 
 bool Engine::init() {
-  // Seed the world using current time so every launch is unique.
-  g_settings.world_seed = static_cast<uint32_t>(std::time(nullptr));
+  // world_seed was already resolved from voxel.properties (blank = random).
   srand(g_settings.world_seed);
   // Offset noise coordinates to get a unique world each seed.
   // Capped at 5000 units — large enough for variety, small enough to avoid
@@ -52,13 +51,19 @@ bool Engine::init() {
     return false;
   }
 
-  win_width = mode->width;
-  win_height = mode->height;
+  if (g_settings.fullscreen) {
+    win_width = mode->width;
+    win_height = mode->height;
+  } else {
+    win_width = g_settings.window_width;
+    win_height = g_settings.window_height;
+  }
   last_x = win_width / 2.0f;
   last_y = win_height / 2.0f;
 
   window = glfwCreateWindow(win_width, win_height, win_title.c_str(),
-                            primaryMonitor, nullptr);
+                            g_settings.fullscreen ? primaryMonitor : nullptr,
+                            nullptr);
   if (!window) {
     std::cerr << "Failed to create GLFW window\n";
     glfwTerminate();
@@ -383,6 +388,17 @@ void Engine::debug() {
           ImGui::SliderFloat("Speed",   &g_settings.cloud_speed,
                              0.0f, 5.0f, "%.1f");
           ImGui::PopItemWidth();
+        }
+
+        // Persist to voxel.properties
+        ImGui::Separator();
+        static double saved_at = -10.0;
+        if (ImGui::Button("Save settings"))
+          if (saveServerProperties()) saved_at = ImGui::GetTime();
+        if (ImGui::GetTime() - saved_at < 2.0) {
+          ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.4f, 1.f, 0.4f, 1.f),
+                             "Saved to voxel.properties");
         }
 
         ImGui::EndTabItem();

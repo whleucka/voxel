@@ -6,12 +6,15 @@
 struct Settings {
   // World
   uint32_t   world_seed;
-  glm::vec2  noise_offset; // added to all noise coordinates for seeding
+  glm::vec2  noise_offset;  // added to all noise coordinates for seeding
+  int        render_distance; // how far (in world units) chunks stay loaded
 
   // UI
   bool show_debug;
 
   // Rendering
+  int   window_width;  // windowed-mode width  (ignored while fullscreen)
+  int   window_height; // windowed-mode height (ignored while fullscreen)
   bool  wireframe;
   bool  vsync;
   bool  fullscreen;
@@ -39,8 +42,9 @@ struct Settings {
   int   shadow_map_size;   // depth texture resolution (1024/2048/4096)
 
   Settings()
-      : world_seed(0), noise_offset(0.0f, 0.0f),
+      : world_seed(0), noise_offset(0.0f, 0.0f), render_distance(320),
         show_debug(false),
+        window_width(1600), window_height(900),
         wireframe(false), vsync(false), fullscreen(true), show_cursor(false),
         fov(70.0f), fog_start(80.0f), fog_end(260.0f),
         mouse_sensitivity(0.05f),

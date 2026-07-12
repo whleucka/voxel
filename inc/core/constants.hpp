@@ -8,12 +8,11 @@ constexpr int kChunkWidth = 16;
 
 constexpr int kMaxAllowedChunks = 12000;
 constexpr int kChunkPreloadRadius = 20;
-constexpr int kRenderDistance = 320;
 constexpr int kMaxChunksPerFrame = 16;
 constexpr int kMaxUploadsPerFrame = 4;
 
-constexpr int kScreenHeight = 900;
-constexpr int kScreenWidth = 1600;
+// Note: view distance and window resolution are runtime settings loaded from
+// voxel.properties (see Settings::render_distance / window_width/height).
 
 constexpr int kSeaLevel = (kChunkHeight * 2) / 5;
 constexpr int kSnowLevel = 130;
