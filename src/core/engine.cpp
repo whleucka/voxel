@@ -259,6 +259,10 @@ void Engine::debug() {
           ImGui::Text("Frame time : %.3f ms", 1000.0f / io.Framerate);
           ImGui::Text("Memory     : %zu MB",  getMemoryUsage());
           ImGui::Text("Chunks     : %zu",     world.getChunkCount());
+          const RenderStats &rs = world.getRenderStats();
+          ImGui::Text("Drawn      : %d (main)", rs.chunks_drawn);
+          ImGui::Text("Shadow     : %d / %d",  rs.shadow_chunks_drawn,
+                      rs.shadow_chunks_total);
           ImGui::Text("Game time  : %02d:%02d", game_clock.hour(), game_clock.minute());
         }
 
@@ -360,6 +364,13 @@ void Engine::debug() {
           ImGui::PushItemWidth(180);
           ImGui::SliderFloat("Distance", &g_settings.shadow_distance,
                              40.0f, 256.0f, "%.0f");
+
+          static const char *kSizeLabels[] = {"1024", "2048", "4096"};
+          static const int   kSizeVals[]   = {1024, 2048, 4096};
+          int sizeIdx = g_settings.shadow_map_size == 1024 ? 0
+                      : g_settings.shadow_map_size == 4096 ? 2 : 1;
+          if (ImGui::Combo("Map size", &sizeIdx, kSizeLabels, 3))
+            g_settings.shadow_map_size = kSizeVals[sizeIdx];
           ImGui::PopItemWidth();
         }
 

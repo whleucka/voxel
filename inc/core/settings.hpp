@@ -36,6 +36,7 @@ struct Settings {
   // Shadows
   bool  shadows_enabled;
   float shadow_distance;   // how far from camera the shadow map covers
+  int   shadow_map_size;   // depth texture resolution (1024/2048/4096)
 
   Settings()
       : world_seed(0), noise_offset(0.0f, 0.0f),
@@ -46,7 +47,8 @@ struct Settings {
         time_scale(35.0f), water_fog_density(0.04f),
         clouds_enabled(true), cloud_height(192.0f),
         cloud_speed(1.0f), cloud_opacity(0.85f),
-        shadows_enabled(true), shadow_distance(120.0f) {}
+        shadows_enabled(true), shadow_distance(120.0f),
+        shadow_map_size(2048) {}
 };
 
 inline Settings g_settings;

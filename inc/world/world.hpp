@@ -34,6 +34,7 @@ public:
   std::shared_ptr<const Chunk> getChunk(int x, int z) const;
   std::unique_ptr<Player> &getPlayer() { return player; }
   size_t getChunkCount() const;
+  const RenderStats &getRenderStats() const { return renderer->getStats(); }
   BlockType getBlockAt(const glm::vec3& worldPos) const;
   bool isSolidBlock(int bx, int by, int bz) const;
   void setBlockAt(const glm::ivec3& worldPos, BlockType type);

@@ -7,16 +7,26 @@
 #include <vector>
 #include "robin_hood/robin_hood.h"
 
+// Per-frame culling stats for the debug panel. Written during render,
+// read on the same (main) thread by the ImGui code — no sync needed.
+struct RenderStats {
+  int chunks_drawn = 0;         // opaque chunks submitted in the main pass
+  int shadow_chunks_drawn = 0;  // chunks submitted into the shadow map
+  int shadow_chunks_total = 0;  // chunks the shadow pass considered
+};
+
 class Renderer {
 public:
   Renderer();
   ~Renderer();
 
+  const RenderStats &getStats() const { return stats; }
+
   void init();
   void drawSky(const glm::mat4 &view, const glm::mat4 &projection, float timeOfDay);
   void drawClouds(const glm::mat4 &view, const glm::mat4 &projection,
                   const glm::vec3 &cameraPos, float timeOfDay, float cloudTime);
-  void drawChunks(const robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash> &chunks,
+  void drawChunks(const std::vector<Chunk *> &chunks,
                   const glm::mat4 &view, const glm::mat4 &projection,
                   const glm::vec3 &cameraPos, bool underwater, float timeOfDay);
 
@@ -33,6 +43,7 @@ private:
   void initSkybox();
   void initCloudBuffers();
   void initShadowMap();
+  void resizeShadowMap(int size);   // re-allocate depth texture at new resolution
   void rebuildCloudMesh(const glm::vec3 &cameraPos, float cloudTime);
 
   glm::mat4 computeLightSpaceMatrix(const glm::vec3 &sunDir,
@@ -58,7 +69,9 @@ private:
   GLuint  shadow_fbo = 0;
   GLuint  shadow_depth_tex = 0;
   glm::mat4 light_space_matrix{1.0f};
-  static constexpr int kShadowMapSize = 4096;
+  int shadow_map_size = 2048;   // current allocated resolution
+
+  RenderStats stats;
 
   TextureManager *texture_manager = nullptr;
 };

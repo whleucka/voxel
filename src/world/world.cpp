@@ -321,18 +321,18 @@ void World::render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay,
   glm::vec4 planes[6];
   player->getCamera().getFrustumPlanes(planes, viewProj);
 
-  robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash>
-      visibleChunks;
+  std::vector<Chunk *> visibleChunks;
   visibleChunks.reserve(chunks.size());
 
   for (const auto &[key, chunk] : chunks) {
+    if (!chunk) continue;
     glm::vec3 min = {key.x * kChunkWidth, 0.0f, key.z * kChunkDepth};
     glm::vec3 max = {(key.x + 1) * kChunkWidth,
                      static_cast<float>(kChunkHeight),
                      (key.z + 1) * kChunkDepth};
 
     if (isChunkInFrustum(planes, min, max)) {
-      visibleChunks.emplace(key, chunk);
+      visibleChunks.push_back(chunk.get());
     }
   }
 

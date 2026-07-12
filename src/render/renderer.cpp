@@ -1,5 +1,6 @@
 #include "render/renderer.hpp"
 #include "chunk/chunk.hpp"
+#include "core/constants.hpp"
 #include "core/settings.hpp"
 #include "render/texture_manager.hpp"
 #include <cmath>
@@ -79,12 +80,14 @@ void Renderer::initSkybox() {
 // ─── Shadow map initialisation ──────────────────────────────────────────────
 
 void Renderer::initShadowMap() {
+  shadow_map_size = g_settings.shadow_map_size;
+
   glGenFramebuffers(1, &shadow_fbo);
   glGenTextures(1, &shadow_depth_tex);
 
   glBindTexture(GL_TEXTURE_2D, shadow_depth_tex);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24,
-               kShadowMapSize, kShadowMapSize, 0,
+               shadow_map_size, shadow_map_size, 0,
                GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -103,6 +106,19 @@ void Renderer::initShadowMap() {
   glDrawBuffer(GL_NONE);
   glReadBuffer(GL_NONE);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+// Re-allocate the depth texture storage at a new resolution. The texture's
+// sampler params and FBO attachment persist across a glTexImage2D re-spec, so
+// only the backing store is replaced. Must run on the main thread (GL context).
+void Renderer::resizeShadowMap(int size) {
+  if (size == shadow_map_size) return;
+  shadow_map_size = size;
+  glBindTexture(GL_TEXTURE_2D, shadow_depth_tex);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24,
+               shadow_map_size, shadow_map_size, 0,
+               GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+  glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 // ─── Light-space matrix computation ────────────────────────────────────────
@@ -140,7 +156,7 @@ glm::mat4 Renderer::computeLightSpaceMatrix(const glm::vec3 &sunDir,
   glm::vec3 camLS = glm::vec3(lightView * glm::vec4(cameraPos, 1.0f));
 
   // Snap X/Y to shadow-map texel grid so the frustum moves in discrete steps
-  float texelSize = (2.0f * halfSize) / static_cast<float>(kShadowMapSize);
+  float texelSize = (2.0f * halfSize) / static_cast<float>(shadow_map_size);
   float snappedX = std::floor(camLS.x / texelSize) * texelSize;
   float snappedY = std::floor(camLS.y / texelSize) * texelSize;
 
@@ -156,6 +172,35 @@ glm::mat4 Renderer::computeLightSpaceMatrix(const glm::vec3 &sunDir,
   return lightProj * lightView;
 }
 
+// ─── Frustum helpers (shadow-caster culling) ───────────────────────────────
+// Gribb-Hartmann plane extraction — identical to Camera::getFrustumPlanes but
+// usable against any view-projection matrix (here, the light-space matrix).
+static void extractFrustumPlanes(const glm::mat4 &m, glm::vec4 planes[6]) {
+  planes[0] = glm::vec4(m[0][3]+m[0][0], m[1][3]+m[1][0], m[2][3]+m[2][0], m[3][3]+m[3][0]); // Left
+  planes[1] = glm::vec4(m[0][3]-m[0][0], m[1][3]-m[1][0], m[2][3]-m[2][0], m[3][3]-m[3][0]); // Right
+  planes[2] = glm::vec4(m[0][3]+m[0][1], m[1][3]+m[1][1], m[2][3]+m[2][1], m[3][3]+m[3][1]); // Bottom
+  planes[3] = glm::vec4(m[0][3]-m[0][1], m[1][3]-m[1][1], m[2][3]-m[2][1], m[3][3]-m[3][1]); // Top
+  planes[4] = glm::vec4(m[0][3]+m[0][2], m[1][3]+m[1][2], m[2][3]+m[2][2], m[3][3]+m[3][2]); // Near
+  planes[5] = glm::vec4(m[0][3]-m[0][2], m[1][3]-m[1][2], m[2][3]-m[2][2], m[3][3]-m[3][2]); // Far
+  for (int i = 0; i < 6; i++) {
+    float len = glm::length(glm::vec3(planes[i]));
+    if (len > 0.0f) planes[i] /= len;
+  }
+}
+
+// AABB vs frustum: false only when the box is entirely behind some plane.
+static bool aabbInFrustum(const glm::vec4 planes[6], const glm::vec3 &min,
+                          const glm::vec3 &max) {
+  for (int i = 0; i < 6; i++) {
+    const glm::vec3 n = glm::vec3(planes[i]);
+    glm::vec3 positive = {(n.x > 0 ? max.x : min.x), (n.y > 0 ? max.y : min.y),
+                          (n.z > 0 ? max.z : min.z)};
+    if (glm::dot(n, positive) + planes[i].w < 0)
+      return false;
+  }
+  return true;
+}
+
 // ─── Shadow depth pass ─────────────────────────────────────────────────────
 
 void Renderer::shadowPass(
@@ -163,6 +208,13 @@ void Renderer::shadowPass(
     const glm::vec3 &cameraPos, float timeOfDay,
     int viewportWidth, int viewportHeight)
 {
+  // Default to "nothing drawn" so the debug panel is correct on any early out.
+  stats.shadow_chunks_total = static_cast<int>(chunks.size());
+  stats.shadow_chunks_drawn = 0;
+
+  // Apply any live resolution change from the debug panel.
+  resizeShadowMap(g_settings.shadow_map_size);
+
   if (!g_settings.shadows_enabled) return;
 
   // Compute sun direction (same formula as drawChunks)
@@ -177,7 +229,7 @@ void Renderer::shadowPass(
   light_space_matrix = computeLightSpaceMatrix(sunDir, cameraPos);
 
   // Bind shadow FBO and render depth
-  glViewport(0, 0, kShadowMapSize, kShadowMapSize);
+  glViewport(0, 0, shadow_map_size, shadow_map_size);
   glBindFramebuffer(GL_FRAMEBUFFER, shadow_fbo);
   glClear(GL_DEPTH_BUFFER_BIT);
 
@@ -190,9 +242,22 @@ void Renderer::shadowPass(
   shadow_shader->use();
   shadow_shader->setMat4("uLightSpaceMatrix", light_space_matrix);
 
+  // Cull shadow casters to the light frustum. The ortho box only covers a
+  // shadow_distance-sized region around the camera, so the vast majority of
+  // loaded chunks fall outside it and would otherwise be clipped after a
+  // wasted draw call.
+  glm::vec4 lightPlanes[6];
+  extractFrustumPlanes(light_space_matrix, lightPlanes);
+
   for (auto &[key, chunk] : chunks) {
     if (!chunk) continue;
+    glm::vec3 min = {key.x * kChunkWidth, 0.0f, key.z * kChunkDepth};
+    glm::vec3 max = {(key.x + 1) * kChunkWidth,
+                     static_cast<float>(kChunkHeight),
+                     (key.z + 1) * kChunkDepth};
+    if (!aabbInFrustum(lightPlanes, min, max)) continue;
     chunk->getMesh().renderOpaque();
+    ++stats.shadow_chunks_drawn;
   }
 
   // Restore state
@@ -468,7 +533,7 @@ glm::vec3 Renderer::skyColor(float timeOfDay) {
 
 // ─── Draw chunks ────────────────────────────────────────────────────────────
 void Renderer::drawChunks(
-    const robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash> &chunks,
+    const std::vector<Chunk *> &chunks,
     const glm::mat4 &view, const glm::mat4 &projection,
     const glm::vec3 &cameraPos, bool underwater, float timeOfDay)
 {
@@ -541,8 +606,9 @@ void Renderer::drawChunks(
   block_shader->setVec3("uWaterFogColor", waterFogColor);
 
   // ── Pass 1: Opaque geometry ───────────────────────────────────────────────
+  stats.chunks_drawn = static_cast<int>(chunks.size());
   block_shader->setFloat("uAlpha", 1.0f);
-  for (auto &[key, chunk] : chunks) {
+  for (Chunk *chunk : chunks) {
     if (!chunk) continue;
     chunk->getMesh().renderOpaque();
   }
@@ -553,7 +619,7 @@ void Renderer::drawChunks(
   glDepthMask(GL_FALSE);
 
   block_shader->setFloat("uAlpha", 0.75f);
-  for (auto &[key, chunk] : chunks) {
+  for (Chunk *chunk : chunks) {
     if (!chunk) continue;
     chunk->getMesh().renderTransparent();
   }
