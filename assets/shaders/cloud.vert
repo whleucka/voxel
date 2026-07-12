@@ -5,11 +5,13 @@ layout(location = 1) in vec3 aNormal;
 out vec3 vWorldPos;
 out vec3 vNormal;
 
+uniform mat4 uModel;      // cloud drift (translation only)
 uniform mat4 uView;
 uniform mat4 uProjection;
 
 void main() {
-    vWorldPos = aPos;
-    vNormal   = aNormal;
-    gl_Position = uProjection * uView * vec4(aPos, 1.0);
+    vec4 worldPos = uModel * vec4(aPos, 1.0);
+    vWorldPos = worldPos.xyz;
+    vNormal   = aNormal;   // uModel is a pure translation — normals are unchanged
+    gl_Position = uProjection * uView * worldPos;
 }

@@ -292,41 +292,80 @@ void Renderer::drawSky(const glm::mat4 &view, const glm::mat4 &projection,
   glEnable(GL_CULL_FACE);
 }
 
-// ─── Cloud mesh (per-cell slab geometry) ────────────────────────────────────
+// ─── Cloud mesh (3D voxel volume) ───────────────────────────────────────────
 
-// CPU-side noise matching the shader's old algorithm so the shapes are
-// identical.  We only need it here now; the shader just receives geometry.
+constexpr float kCloudCell  = 12.0f;  // horizontal cell size in world units
+constexpr float kCloudCellY = 6.0f;   // vertical cell size — finer, so a band
+                                      // of a few layers still reads as billowy
+constexpr float kCloudDrift = 0.8f;   // base drift speed (world units / sec)
 
 namespace cloud_noise {
 
-static float hash2d(float x, float y) {
-  return std::fmod(std::sin(x * 127.1f + y * 311.7f) * 43758.5453f, 1.0f);
+// Note: this is fract(), not fmod() — fmod keeps the sign, which left the old
+// 2D field centred on zero. The density thresholds below assume [0,1).
+static float hash3d(float x, float y, float z) {
+  float v = std::sin(x * 127.1f + y * 311.7f + z * 74.7f) * 43758.5453f;
+  return v - std::floor(v);
 }
 
-static float valueNoise(float px, float py) {
-  float ix = std::floor(px), iy = std::floor(py);
-  float fx = px - ix,        fy = py - iy;
-  float a = hash2d(ix,       iy);
-  float b = hash2d(ix + 1.f, iy);
-  float c = hash2d(ix,       iy + 1.f);
-  float d = hash2d(ix + 1.f, iy + 1.f);
+static float valueNoise(float px, float py, float pz) {
+  float ix = std::floor(px), iy = std::floor(py), iz = std::floor(pz);
+  float fx = px - ix,        fy = py - iy,        fz = pz - iz;
   float ux = fx * fx * (3.f - 2.f * fx);
   float uy = fy * fy * (3.f - 2.f * fy);
-  return (a * (1-ux) + b * ux) * (1-uy) + (c * (1-ux) + d * ux) * uy;
+  float uz = fz * fz * (3.f - 2.f * fz);
+
+  auto corner = [&](float dx, float dy, float dz) {
+    return hash3d(ix + dx, iy + dy, iz + dz);
+  };
+  // Trilinear blend of the 8 lattice corners
+  float x00 = corner(0,0,0) * (1-ux) + corner(1,0,0) * ux;
+  float x10 = corner(0,1,0) * (1-ux) + corner(1,1,0) * ux;
+  float x01 = corner(0,0,1) * (1-ux) + corner(1,0,1) * ux;
+  float x11 = corner(0,1,1) * (1-ux) + corner(1,1,1) * ux;
+  float y0  = x00 * (1-uy) + x10 * uy;
+  float y1  = x01 * (1-uy) + x11 * uy;
+  return y0 * (1-uz) + y1 * uz;
 }
 
-static float fbm(float px, float py) {
+static float fbm(float px, float py, float pz) {
   float v = 0.f, amp = 0.5f, freq = 1.f;
   for (int i = 0; i < 4; ++i) {
-    v += amp * valueNoise(px * freq, py * freq);
+    v += amp * valueNoise(px * freq, py * freq, pz * freq);
     freq *= 2.f;
     amp  *= 0.5f;
   }
   return v;
 }
 
-static bool isCloud(float gx, float gy) {
-  return fbm(gx * 0.08f, gy * 0.08f) >= 0.42f;
+// Vertical envelope over the band, t = 0 at the base, 1 at the top. Full
+// strength at the bottom and tapering upward: that's what gives clouds a flat
+// underside with a billowing crown above it.
+static float heightGradient(float t) {
+  auto smoothstep = [](float e0, float e1, float x) {
+    float u = std::clamp((x - e0) / (e1 - e0), 0.0f, 1.0f);
+    return u * u * (3.f - 2.f * u);
+  };
+  return 1.0f - smoothstep(0.20f, 1.0f, t);
+}
+
+// Density at a cell in the cloud grid. gy is the layer index within a band of
+// `layers`. Vertical frequency runs higher than horizontal so successive layers
+// differ from one another instead of extruding the same 2D blob.
+//
+// Height raises the *threshold* rather than scaling the density: fbm only spans
+// ~0..0.8, so scaling would push the upper band mathematically out of reach and
+// cut the tops off flat. Raising the bar instead lets coverage taper smoothly,
+// with a few dense columns still towering into the top layer.
+static bool isCloud(int gx, int gy, int gz, int layers) {
+  if (gy < 0 || gy >= layers) return false;
+
+  constexpr float kBaseThreshold = 0.50f;  // coverage at the cloud base (~40%)
+  constexpr float kHeightFalloff = 0.22f;  // how fast the bar rises with height
+
+  float t = (static_cast<float>(gy) + 0.5f) / static_cast<float>(layers);
+  float d = fbm(gx * 0.08f, gy * 0.16f, gz * 0.08f);
+  return d >= kBaseThreshold + (1.0f - heightGradient(t)) * kHeightFalloff;
 }
 
 } // namespace cloud_noise
@@ -369,90 +408,107 @@ static void emitQuad(std::vector<float> &verts,
   indices.push_back(base + 3); indices.push_back(base);
 }
 
-void Renderer::rebuildCloudMesh(const glm::vec3 &cameraPos, float cloudTime) {
-  constexpr float kCell  = 12.0f;  // cloud cell size in world units
-  constexpr float kDepth = 4.0f;   // slab thickness
-
-  const float drift  = cloudTime * 0.8f;
-  const float yTop   = g_settings.cloud_height;
-  const float yBot   = yTop - kDepth;
+void Renderer::rebuildCloudMesh(int camCX, int camCZ) {
+  const int   layers = std::max(1, g_settings.cloud_thickness);
+  const float yBase  = g_settings.cloud_height;
   const float radius = g_settings.fog_end * 1.2f;
+  const int   range  = static_cast<int>(std::ceil(radius / kCloudCell));
 
-  // Camera's grid cell (accounts for drift so cells are stable in world space)
-  int camCX = static_cast<int>(std::floor((cameraPos.x + drift) / kCell));
-  int camCZ = static_cast<int>(std::floor(cameraPos.z / kCell));
-  int range = static_cast<int>(std::ceil(radius / kCell));
+  // Sample the density field once into a solid/air bitmap, with a one-cell
+  // border in X/Z so face culling can look at neighbours without re-evaluating
+  // the noise. Layers outside the band are air by definition, so Y needs no
+  // border. Meshing then reads the bitmap instead of calling fbm ~7× per cell.
+  const int dim = 2 * range + 3;             // +2 for the border, +1 for centre
+  std::vector<uint8_t> solid(static_cast<size_t>(dim) * dim * layers, 0);
 
-  // Rebuild every frame because clouds drift continuously.
-  // The mesh gen is cheap (~2k cells) so this is fine.
+  auto at = [&](int lx, int ly, int lz) -> size_t {
+    return (static_cast<size_t>(ly) * dim + lz) * dim + lx;
+  };
+  // Is the cell at local coords solid? Out of range in X/Z or Y ⇒ air.
+  auto solidAt = [&](int lx, int ly, int lz) -> bool {
+    if (lx < 0 || lx >= dim || lz < 0 || lz >= dim) return false;
+    if (ly < 0 || ly >= layers) return false;
+    return solid[at(lx, ly, lz)] != 0;
+  };
+
+  for (int ly = 0; ly < layers; ++ly)
+    for (int lz = 0; lz < dim; ++lz)
+      for (int lx = 0; lx < dim; ++lx) {
+        int gx = camCX - range - 1 + lx;
+        int gz = camCZ - range - 1 + lz;
+        if (cloud_noise::isCloud(gx, ly, gz, layers))
+          solid[at(lx, ly, lz)] = 1;
+      }
 
   std::vector<float>        verts;
   std::vector<unsigned int> indices;
-  // Reserve rough estimate: ~40% of cells are cloud, ~3 faces avg each
-  size_t estCells = static_cast<size_t>((2*range+1) * (2*range+1));
-  verts.reserve(estCells * 4 * 6 * 2);   // 4 verts × 6 floats × ~2 faces
-  indices.reserve(estCells * 6 * 2);      // 6 indices per face × ~2 faces
+  size_t estCells = static_cast<size_t>(dim) * dim * layers / 4;  // ~25% solid
+  verts.reserve(estCells * 4 * 6 * 2);
+  indices.reserve(estCells * 6 * 2);
 
-  for (int gz = camCZ - range; gz <= camCZ + range; ++gz) {
-    for (int gx = camCX - range; gx <= camCX + range; ++gx) {
-      if (!cloud_noise::isCloud(static_cast<float>(gx),
-                                 static_cast<float>(gz)))
-        continue;
+  // Cell centre used for the radial cull, in grid space
+  const float camGX = (camCX + 0.5f) * kCloudCell;
+  const float camGZ = (camCZ + 0.5f) * kCloudCell;
 
-      // World-space bounds of this cell (undo drift for X)
-      float wx0 = gx * kCell - drift;
-      float wx1 = wx0 + kCell;
-      float wz0 = gz * kCell;
-      float wz1 = wz0 + kCell;
+  for (int ly = 0; ly < layers; ++ly) {
+    for (int lz = 1; lz < dim - 1; ++lz) {
+      for (int lx = 1; lx < dim - 1; ++lx) {
+        if (!solidAt(lx, ly, lz)) continue;
 
-      // Distance check (rough, centre of cell)
-      float cdx = (wx0 + wx1) * 0.5f - cameraPos.x;
-      float cdz = (wz0 + wz1) * 0.5f - cameraPos.z;
-      if (cdx*cdx + cdz*cdz > radius*radius) continue;
+        int gx = camCX - range - 1 + lx;
+        int gz = camCZ - range - 1 + lz;
 
-      // ── Top face (+Y) — always emit ─────────────────────────────────
-      // Extend top quads by a tiny overlap to prevent hairline seams
-      constexpr float e = 0.01f;
-      emitQuad(verts, indices,
-               {wx0 - e, yTop, wz0 - e}, {wx1 + e, yTop, wz0 - e},
-               {wx1 + e, yTop, wz1 + e}, {wx0 - e, yTop, wz1 + e},
-               {0, 1, 0});
+        // Grid-space bounds of this cell (drift is applied by the model matrix)
+        float wx0 = gx * kCloudCell,  wx1 = wx0 + kCloudCell;
+        float wz0 = gz * kCloudCell,  wz1 = wz0 + kCloudCell;
+        float wy0 = yBase + ly * kCloudCellY;
+        float wy1 = wy0 + kCloudCellY;
 
-      // ── Bottom face (-Y) — always emit ──────────────────────────────
-      emitQuad(verts, indices,
-               {wx0 - e, yBot, wz1 + e}, {wx1 + e, yBot, wz1 + e},
-               {wx1 + e, yBot, wz0 - e}, {wx0 - e, yBot, wz0 - e},
-               {0, -1, 0});
+        // Radial cull against the fog radius (rough, cell centre)
+        float cdx = (wx0 + wx1) * 0.5f - camGX;
+        float cdz = (wz0 + wz1) * 0.5f - camGZ;
+        if (cdx*cdx + cdz*cdz > radius*radius) continue;
 
-      // ── Side faces — only if neighbor is air ────────────────────────
-      // -X
-      if (!cloud_noise::isCloud(static_cast<float>(gx - 1),
-                                 static_cast<float>(gz)))
-        emitQuad(verts, indices,
-                 {wx0, yBot, wz1}, {wx0, yBot, wz0},
-                 {wx0, yTop, wz0}, {wx0, yTop, wz1},
-                 {-1, 0, 0});
-      // +X
-      if (!cloud_noise::isCloud(static_cast<float>(gx + 1),
-                                 static_cast<float>(gz)))
-        emitQuad(verts, indices,
-                 {wx1, yBot, wz0}, {wx1, yBot, wz1},
-                 {wx1, yTop, wz1}, {wx1, yTop, wz0},
-                 {1, 0, 0});
-      // -Z
-      if (!cloud_noise::isCloud(static_cast<float>(gx),
-                                 static_cast<float>(gz - 1)))
-        emitQuad(verts, indices,
-                 {wx1, yBot, wz0}, {wx0, yBot, wz0},
-                 {wx0, yTop, wz0}, {wx1, yTop, wz0},
-                 {0, 0, -1});
-      // +Z
-      if (!cloud_noise::isCloud(static_cast<float>(gx),
-                                 static_cast<float>(gz + 1)))
-        emitQuad(verts, indices,
-                 {wx0, yBot, wz1}, {wx1, yBot, wz1},
-                 {wx1, yTop, wz1}, {wx0, yTop, wz1},
-                 {0, 0, 1});
+        // Tiny overlap on the horizontal faces to hide hairline seams
+        constexpr float e = 0.01f;
+
+        // +Y
+        if (!solidAt(lx, ly + 1, lz))
+          emitQuad(verts, indices,
+                   {wx0 - e, wy1, wz0 - e}, {wx1 + e, wy1, wz0 - e},
+                   {wx1 + e, wy1, wz1 + e}, {wx0 - e, wy1, wz1 + e},
+                   {0, 1, 0});
+        // -Y
+        if (!solidAt(lx, ly - 1, lz))
+          emitQuad(verts, indices,
+                   {wx0 - e, wy0, wz1 + e}, {wx1 + e, wy0, wz1 + e},
+                   {wx1 + e, wy0, wz0 - e}, {wx0 - e, wy0, wz0 - e},
+                   {0, -1, 0});
+        // -X
+        if (!solidAt(lx - 1, ly, lz))
+          emitQuad(verts, indices,
+                   {wx0, wy0, wz1}, {wx0, wy0, wz0},
+                   {wx0, wy1, wz0}, {wx0, wy1, wz1},
+                   {-1, 0, 0});
+        // +X
+        if (!solidAt(lx + 1, ly, lz))
+          emitQuad(verts, indices,
+                   {wx1, wy0, wz0}, {wx1, wy0, wz1},
+                   {wx1, wy1, wz1}, {wx1, wy1, wz0},
+                   {1, 0, 0});
+        // -Z
+        if (!solidAt(lx, ly, lz - 1))
+          emitQuad(verts, indices,
+                   {wx1, wy0, wz0}, {wx0, wy0, wz0},
+                   {wx0, wy1, wz0}, {wx1, wy1, wz0},
+                   {0, 0, -1});
+        // +Z
+        if (!solidAt(lx, ly, lz + 1))
+          emitQuad(verts, indices,
+                   {wx0, wy0, wz1}, {wx1, wy0, wz1},
+                   {wx1, wy1, wz1}, {wx0, wy1, wz1},
+                   {0, 0, 1});
+      }
     }
   }
 
@@ -487,14 +543,36 @@ void Renderer::drawClouds(const glm::mat4 &view, const glm::mat4 &projection,
 {
   if (!g_settings.clouds_enabled) return;
 
-  float effectiveTime = cloudTime * g_settings.cloud_speed;
-  rebuildCloudMesh(cameraPos, effectiveTime);
+  // Clouds drift along +X. Rather than baking the offset into vertex positions
+  // (which would force a full remesh every frame), the mesh lives in a static
+  // grid space and the drift rides on the model matrix.
+  const float drift = cloudTime * g_settings.cloud_speed * kCloudDrift;
+
+  // Camera's cell in grid space — the mesh only needs rebuilding when this
+  // changes, or when the band's shape settings are edited live.
+  int camCX = static_cast<int>(std::floor((cameraPos.x + drift) / kCloudCell));
+  int camCZ = static_cast<int>(std::floor(cameraPos.z / kCloudCell));
+
+  if (camCX != cloud_last_cx || camCZ != cloud_last_cz ||
+      g_settings.cloud_height    != cloud_last_height ||
+      g_settings.cloud_thickness != cloud_last_thickness ||
+      g_settings.fog_end         != cloud_last_fog_end) {
+    rebuildCloudMesh(camCX, camCZ);
+    cloud_last_cx        = camCX;
+    cloud_last_cz        = camCZ;
+    cloud_last_height    = g_settings.cloud_height;
+    cloud_last_thickness = g_settings.cloud_thickness;
+    cloud_last_fog_end   = g_settings.fog_end;
+  }
   if (cloud_index_count == 0) return;
+
+  glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(-drift, 0, 0));
 
   // Disable face culling so all sides are visible regardless of view angle
   glDisable(GL_CULL_FACE);
 
   cloud_shader->use();
+  cloud_shader->setMat4("uModel", model);
   cloud_shader->setMat4("uView", view);
   cloud_shader->setMat4("uProjection", projection);
   cloud_shader->setFloat("uTimeOfDay", timeOfDay);

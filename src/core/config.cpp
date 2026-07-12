@@ -108,6 +108,7 @@ std::string serializeSettings(const Settings &s, bool blank_seed) {
     << "# ─── Clouds ──────────────────────────────────────────────\n"
     << "clouds-enabled=" << (s.clouds_enabled ? "true" : "false") << "\n"
     << "cloud-height=" << s.cloud_height << "\n"
+    << "cloud-thickness=" << s.cloud_thickness << "\n"
     << "cloud-speed=" << s.cloud_speed << "\n"
     << "cloud-opacity=" << s.cloud_opacity << "\n"
     << "\n"
@@ -190,6 +191,7 @@ void loadServerProperties(const std::string &path) {
     else if (k == "water-fog-density") applyFloat(k, v, g_settings.water_fog_density);
     else if (k == "clouds-enabled")    applyBool(k, v, g_settings.clouds_enabled);
     else if (k == "cloud-height")      applyFloat(k, v, g_settings.cloud_height);
+    else if (k == "cloud-thickness")   applyInt(k, v, g_settings.cloud_thickness);
     else if (k == "cloud-speed")       applyFloat(k, v, g_settings.cloud_speed);
     else if (k == "cloud-opacity")     applyFloat(k, v, g_settings.cloud_opacity);
     else if (k == "shadows-enabled")   applyBool(k, v, g_settings.shadows_enabled);

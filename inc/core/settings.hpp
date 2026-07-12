@@ -34,7 +34,8 @@ struct Settings {
 
   // Clouds
   bool  clouds_enabled;
-  float cloud_height;      // world Y of cloud layer
+  float cloud_height;      // world Y of the cloud band's base
+  int   cloud_thickness;   // band depth in cells — how many layers deep clouds stack
   float cloud_speed;       // drift speed multiplier
   float cloud_opacity;     // base opacity (0..1)
 
@@ -52,7 +53,7 @@ struct Settings {
         fov(70.0f), fog_start(80.0f), fog_end(260.0f),
         mouse_sensitivity(0.05f),
         time_scale(35.0f), water_fog_density(0.04f),
-        clouds_enabled(true), cloud_height(192.0f),
+        clouds_enabled(true), cloud_height(192.0f), cloud_thickness(8),
         cloud_speed(1.0f), cloud_opacity(0.85f),
         shadows_enabled(true), shadow_distance(120.0f),
         shadow_map_size(2048) {}

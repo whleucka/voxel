@@ -44,7 +44,10 @@ private:
   void initCloudBuffers();
   void initShadowMap();
   void resizeShadowMap(int size);   // re-allocate depth texture at new resolution
-  void rebuildCloudMesh(const glm::vec3 &cameraPos, float cloudTime);
+  // Builds the cloud volume in *cloud-grid space* (drift excluded). The drift
+  // is applied at draw time via a model-matrix translation, so the mesh only
+  // has to be rebuilt when the camera crosses a cell boundary.
+  void rebuildCloudMesh(int camCX, int camCZ);
 
   glm::mat4 computeLightSpaceMatrix(const glm::vec3 &sunDir,
                                      const glm::vec3 &cameraPos) const;
@@ -63,7 +66,11 @@ private:
   size_t  cloud_ebo_capacity = 0;
   int     cloud_last_cx = INT_MIN;      // last camera cell for rebuild check
   int     cloud_last_cz = INT_MIN;
-  float   cloud_last_time = -1.0f;      // last cloud time used for mesh build
+  // Settings the current cloud mesh was built with — a live change in the debug
+  // panel has to force a rebuild even if the camera hasn't crossed a cell.
+  float   cloud_last_height = -1.0f;
+  int     cloud_last_thickness = -1;
+  float   cloud_last_fog_end = -1.0f;   // drives the mesh radius
 
   // Shadow map
   GLuint  shadow_fbo = 0;

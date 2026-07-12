@@ -439,6 +439,8 @@ void Engine::debug() {
           ImGui::PushItemWidth(180);
           ImGui::SliderFloat("Height",  &g_settings.cloud_height,
                              100.0f, 250.0f, "%.0f");
+          ImGui::SliderInt("Thickness", &g_settings.cloud_thickness,
+                           1, 16);
           ImGui::SliderFloat("Speed",   &g_settings.cloud_speed,
                              0.0f, 5.0f, "%.1f");
           ImGui::PopItemWidth();
