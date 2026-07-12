@@ -6,7 +6,7 @@ in vec3 vNormal;
 
 uniform float uTimeOfDay;    // 0..1
 uniform vec3  uCameraPos;
-uniform float uFogEnd;
+uniform float uCloudFar;     // horizontal distance at which clouds fade out
 
 const float PI = 3.14159265359;
 
@@ -42,11 +42,16 @@ void main() {
     vec3 fogColor  = mix(kSkyNight, kSkyDay, dayFactor);
     fogColor       = mix(fogColor, kSkyDawn, dawnFactor * 0.45);
 
+    // Fades on horizontal distance, not 3D: the band is meant to read as a flat
+    // ceiling, so a cloud directly overhead should stay solid no matter how high
+    // the band is set.  uCloudFar scales with the band's altitude so the rim of
+    // the disc stays down near the horizon, where this fade-to-sky colour is a
+    // convincing match for the real sky.
     float dist      = length(vWorldPos.xz - uCameraPos.xz);
-    float fogStart  = uFogEnd * 0.5;
-    float fogFactor = clamp((dist - fogStart) / (uFogEnd - fogStart), 0.0, 1.0);
+    float fogStart  = uCloudFar * 0.5;
+    float fogFactor = clamp((dist - fogStart) / (uCloudFar - fogStart), 0.0, 1.0);
 
-    // At max fog distance, discard entirely so clouds don't poke past terrain fog
+    // Fully faded — discard rather than draw a sky-coloured quad over the sky.
     if (fogFactor > 0.99) discard;
 
     cloudColor = mix(cloudColor, fogColor, fogFactor);

@@ -305,6 +305,24 @@ constexpr float kCloudCellY = 6.0f;   // vertical cell size — finer, so a band
                                       // of a few layers still reads as billowy
 constexpr float kCloudDrift = 0.8f;   // base drift speed (world units / sec)
 
+// How far the cloud disc must reach for every unit it sits above the ground.
+// The disc has a rim, and the rim is only invisible while it stays down in the
+// horizon haze, where the fade-to-sky colour matches the actual sky.  Raising
+// the band lifts that rim: at radius R and altitude H the rim sits atan(H/R)
+// above the eye, so holding it at a fixed shallow angle means R must grow with
+// H.  4.0 puts the rim ~14° up.  This is why the radius cannot simply track
+// fog_end — that couples the disc to terrain draw distance, which has nothing
+// to do with how high the clouds are.
+constexpr float kCloudRimSlope = 4.0f;
+
+// Horizontal distance at which clouds have fully faded into the sky.  Derived
+// from the band's altitude above the ground the player actually stands on, and
+// floored at fog_end so a low band is never smaller than the terrain it covers.
+inline float cloudFarDistance() {
+  const float altitude = std::max(1.0f, g_settings.cloud_height - kSeaLevel);
+  return std::max(g_settings.fog_end, altitude * kCloudRimSlope);
+}
+
 namespace cloud_noise {
 
 // Note: this is fract(), not fmod() — fmod keeps the sign, which left the old
@@ -417,7 +435,10 @@ static void emitQuad(std::vector<float> &verts,
 void Renderer::rebuildCloudMesh(int camCX, int camCZ) {
   const int   layers = std::max(1, g_settings.cloud_thickness);
   const float yBase  = g_settings.cloud_height;
-  const float radius = g_settings.fog_end * 1.2f;
+  // Mesh a little past the fade distance so the rim is already fully faded (and
+  // discarded) by the time the geometry runs out — otherwise the mesh's own edge
+  // becomes the visible circle.
+  const float radius = cloudFarDistance() * 1.2f;
   const int   range  = static_cast<int>(std::ceil(radius / kCloudCell));
 
   // Sample the density field once into a solid/air bitmap, with a one-cell
@@ -437,11 +458,28 @@ void Renderer::rebuildCloudMesh(int camCX, int camCZ) {
     return solid[at(lx, ly, lz)] != 0;
   };
 
+  // Camera's cell centre in grid space — used by both the sampling skip below
+  // and the radial cull during meshing.
+  const float camGX = (camCX + 0.5f) * kCloudCell;
+  const float camGZ = (camCZ + 0.5f) * kCloudCell;
+
+  // Only the inscribed disc is ever meshed, so evaluating the noise across the
+  // whole bounding square wastes ~21% of the samples — which matters now that a
+  // high band makes the disc large.  Sample one cell past the radius so the
+  // cells that *are* meshed still see correct neighbours for face culling.
+  const float sampleR = radius + kCloudCell;
+  const float sampleR2 = sampleR * sampleR;
+
   for (int ly = 0; ly < layers; ++ly)
     for (int lz = 0; lz < dim; ++lz)
       for (int lx = 0; lx < dim; ++lx) {
         int gx = camCX - range - 1 + lx;
         int gz = camCZ - range - 1 + lz;
+
+        float cdx = (gx + 0.5f) * kCloudCell - camGX;
+        float cdz = (gz + 0.5f) * kCloudCell - camGZ;
+        if (cdx * cdx + cdz * cdz > sampleR2) continue;
+
         if (cloud_noise::isCloud(gx, ly, gz, layers))
           solid[at(lx, ly, lz)] = 1;
       }
@@ -451,10 +489,6 @@ void Renderer::rebuildCloudMesh(int camCX, int camCZ) {
   size_t estCells = static_cast<size_t>(dim) * dim * layers / 4;  // ~25% solid
   verts.reserve(estCells * 4 * 6 * 2);
   indices.reserve(estCells * 6 * 2);
-
-  // Cell centre used for the radial cull, in grid space
-  const float camGX = (camCX + 0.5f) * kCloudCell;
-  const float camGZ = (camCZ + 0.5f) * kCloudCell;
 
   for (int ly = 0; ly < layers; ++ly) {
     for (int lz = 1; lz < dim - 1; ++lz) {
@@ -583,7 +617,7 @@ void Renderer::drawClouds(const glm::mat4 &view, const glm::mat4 &projection,
   cloud_shader->setMat4("uProjection", projection);
   cloud_shader->setFloat("uTimeOfDay", timeOfDay);
   cloud_shader->setVec3("uCameraPos", cameraPos);
-  cloud_shader->setFloat("uFogEnd", g_settings.fog_end);
+  cloud_shader->setFloat("uCloudFar", cloudFarDistance());
 
   glBindVertexArray(cloud_vao);
   glDrawElements(GL_TRIANGLES, cloud_index_count, GL_UNSIGNED_INT, nullptr);
