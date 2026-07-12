@@ -35,6 +35,9 @@ public:
   const BlockType &at(int x, int y, int z) const;
   BlockType safeAt(int x, int y, int z) const;
 
+  // Overwrite a block by its linear index (used when replaying saved edits).
+  void setBlockLinear(uint32_t index, BlockType type);
+
   void computeSkyLight();
   uint8_t getSkyLight(int x, int y, int z) const;
   uint8_t safeSkyLight(int x, int y, int z) const;

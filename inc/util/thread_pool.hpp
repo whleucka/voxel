@@ -20,6 +20,10 @@ public:
     condition.notify_one();
   }
 
+  // Stops the pool: lets in-flight jobs finish, drops queued ones, joins all
+  // workers. Idempotent. Call before destroying anything the jobs touch.
+  void shutdown();
+
 private:
   std::vector<std::thread> workers;
   std::queue<std::function<void()>> jobs;

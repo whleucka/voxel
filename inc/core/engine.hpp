@@ -2,6 +2,7 @@
 
 #include "glad/glad.h"
 #include "render/camera.hpp"
+#include "world/game_clock.hpp"
 #include "world/world.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -15,6 +16,7 @@ public:
 
   bool init();
   void run();
+  void saveGame(); // persist world + player to the active save directory
 
 private:
   GLFWwindow *window = nullptr;
@@ -23,6 +25,7 @@ private:
   int win_pos_x, win_pos_y;
 
   World world;
+  std::string save_dir; // saves/<world_name>, resolved at run() start
 
   bool first_mouse = true;
   float last_frame = 0.0f;

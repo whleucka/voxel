@@ -2,9 +2,11 @@
 
 #include <glm/vec2.hpp>
 #include <cstdint>
+#include <string>
 
 struct Settings {
   // World
+  std::string world_name;    // save under saves/<world_name>/
   uint32_t   world_seed;
   glm::vec2  noise_offset;  // added to all noise coordinates for seeding
   int        render_distance; // how far (in world units) chunks stay loaded
@@ -42,7 +44,8 @@ struct Settings {
   int   shadow_map_size;   // depth texture resolution (1024/2048/4096)
 
   Settings()
-      : world_seed(0), noise_offset(0.0f, 0.0f), render_distance(320),
+      : world_name("world"),
+        world_seed(0), noise_offset(0.0f, 0.0f), render_distance(320),
         show_debug(false),
         window_width(1600), window_height(900),
         wireframe(false), vsync(false), fullscreen(true), show_cursor(false),

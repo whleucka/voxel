@@ -39,6 +39,11 @@ const BlockType &Chunk::at(int x, int y, int z) const {
   return blocks[x + kChunkWidth * (z + kChunkDepth * y)];
 }
 
+void Chunk::setBlockLinear(uint32_t index, BlockType type) {
+  if (index < blocks.size())
+    blocks[index] = type;
+}
+
 BlockType Chunk::safeAt(int x, int y, int z) const {
   if (x < 0 || x >= kChunkWidth || y < 0 || y >= kChunkHeight || z < 0 ||
       z >= kChunkDepth) {

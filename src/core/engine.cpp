@@ -2,6 +2,7 @@
 #include "block/block_data.hpp"
 #include "core/config.hpp"
 #include "core/constants.hpp"
+#include "world/world_save.hpp"
 #include "core/settings.hpp"
 #include "render/renderer.hpp"
 #include "imgui/backends/imgui_impl_glfw.h"
@@ -28,7 +29,7 @@ bool Engine::init() {
       static_cast<float>(g_settings.world_seed % 5000),
       static_cast<float>((g_settings.world_seed / 5000) % 5000)
   );
-  std::cout << "World seed: " << g_settings.world_seed << "\n";
+  // Note: a loaded save overrides seed/noise_offset in run() before world gen.
 
   if (!glfwInit()) {
     std::cerr << "Failed to initialize GLFW\n";
@@ -116,6 +117,31 @@ bool Engine::init() {
 }
 
 void Engine::run() {
+  // Resolve the active save directory and load it if it already exists.
+  // An existing world keeps its own seed/clock; the properties seed only
+  // matters when creating a fresh world.
+  save_dir = WorldSave::worldDir(g_settings.world_name);
+  WorldSave::LevelData level;
+  if (WorldSave::loadLevel(save_dir, level)) {
+    g_settings.world_seed   = level.seed;
+    g_settings.noise_offset = level.noise_offset;
+    srand(level.seed);
+    game_clock.time_of_day  = level.time_of_day;
+
+    WorldEdits saved_edits;
+    WorldSave::loadEdits(save_dir, saved_edits);
+    world.setLoadedEdits(std::move(saved_edits));
+
+    WorldSave::PlayerData pd;
+    if (WorldSave::loadPlayer(save_dir, pd)) world.setLoadedPlayer(pd);
+
+    std::cout << "Loaded world '" << g_settings.world_name << "' (seed "
+              << level.seed << ")\n";
+  } else {
+    std::cout << "New world '" << g_settings.world_name << "' (seed "
+              << g_settings.world_seed << ")\n";
+  }
+
   world.init();
 
   while (!glfwWindowShouldClose(window)) {
@@ -130,6 +156,29 @@ void Engine::run() {
     glfwSwapBuffers(window);
     glfwPollEvents();
   }
+
+  saveGame(); // persist on quit
+}
+
+void Engine::saveGame() {
+  WorldSave::LevelData level;
+  level.seed         = g_settings.world_seed;
+  level.noise_offset = g_settings.noise_offset;
+  level.time_of_day  = game_clock.time_of_day;
+
+  auto &player = world.getPlayer();
+  const Camera &cam = player->getCamera();
+  WorldSave::PlayerData pd;
+  pd.position      = player->getPosition();
+  pd.yaw           = cam.yaw;
+  pd.pitch         = cam.pitch;
+  pd.selected_slot = player->getSelectedHotbarSlot();
+  pd.fly_mode      = player->isFlyMode() ? 1 : 0;
+
+  if (WorldSave::save(save_dir, level, pd, world.snapshotEdits()))
+    std::cout << "Saved world '" << g_settings.world_name << "'\n";
+  else
+    std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";
 }
 
 // ─── Input Processing (polled every frame) ─────────────────────────────
@@ -401,6 +450,16 @@ void Engine::debug() {
                              "Saved to voxel.properties");
         }
 
+        static double world_saved_at = -10.0;
+        if (ImGui::Button("Save world (F5)")) {
+          saveGame();
+          world_saved_at = ImGui::GetTime();
+        }
+        if (ImGui::GetTime() - world_saved_at < 2.0) {
+          ImGui::SameLine();
+          ImGui::TextColored(ImVec4(0.4f, 1.f, 0.4f, 1.f), "World saved");
+        }
+
         ImGui::EndTabItem();
       }
 
@@ -443,6 +502,11 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
     // Fly mode toggle
     case GLFW_KEY_T:
       engine->world.getPlayer()->toggleFlyMode();
+      break;
+
+    // Quick-save the world
+    case GLFW_KEY_F5:
+      engine->saveGame();
       break;
 
     // Inventory toggle

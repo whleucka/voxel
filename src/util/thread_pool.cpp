@@ -8,7 +8,9 @@ ThreadPool::ThreadPool(size_t numThreads) {
         {
           std::unique_lock<std::mutex> lock(queue_mutex);
           condition.wait(lock, [this]() { return stop || !jobs.empty(); });
-          if (stop && jobs.empty())
+          // On shutdown, finish the current job (already popped) but drop any
+          // still queued — they touch world state that is about to be freed.
+          if (stop)
             return;
           job = std::move(jobs.front());
           jobs.pop();
@@ -19,12 +21,17 @@ ThreadPool::ThreadPool(size_t numThreads) {
   }
 }
 
-ThreadPool::~ThreadPool() {
+void ThreadPool::shutdown() {
   {
     std::unique_lock<std::mutex> lock(queue_mutex);
+    if (stop)
+      return; // already shut down
     stop = true;
   }
   condition.notify_all();
   for (auto &worker : workers)
-    worker.join();
+    if (worker.joinable())
+      worker.join();
 }
+
+ThreadPool::~ThreadPool() { shutdown(); }

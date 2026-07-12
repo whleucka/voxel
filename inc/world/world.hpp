@@ -7,9 +7,10 @@
 #include "robin_hood/robin_hood.h"
 #include "util/lock.hpp"
 #include "util/thread_pool.hpp"
-#include "world/game_clock.hpp"
+#include "world/world_save.hpp"
 #include <glm/glm.hpp>
 #include <memory>
+#include <mutex>
 
 // Result of a DDA raycast into the voxel world
 struct RaycastResult {
@@ -23,7 +24,7 @@ struct RaycastResult {
 class World {
 public:
   World();
-  ~World() = default;
+  ~World();
 
   void init();
   void update(float delta_time);
@@ -34,6 +35,14 @@ public:
   std::shared_ptr<const Chunk> getChunk(int x, int z) const;
   std::unique_ptr<Player> &getPlayer() { return player; }
   size_t getChunkCount() const;
+
+  // ─── Persistence ─────────────────────────────────────────────────────────
+  // Installed before init(); consulted while generating chunks / placing spawn.
+  void setLoadedEdits(WorldEdits e);
+  void setLoadedPlayer(const WorldSave::PlayerData &p);
+  // Thread-safe copy of all player edits, for writing to disk.
+  WorldEdits snapshotEdits() const;
+
   const RenderStats &getRenderStats() const { return renderer->getStats(); }
   BlockType getBlockAt(const glm::vec3& worldPos) const;
   bool isSolidBlock(int bx, int by, int bz) const;
@@ -56,7 +65,6 @@ private:
   ThreadPool mesh_pool{6};
   mutable SharedMutex chunks_mutex;
 
-  GameClock game_clock;
   std::unique_ptr<Renderer> renderer;
   std::unique_ptr<Player> player;
 
@@ -69,4 +77,12 @@ private:
   int last_chunk_z = 0;
 
   float cloud_time = 0.0f; // accumulated time for cloud drift
+
+  // Player block edits, recorded in setBlockAt() and replayed onto freshly
+  // generated chunks. Guarded because generation runs on worker threads.
+  mutable std::mutex edits_mutex;
+  WorldEdits edits;
+
+  bool has_loaded_player = false;
+  WorldSave::PlayerData loaded_player;
 };

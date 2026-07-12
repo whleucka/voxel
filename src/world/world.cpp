@@ -5,6 +5,7 @@
 #include "core/constants.hpp"
 #include "core/settings.hpp"
 #include "render/renderer.hpp"
+#include "world/world_save.hpp"
 #include "util/lock.hpp"
 #include <cmath>
 #include <glm/fwd.hpp>
@@ -14,78 +15,79 @@ World::World()
     : renderer(std::make_unique<Renderer>()),
       player(std::make_unique<Player>(glm::vec3(0.0f, 0.0f, 0.0f))) {}
 
+World::~World() {
+  // Stop worker threads before any members (chunks, renderer, ...) unwind —
+  // an in-flight mesh job dereferences them, so they must outlive the pools.
+  gen_pool.shutdown();
+  mesh_pool.shutdown();
+}
+
 void World::init() {
   renderer->init();
 
   spiral_offsets = generateSpiralOrder(g_settings.render_distance / kChunkWidth);
 
-  // Spiral outward (by chunk) using only Biome::getHeight() — pure math, no
-  // chunk allocation — until we find a chunk whose center is above sea level.
-  int spawn_cx = 0, spawn_cz = 0;
-  constexpr int kMaxSpawnSearch = 200;
-  for (int r = 0; r <= kMaxSpawnSearch; ++r) {
-    bool found = false;
-    for (int dx = -r; dx <= r && !found; ++dx) {
-      for (int dz = -r; dz <= r && !found; ++dz) {
-        if (std::abs(dx) != r && std::abs(dz) != r) continue;
-        float wx = (dx + 0.5f) * kChunkWidth;
-        float wz = (dz + 0.5f) * kChunkDepth;
-        if (Biome::getHeight({wx, wz}) > kSeaLevel + 3) {
-          spawn_cx = dx;
-          spawn_cz = dz;
-          found = true;
+  glm::vec3 pos;
+  if (has_loaded_player) {
+    // Restoring a saved world — use the stored position instead of searching
+    // for a fresh spawn point.
+    pos = loaded_player.position;
+  } else {
+    // Spiral outward (by chunk) using only Biome::getHeight() — pure math, no
+    // chunk allocation — until we find a chunk whose center is above sea level.
+    int spawn_cx = 0, spawn_cz = 0;
+    constexpr int kMaxSpawnSearch = 200;
+    for (int r = 0; r <= kMaxSpawnSearch; ++r) {
+      bool found = false;
+      for (int dx = -r; dx <= r && !found; ++dx) {
+        for (int dz = -r; dz <= r && !found; ++dz) {
+          if (std::abs(dx) != r && std::abs(dz) != r) continue;
+          float wx = (dx + 0.5f) * kChunkWidth;
+          float wz = (dz + 0.5f) * kChunkDepth;
+          if (Biome::getHeight({wx, wz}) > kSeaLevel + 3) {
+            spawn_cx = dx;
+            spawn_cz = dz;
+            found = true;
+          }
         }
       }
+      if (found) break;
     }
-    if (found) break;
-  }
 
-  // Generate that land chunk synchronously to scan actual block data.
-  // Do NOT insert it into the chunks map — let preloadChunks handle it through
-  // the normal async pipeline so its mesh gets built and uploaded properly.
-  Chunk spawn_chunk(spawn_cx, spawn_cz);
-  spawn_chunk.init();
+    // Generate that land chunk synchronously to scan actual block data.
+    // Do NOT insert it into the chunks map — let preloadChunks handle it through
+    // the normal async pipeline so its mesh gets built and uploaded properly.
+    Chunk spawn_chunk(spawn_cx, spawn_cz);
+    spawn_chunk.init();
 
-  // Scan all columns for grass/dirt with 2 clear air blocks above (player is
-  // 1.8 blocks tall so we need y+1 and y+2 both to be air).
-  auto scanColumn = [&](int lx, int lz, auto predicate) -> int {
-    for (int y = kChunkHeight - 3; y >= 1; --y) {
-      BlockType surface = spawn_chunk.at(lx, y,     lz);
-      BlockType above1  = spawn_chunk.at(lx, y + 1, lz);
-      BlockType above2  = spawn_chunk.at(lx, y + 2, lz);
-      if (predicate(surface) && above1 == BlockType::AIR && above2 == BlockType::AIR)
-        return y + 1;
-    }
-    return -1;
-  };
-
-  auto isGrassDirt = [](BlockType b) {
-    return b == BlockType::GRASS || b == BlockType::DIRT;
-  };
-  auto isSolid = [](BlockType b) {
-    return b != BlockType::AIR && b != BlockType::WATER;
-  };
-
-  float spawn_x = (spawn_cx + 0.5f) * kChunkWidth;
-  float spawn_y = -1.0f;
-  float spawn_z = (spawn_cz + 0.5f) * kChunkDepth;
-
-  // Pass 1: grass or dirt surface
-  for (int lx = 0; lx < kChunkWidth && spawn_y < 0; ++lx)
-    for (int lz = 0; lz < kChunkDepth && spawn_y < 0; ++lz) {
-      int y = scanColumn(lx, lz, isGrassDirt);
-      if (y >= 0) {
-        spawn_x = spawn_cx * kChunkWidth + lx + 0.5f;
-        spawn_y = static_cast<float>(y);
-        spawn_z = spawn_cz * kChunkDepth + lz + 0.5f;
+    // Scan all columns for grass/dirt with 2 clear air blocks above (player is
+    // 1.8 blocks tall so we need y+1 and y+2 both to be air).
+    auto scanColumn = [&](int lx, int lz, auto predicate) -> int {
+      for (int y = kChunkHeight - 3; y >= 1; --y) {
+        BlockType surface = spawn_chunk.at(lx, y,     lz);
+        BlockType above1  = spawn_chunk.at(lx, y + 1, lz);
+        BlockType above2  = spawn_chunk.at(lx, y + 2, lz);
+        if (predicate(surface) && above1 == BlockType::AIR && above2 == BlockType::AIR)
+          return y + 1;
       }
-    }
+      return -1;
+    };
 
-  // Pass 2: any solid non-water surface (snow, stone peaks)
-  if (spawn_y < 0)
+    auto isGrassDirt = [](BlockType b) {
+      return b == BlockType::GRASS || b == BlockType::DIRT;
+    };
+    auto isSolid = [](BlockType b) {
+      return b != BlockType::AIR && b != BlockType::WATER;
+    };
+
+    float spawn_x = (spawn_cx + 0.5f) * kChunkWidth;
+    float spawn_y = -1.0f;
+    float spawn_z = (spawn_cz + 0.5f) * kChunkDepth;
+
+    // Pass 1: grass or dirt surface
     for (int lx = 0; lx < kChunkWidth && spawn_y < 0; ++lx)
       for (int lz = 0; lz < kChunkDepth && spawn_y < 0; ++lz) {
-        int y = scanColumn(lx, lz, isSolid);
+        int y = scanColumn(lx, lz, isGrassDirt);
         if (y >= 0) {
           spawn_x = spawn_cx * kChunkWidth + lx + 0.5f;
           spawn_y = static_cast<float>(y);
@@ -93,10 +95,32 @@ void World::init() {
         }
       }
 
-  glm::vec3 pos = {spawn_x, spawn_y, spawn_z};
+    // Pass 2: any solid non-water surface (snow, stone peaks)
+    if (spawn_y < 0)
+      for (int lx = 0; lx < kChunkWidth && spawn_y < 0; ++lx)
+        for (int lz = 0; lz < kChunkDepth && spawn_y < 0; ++lz) {
+          int y = scanColumn(lx, lz, isSolid);
+          if (y >= 0) {
+            spawn_x = spawn_cx * kChunkWidth + lx + 0.5f;
+            spawn_y = static_cast<float>(y);
+            spawn_z = spawn_cz * kChunkDepth + lz + 0.5f;
+          }
+        }
+
+    pos = glm::vec3(spawn_x, spawn_y, spawn_z);
+  }
 
   player->setPosition(pos);
   player->getCamera().setPosition(pos);
+
+  if (has_loaded_player) {
+    Camera &cam = player->getCamera();
+    cam.yaw = loaded_player.yaw;
+    cam.pitch = loaded_player.pitch;
+    cam.processMouseMovement(0.0f, 0.0f); // refresh direction vectors
+    player->setSelectedHotbarSlot(loaded_player.selected_slot);
+    *player->getFlyModePtr() = (loaded_player.fly_mode != 0);
+  }
 
   // Now compute chunk center and kick off loading
   const glm::vec3 p = player->getPosition();
@@ -147,6 +171,21 @@ void World::addChunk(int x, int z) {
 
   gen_pool.enqueue([this, chunk, key]() {
     chunk->init(); // generate terrain
+
+    // Replay any saved player edits onto this freshly generated chunk before
+    // it gets meshed, then re-light so shadows/skylight reflect the changes.
+    ChunkEdits ce;
+    {
+      std::lock_guard lk(edits_mutex);
+      auto it = edits.find(key);
+      if (it != edits.end()) ce = it->second;
+    }
+    if (!ce.empty()) {
+      std::lock_guard dlk(chunk->data_mutex);
+      for (const auto &[idx, block] : ce)
+        chunk->setBlockLinear(idx, static_cast<BlockType>(block));
+      chunk->computeSkyLight();
+    }
 
     // Once generation is done, queue for meshing
     mesh_pool.enqueue([this, chunk]() {
@@ -284,6 +323,13 @@ void World::setBlockAt(const glm::ivec3& worldPos, BlockType type) {
     std::lock_guard lock(chunk->data_mutex);
     chunk->at(lx, by, lz) = type;
     chunk->computeSkyLight(); // re-propagate sky light after block change
+  }
+
+  // Record the delta so it survives save/load (breaking a block records AIR).
+  {
+    uint32_t idx = lx + kChunkWidth * (lz + kChunkDepth * by);
+    std::lock_guard lk(edits_mutex);
+    edits[{cx, cz}][idx] = static_cast<uint8_t>(type);
   }
 
   // Always rebuild the modified chunk
@@ -509,4 +555,21 @@ RaycastResult World::raycast(const glm::vec3& origin, const glm::vec3& direction
   }
 
   return result; // no hit
+}
+
+// ─── Persistence ─────────────────────────────────────────────────────────────
+
+void World::setLoadedEdits(WorldEdits e) {
+  std::lock_guard lk(edits_mutex);
+  edits = std::move(e);
+}
+
+void World::setLoadedPlayer(const WorldSave::PlayerData &p) {
+  loaded_player = p;
+  has_loaded_player = true;
+}
+
+WorldEdits World::snapshotEdits() const {
+  std::lock_guard lk(edits_mutex);
+  return edits;
 }

@@ -2,6 +2,7 @@
 /obj/
 imgui.ini
 voxel.properties
+saves/
 compile_commands.json
 .cache/
 memory/

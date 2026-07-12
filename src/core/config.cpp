@@ -76,8 +76,11 @@ std::string serializeSettings(const Settings &s, bool blank_seed) {
     << "# Lines starting with '#' are comments; format is key=value.\n"
     << "\n"
     << "# ─── World ───────────────────────────────────────────────\n"
-    << "# Blank = new random world each launch. A number is used as-is;\n"
-    << "# any other text is hashed into a seed (like Minecraft).\n"
+    << "# Which save to load or create, under saves/<name>/.\n"
+    << "world-name=" << s.world_name << "\n"
+    << "# Seed for NEW worlds only (an existing save keeps its own seed).\n"
+    << "# Blank = new random world; a number is used as-is; any other text\n"
+    << "# is hashed into a seed (like Minecraft).\n"
     << "level-seed=";
   if (!blank_seed) o << s.world_seed;
   o << "\n"
@@ -173,7 +176,8 @@ void loadServerProperties(const std::string &path) {
   kv.erase("level-seed");
 
   for (const auto &[k, v] : kv) {
-    if      (k == "view-distance")     applyInt(k, v, g_settings.render_distance);
+    if      (k == "world-name")        { if (!v.empty()) g_settings.world_name = v; }
+    else if (k == "view-distance")     applyInt(k, v, g_settings.render_distance);
     else if (k == "fullscreen")        applyBool(k, v, g_settings.fullscreen);
     else if (k == "vsync")             applyBool(k, v, g_settings.vsync);
     else if (k == "window-width")      applyInt(k, v, g_settings.window_width);
