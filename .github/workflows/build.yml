@@ -1,0 +1,38 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gcc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The Makefile links -lglfw -lGL -lX11 -lXrandr -lXi and the sources
+      # include <glm/...>, which is a system header here rather than vendored
+      # under external/ like glad, imgui, stb and robin_hood.
+      - name: install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libglfw3-dev \
+            libglm-dev \
+            libgl1-mesa-dev \
+            libx11-dev \
+            libxrandr-dev \
+            libxi-dev
+
+      - name: build
+        run: |
+          g++ --version
+          make -j"$(nproc)"
+
+      # `make` can succeed with nothing linked if a target silently no-ops, so
+      # assert the artefact rather than trusting the exit code alone.
+      - name: binary was produced
+        run: |
+          test -x bin/app
+          ls -l bin/app
