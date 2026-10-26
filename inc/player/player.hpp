@@ -1,6 +1,7 @@
 #pragma once
 
 #include "block/block_type.hpp"
+#include "core/constants.hpp"
 #include "render/camera.hpp"
 #include <array>
 #include <glm/fwd.hpp>
@@ -73,8 +74,8 @@ private:
 
   // Inventory
   bool inventory_open = false;
-  int selected_hotbar_slot = 0; // 0-8
-  std::array<BlockType, 9> hotbar_blocks;
+  int selected_hotbar_slot = 0; // 0..kHotbarSlots-1
+  std::array<BlockType, kHotbarSlots> hotbar_blocks{};
 
   // Internal methods
   void applyGravity(float dt);
