@@ -129,6 +129,22 @@ bool loadEdits(const std::string &dir, WorldEdits &out) {
   return true;
 }
 
+// ─── level.dat (alone) ───────────────────────────────────────────────────────
+
+bool saveLevel(const std::string &dir, const LevelData &level) {
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+  if (ec) return false;
+  std::ofstream o(dir + "/level.dat", std::ios::binary | std::ios::trunc);
+  if (!o) return false;
+  writeHeader(o, kLevelMagic);
+  wr(o, level.seed);
+  wr(o, level.noise_offset.x);
+  wr(o, level.noise_offset.y);
+  wr(o, level.time_of_day);
+  return static_cast<bool>(o);
+}
+
 // ─── save ────────────────────────────────────────────────────────────────────
 bool save(const std::string &dir, const LevelData &level,
           const PlayerData &player, const WorldEdits &edits) {
@@ -140,15 +156,7 @@ bool save(const std::string &dir, const LevelData &level,
     return false;
   }
 
-  {
-    std::ofstream o(dir + "/level.dat", std::ios::binary | std::ios::trunc);
-    if (!o) return false;
-    writeHeader(o, kLevelMagic);
-    wr(o, level.seed);
-    wr(o, level.noise_offset.x);
-    wr(o, level.noise_offset.y);
-    wr(o, level.time_of_day);
-  }
+  if (!saveLevel(dir, level)) return false;
   {
     std::ofstream o(dir + "/player.dat", std::ios::binary | std::ios::trunc);
     if (!o) return false;

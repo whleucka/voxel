@@ -2,6 +2,7 @@
 #include "block/block_data.hpp"
 #include "core/config.hpp"
 #include "core/constants.hpp"
+#include "core/seed.hpp"
 #include "world/world_save.hpp"
 #include "core/settings.hpp"
 #include "render/renderer.hpp"
@@ -26,13 +27,7 @@ Engine::~Engine() { cleanup(); }
 
 bool Engine::init() {
   // world_seed was already resolved from voxel.properties (blank = random).
-  // Offset noise coordinates to get a unique world each seed.
-  // Capped at 5000 units — large enough for variety, small enough to avoid
-  // degenerate all-ocean regions that appear at extreme offsets.
-  g_settings.noise_offset = glm::vec2(
-      static_cast<float>(g_settings.world_seed % 5000),
-      static_cast<float>((g_settings.world_seed / 5000) % 5000)
-  );
+  g_settings.noise_offset = noiseOffsetFor(g_settings.world_seed);
   // Note: a loaded save overrides seed/noise_offset in run() before world gen.
 
   if (!glfwInit()) {
@@ -146,6 +141,7 @@ void Engine::run() {
   }
 
   endSession(); // persist on quit
+  scene.close(); // while the GL context is still alive
 }
 
 // ─── Title menu ────────────────────────────────────────────────────────
@@ -159,15 +155,31 @@ void Engine::menuFrame() {
       endSession("The host didn't answer");
   }
 
+  // The last played world, circling behind the menu (not while joining:
+  // the scene and a guest's world can't share the global seed).
+  if (!session && !scene.isOpen()) scene.open(WorldSave::worldDir(g_settings.world_name));
+
   glClearColor(0.10f, 0.12f, 0.16f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  scene.frame(delta_time, win_width, win_height);
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplGlfw_NewFrame();
   ImGui::NewFrame();
+  // The scene fades in from the menu colour as its chunks arrive.
+  float cover = scene.isOpen() ? scene.cover() : 1.0f;
+  if (cover > 0.0f)
+    ImGui::GetBackgroundDrawList()->AddRectFilled(
+        ImVec2(0, 0), ImVec2(static_cast<float>(win_width), static_cast<float>(win_height)),
+        IM_COL32(26, 31, 41, static_cast<int>(cover * 255)));
   std::string name = g_settings.player_name;
-  TitleMenu::Choice choice =
-      menu.draw(glfwGetTime(), name, static_cast<uint16_t>(g_settings.server_port));
+  std::string last_world = g_settings.world_name;
+  TitleMenu::Choice choice = menu.draw(glfwGetTime(), name, last_world,
+                                       static_cast<uint16_t>(g_settings.server_port));
   g_settings.player_name = name;
+  if (last_world != g_settings.world_name) { // a rename, or a world chosen to play
+    g_settings.world_name = last_world;
+    saveServerProperties();
+  }
   ImGui::Render();
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
@@ -177,18 +189,20 @@ void Engine::menuFrame() {
 }
 
 void Engine::startFromMenu(const TitleMenu::Choice &choice) {
-  saveServerProperties(); // remember the name for next time
+  saveServerProperties(); // remember the name (and the last world) for next time
+  // World generation reads the global seed: the scene must be gone first.
+  scene.close();
 
   Session::Options opts;
   opts.name = g_settings.player_name;
-  opts.save_dir = WorldSave::worldDir(g_settings.world_name);
-  opts.world_name = g_settings.world_name;
+  opts.save_dir = WorldSave::worldDir(choice.world);
+  opts.world_name = choice.world;
   opts.port = static_cast<uint16_t>(g_settings.server_port);
 
   std::string error;
   std::unique_ptr<Session> s;
   switch (choice.kind) {
-    case TitleMenu::Choice::Single:
+    case TitleMenu::Choice::Play:
       s = Session::local(Session::Mode::Single, opts, error);
       break;
     case TitleMenu::Choice::Host:
