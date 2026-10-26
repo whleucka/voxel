@@ -23,6 +23,13 @@ std::unique_ptr<Brain> makeSwimmer() {
   return std::make_unique<WanderBrain>(o);
 }
 
+std::unique_ptr<Brain> makeChaser() { return std::make_unique<ChaseBrain>(); }
+std::unique_ptr<Brain> makeHoppingChaser() {
+  ChaseOptions o;
+  o.hop = true;
+  return std::make_unique<ChaseBrain>(o);
+}
+
 // Appends four legs of the given size, inset at the corners of a footprint
 // half_x wide and spanning z_front..z_back, swinging in diagonal pairs.
 void addLegs(std::vector<ModelBox> &model, float half_x, float z_front, float z_back,
@@ -153,6 +160,78 @@ EntityTypeDef makeBlossomDeer() {
   return d;
 }
 
+// ─── Enemies ───────────────────────────────────────────────────────────
+// Spooky but cute. Eyes glow so they read in the dark.
+
+ItemStack glowstone(uint16_t n) { return {itemForBlock(BlockType::GLOWSTONE), n}; }
+const ChanceDrop kSometimesCoal{{ItemId::COAL, 1}, 0.5f};
+
+EntityTypeDef makeGloomling() {
+  const glm::vec3 shadow{0.20f, 0.13f, 0.30f}, wisp{0.30f, 0.20f, 0.42f},
+      eye{1.00f, 0.88f, 0.35f};
+  EntityTypeDef d{"Gloomling", 0.3f, 0.6f, 6, 0, 3.0f, {}, makeHoppingChaser,
+                  {glowstone(1)}, std::nullopt};
+  d.model = {
+      {{-0.30f, 0.00f, -0.30f}, {0.60f, 0.48f, 0.60f}, shadow},           // blob
+      {{-0.22f, 0.48f, -0.22f}, {0.44f, 0.10f, 0.44f}, wisp},             // crown
+      {{-0.08f, 0.58f, -0.06f}, {0.14f, 0.10f, 0.14f}, wisp},             // wisp tip
+      {{-0.18f, 0.26f, -0.31f}, {0.12f, 0.12f, 0.02f}, eye, 0, true},     // eyes
+      {{0.06f, 0.26f, -0.31f}, {0.12f, 0.12f, 0.02f}, eye, 0, true},
+  };
+  d.chance_drops = {kSometimesCoal};
+  d.enemy = EnemyDef{/*damage=*/1, /*surface=*/true, /*vanish_at_dawn=*/true, {}};
+  return d;
+}
+
+EntityTypeDef makeThornCrawler() {
+  const glm::vec3 shell{0.30f, 0.38f, 0.16f}, thorn{0.52f, 0.36f, 0.20f},
+      leg{0.22f, 0.26f, 0.12f}, eye{1.00f, 0.45f, 0.20f};
+  EntityTypeDef d{"Thorn Crawler", 0.35f, 0.5f, 4, 0, 4.2f, {}, makeChaser,
+                  {glowstone(1)}, std::nullopt};
+  d.model = {
+      {{-0.33f, 0.14f, -0.30f}, {0.66f, 0.24f, 0.70f}, shell},            // body
+      {{-0.18f, 0.12f, -0.45f}, {0.36f, 0.20f, 0.16f}, shell},            // head
+      {{-0.25f, 0.38f, -0.20f}, {0.06f, 0.10f, 0.06f}, thorn},            // thorns
+      {{0.15f, 0.38f, -0.10f}, {0.06f, 0.10f, 0.06f}, thorn},
+      {{-0.05f, 0.38f, 0.05f}, {0.06f, 0.12f, 0.06f}, thorn},
+      {{-0.20f, 0.38f, 0.25f}, {0.06f, 0.08f, 0.06f}, thorn},
+      {{0.18f, 0.38f, 0.28f}, {0.06f, 0.10f, 0.06f}, thorn},
+      {{-0.13f, 0.22f, -0.46f}, {0.07f, 0.06f, 0.02f}, eye, 0, true},     // eyes
+      {{0.06f, 0.22f, -0.46f}, {0.07f, 0.06f, 0.02f}, eye, 0, true},
+  };
+  addLegs(d.model, 0.35f, -0.26f, 0.36f, {0.10f, 0.16f, 0.10f}, leg);
+  d.chance_drops = {kSometimesCoal};
+  d.enemy = EnemyDef{/*damage=*/2, /*surface=*/true, /*vanish_at_dawn=*/true,
+                     {BiomeType::PLAINS, BiomeType::MOUNTAIN, BiomeType::CHERRY}};
+  return d;
+}
+
+EntityTypeDef makeCaveGrumble() {
+  const glm::vec3 rock{0.45f, 0.45f, 0.48f}, dark{0.32f, 0.32f, 0.35f},
+      moss{0.30f, 0.52f, 0.22f}, eye{0.45f, 0.95f, 1.00f};
+  EntityTypeDef d{"Cave Grumble", 0.4f, 1.3f, 16, 0, 1.6f, {}, makeChaser,
+                  {glowstone(2)}, std::nullopt};
+  d.model = {
+      {{-0.40f, 0.30f, -0.32f}, {0.80f, 0.80f, 0.64f}, rock},             // body
+      {{-0.42f, 1.10f, -0.34f}, {0.84f, 0.14f, 0.68f}, moss},             // mossy top
+      {{-0.20f, 1.24f, -0.10f}, {0.18f, 0.06f, 0.18f}, moss},
+      {{-0.26f, 0.62f, -0.34f}, {0.52f, 0.08f, 0.03f}, dark},             // brow
+      {{-0.22f, 0.76f, -0.34f}, {0.12f, 0.10f, 0.02f}, eye, 0, true},     // eyes
+      {{0.10f, 0.76f, -0.34f}, {0.12f, 0.10f, 0.02f}, eye, 0, true},
+      {{-0.54f, 0.40f, -0.12f}, {0.14f, 0.50f, 0.24f}, dark},             // arms
+      {{0.40f, 0.40f, -0.12f}, {0.14f, 0.50f, 0.24f}, dark},
+      {{-0.30f, 0.00f, -0.15f}, {0.24f, 0.30f, 0.30f}, dark, +1},         // legs
+      {{0.06f, 0.00f, -0.15f}, {0.24f, 0.30f, 0.30f}, dark, -1},
+  };
+  d.chance_drops = {kSometimesCoal};
+  d.enemy = EnemyDef{/*damage=*/2, /*surface=*/false, /*vanish_at_dawn=*/false, {}};
+  return d;
+}
+
+const EntityTypeDef kGloomling = makeGloomling();
+const EntityTypeDef kThornCrawler = makeThornCrawler();
+const EntityTypeDef kCaveGrumble = makeCaveGrumble();
+
 const EntityTypeDef kWoolly = makeWoolly();
 const EntityTypeDef kBunny = makeBunny();
 const EntityTypeDef kShellTurtle = makeShellTurtle();
@@ -167,7 +246,10 @@ bool isValidEntityKind(EntityKind kind) {
     case EntityKind::Woolly:
     case EntityKind::Bunny:
     case EntityKind::ShellTurtle:
-    case EntityKind::BlossomDeer:  return true;
+    case EntityKind::BlossomDeer:
+    case EntityKind::Gloomling:
+    case EntityKind::ThornCrawler:
+    case EntityKind::CaveGrumble:  return true;
   }
   return false;
 }
@@ -180,6 +262,9 @@ const EntityTypeDef &entityType(EntityKind kind) {
     case EntityKind::Bunny:        return kBunny;
     case EntityKind::ShellTurtle:  return kShellTurtle;
     case EntityKind::BlossomDeer:  return kBlossomDeer;
+    case EntityKind::Gloomling:    return kGloomling;
+    case EntityKind::ThornCrawler: return kThornCrawler;
+    case EntityKind::CaveGrumble:  return kCaveGrumble;
   }
   return kTestCreature;
 }

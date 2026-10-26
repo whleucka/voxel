@@ -1052,6 +1052,37 @@ TEST_CASE_FIXTURE(FightGame, "killing a creature removes it and drops its loot")
   CHECK((loot || countOf(inventory(), ItemId::COAL) == 1));
 }
 
+TEST_CASE_FIXTURE(FightGame, "killing enemies drops glowstone, and coal about half the time") {
+  game.entities().remove(target);
+  int coal = 0, glowstone = 0;
+  const int kills = 20;
+  for (int i = 0; i < kills; ++i) {
+    auto e = game.entities().spawn(EntityKind::CaveGrumble, spot);
+    REQUIRE(e);
+    target = *e;
+    for (int hits = 0; creature() && hits < 20; ++hits) {
+      run(AttackEntity{target});
+      wait(0.4f);
+    }
+    REQUIRE_FALSE(creature());
+    // Count the loot wherever it went (the player stands close enough to
+    // pick it up), then clear it for the next kill.
+    for (const auto &[eid, d] : game.entities().all()) {
+      if (d.item.id == ItemId::COAL) coal += d.item.count;
+      if (d.item.id == itemForBlock(BlockType::GLOWSTONE)) glowstone += d.item.count;
+    }
+    std::vector<EntityId> items;
+    for (const auto &[eid, d] : game.entities().all()) items.push_back(eid);
+    for (EntityId eid : items) game.entities().remove(eid);
+  }
+  coal += countOf(inventory(), ItemId::COAL);
+  glowstone += countOf(inventory(), itemForBlock(BlockType::GLOWSTONE)) -
+               countOf(Game::starterKit(), itemForBlock(BlockType::GLOWSTONE));
+  CHECK(glowstone == 2 * kills);
+  CHECK(coal > 0);
+  CHECK(coal < kills);
+}
+
 TEST_CASE_FIXTURE(EditGame, "the debug panel can spawn a test creature in front of you") {
   conn.send(MovePlayer{game.findPlayer(id)->position, -90.0f, 0.0f}); // facing -Z
   game.pump();

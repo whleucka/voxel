@@ -22,8 +22,8 @@ Plan: [enemies-plan.md](enemies-plan.md) · Spec: [SPEC-enemies.md](../SPEC-enem
 - [x] With no player in range it wanders.
 
 ## T4: Enemy kinds
-- [ ] Gloomling, Thorn Crawler and Cave Grumble have the spec's sizes, speeds, health, damage and models with glowing eyes.
-- [ ] They can be hit. Killing one drops glowstone (2 for the Grumble), plus coal 50% of the time (seeded).
+- [x] Gloomling, Thorn Crawler and Cave Grumble have the spec's sizes, speeds, health, damage and models with glowing eyes.
+- [x] They can be hit. Killing one drops glowstone (2 for the Grumble), plus coal 50% of the time (seeded).
 
 ## T5: Spawning
 - [ ] The Gloomling spawns only at night, on the surface, in the dark, and not next to glowstone.

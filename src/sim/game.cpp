@@ -497,8 +497,12 @@ void Game::apply(Client &client, const AttackEntity &cmd) {
   if (e->health <= 0) {
     std::uniform_real_distribution<float> side(-1.0f, 1.0f);
     glm::vec3 at = e->body.position + glm::vec3(0.0f, 0.3f, 0.0f);
+    std::uniform_real_distribution<float> roll(0.0f, 1.0f);
     for (const ItemStack &drop : def.drops)
       dropItem(drop, at, {side(rng_), 4.0f, side(rng_)}, kBreakDropDelayMs);
+    for (const ChanceDrop &drop : def.chance_drops)
+      if (roll(rng_) < drop.chance)
+        dropItem(drop.stack, at, {side(rng_), 4.0f, side(rng_)}, kBreakDropDelayMs);
     entities_.remove(cmd.id);
   }
 }

@@ -1,5 +1,6 @@
 #include "doctest/doctest.h"
 #include "block/block_type.hpp"
+#include "item/item.hpp"
 #include "entity/brain.hpp"
 #include "entity/entity_store.hpp"
 #include "test_util.hpp"
@@ -92,4 +93,63 @@ TEST_CASE("a chaser ignores players it isn't given as targets") {
   r.spawn({4.5f, kBase + 1.0f, 8.5f});
   for (int i = 0; i < 20; ++i) r.store.tick(r.world, r.rng, r.players, {});
   CHECK_FALSE(r.brain().chasing());
+}
+
+// ─── Enemy kinds ───────────────────────────────────────────────────────
+
+TEST_CASE("the three enemies match the enemy table") {
+  struct Row {
+    EntityKind kind;
+    float width, height, speed;
+    int health, damage;
+    bool surface, vanishes;
+    uint16_t glowstone;
+  };
+  const Row rows[] = {
+      {EntityKind::Gloomling, 0.6f, 0.6f, 3.0f, 6, 1, true, true, 1},
+      {EntityKind::ThornCrawler, 0.7f, 0.5f, 4.2f, 4, 2, true, true, 1},
+      {EntityKind::CaveGrumble, 0.8f, 1.3f, 1.6f, 16, 2, false, false, 2},
+  };
+  REQUIRE(std::size(kEnemyKinds) == std::size(rows));
+  for (const Row &row : rows) {
+    CAPTURE(static_cast<int>(row.kind));
+    REQUIRE(isEnemy(row.kind));
+    CHECK_FALSE(isAnimal(row.kind));
+    const EntityTypeDef &d = entityType(row.kind);
+    CHECK(d.half_width * 2.0f == doctest::Approx(row.width));
+    CHECK(d.height == doctest::Approx(row.height));
+    CHECK(d.walk_speed == doctest::Approx(row.speed));
+    CHECK(d.max_health == row.health); // > 0: can be hit
+    CHECK(d.enemy->damage == row.damage);
+    CHECK(d.enemy->surface == row.surface);
+    CHECK(d.enemy->vanish_at_dawn == row.vanishes);
+    CHECK(d.brain);
+    REQUIRE(d.drops.size() == 1);
+    CHECK(d.drops[0] == ItemStack{itemForBlock(BlockType::GLOWSTONE), row.glowstone});
+    REQUIRE(d.chance_drops.size() == 1);
+    CHECK(d.chance_drops[0].stack == ItemStack{ItemId::COAL, 1});
+    CHECK(d.chance_drops[0].chance == doctest::Approx(0.5f));
+
+    int glowing = 0;
+    for (const ModelBox &b : d.model) glowing += b.glow;
+    CHECK(glowing == 2); // a pair of eyes
+  }
+  CHECK(entityType(EntityKind::ThornCrawler).enemy->biomes.size() == 3);
+  CHECK(entityType(EntityKind::Gloomling).enemy->biomes.empty());
+}
+
+TEST_CASE("animals and other kinds aren't enemies") {
+  for (EntityKind k : kAnimalKinds) CHECK_FALSE(isEnemy(k));
+  CHECK_FALSE(isEnemy(EntityKind::TestCreature));
+  CHECK_FALSE(isEnemy(EntityKind::DroppedItem));
+  CHECK_FALSE(isEnemy(static_cast<EntityKind>(999)));
+}
+
+TEST_CASE("enemies chase") {
+  EntityStore store;
+  for (EntityKind k : kEnemyKinds) {
+    auto id = store.spawn(k, {0, 100, 0});
+    REQUIRE(id);
+    CHECK(dynamic_cast<ChaseBrain *>(store.find(*id)->brain.get()));
+  }
 }
