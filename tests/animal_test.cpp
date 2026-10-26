@@ -111,29 +111,6 @@ TEST_CASE("a hopper jumps while walking on flat ground") {
 #include "biome/biome_manager.hpp"
 #include "entity/animals.hpp"
 
-namespace {
-
-// The first chunk (spiralling out from the origin) whose biome is `b`.
-std::optional<glm::ivec2> findBiomeChunk(BiomeType b) {
-  for (int r = 0; r < 300; ++r)
-    for (int dx = -r; dx <= r; ++dx)
-      for (int dz = -r; dz <= r; ++dz) {
-        if (std::abs(dx) != r && std::abs(dz) != r) continue;
-        if (BiomeManager::getBiomeForChunk(dx, dz) == b) return glm::ivec2(dx, dz);
-      }
-  return std::nullopt;
-}
-
-// A ground cell in chunk c, high in the sky, set to the given block.
-glm::ivec3 groundIn(World &world, glm::ivec2 c, BlockType b) {
-  world.loadChunkSync(c.x, c.y);
-  glm::ivec3 g{c.x * kChunkWidth + 5, 180, c.y * kChunkDepth + 5};
-  fill(world, g, g, b);
-  return g;
-}
-
-} // namespace
-
 TEST_CASE("the four animals are friendly, sized and fed") {
   for (EntityKind k : kAnimalKinds) {
     const EntityTypeDef &d = entityType(k);

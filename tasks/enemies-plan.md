@@ -33,7 +33,7 @@ Spec: [SPEC-enemies.md](../SPEC-enemies.md) · Tasks: [enemies-todo.md](enemies-
 - [x] T2: Pathfinding (`findPath`, tests)
 - [x] T3: `BrainContext` and `ChaseBrain` (tests)
 - [x] T4: Enemy kinds, models with glow, chance drops on death
-- [ ] T5: Spawning: cave placement, predicates, hostile rules, difficulty caps
+- [x] T5: Spawning: cave placement, predicates, hostile rules, difficulty caps
 - [ ] T6: Game: contact attacks, `KnockedBack`, sunrise, Peaceful, speed scaling
 - [ ] T7: Client: knockback, F1 difficulty and spawn buttons, glowing boxes
 - [ ] T8: Wrap-up, PR, merge when green

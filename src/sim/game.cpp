@@ -1,13 +1,17 @@
 #include "sim/game.hpp"
 #include "block/block_data.hpp"
 #include "entity/animals.hpp"
+#include "entity/enemies.hpp"
 #include "core/settings.hpp"
 #include <cmath>
 #include <iostream>
 
 // ─── Setup ─────────────────────────────────────────────────────────────
 
-Game::Game() { registerAnimalSpawns(spawner_); }
+Game::Game() {
+  registerAnimalSpawns(spawner_);
+  registerEnemySpawns(spawner_);
+}
 
 bool Game::load(const std::string &dir) {
   save_dir = dir;
@@ -184,7 +188,8 @@ void Game::tick() {
     if (!ps.vitals.dead()) living.push_back(ps.position);
   }
   entities_.tick(world_, rng_, positions, living);
-  spawner_.tick(entities_, world_, rng_, positions, clock_.fractionOfDay());
+  spawner_.tick(entities_, world_, rng_, positions, clock_.fractionOfDay(),
+                g_settings.difficulty);
   releaseAnimalProducts();
   mergeDroppedItems();
   pickUpDroppedItems();

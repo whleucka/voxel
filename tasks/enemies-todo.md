@@ -26,9 +26,9 @@ Plan: [enemies-plan.md](enemies-plan.md) · Spec: [SPEC-enemies.md](../SPEC-enem
 - [x] They can be hit. Killing one drops glowstone (2 for the Grumble), plus coal 50% of the time (seeded).
 
 ## T5: Spawning
-- [ ] The Gloomling spawns only at night, on the surface, in the dark, and not next to glowstone.
-- [ ] The Crawler spawns only in its biomes. The Grumble spawns only underground in the dark, at any time.
-- [ ] Cave placement finds pockets and never the surface. Peaceful spawns nothing, and Easy caps are halved.
+- [x] The Gloomling spawns only at night, on the surface, in the dark, and not next to glowstone.
+- [x] The Crawler spawns only in its biomes. The Grumble spawns only underground in the dark, at any time.
+- [x] Cave placement finds pockets and never the surface. Peaceful spawns nothing, and Easy caps are halved.
 
 ## T6: Game
 - [ ] Contact damage with a per-enemy cooldown, and `KnockedBack` goes to the right player.

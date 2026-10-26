@@ -38,7 +38,7 @@ public:
   static constexpr int kHappyMs = 2000;
   static constexpr int kProductDelayMs = 1000;
 
-  Game(); // registers natural spawning (animals)
+  Game(); // registers natural spawning (animals and enemies)
 
   // Bind the game to a save directory and load it if a world exists there.
   // An existing world keeps its own seed (written to g_settings) and clock;

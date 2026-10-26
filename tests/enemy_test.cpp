@@ -153,3 +153,192 @@ TEST_CASE("enemies chase") {
     CHECK(dynamic_cast<ChaseBrain *>(store.find(*id)->brain.get()));
   }
 }
+
+// ─── Spawning ──────────────────────────────────────────────────────────
+
+#include "entity/enemies.hpp"
+#include "entity/spawner.hpp"
+
+namespace {
+
+constexpr float kMidnight = 0.0f, kNoon = 0.5f;
+
+// A platform under open sky and, below it, a sealed stone room: one surface
+// spot and one cave spot in chunk (0, 0).
+struct SpawnSpots {
+  World world;
+  glm::ivec3 surface{8, kBase + 8, 8}; // ground blocks
+  glm::ivec3 cave{8, kBase, 8};
+
+  SpawnSpots() {
+    world.loadChunkSync(0, 0);
+    fill(world, {2, kBase - 1, 2}, {13, kBase + 8, 13}, BlockType::STONE);
+    fill(world, {4, kBase + 1, 4}, {11, kBase + 3, 11}, BlockType::AIR);
+  }
+  void light(glm::ivec3 at) { fill(world, at, at, BlockType::GLOWSTONE); }
+};
+
+} // namespace
+
+TEST_CASE("the spawn rig has the light it needs") {
+  SpawnSpots s;
+  CHECK(s.world.getSkyLightAt(s.surface + glm::ivec3(0, 1, 0)) == 15);
+  CHECK(s.world.getSkyLightAt(s.cave + glm::ivec3(0, 1, 0)) == 0);
+  CHECK(s.world.getBlockLightAt(s.cave + glm::ivec3(0, 1, 0)) == 0);
+}
+
+TEST_CASE("a gloomling spawns only at night, on the surface, in the dark") {
+  SpawnSpots s;
+  EntityKind k = EntityKind::Gloomling;
+  CHECK(enemyCanSpawn(k, s.world, s.surface, kMidnight));
+  CHECK(enemyCanSpawn(k, s.world, s.surface, 0.8f));
+  CHECK_FALSE(enemyCanSpawn(k, s.world, s.surface, kNoon));
+  CHECK_FALSE(enemyCanSpawn(k, s.world, s.surface, 0.25f)); // sunrise
+  CHECK_FALSE(enemyCanSpawn(k, s.world, s.cave, kMidnight)); // no sky
+
+  s.light(s.surface + glm::ivec3(3, 1, 0)); // a glowstone 3 blocks away
+  CHECK_FALSE(enemyCanSpawn(k, s.world, s.surface, kMidnight));
+}
+
+TEST_CASE("a glowstone far enough away doesn't stop surface spawns") {
+  SpawnSpots s;
+  s.light(s.surface + glm::ivec3(-5, 1, -5)); // 10 blocks of light travel
+  CHECK(s.world.getBlockLightAt(s.surface + glm::ivec3(0, 1, 0)) < kEnemyMaxBlockLight);
+  CHECK(enemyCanSpawn(EntityKind::Gloomling, s.world, s.surface, kMidnight));
+}
+
+TEST_CASE("a thorn crawler spawns only in its biomes") {
+  const auto &biomes = entityType(EntityKind::ThornCrawler).enemy->biomes;
+  World world;
+  for (BiomeType b : biomes) {
+    auto home = findBiomeChunk(b);
+    REQUIRE(home);
+    glm::ivec3 g = groundIn(world, *home, BlockType::GRASS);
+    CHECK(enemyCanSpawn(EntityKind::ThornCrawler, world, g, kMidnight));
+  }
+  for (BiomeType b : {BiomeType::DESERT, BiomeType::OCEAN, BiomeType::TROPICAL}) {
+    REQUIRE(std::find(biomes.begin(), biomes.end(), b) == biomes.end());
+    auto away = findBiomeChunk(b);
+    REQUIRE(away);
+    glm::ivec3 g = groundIn(world, *away, BlockType::GRASS);
+    CHECK_FALSE(enemyCanSpawn(EntityKind::ThornCrawler, world, g, kMidnight));
+    CHECK(enemyCanSpawn(EntityKind::Gloomling, world, g, kMidnight)); // anywhere
+  }
+}
+
+TEST_CASE("a cave grumble spawns only underground in the dark, at any time") {
+  SpawnSpots s;
+  EntityKind k = EntityKind::CaveGrumble;
+  CHECK(enemyCanSpawn(k, s.world, s.cave, kMidnight));
+  CHECK(enemyCanSpawn(k, s.world, s.cave, kNoon));
+  CHECK_FALSE(enemyCanSpawn(k, s.world, s.surface, kMidnight));
+
+  s.light(s.cave + glm::ivec3(3, 1, 3)); // a lit mine
+  CHECK_FALSE(enemyCanSpawn(k, s.world, s.cave, kMidnight));
+}
+
+TEST_CASE("only enemies pass the enemy predicate") {
+  SpawnSpots s;
+  CHECK_FALSE(enemyCanSpawn(EntityKind::Woolly, s.world, s.surface, kMidnight));
+  CHECK_FALSE(enemyCanSpawn(EntityKind::TestCreature, s.world, s.cave, kMidnight));
+}
+
+TEST_CASE("cave placement finds pockets below the surface, never the top") {
+  SpawnSpots s;
+  Rng rng{8};
+  bool found_room = false;
+  for (int i = 0; i < 50; ++i) {
+    auto g = Spawner::caveAt(s.world, 8, 8, rng);
+    REQUIRE(g);
+    CHECK(g->y < s.surface.y);
+    CHECK(s.world.isSolidBlock(g->x, g->y, g->z));
+    CHECK(s.world.getBlockAt(glm::vec3(*g) + glm::vec3(0.5f, 1.5f, 0.5f)) == BlockType::AIR);
+    CHECK(s.world.getBlockAt(glm::vec3(*g) + glm::vec3(0.5f, 2.5f, 0.5f)) == BlockType::AIR);
+    found_room |= *g == s.cave;
+  }
+  CHECK(found_room);
+  CHECK_FALSE(Spawner::caveAt(s.world, 300, 300, rng)); // unloaded
+}
+
+TEST_CASE("a column with no pocket has no cave spot") {
+  World world;
+  world.loadChunkSync(0, 0);
+  fill(world, {3, 0, 3}, {3, kBase, 3}, BlockType::STONE); // solid to the sky
+  Rng rng{1};
+  CHECK_FALSE(Spawner::caveAt(world, 3, 3, rng));
+}
+
+namespace {
+
+bool always(const World &, glm::ivec3, float) { return true; }
+
+// Natural terrain around the origin, for the spawner's distance band.
+struct HostileRig {
+  World world;
+  EntityStore store;
+  Spawner spawner;
+  Rng rng{17};
+  std::vector<glm::vec3> players{{8.0f, 100.0f, 8.0f}};
+
+  HostileRig() {
+    for (int cx = -4; cx <= 4; ++cx)
+      for (int cz = -4; cz <= 4; ++cz) world.loadChunkSync(cx, cz);
+  }
+  void rule(int cap, Placement where = Placement::Surface) {
+    SpawnRule r{EntityKind::Gloomling, cap, 50, always};
+    r.placement = where;
+    r.hostile = true;
+    spawner.addRule(r);
+  }
+  void ticks(int n, Difficulty d) {
+    for (int i = 0; i < n; ++i) spawner.tick(store, world, rng, players, kMidnight, d);
+  }
+};
+
+} // namespace
+
+TEST_CASE("hostile rules spawn nothing on peaceful") {
+  HostileRig r;
+  r.rule(4);
+  r.ticks(400, Difficulty::Peaceful);
+  CHECK(r.store.size() == 0);
+}
+
+TEST_CASE("hostile caps are halved on easy and full on normal") {
+  HostileRig easy;
+  easy.rule(4);
+  easy.ticks(400, Difficulty::Easy);
+  CHECK(easy.store.size() == 2);
+
+  HostileRig normal;
+  normal.rule(4);
+  normal.ticks(400, Difficulty::Normal);
+  CHECK(normal.store.size() == 4);
+}
+
+TEST_CASE("cave rules spawn below the surface, closer in") {
+  HostileRig r;
+  // Dig a tunnel 20 blocks east of the player, under the terrain.
+  int top = Spawner::groundAt(r.world, 28, 8)->y;
+  fill(r.world, {20, top - 12, 0}, {36, top - 11, 16}, BlockType::AIR);
+  r.rule(3, Placement::Cave);
+  r.ticks(20 * 60, Difficulty::Normal);
+  REQUIRE(r.store.size() > 0);
+  for (const auto &[id, e] : r.store.all()) {
+    glm::vec3 p = e.body.position;
+    int cx = static_cast<int>(std::floor(p.x)), cz = static_cast<int>(std::floor(p.z));
+    auto surface = Spawner::groundAt(r.world, cx, cz);
+    REQUIRE(surface);
+    CHECK(p.y < surface->y);
+    float d = glm::length(glm::vec2(p.x - 8.0f, p.z - 8.0f));
+    CHECK(d >= Spawner::kCaveMinDistance - 1.5f);
+    CHECK(d <= Spawner::kCaveMaxDistance + 1.5f);
+  }
+}
+
+TEST_CASE("animal rules ignore difficulty") {
+  HostileRig r;
+  r.spawner.addRule({EntityKind::TestCreature, 4, 50, always});
+  r.ticks(400, Difficulty::Peaceful);
+  CHECK(r.store.size() == 4);
+}

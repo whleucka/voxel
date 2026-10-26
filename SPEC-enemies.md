@@ -43,7 +43,9 @@ The Grumble drops 2 glowstone.
   - Below the surface, with sky light 0 at its feet and block light below 4.
   - Any time of day.
   - It needs a new **cave placement** that finds an air pocket with solid floor and 2 blocks of headroom in the column.
+  - The world has no natural caves yet, so Grumbles live in the tunnels players dig. Tunnels are small and close to their diggers, so cave placement looks 12–32 blocks from a player instead of 24–64. *(Added during the build.)*
 - **Caps per player within 64 blocks (Normal):** Gloomling 4, Crawler 3, Grumble 3. The spawner tries every 3 s.
+  - Distance for the caps is measured horizontally, like the placement band. Before this, a creature far below the player didn't count, so the cap leaked. *(Fixed during the build; animals benefit too.)*
 
 **Finding the player**
 - **A\* paths over the block grid:**
