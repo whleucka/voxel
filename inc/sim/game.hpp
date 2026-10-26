@@ -33,6 +33,12 @@ public:
   static constexpr int kHurtFlashMs = 300;
   static constexpr float kKnockback = 6.0f;
   static constexpr float kKnockUp = 4.0f;
+  // Feeding animals
+  static constexpr int kFedCooldownMs = 60000;
+  static constexpr int kHappyMs = 2000;
+  static constexpr int kProductDelayMs = 1000;
+
+  Game(); // registers natural spawning (animals)
 
   // Bind the game to a save directory and load it if a world exists there.
   // An existing world keeps its own seed (written to g_settings) and clock;
@@ -91,6 +97,11 @@ private:
   void apply(Client &client, const DropItem &cmd);
   void apply(Client &client, const AttackEntity &cmd);
   void apply(Client &client, const SpawnDebugEntity &cmd);
+  void apply(Client &client, const InteractEntity &cmd);
+  void apply(Client &client, const EatItem &cmd);
+  // Eye-to-box distance check shared by hitting and feeding.
+  bool inReachOf(const PlayerState &ps, const Entity &e) const;
+  void releaseAnimalProducts();
 
   // Puts a stack into the world as a dropped item. Returns false (the stack is
   // lost) only if the entity cap is reached.

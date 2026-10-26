@@ -32,5 +32,7 @@ private:
   GLuint vao = 0, vbo = 0;
   GLuint block_tex = 0, item_tex = 0;
 
-  void drawBox(const glm::mat4 &entity_model, glm::vec3 offset, glm::vec3 size) const;
+  // `local` is applied before the box is placed (e.g. a leg's swing).
+  void drawBox(const glm::mat4 &entity_model, glm::vec3 offset, glm::vec3 size,
+               const glm::mat4 &local = glm::mat4(1.0f)) const;
 };

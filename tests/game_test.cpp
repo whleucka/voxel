@@ -15,6 +15,8 @@ namespace {
 struct SmallGame {
   ScopedRenderDistance rd{0};
   Game game;
+  // Natural spawning would add animals mid-test; tests that want it add rules.
+  SmallGame() { game.spawner() = Spawner{}; }
 };
 
 std::vector<Event> pollAll(LocalConnection &conn) {
@@ -1060,4 +1062,128 @@ TEST_CASE_FIXTURE(EditGame, "the debug panel can spawn a test creature in front 
   glm::vec3 d = e.body.position - game.findPlayer(id)->position;
   CHECK(d.z == doctest::Approx(-3.0f).epsilon(0.01));
   CHECK(rejected(run(SpawnDebugEntity{static_cast<EntityKind>(999)})));
+}
+
+// ─── Animals: feeding and eating ───────────────────────────────────────
+
+namespace {
+
+// FightGame's flat strip, with a woolly where the test creature stood.
+struct FeedGame : FightGame {
+  EntityId woolly = 0;
+  FeedGame() {
+    game.entities().remove(target);
+    auto w = game.entities().spawn(EntityKind::Woolly, spot);
+    REQUIRE(w);
+    woolly = *w;
+  }
+  Entity *animal() { return game.entities().find(woolly); }
+  int held() { return inventory().slot(game.findPlayer(id)->selected_slot).count; }
+};
+
+} // namespace
+
+TEST_CASE("the natural spawner has a rule per animal") {
+  Game g;
+  CHECK(g.spawner().rules().size() == std::size(kAnimalKinds));
+}
+
+TEST_CASE_FIXTURE(FeedGame, "feeding an animal its favourite makes it happy and it gives back") {
+  hold(BlockType::GRASS);
+  run(GiveItem{itemForBlock(BlockType::GRASS), 2}); // 3 grass in hand
+  REQUIRE(held() == 3);
+
+  auto evs = run(InteractEntity{woolly});
+  CHECK_FALSE(rejected(evs));
+  CHECK(held() == 2);
+  CHECK(animal()->happy_ms > 0);
+  CHECK(animal()->fed_cooldown_ms > 0);
+
+  // The product pops out after a second (and the player, close by, may grab it).
+  wait(0.9f);
+  bool any = false;
+  for (const auto &[eid, e] : game.entities().all()) any |= e.item.id == ItemId::WOOL;
+  CHECK_FALSE(any);
+  game.advance(0.2f);
+  any = countOf(inventory(), ItemId::WOOL) > 0;
+  for (const auto &[eid, e] : game.entities().all()) any |= e.item.id == ItemId::WOOL;
+  CHECK(any);
+}
+
+TEST_CASE_FIXTURE(FeedGame, "a fed animal isn't hungry for a while") {
+  hold(BlockType::GRASS);
+  run(GiveItem{itemForBlock(BlockType::GRASS), 1});
+  run(InteractEntity{woolly});
+  CHECK(rejected(run(InteractEntity{woolly})));
+  CHECK(held() == 1); // the refused grass wasn't eaten
+}
+
+TEST_CASE_FIXTURE(FeedGame, "animals refuse the wrong food or an empty hand") {
+  hold(BlockType::STONE);
+  CHECK(rejected(run(InteractEntity{woolly})));
+  CHECK(held() == 1);
+  run(SelectSlot{9}); // empty
+  CHECK(rejected(run(InteractEntity{woolly})));
+  CHECK(animal()->fed_cooldown_ms == 0);
+}
+
+TEST_CASE_FIXTURE(FeedGame, "feeding needs reach and an animal") {
+  hold(BlockType::GRASS);
+  animal()->body.position = spot + glm::vec3(0, 0, -6);
+  CHECK(rejected(run(InteractEntity{woolly})));
+  CHECK(held() == 1);
+
+  auto critter = game.entities().spawn(EntityKind::TestCreature, spot);
+  CHECK(rejected(run(InteractEntity{*critter})));
+  CHECK(rejected(run(InteractEntity{424242})));
+}
+
+TEST_CASE_FIXTURE(FeedGame, "animals can't be hurt") {
+  CHECK(rejected(run(AttackEntity{woolly})));
+  REQUIRE(animal());
+}
+
+TEST_CASE_FIXTURE(FeedGame, "snapshots show a happy animal") {
+  hold(BlockType::GRASS);
+  run(InteractEntity{woolly});
+  game.advance(0.05f);
+  auto snap = lastSnapshot(pollAll(conn));
+  REQUIRE(snap);
+  bool happy = false;
+  for (const EntityView &v : snap->entities)
+    if (v.id == woolly) happy = v.happy;
+  CHECK(happy);
+}
+
+TEST_CASE_FIXTURE(EditGame, "eating food heals and uses one up") {
+  // Hurt the player with a fall first.
+  glm::vec3 p = game.findPlayer(id)->position;
+  conn.send(::at(p + glm::vec3(0, 12, 0), true));
+  conn.send(::at(p + glm::vec3(0, 11, 0), false));
+  conn.send(::at(p, true));
+  game.pump();
+  REQUIRE(game.findPlayer(id)->vitals.health() == 11);
+
+  run(GiveItem{ItemId::BERRIES, 3});
+  for (int i = 0; i < kHotbarSlots; ++i)
+    if (inventory().slot(i).id == ItemId::BERRIES) run(SelectSlot{i});
+  CHECK_FALSE(rejected(run(EatItem{})));
+  CHECK(game.findPlayer(id)->vitals.health() == 15);
+  CHECK(countOf(inventory(), ItemId::BERRIES) == 2);
+
+  run(EatItem{});
+  run(EatItem{}); // 19 → 20: capped
+  CHECK(game.findPlayer(id)->vitals.health() == 20);
+  CHECK(countOf(inventory(), ItemId::BERRIES) == 0);
+}
+
+TEST_CASE_FIXTURE(EditGame, "you can't eat at full health or eat non-food") {
+  run(GiveItem{ItemId::SWEET_PETALS, 1});
+  for (int i = 0; i < kHotbarSlots; ++i)
+    if (inventory().slot(i).id == ItemId::SWEET_PETALS) run(SelectSlot{i});
+  CHECK(rejected(run(EatItem{})));
+  CHECK(countOf(inventory(), ItemId::SWEET_PETALS) == 1);
+
+  run(SelectSlot{0}); // glowstone
+  CHECK(rejected(run(EatItem{})));
 }

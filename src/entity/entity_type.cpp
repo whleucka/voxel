@@ -5,6 +5,38 @@ namespace {
 
 std::unique_ptr<Brain> makeWander() { return std::make_unique<WanderBrain>(); }
 
+std::unique_ptr<Brain> makeGrazer() {
+  WanderOptions o;
+  o.cautious = true;
+  return std::make_unique<WanderBrain>(o);
+}
+std::unique_ptr<Brain> makeHopper() {
+  WanderOptions o;
+  o.cautious = true;
+  o.hop = true;
+  return std::make_unique<WanderBrain>(o);
+}
+std::unique_ptr<Brain> makeSwimmer() {
+  WanderOptions o;
+  o.cautious = true;
+  o.can_swim = true;
+  return std::make_unique<WanderBrain>(o);
+}
+
+// Appends four legs of the given size, inset at the corners of a footprint
+// half_x wide and spanning z_front..z_back, swinging in diagonal pairs.
+void addLegs(std::vector<ModelBox> &model, float half_x, float z_front, float z_back,
+             glm::vec3 size, glm::vec3 color) {
+  float left = -half_x, right = half_x - size.x;
+  float front = z_front, back = z_back - size.z;
+  model.push_back({{left, 0.0f, front}, size, color, +1});
+  model.push_back({{right, 0.0f, front}, size, color, -1});
+  model.push_back({{left, 0.0f, back}, size, color, -1});
+  model.push_back({{right, 0.0f, back}, size, color, +1});
+}
+
+const glm::vec3 kEyeBlack{0.05f, 0.05f, 0.05f};
+
 const EntityTypeDef kDroppedItem{
     "Dropped Item",
     /*half_width=*/0.125f, /*height=*/0.25f,
@@ -14,6 +46,7 @@ const EntityTypeDef kDroppedItem{
     /*model=*/{}, // drawn from the item's own art
     /*brain=*/nullptr,
     /*drops=*/{},
+    /*animal=*/std::nullopt,
 };
 
 // A small, clearly-placeholder critter: a body, a head and two eyes.
@@ -26,8 +59,8 @@ const EntityTypeDef kTestCreature{
     /*model=*/{
         {{-0.35f, 0.1f, -0.30f}, {0.70f, 0.50f, 0.80f}, {0.62f, 0.36f, 0.85f}}, // body
         {{-0.25f, 0.45f, -0.60f}, {0.50f, 0.45f, 0.40f}, {0.72f, 0.48f, 0.95f}}, // head
-        {{-0.18f, 0.70f, -0.62f}, {0.10f, 0.10f, 0.03f}, {0.05f, 0.05f, 0.05f}}, // eye
-        {{0.08f, 0.70f, -0.62f}, {0.10f, 0.10f, 0.03f}, {0.05f, 0.05f, 0.05f}},  // eye
+        {{-0.18f, 0.70f, -0.62f}, {0.10f, 0.10f, 0.03f}, kEyeBlack},             // eye
+        {{0.08f, 0.70f, -0.62f}, {0.10f, 0.10f, 0.03f}, kEyeBlack},              // eye
         {{-0.30f, 0.0f, -0.25f}, {0.15f, 0.12f, 0.15f}, {0.30f, 0.18f, 0.45f}},  // feet
         {{0.15f, 0.0f, -0.25f}, {0.15f, 0.12f, 0.15f}, {0.30f, 0.18f, 0.45f}},
         {{-0.30f, 0.0f, 0.30f}, {0.15f, 0.12f, 0.15f}, {0.30f, 0.18f, 0.45f}},
@@ -35,18 +68,118 @@ const EntityTypeDef kTestCreature{
     },
     /*brain=*/makeWander,
     /*drops=*/{{ItemId::COAL, 1}},
+    /*animal=*/std::nullopt,
 };
+
+// ─── Animals ───────────────────────────────────────────────────────────
+// Models face -Z (head toward -Z). Colours are sRGB.
+
+EntityTypeDef makeWoolly() {
+  const glm::vec3 wool{0.95f, 0.95f, 0.92f}, face{0.25f, 0.22f, 0.22f};
+  EntityTypeDef d{"Woolly", 0.45f, 1.1f, 0, 0, 1.4f, {}, makeGrazer, {}, {}};
+  d.model = {
+      {{-0.45f, 0.30f, -0.40f}, {0.90f, 0.60f, 0.85f}, wool},       // fleece
+      {{-0.20f, 0.55f, -0.68f}, {0.40f, 0.38f, 0.32f}, face},       // head
+      {{-0.24f, 0.78f, -0.56f}, {0.48f, 0.18f, 0.20f}, wool},       // fluffy cap
+      {{-0.13f, 0.72f, -0.69f}, {0.07f, 0.07f, 0.02f}, {1, 1, 1}},  // eyes
+      {{0.06f, 0.72f, -0.69f}, {0.07f, 0.07f, 0.02f}, {1, 1, 1}},
+  };
+  addLegs(d.model, 0.36f, -0.32f, 0.38f, {0.18f, 0.32f, 0.18f}, face);
+  d.animal = AnimalDef{itemForBlock(BlockType::GRASS), {ItemId::WOOL, 1},
+                       {BiomeType::MOUNTAIN, BiomeType::PLAINS},
+                       {BlockType::GRASS, BlockType::SNOW, BlockType::SNOW_DIRT}};
+  return d;
+}
+
+EntityTypeDef makeBunny() {
+  const glm::vec3 fur{0.80f, 0.66f, 0.50f}, pink{0.95f, 0.65f, 0.72f};
+  EntityTypeDef d{"Bunny", 0.2f, 0.5f, 0, 0, 2.6f, {}, makeHopper, {}, {}};
+  d.model = {
+      {{-0.17f, 0.08f, -0.15f}, {0.34f, 0.24f, 0.36f}, fur},          // body
+      {{-0.12f, 0.20f, -0.33f}, {0.24f, 0.20f, 0.20f}, fur},          // head
+      {{-0.11f, 0.40f, -0.26f}, {0.06f, 0.20f, 0.04f}, fur},          // ears
+      {{0.05f, 0.40f, -0.26f}, {0.06f, 0.20f, 0.04f}, fur},
+      {{-0.10f, 0.42f, -0.27f}, {0.04f, 0.15f, 0.01f}, pink},
+      {{0.06f, 0.42f, -0.27f}, {0.04f, 0.15f, 0.01f}, pink},
+      {{-0.05f, 0.16f, 0.20f}, {0.10f, 0.10f, 0.06f}, {1, 1, 1}},     // tail
+      {{-0.09f, 0.31f, -0.34f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},    // eyes
+      {{0.04f, 0.31f, -0.34f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},
+  };
+  addLegs(d.model, 0.15f, -0.13f, 0.20f, {0.09f, 0.10f, 0.12f}, fur);
+  d.animal = AnimalDef{itemForBlock(BlockType::CHERRY_LEAF), {ItemId::BERRIES, 1},
+                       {BiomeType::PLAINS, BiomeType::CHERRY},
+                       {BlockType::GRASS}};
+  return d;
+}
+
+EntityTypeDef makeShellTurtle() {
+  const glm::vec3 shell{0.25f, 0.50f, 0.30f}, ridge{0.16f, 0.36f, 0.20f},
+      skin{0.58f, 0.72f, 0.46f};
+  EntityTypeDef d{"Shell Turtle", 0.4f, 0.5f, 0, 0, 0.7f, {}, makeSwimmer, {}, {}};
+  d.model = {
+      {{-0.40f, 0.12f, -0.35f}, {0.80f, 0.28f, 0.70f}, shell},        // shell
+      {{-0.30f, 0.40f, -0.25f}, {0.60f, 0.08f, 0.50f}, ridge},        // shell top
+      {{-0.12f, 0.12f, -0.58f}, {0.24f, 0.18f, 0.24f}, skin},         // head
+      {{-0.08f, 0.24f, -0.59f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},    // eyes
+      {{0.03f, 0.24f, -0.59f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},
+  };
+  addLegs(d.model, 0.42f, -0.30f, 0.32f, {0.16f, 0.12f, 0.16f}, skin);
+  d.animal = AnimalDef{itemForBlock(BlockType::PALM_LEAF), {ItemId::SEA_SHELL, 1},
+                       {BiomeType::TROPICAL}, {BlockType::SAND}};
+  return d;
+}
+
+EntityTypeDef makeBlossomDeer() {
+  const glm::vec3 coat{0.72f, 0.46f, 0.32f}, leg{0.52f, 0.33f, 0.22f},
+      blossom{0.96f, 0.62f, 0.78f};
+  EntityTypeDef d{"Blossom Deer", 0.4f, 1.5f, 0, 0, 2.2f, {}, makeGrazer, {}, {}};
+  d.model = {
+      {{-0.28f, 0.70f, -0.45f}, {0.56f, 0.42f, 0.90f}, coat},          // body
+      {{0.27f, 0.85f, -0.20f}, {0.02f, 0.12f, 0.12f}, blossom},        // spots
+      {{0.27f, 0.80f, 0.15f}, {0.02f, 0.10f, 0.10f}, blossom},
+      {{-0.29f, 0.88f, -0.05f}, {0.02f, 0.12f, 0.12f}, blossom},
+      {{-0.12f, 0.95f, -0.58f}, {0.24f, 0.36f, 0.20f}, coat},          // neck
+      {{-0.14f, 1.20f, -0.78f}, {0.28f, 0.25f, 0.34f}, coat},          // head
+      {{-0.12f, 1.45f, -0.60f}, {0.05f, 0.16f, 0.05f}, leg},           // antlers
+      {{0.07f, 1.45f, -0.60f}, {0.05f, 0.16f, 0.05f}, leg},
+      {{-0.15f, 1.58f, -0.63f}, {0.11f, 0.08f, 0.11f}, blossom},       // blossoms
+      {{0.04f, 1.58f, -0.63f}, {0.11f, 0.08f, 0.11f}, blossom},
+      {{-0.10f, 1.33f, -0.79f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},     // eyes
+      {{0.05f, 1.33f, -0.79f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},
+  };
+  addLegs(d.model, 0.26f, -0.40f, 0.40f, {0.12f, 0.70f, 0.12f}, leg);
+  d.animal = AnimalDef{itemForBlock(BlockType::OAK_LEAF), {ItemId::SWEET_PETALS, 1},
+                       {BiomeType::CHERRY}, {BlockType::GRASS}};
+  return d;
+}
+
+const EntityTypeDef kWoolly = makeWoolly();
+const EntityTypeDef kBunny = makeBunny();
+const EntityTypeDef kShellTurtle = makeShellTurtle();
+const EntityTypeDef kBlossomDeer = makeBlossomDeer();
 
 } // namespace
 
 bool isValidEntityKind(EntityKind kind) {
-  return kind == EntityKind::DroppedItem || kind == EntityKind::TestCreature;
+  switch (kind) {
+    case EntityKind::DroppedItem:
+    case EntityKind::TestCreature:
+    case EntityKind::Woolly:
+    case EntityKind::Bunny:
+    case EntityKind::ShellTurtle:
+    case EntityKind::BlossomDeer:  return true;
+  }
+  return false;
 }
 
 const EntityTypeDef &entityType(EntityKind kind) {
   switch (kind) {
     case EntityKind::DroppedItem:  return kDroppedItem;
     case EntityKind::TestCreature: return kTestCreature;
+    case EntityKind::Woolly:       return kWoolly;
+    case EntityKind::Bunny:        return kBunny;
+    case EntityKind::ShellTurtle:  return kShellTurtle;
+    case EntityKind::BlossomDeer:  return kBlossomDeer;
   }
   return kTestCreature;
 }

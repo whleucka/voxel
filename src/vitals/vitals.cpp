@@ -80,6 +80,11 @@ void Vitals::damage(int amount) {
   regen_acc = 0;
 }
 
+void Vitals::heal(int amount) {
+  if (dead() || amount <= 0) return;
+  health_ = std::min(kMax, health_ + amount);
+}
+
 void Vitals::reset() { *this = Vitals{}; }
 
 // ─── FallTracker ───────────────────────────────────────────────────────

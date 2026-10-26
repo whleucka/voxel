@@ -209,3 +209,15 @@ TEST_CASE("each landing counts on its own; reset forgets the fall") {
   f.update(40.0f, false, false, false);
   CHECK(f.update(39.0f, true, false, false) == 0);
 }
+
+TEST_CASE("heal restores health up to the max and not for the dead") {
+  Vitals v;
+  v.damage(10);
+  v.heal(4);
+  CHECK(v.health() == 14);
+  v.heal(50);
+  CHECK(v.health() == 20);
+  v.damage(30);
+  v.heal(5);
+  CHECK(v.health() == 0);
+}

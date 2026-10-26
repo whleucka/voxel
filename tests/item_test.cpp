@@ -44,7 +44,7 @@ TEST_CASE("every placeable block has an item that places it") {
 
 TEST_CASE("the material items are defined with unique item-atlas tiles") {
   auto mats = materials();
-  CHECK(mats.size() == 7);
+  CHECK(mats.size() == 11);
 
   std::set<std::pair<int, int>> tiles;
   for (ItemId id : mats) {
@@ -69,6 +69,10 @@ TEST_CASE("material item ids are stable") {
   // Persisted in saves: these numbers must never change.
   CHECK(static_cast<uint16_t>(ItemId::COAL) == 256);
   CHECK(static_cast<uint16_t>(ItemId::RAW_COPPER) == 262);
+  CHECK(static_cast<uint16_t>(ItemId::WOOL) == 263);
+  CHECK(static_cast<uint16_t>(ItemId::BERRIES) == 264);
+  CHECK(static_cast<uint16_t>(ItemId::SEA_SHELL) == 265);
+  CHECK(static_cast<uint16_t>(ItemId::SWEET_PETALS) == 266);
 }
 
 TEST_CASE("isValidItem rejects the empty item, water and unknown ids") {
@@ -193,4 +197,15 @@ TEST_CASE("split takes up to n") {
 
   ItemStack empty;
   CHECK(split(empty, 5) == ItemStack{});
+}
+
+TEST_CASE("berries and sweet petals are the only food") {
+  CHECK(itemDef(ItemId::BERRIES).food_heal == 4);
+  CHECK(itemDef(ItemId::SWEET_PETALS).food_heal == 6);
+  for (uint16_t v = 1; v <= static_cast<uint16_t>(kLastMaterialItem); ++v) {
+    ItemId id = static_cast<ItemId>(v);
+    if (!isValidItem(id) || id == ItemId::BERRIES || id == ItemId::SWEET_PETALS) continue;
+    CAPTURE(itemDef(id).name);
+    CHECK(itemDef(id).food_heal == 0);
+  }
 }

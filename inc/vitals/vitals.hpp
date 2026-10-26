@@ -39,6 +39,7 @@ public:
 
   void tick(int dt_ms, const Activity &a);
   void damage(int amount); // resets the regen delay; ignored once dead
+  void heal(int amount);   // up to kMax; ignored once dead
   void reset();            // full everything (respawn)
 
 private:

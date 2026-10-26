@@ -21,6 +21,12 @@ struct Entity {
   int age_ms = 0;
   std::unique_ptr<Brain> brain;
 
+  // Animals only
+  int fed_cooldown_ms = 0;  // not hungry again until this runs out
+  int happy_ms = 0;         // showing a heart
+  int product_delay_ms = 0; // until the product pops out
+  bool product_pending = false;
+
   // Dropped items only
   ItemStack item;
   int pickup_delay_ms = 0;

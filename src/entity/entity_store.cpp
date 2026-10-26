@@ -55,6 +55,9 @@ void EntityStore::tick(const World &world, Rng &rng,
     const EntityTypeDef &def = entityType(e.kind);
     e.age_ms += kTickMs;
     e.pickup_delay_ms = std::max(0, e.pickup_delay_ms - kTickMs);
+    e.fed_cooldown_ms = std::max(0, e.fed_cooldown_ms - kTickMs);
+    e.happy_ms = std::max(0, e.happy_ms - kTickMs);
+    e.product_delay_ms = std::max(0, e.product_delay_ms - kTickMs);
 
     if (def.despawn_age_ms > 0 && e.age_ms >= def.despawn_age_ms) {
       gone.push_back(id);

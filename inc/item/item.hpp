@@ -18,11 +18,15 @@ enum class ItemId : uint16_t {
   RAW_IRON,
   RAW_GOLD,
   RAW_COPPER,
+  WOOL,          // animal products
+  BERRIES,
+  SEA_SHELL,
+  SWEET_PETALS,
   // Append only: the numeric value is persisted in inventory saves.
 };
 
 constexpr ItemId kFirstMaterialItem = ItemId::COAL;
-constexpr ItemId kLastMaterialItem = ItemId::RAW_COPPER;
+constexpr ItemId kLastMaterialItem = ItemId::SWEET_PETALS;
 
 struct ItemIcon {
   enum class Atlas : uint8_t { Block, Item };
@@ -35,6 +39,7 @@ struct ItemDef {
   uint16_t max_stack = 64;
   ItemIcon icon;
   std::optional<BlockType> places; // set for block items
+  int food_heal = 0;                // health points restored when eaten; 0 = not food
 };
 
 constexpr uint16_t kDefaultMaxStack = 64;

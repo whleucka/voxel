@@ -25,7 +25,7 @@ Plan: [entities-plan.md](entities-plan.md) · Spec: [SPEC-entities.md](../SPEC-e
 ## T5: Rendering
 - [x] Coloured, block-atlas and item-atlas boxes are lit by the world light.
 - [x] Dropped items spin and bob, and the hurt tint shows.
-- [ ] Manual check (user): it looks right, and FPS with about 50 creatures is fine.
+- [ ] Manual check (user): it looks right, and FPS with about 50 creatures is fine. *(The test creature spawns and works, confirmed by the user on 2026-10-26.)*
 
 ## T6: Dropped items
 - [x] Inventory overflow, Q and Ctrl+Q drops, the pickup delay, partial pickup, merging, and the 5-minute despawn.
