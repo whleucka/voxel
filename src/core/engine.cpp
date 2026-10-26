@@ -120,26 +120,12 @@ void Engine::run() {
   // Resolve the active save directory and load it if it already exists.
   // An existing world keeps its own seed/clock; the properties seed only
   // matters when creating a fresh world.
-  save_dir = WorldSave::worldDir(g_settings.world_name);
-  WorldSave::LevelData level;
-  if (WorldSave::loadLevel(save_dir, level)) {
-    g_settings.world_seed   = level.seed;
-    g_settings.noise_offset = level.noise_offset;
-    srand(level.seed);
-
-    WorldEdits saved_edits;
-    WorldSave::loadEdits(save_dir, saved_edits);
-    std::optional<WorldSave::PlayerData> saved_player;
-    if (WorldSave::PlayerData pd; WorldSave::loadPlayer(save_dir, pd))
-      saved_player = pd;
-    game.restore(level, std::move(saved_edits), saved_player);
-
+  if (game.load(WorldSave::worldDir(g_settings.world_name)))
     std::cout << "Loaded world '" << g_settings.world_name << "' (seed "
-              << level.seed << ")\n";
-  } else {
+              << g_settings.world_seed << ")\n";
+  else
     std::cout << "New world '" << g_settings.world_name << "' (seed "
               << g_settings.world_seed << ")\n";
-  }
 
   game.world().init();
 
@@ -166,27 +152,7 @@ void Engine::run() {
     glfwPollEvents();
   }
 
-  saveGame(); // persist on quit
-}
-
-void Engine::saveGame() {
-  WorldSave::LevelData level;
-  level.seed         = g_settings.world_seed;
-  level.noise_offset = g_settings.noise_offset;
-  level.time_of_day  = game.clock().time_of_day;
-
-  const Camera &cam = player->getCamera();
-  WorldSave::PlayerData pd;
-  pd.position      = player->getPosition();
-  pd.yaw           = cam.yaw;
-  pd.pitch         = cam.pitch;
-  pd.selected_slot = player->getSelectedHotbarSlot();
-  pd.fly_mode      = player->isFlyMode() ? 1 : 0;
-
-  if (WorldSave::save(save_dir, level, pd, game.world().snapshotEdits()))
-    std::cout << "Saved world '" << g_settings.world_name << "'\n";
-  else
-    std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";
+  game.save(); // persist on quit
 }
 
 // ─── Input Processing (polled every frame) ─────────────────────────────
@@ -502,7 +468,7 @@ void Engine::debug() {
 
         static double world_saved_at = -10.0;
         if (ImGui::Button("Save world (F5)")) {
-          saveGame();
+          connection.send(Save{});
           world_saved_at = ImGui::GetTime();
         }
         if (ImGui::GetTime() - world_saved_at < 2.0) {
@@ -556,7 +522,7 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
 
     // Quick-save the world
     case GLFW_KEY_F5:
-      engine->saveGame();
+      engine->connection.send(Save{});
       break;
 
     // Inventory toggle

@@ -18,7 +18,6 @@ public:
 
   bool init();
   void run();
-  void saveGame(); // persist world + player to the active save directory
 
 private:
   GLFWwindow *window = nullptr;
@@ -31,7 +30,6 @@ private:
   PlayerId player_id = 0;
   std::unique_ptr<Player> player; // the local player; created on Joined
   std::string last_rejection;     // latest CommandRejected, for the debug panel
-  std::string save_dir; // saves/<world_name>, resolved at run() start
 
   bool first_mouse = true;
   float last_frame = 0.0f;

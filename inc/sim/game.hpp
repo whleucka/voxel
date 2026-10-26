@@ -6,6 +6,7 @@
 #include "world/world.hpp"
 #include "world/world_save.hpp"
 #include <optional>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -16,8 +17,17 @@ class Game {
 public:
   static constexpr float kTickSeconds = 0.05f; // 20 Hz
 
-  // Install a loaded save before any client joins. The first Join takes over
-  // the saved player record (single-player); later joins get a fresh spawn.
+  // Bind the game to a save directory and load it if a world exists there.
+  // An existing world keeps its own seed (written to g_settings) and clock;
+  // otherwise the properties seed creates a fresh one. Call before any Join.
+  // Returns true if an existing world was loaded.
+  bool load(const std::string &dir);
+  // Write level, edits and the host player to the bound directory.
+  bool save();
+
+  // Install already-loaded save data before any client joins. The first Join
+  // takes over the saved player record (single-player); later joins get a
+  // fresh spawn. load() uses this; tests may call it directly.
   void restore(const WorldSave::LevelData &level, WorldEdits edits,
                std::optional<WorldSave::PlayerData> player);
 
@@ -49,6 +59,7 @@ private:
   void apply(Client &client, const BreakBlock &cmd);
   void apply(Client &client, const PlaceBlock &cmd);
   void apply(Client &client, const SetTimeOfDay &cmd);
+  void apply(Client &client, const Save &cmd);
 
   PlayerState *playerFor(const Client &client);
   void reject(Client &client, std::string reason);
@@ -66,4 +77,5 @@ private:
   std::unordered_map<PlayerId, PlayerState> players;
   PlayerId next_player_id = 1;
   std::optional<WorldSave::PlayerData> saved_player;
+  std::string save_dir;
 };

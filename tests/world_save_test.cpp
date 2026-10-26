@@ -1,24 +1,6 @@
 #include "doctest/doctest.h"
+#include "test_util.hpp"
 #include "world/world_save.hpp"
-#include <filesystem>
-#include <random>
-
-namespace fs = std::filesystem;
-
-namespace {
-
-// A fresh directory under the system temp dir, removed on scope exit.
-struct TempDir {
-  fs::path path;
-  TempDir() {
-    std::random_device rd;
-    path = fs::temp_directory_path() / ("voxel_test_" + std::to_string(rd()));
-    fs::create_directories(path);
-  }
-  ~TempDir() { fs::remove_all(path); }
-};
-
-} // namespace
 
 TEST_CASE("level, player and edits round-trip through save/load") {
   TempDir dir;

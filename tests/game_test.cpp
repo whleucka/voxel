@@ -336,3 +336,48 @@ TEST_CASE_FIXTURE(EditGame, "glowstone placed through the Game lights and unligh
   REQUIRE(run(BreakBlock{lamp}).size() == 1);
   CHECK(game.world().getBlockLightAt(lamp + glm::ivec3(1, 0, 0)) == 0);
 }
+
+// ─── Save / load ───────────────────────────────────────────────────────
+
+TEST_CASE_FIXTURE(EditGame, "a played game round-trips through save and load") {
+  ScopedSeed seed;
+  TempDir dir;
+  CHECK_FALSE(game.load(dir.path.string())); // empty dir: fresh world
+
+  glm::ivec3 broken{5, ground, 5};
+  glm::ivec3 placed{6, ground + 1, 5};
+  REQUIRE(at(placed) == BlockType::AIR);
+  REQUIRE(run(BreakBlock{broken}).size() == 1);
+  REQUIRE(run(PlaceBlock{placed, BlockType::GLOWSTONE}).size() == 1);
+  run(SelectSlot{7});
+  conn.send(MovePlayer{{7.5f, ground + 1.0f, 9.5f}, 33.0f, -4.0f, true, false});
+  conn.send(SetTimeOfDay{5000.0f});
+  game.pump();
+
+  // Save through the command, as F5 does.
+  run(Save{});
+
+  ScopedRenderDistance rd2{0};
+  Game loaded;
+  REQUIRE(loaded.load(dir.path.string()));
+  CHECK(loaded.clock().time_of_day == 5000.0f);
+
+  loaded.world().loadChunkSync(0, 0);
+  auto blockAt = [&](glm::ivec3 p) {
+    return loaded.world().getBlockAt(glm::vec3(p) + 0.5f);
+  };
+  CHECK(blockAt(broken) == BlockType::AIR);
+  CHECK(blockAt(placed) == BlockType::GLOWSTONE);
+
+  LocalConnection c;
+  Joined j = join(loaded, c);
+  CHECK(j.position == glm::vec3(7.5f, ground + 1.0f, 9.5f));
+  CHECK(j.yaw == 33.0f);
+  CHECK(j.pitch == -4.0f);
+  CHECK(j.slot == 7);
+  CHECK(j.fly);
+}
+
+TEST_CASE_FIXTURE(SmallGame, "save without a bound directory fails") {
+  CHECK_FALSE(game.save());
+}

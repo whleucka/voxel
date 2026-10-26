@@ -2,9 +2,60 @@
 #include "block/block_data.hpp"
 #include "core/settings.hpp"
 #include <cmath>
+#include <cstdlib>
+#include <iostream>
 #include <type_traits>
 
 // ─── Setup ─────────────────────────────────────────────────────────────
+
+bool Game::load(const std::string &dir) {
+  save_dir = dir;
+
+  WorldSave::LevelData level;
+  if (!WorldSave::loadLevel(dir, level)) return false;
+
+  g_settings.world_seed   = level.seed;
+  g_settings.noise_offset = level.noise_offset;
+  srand(level.seed);
+
+  WorldEdits edits;
+  WorldSave::loadEdits(dir, edits);
+  std::optional<WorldSave::PlayerData> player;
+  if (WorldSave::PlayerData pd; WorldSave::loadPlayer(dir, pd)) player = pd;
+
+  restore(level, std::move(edits), player);
+  return true;
+}
+
+bool Game::save() {
+  if (save_dir.empty()) return false;
+
+  WorldSave::LevelData level;
+  level.seed         = g_settings.world_seed;
+  level.noise_offset = g_settings.noise_offset;
+  level.time_of_day  = clock_.time_of_day;
+
+  // The save format holds one player: the host, who joined first. A saved
+  // player that never rejoined is written back unchanged.
+  WorldSave::PlayerData pd = saved_player.value_or(WorldSave::PlayerData{});
+  const PlayerState *host = nullptr;
+  for (const auto &[id, ps] : players)
+    if (!host || id < host->id) host = &ps;
+  if (host) {
+    pd.position      = host->position;
+    pd.yaw           = host->yaw;
+    pd.pitch         = host->pitch;
+    pd.selected_slot = host->selected_slot;
+    pd.fly_mode      = host->fly ? 1 : 0;
+  }
+
+  if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits())) {
+    std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";
+    return false;
+  }
+  std::cout << "Saved world '" << g_settings.world_name << "'\n";
+  return true;
+}
 
 void Game::restore(const WorldSave::LevelData &level, WorldEdits edits,
                    std::optional<WorldSave::PlayerData> player) {
@@ -103,9 +154,9 @@ void Game::apply(Client &client, const Command &cmd) {
                       std::is_same_v<T, SelectSlot> ||
                       std::is_same_v<T, BreakBlock> ||
                       std::is_same_v<T, PlaceBlock> ||
-                      std::is_same_v<T, SetTimeOfDay>)
+                      std::is_same_v<T, SetTimeOfDay> ||
+                      std::is_same_v<T, Save>)
           apply(client, c);
-        // Remaining commands are routed through Game in later tasks.
       },
       cmd);
 }
@@ -194,3 +245,5 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
 void Game::apply(Client &, const SetTimeOfDay &cmd) {
   clock_.time_of_day = std::fmod(std::max(cmd.seconds, 0.0f), 86400.0f);
 }
+
+void Game::apply(Client &, const Save &) { save(); }
