@@ -82,6 +82,17 @@ void Game::broadcast(const Event &ev) {
   for (Client &client : clients) client.link->deliver(ev);
 }
 
+void Game::sendInventory(Client &client, const PlayerState &ps) {
+  client.link->deliver(InventoryContents{ps.inventory.slots()});
+}
+
+Inventory Game::starterKit() {
+  Inventory kit;
+  // Glowstone is the only light source and never generates naturally.
+  kit.set(0, {itemForBlock(BlockType::GLOWSTONE), 8});
+  return kit;
+}
+
 // The client's raycast measures reach to the face it hit; the block's centre
 // can be up to half a block-diagonal further than that.
 bool Game::inReach(const PlayerState &ps, const glm::ivec3 &block) const {
@@ -163,11 +174,13 @@ void Game::apply(Client &client, const Join &) {
   } else {
     ps.position = world_.findSpawn();
   }
+  ps.inventory = starterKit();
 
   players[ps.id] = ps;
   client.player = ps.id;
   client.link->deliver(Joined{ps.id, ps.position, ps.yaw, ps.pitch,
                               ps.selected_slot, ps.fly});
+  sendInventory(client, ps);
 }
 
 void Game::apply(Client &client, const MovePlayer &cmd) {
@@ -203,12 +216,24 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
 
   world_.setBlockAt(cmd.pos, BlockType::AIR);
   broadcast(BlockChanged{cmd.pos, BlockType::AIR});
+
+  // Survival: collect the drop. With a full inventory the block still breaks
+  // and the item is lost (until dropped items exist in the world).
+  if (auto drop = dropFor(target)) {
+    ps->inventory.add({*drop, 1});
+    sendInventory(client, *ps);
+  }
 }
 
 void Game::apply(Client &client, const PlaceBlock &cmd) {
   PlayerState *ps = playerFor(client);
   if (!ps) return;
-  if (cmd.type == BlockType::AIR) return reject(client, "place: no block");
+
+  const ItemStack &held = ps->inventory.slot(ps->selected_slot);
+  if (held.empty()) return reject(client, "place: nothing held");
+  std::optional<BlockType> block = itemDef(held.id).places;
+  if (!block) return reject(client, "place: held item isn't a block");
+
   if (cmd.pos.y < 0 || cmd.pos.y >= kChunkHeight)
     return reject(client, "place: outside world height");
   if (!inReach(*ps, cmd.pos)) return reject(client, "place: out of reach");
@@ -225,8 +250,10 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
   if (overlapsAnyPlayer(cmd.pos))
     return reject(client, "place: inside a player");
 
-  world_.setBlockAt(cmd.pos, cmd.type);
-  broadcast(BlockChanged{cmd.pos, cmd.type});
+  world_.setBlockAt(cmd.pos, *block);
+  broadcast(BlockChanged{cmd.pos, *block});
+  ps->inventory.take(ps->selected_slot, 1);
+  sendInventory(client, *ps);
 }
 
 void Game::apply(Client &, const SetTimeOfDay &cmd) {
@@ -234,3 +261,13 @@ void Game::apply(Client &, const SetTimeOfDay &cmd) {
 }
 
 void Game::apply(Client &, const Save &) { save(); }
+
+void Game::apply(Client &client, const GiveItem &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps) return;
+  if (!isValidItem(cmd.id) || cmd.count == 0)
+    return reject(client, "give: unknown item");
+  // Same as collecting a drop: whatever doesn't fit is lost.
+  ps->inventory.add({cmd.id, cmd.count});
+  sendInventory(client, *ps);
+}

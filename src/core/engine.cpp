@@ -615,8 +615,7 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
     engine->connection.send(BreakBlock{ray.block_pos});
   } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-    engine->connection.send(
-        PlaceBlock{ray.block_pos + ray.normal, player->getHotbarBlock()});
+    engine->connection.send(PlaceBlock{ray.block_pos + ray.normal});
   }
 }
 

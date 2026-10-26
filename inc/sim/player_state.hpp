@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/constants.hpp"
+#include "inventory/inventory.hpp"
 #include "sim/protocol.hpp"
 #include <glm/glm.hpp>
 
@@ -14,6 +15,7 @@ struct PlayerState {
   int selected_slot = 0;
   bool fly = false;
   bool crouch = false;
+  Inventory inventory;
 
   float height() const { return crouch ? kPlayerCrouchHeight : kPlayerHeight; }
   glm::vec3 eyePosition() const {
