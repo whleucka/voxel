@@ -46,8 +46,13 @@ private:
   GameClock clock;
   glm::vec3 centre{0.0f};
   double seconds = 0.0;
-  float eye_y = 0.0f;
+  // One height for the whole lap, above everything on the circle, so the
+  // camera glides level instead of climbing and diving with the ground.
+  float lap_height = 0.0f;   // where it's heading (rises as chunks load)
+  float eye_y = 0.0f;        // where it is, easing toward lap_height
   bool eye_set = false;
+  double next_survey = 0.0;
+  void surveyLap();
   float cover_ = 1.0f;
   uint32_t saved_seed = 0;
   glm::vec2 saved_offset{0.0f};

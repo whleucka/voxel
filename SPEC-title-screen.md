@@ -19,7 +19,7 @@ each world's details, and both Single player and Host game play from it.
 - **The camera:**
   - It circles the world's saved player position (or its spawn) once every ~90 s.
   - It stays about 20 blocks out and 10 above, looking slightly down at the centre.
-  - It rises above any terrain in its path.
+  - It flies **level**, at one height for the whole lap: at least 4 blocks above the highest ground anywhere on its circle. It looks gently down toward the centre, so it never climbs or dives with a slope. *(Changed after play-testing: the first version followed the ground under the camera, which was awkward on mountains.)*
 - **Live but read-only:**
   - The world loads with its edits, and its clock runs at the normal day speed from the saved time.
   - There's no `Game`, no player, no creatures, and nothing is saved.
@@ -76,7 +76,7 @@ class MenuScene { bool open(const std::string &save_dir); void close();
   - It keeps a `MenuScene` while no game is running.
   - On Play or Host it closes the scene, sets `world-name` and saves the properties, then starts the session for `saves/<name>`.
   - On Join it closes the scene, then joins.
-- **Rising over terrain:** each frame the orbit eye's height is lifted to at least 3 blocks above the highest solid block under it, if that chunk is loaded. Height changes are smoothed, so the camera doesn't jump.
+- **Level flight:** twice a second, the scene samples the ground at 48 points on the camera's circle (in loaded chunks). The lap height only ever rises, to 4 blocks above the highest point found, and the camera eases toward it.
 
 ### Not in scope
 - World thumbnails.
