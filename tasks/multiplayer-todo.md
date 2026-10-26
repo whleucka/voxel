@@ -40,7 +40,7 @@ Plan: [multiplayer-plan.md](multiplayer-plan.md) · Spec: [SPEC-multiplayer.md](
 
 ## T9: Other players
 - [x] Blocky figures in name colours, with swinging legs and name tags, interpolated.
-- [ ] Manual check (user): the spec's two-player check.
+- [x] Manual check (user): the spec's two-player check.
 
 ## T10: Wrap-up
 - [x] Map and spec status are updated, CI is green, and the PR is merged.

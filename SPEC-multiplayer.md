@@ -2,6 +2,8 @@
 
 Module of [CAPABILITY_MAP.md](CAPABILITY_MAP.md). Depends on: every module so far (`sim-core` … `enemies`).
 
+**Status:** implemented. All success criteria are met; the manual two-player check passed.
+
 ## Objective
 
 Let the kids play in the same world on the home network. One computer

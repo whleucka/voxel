@@ -31,7 +31,7 @@ Spec: [SPEC-multiplayer.md](../SPEC-multiplayer.md) · Tasks: [multiplayer-todo.
 - [x] T7: `Engine` refactor: optional `Game`, guest world and clock, properties keys
 - [x] T8: Title menu, host and join flows, disconnect handling
 - [x] T9: Drawing other players with name tags
-- [ ] T10: Wrap-up, PR, merge when green
+- [x] T10: Wrap-up, PR, merge when green
 
 ### Checkpoints
 - After T3: all `Game` rules are tested in-process.
