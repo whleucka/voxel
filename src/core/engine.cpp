@@ -115,6 +115,9 @@ bool Engine::init() {
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 330");
 
+  if (!hud.init("res/block_atlas.png", "res/item_atlas.png"))
+    std::cerr << "HUD icons unavailable; drawing empty slots\n";
+
   return true;
 }
 
@@ -262,6 +265,13 @@ void Engine::render() {
   ImGui::NewFrame();
 
   renderCrosshair();
+
+  const ImGuiIO &io = ImGui::GetIO();
+  HudLayout layout(io.DisplaySize.x, io.DisplaySize.y);
+  if (!player->isInventoryOpen())
+    hud.drawHotbar(layout, inventory_view, player->getSelectedHotbarSlot(),
+                   glfwGetTime());
+
   debug();
 }
 
@@ -727,6 +737,7 @@ void Engine::windowResize(GLFWwindow *window, int w, int h) {
 // ─── Cleanup ───────────────────────────────────────────────────────────
 
 void Engine::cleanup() {
+  hud.shutdown(); // GL textures; must go before the context does
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
