@@ -1,6 +1,7 @@
 #include "biome/oak_tree_generator.hpp"
 #include "block/block_type.hpp"
 #include "core/constants.hpp"
+#include "util/worldgen_rng.hpp"
 
 void OakTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
   auto safe_set = [&](int bx, int by, int bz, BlockType type) {
@@ -22,7 +23,7 @@ void OakTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
   if (y <= 0 || y >= kChunkHeight - 16) return;
 
   // --- Trunk ---
-  int h = (rand() % 3) + 5; // height 5-7
+  int h = (worldgen::rand() % 3) + 5; // height 5-7
   for (int j = 1; j <= h; j++) {
     safe_set(x, y + j, z, BlockType::OAK_LOG);
   }
@@ -51,7 +52,7 @@ void OakTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
         if (dist_sq > r_sq) continue;
 
         // Slight random skip at the edges only (10% chance) for natural look
-        if (dist_sq > r_sq * 0.7f && rand() % 10 == 0) continue;
+        if (dist_sq > r_sq * 0.7f && worldgen::rand() % 10 == 0) continue;
 
         safe_set_leaf(x + dx, cy, z + dz);
       }

@@ -29,10 +29,9 @@ Build order: sim-core → items → vitals, inventory → hud → entities → a
 
 ## Known issues found along the way
 
-- **World generation is not deterministic** (found in sim-core T6). Trees,
-  gems and bedrock call the global `rand()` from the generation worker
-  threads, so a chunk's contents depend on thread timing, not only on the
-  seed. Today that likely means decorations differ each time a saved world
-  is reloaded. **Prerequisite for `multiplayer`:** each client generates
-  terrain from the seed, so generation must use a per-chunk RNG seeded from
-  `(world_seed, cx, cz)` before replica worlds can match.
+- ~~**World generation is not deterministic**~~ (found in sim-core T6; fixed
+  in `fix/seeded-worldgen`). Trees, gems and bedrock used the global `rand()`
+  from the generation worker threads, so a chunk's contents depended on thread
+  timing. Generation now draws from a per-chunk RNG seeded from
+  `(world_seed, cx, cz)`, so a chunk is identical on every reload and every
+  machine with the same seed. That was a prerequisite for `multiplayer`.

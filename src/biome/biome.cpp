@@ -3,6 +3,7 @@
 #include "core/constants.hpp"
 #include "core/settings.hpp"
 #include "util/noise.hpp"
+#include "util/worldgen_rng.hpp"
 #include <glm/fwd.hpp>
 
 void Biome::generateTerrain(Chunk &chunk) {
@@ -79,7 +80,7 @@ void Biome::generateMinerals(Chunk &chunk) {
 
           // RARE ORES
           if (n >= 0.8f) {
-            int gem_chance = rand() % 10 + 1;
+            int gem_chance = worldgen::rand() % 10 + 1;
             if (gem_chance == 1)
               block = BlockType::DIAMOND_ORE;
             else if (gem_chance <= 4)
@@ -102,7 +103,7 @@ void Biome::generateMinerals(Chunk &chunk) {
 }
 
 BlockType Biome::generateInternalBlock(int, int y, int) {
-  int rando = rand() % 10 + 1;
+  int rando = worldgen::rand() % 10 + 1;
 
   // Always bedrock at the bottom few layers
   if (y <= 5) {
