@@ -37,6 +37,9 @@ void main() {
 
     // ── Sky gradient (zenith → horizon) ──────────────────────────────────────
     float elev      = clamp(dir.y, 0.0, 1.0);
+    // The sun and moon set behind the horizon. Below it the sky only shows
+    // through water and gaps in the terrain, and must not show them there.
+    float aboveHorizon = step(0.0, dir.y);
     float horizBlend = pow(1.0 - elev, 4.0);
 
     vec3 zenith  = mix(kZenithNight,  kZenithDay,  dayFactor);
@@ -54,7 +57,7 @@ void main() {
 
     // ── Sun soft glow halo (kept for atmosphere) ──────────────────────────────
     float sunDot  = dot(dir, sunDir);
-    float sunGlow = pow(max(sunDot, 0.0), 96.0) * dayFactor;
+    float sunGlow = pow(max(sunDot, 0.0), 96.0) * dayFactor * aboveHorizon;
     sky += kSunColor * sunGlow * 0.55;
 
     // ── Block-style sun (pixelated square) ────────────────────────────────────
@@ -77,7 +80,7 @@ void main() {
         if (abs(px) < kHalf && abs(py) < kHalf) {
             // Slightly brighter core (inner 3×3 pixels)
             float core = (abs(px) < kHalf * 0.45 && abs(py) < kHalf * 0.45) ? 1.4 : 1.0;
-            sky = mix(sky, kSunColor * 2.6 * core, dayFactor);
+            sky = mix(sky, kSunColor * 2.6 * core, dayFactor * aboveHorizon);
         }
     }
 
@@ -96,7 +99,7 @@ void main() {
         float py = (floor(ly / kPixel) + 0.5) * kPixel;
 
         if (abs(px) < kHalf && abs(py) < kHalf) {
-            sky = mix(sky, kMoonColor * 1.8, nightFactor);
+            sky = mix(sky, kMoonColor * 1.8, nightFactor * aboveHorizon);
         }
     }
 
