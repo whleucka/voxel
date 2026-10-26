@@ -23,13 +23,27 @@ public:
   virtual Intent think(const Entity &self, const World &world, Rng &rng) = 0;
 };
 
+struct WanderOptions {
+  // Look before stepping: turn around rather than walk into water (unless
+  // can_swim) or off a drop of more than kMaxSafeDrop blocks.
+  bool cautious = false;
+  bool can_swim = false;
+  bool hop = false; // jump whenever on the ground while walking (bunnies)
+};
+
 // Walks in a random direction for a while, stands still for a while, and
 // jumps when something is in the way.
 class WanderBrain : public Brain {
 public:
+  static constexpr int kMaxSafeDrop = 2;
+
+  explicit WanderBrain(WanderOptions options = {}) : opts(options) {}
   Intent think(const Entity &self, const World &world, Rng &rng) override;
 
 private:
+  WanderOptions opts;
+  bool safeAhead(const Entity &self, const World &world) const;
+
   int timer_ms = 0;
   bool walking = false;
   glm::vec2 dir{0.0f};
