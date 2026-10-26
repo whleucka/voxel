@@ -2,6 +2,7 @@
 
 #include "block/block_type.hpp"
 #include "core/constants.hpp"
+#include "physics/physics_body.hpp"
 #include "render/camera.hpp"
 #include <array>
 #include <glm/fwd.hpp>
@@ -33,19 +34,19 @@ public:
                             bool constrainPitch = true);
   Camera &getCamera() { return camera; }
   const Camera &getCamera() const { return camera; }
-  glm::vec3 getPosition() const { return position; }
-  glm::vec3 getFeetPosition() const { return position; }
+  glm::vec3 getPosition() const { return body.position; }
+  glm::vec3 getFeetPosition() const { return body.position; }
   glm::vec3 getEyePosition() const;
-  void setPosition(glm::vec3 pos) { position = pos; }
-  glm::vec3 getVelocity() const { return velocity; }
+  void setPosition(glm::vec3 pos) { body.position = pos; }
+  glm::vec3 getVelocity() const { return body.velocity; }
 
   // State queries
   bool isFlyMode() const { return fly_mode; }
   bool *getFlyModePtr() { return &fly_mode; }
   void toggleFlyMode() { fly_mode = !fly_mode; }
-  bool isUnderwater() const { return underwater; }  // eyes in water
-  bool isInWater() const { return underwater || at_water_surface; }
-  bool isOnGround() const { return on_ground; }
+  bool isUnderwater() const { return body.underwater; }  // eyes in water
+  bool isInWater() const { return body.underwater || body.at_water_surface; }
+  bool isOnGround() const { return body.on_ground; }
   bool isCrouching() const { return crouching; }
   bool isSprinting() const { return sprinting; }
   // The Game decides when stamina allows sprinting.
@@ -67,12 +68,8 @@ private:
   bool sprint_allowed = true;
   bool crouching = false;
 
-  // Physics state
-  bool on_ground = false;
-  bool underwater = false;
-  bool at_water_surface = false;
-  glm::vec3 position{0.0f};
-  glm::vec3 velocity{0.0f};
+  // Physics state (shared rules with entities)
+  PhysicsBody body;
 
   // Camera
   Camera camera;
@@ -81,15 +78,6 @@ private:
   bool inventory_open = false;
   int selected_hotbar_slot = 0; // 0..kHotbarSlots-1
 
-  // Internal methods
-  void applyGravity(float dt);
-  void checkWater(World* world);
-  void resolveCollisions(World* world, glm::vec3 old_pos);
-
-  // Collision helpers
-  bool isSolidAt(World* world, int bx, int by, int bz) const;
-  bool collidesWithWorld(World* world, glm::vec3 pos) const;
-  bool tryAutoStep(World* world, glm::vec3& pos, float old_axis, int axis) const;
   float getPlayerHeight() const;
   float getPlayerEyeHeight() const;
 };
