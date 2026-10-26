@@ -48,13 +48,12 @@ public:
   bool isCrouching() const { return crouching; }
   bool isSprinting() const { return sprinting; }
 
-  // Inventory / hotbar
+  // Inventory screen and hotbar selection. The inventory itself lives in the
+  // Game; the client keeps a view of it (Engine::inventory_view).
   bool isInventoryOpen() const { return inventory_open; }
   void toggleInventory() { inventory_open = !inventory_open; }
   int getSelectedHotbarSlot() const { return selected_hotbar_slot; }
   void setSelectedHotbarSlot(int slot);
-  BlockType getHotbarBlock() const;
-  BlockType getHotbarBlock(int slot) const;
 
 private:
   // Movement modes
@@ -75,7 +74,6 @@ private:
   // Inventory
   bool inventory_open = false;
   int selected_hotbar_slot = 0; // 0..kHotbarSlots-1
-  std::array<BlockType, kHotbarSlots> hotbar_blocks{};
 
   // Internal methods
   void applyGravity(float dt);
