@@ -15,8 +15,9 @@ next to this file; this map is the index of what exists.
 | animals ✅ | Friendly animals: biome spawning, cautious wandering, feeding for products, food | entities, items |
 | enemies ✅ | Hostile mobs: spawn rules, voxel pathfinding, melee attack, difficulty | entities, vitals |
 | multiplayer ✅ | LAN host/join, sync edits, players, entities, inventories | sim-core (+ all above) |
+| title-screen | Live scene behind the menu, world list (create, rename, delete, details) | multiplayer |
 
-Build order: sim-core → items → inventory → hud → vitals → entities → animals → enemies → multiplayer
+Build order: sim-core → items → inventory → hud → vitals → entities → animals → enemies → multiplayer → title-screen
 (hud moved ahead of vitals on 2026-10-26, so the hotbar is visible sooner)
 
 ## Decisions
