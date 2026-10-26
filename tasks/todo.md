@@ -15,14 +15,14 @@ Plan: [plan.md](plan.md) · Spec: [SPEC-sim-core.md](../SPEC-sim-core.md)
 **Description:** Vendor doctest and add a `test` target. The target builds `bin/tests` from `tests/*.cpp` plus every app object except `obj/main.o`, links the same libs, and runs it. Add a smoke test and a CI step.
 
 **Acceptance criteria:**
-- [ ] `external/doctest/doctest.h` is vendored, with its version noted in a header comment.
-- [ ] `make test` builds and runs `bin/tests` and exits non-zero on failure.
-- [ ] CI runs `make test` after the build step.
+- [x] `external/doctest/doctest.h` is vendored, with its version noted in a header comment.
+- [x] `make test` builds and runs `bin/tests` and exits non-zero on failure.
+- [x] CI runs `make test` after the build step.
 
 **Verification:**
-- [ ] `make test` passes locally with 1 smoke test.
-- [ ] Temporarily break the smoke test and confirm `make test` fails.
-- [ ] `make` still produces `bin/app`.
+- [x] `make test` passes locally with 1 smoke test.
+- [x] Temporarily break the smoke test and confirm `make test` fails.
+- [x] `make` still produces `bin/app`.
 
 **Dependencies:** None
 
@@ -37,13 +37,13 @@ Plan: [plan.md](plan.md) · Spec: [SPEC-sim-core.md](../SPEC-sim-core.md)
 **Description:** Pin down today's behaviour before refactoring. Add `World::loadChunkSync(cx, cz)`, which generates a chunk on the calling thread with no meshing queue and no GL, for tests. Write tests for the current `setBlockAt`/`getBlockAt`/edits behaviour and for the `WorldSave` round-trip.
 
 **Acceptance criteria:**
-- [ ] With a fixed seed and a sync-loaded chunk, `setBlockAt` then `getBlockAt` returns the new type, and `snapshotEdits()` contains the delta (AIR when a block is broken).
-- [ ] `WorldSave::save` followed by `load*` into a temp dir round-trips `LevelData`, `PlayerData` and `WorldEdits` exactly.
-- [ ] `setBlockAt` outside the 0..kChunkHeight range, or into an unloaded chunk, is a no-op.
+- [x] With a fixed seed and a sync-loaded chunk, `setBlockAt` then `getBlockAt` returns the new type, and `snapshotEdits()` contains the delta (AIR when a block is broken).
+- [x] `WorldSave::save` followed by `load*` into a temp dir round-trips `LevelData`, `PlayerData` and `WorldEdits` exactly.
+- [x] `setBlockAt` outside the 0..kChunkHeight range, or into an unloaded chunk, is a no-op.
 
 **Verification:**
-- [ ] `make test` is green, with the new tests listed.
-- [ ] The tests construct no window and make no GL calls. They pass in CI on a machine with no display.
+- [x] `make test` is green, with the new tests listed.
+- [x] The tests construct no window and make no GL calls. They pass in CI on a machine with no display.
 
 **Dependencies:** T1
 
@@ -70,12 +70,12 @@ Plan: [plan.md](plan.md) · Spec: [SPEC-sim-core.md](../SPEC-sim-core.md)
 - The loaded `PlayerData` is applied by Engine, not World.
 
 **Acceptance criteria:**
-- [ ] `World` has no `player` member and no `getPlayer()`. `grep -n "player" src/world/world.cpp` shows only comments or parameters.
-- [ ] Chunks stream around the point set by `setInterestPoints`. A unit test with 2 points far apart loads chunks around both.
-- [ ] A saved player's position, look direction, slot and fly mode are still restored.
+- [x] `World` has no `player` member and no `getPlayer()`. `grep -n "player" src/world/world.cpp` shows only comments or parameters.
+- [x] Chunks stream around the point set by `setInterestPoints`. A unit test with 2 points far apart loads chunks around both.
+- [x] A saved player's position, look direction, slot and fly mode are still restored.
 
 **Verification:**
-- [ ] `make test` passes, including the new test for multiple interest points.
+- [x] `make test` passes, including the new test for multiple interest points.
 - [ ] Manual check on a fresh world and an existing save:
   - Spawn point is correct.
   - Chunks stream in as you walk.
@@ -100,12 +100,12 @@ Plan: [plan.md](plan.md) · Spec: [SPEC-sim-core.md](../SPEC-sim-core.md)
 - Engine owns `Game` and the connection. It sends `Join` at startup and initializes its `Player` from `Joined`.
 
 **Acceptance criteria:**
-- [ ] The clock advances only in `Game::tick()`. `advance(0.125f)` runs exactly 2 ticks and carries the remainder.
-- [ ] `Join` returns `Joined` with a spawn position on solid ground.
-- [ ] Engine no longer owns `World` or `GameClock` directly.
+- [x] The clock advances only in `Game::tick()`. `advance(0.125f)` runs exactly 2 ticks and carries the remainder.
+- [x] `Join` returns `Joined` with a spawn position on solid ground.
+- [x] Engine no longer owns `World` or `GameClock` directly.
 
 **Verification:**
-- [ ] `make test` passes with the new `game_test.cpp`: the tick accumulator, `Join` on a fresh world, and `Join` with loaded `PlayerData`.
+- [x] `make test` passes with the new `game_test.cpp`: the tick accumulator, `Join` on a fresh world, and `Join` with loaded `PlayerData`.
 - [ ] Manual check: the day/night cycle runs at the same speed (time scale slider in F1 still works), and spawn is unchanged.
 
 **Dependencies:** T3
