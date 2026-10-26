@@ -26,3 +26,13 @@ Build order: sim-core → items → vitals, inventory → hud → entities → a
 - **Multiplayer:** home LAN only, no accounts. One player hosts in-process.
 - **Out of scope:** crafting, internet play, a dedicated headless server.
 - **Assets:** original only. The game is in the voxel-survival genre but does not copy any specific game.
+
+## Known issues found along the way
+
+- **World generation is not deterministic** (found in sim-core T6). Trees,
+  gems and bedrock call the global `rand()` from the generation worker
+  threads, so a chunk's contents depend on thread timing, not only on the
+  seed. Today that likely means decorations differ each time a saved world
+  is reloaded. **Prerequisite for `multiplayer`:** each client generates
+  terrain from the seed, so generation must use a per-chunk RNG seeded from
+  `(world_seed, cx, cz)` before replica worlds can match.

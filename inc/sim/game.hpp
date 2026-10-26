@@ -46,10 +46,15 @@ private:
   void apply(Client &client, const Join &cmd);
   void apply(Client &client, const MovePlayer &cmd);
   void apply(Client &client, const SelectSlot &cmd);
+  void apply(Client &client, const BreakBlock &cmd);
+  void apply(Client &client, const PlaceBlock &cmd);
   void apply(Client &client, const SetTimeOfDay &cmd);
 
   PlayerState *playerFor(const Client &client);
   void reject(Client &client, std::string reason);
+  void broadcast(const Event &ev);
+  bool inReach(const PlayerState &ps, const glm::ivec3 &block) const;
+  bool overlapsAnyPlayer(const glm::ivec3 &block) const;
   // Stream chunks around every player.
   void updateInterestPoints();
 

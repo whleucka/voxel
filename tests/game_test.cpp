@@ -9,10 +9,11 @@
 
 namespace {
 
-// Joining makes the Game stream chunks around the player; keep the radius
-// tiny so tests don't generate a full render distance of terrain.
+// Joining makes the Game stream chunks around the player. Radius 0 streams
+// only the chunk each player stands in, so tests don't generate a full render
+// distance of terrain and know exactly which chunks can appear.
 struct SmallGame {
-  ScopedRenderDistance rd{1};
+  ScopedRenderDistance rd{0};
   Game game;
 };
 
@@ -174,4 +175,164 @@ TEST_CASE_FIXTURE(SmallGame, "commands before Join are ignored") {
   conn.send(SelectSlot{2});
   game.pump();
   CHECK(pollAll(conn).empty());
+}
+
+// ─── Block edits ───────────────────────────────────────────────────────
+
+namespace {
+
+// A joined player standing on the terrain of chunk (0,0), next to column
+// (5,5). Two connections so broadcasts can be checked.
+struct EditGame : SmallGame {
+  LocalConnection conn, other;
+  PlayerId id = 0;
+  int ground = 0; // top solid block y in column (5,5)
+
+  EditGame() {
+    game.world().loadChunkSync(0, 0);
+    for (int y = kChunkHeight - 1; y >= 0; --y) {
+      BlockType b = game.world().getBlockAt(glm::vec3(5.5f, y + 0.5f, 5.5f));
+      if (b != BlockType::AIR && b != BlockType::WATER) { ground = y; break; }
+    }
+    REQUIRE(ground > 0);
+    id = join(game, conn).id;
+    // A second player far away, only to observe broadcasts.
+    game.addClient(other);
+    other.send(Join{});
+    game.pump();
+    pollAll(other);
+    moveTo({5.5f, ground + 1.0f, 8.5f});
+  }
+
+  void moveTo(glm::vec3 pos, bool crouch = false) {
+    conn.send(MovePlayer{pos, 0.0f, 0.0f, false, crouch});
+    game.pump();
+  }
+
+  BlockType at(glm::ivec3 p) const {
+    return game.world().getBlockAt(glm::vec3(p) + 0.5f);
+  }
+
+  // Sends one command, pumps, and returns this client's events.
+  std::vector<Event> run(Command cmd) {
+    conn.send(std::move(cmd));
+    game.pump();
+    return pollAll(conn);
+  }
+
+  static bool rejected(const std::vector<Event> &evs) {
+    return evs.size() == 1 && std::holds_alternative<CommandRejected>(evs[0]);
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(EditGame, "a valid break removes the block and broadcasts once") {
+  glm::ivec3 target{5, ground, 5};
+  auto evs = run(BreakBlock{target});
+
+  CHECK(at(target) == BlockType::AIR);
+  REQUIRE(evs.size() == 1);
+  REQUIRE(std::holds_alternative<BlockChanged>(evs[0]));
+  CHECK(std::get<BlockChanged>(evs[0]).pos == target);
+  CHECK(std::get<BlockChanged>(evs[0]).type == BlockType::AIR);
+  CHECK(pollAll(other).size() == 1);
+}
+
+TEST_CASE_FIXTURE(EditGame, "a valid place sets the block and broadcasts once") {
+  glm::ivec3 target{5, ground + 1, 5};
+  auto evs = run(PlaceBlock{target, BlockType::COBBLESTONE});
+
+  CHECK(at(target) == BlockType::COBBLESTONE);
+  REQUIRE(evs.size() == 1);
+  CHECK(std::get<BlockChanged>(evs[0]).type == BlockType::COBBLESTONE);
+  CHECK(pollAll(other).size() == 1);
+}
+
+TEST_CASE_FIXTURE(EditGame, "bedrock, water and air cannot be broken") {
+  // Placed directly: generated bedrock isn't guaranteed at any one cell.
+  glm::ivec3 bedrock{5, ground + 1, 5};
+  game.world().setBlockAt(bedrock, BlockType::BEDROCK);
+  CHECK(rejected(run(BreakBlock{bedrock})));
+  CHECK(at(bedrock) == BlockType::BEDROCK);
+
+  glm::ivec3 water{5, ground + 2, 5};
+  game.world().setBlockAt(water, BlockType::WATER);
+  CHECK(rejected(run(BreakBlock{water})));
+  CHECK(at(water) == BlockType::WATER);
+
+  CHECK(rejected(run(BreakBlock{{5, ground + 3, 5}})));
+  CHECK(pollAll(other).empty());
+}
+
+TEST_CASE_FIXTURE(EditGame, "edits out of reach are rejected") {
+  glm::ivec3 far{5, ground, 5};
+  moveTo({5.5f, ground + 1.0f, 5.5f + 8.0f});
+  CHECK(rejected(run(BreakBlock{far})));
+  CHECK(rejected(run(PlaceBlock{far + glm::ivec3(0, 1, 0), BlockType::STONE})));
+  CHECK(at(far) != BlockType::AIR);
+}
+
+TEST_CASE_FIXTURE(EditGame, "placing outside the world height is rejected") {
+  moveTo({5.5f, kChunkHeight - 1.0f, 8.5f});
+  CHECK(rejected(run(PlaceBlock{{5, kChunkHeight, 5}, BlockType::STONE})));
+  moveTo({5.5f, 0.0f, 8.5f});
+  CHECK(rejected(run(PlaceBlock{{5, -1, 5}, BlockType::STONE})));
+}
+
+TEST_CASE_FIXTURE(EditGame, "placing AIR or into an occupied cell is rejected") {
+  CHECK(rejected(run(PlaceBlock{{5, ground + 1, 5}, BlockType::AIR})));
+  CHECK(rejected(run(PlaceBlock{{5, ground, 5}, BlockType::STONE})));
+}
+
+TEST_CASE_FIXTURE(EditGame, "placing into water replaces it") {
+  glm::ivec3 water{5, ground + 1, 5};
+  game.world().setBlockAt(water, BlockType::WATER);
+  auto evs = run(PlaceBlock{water, BlockType::SAND});
+  CHECK(at(water) == BlockType::SAND);
+  CHECK(evs.size() == 1);
+}
+
+TEST_CASE_FIXTURE(EditGame, "placing inside your own box is rejected") {
+  const glm::vec3 feet{5.5f, ground + 1.0f, 5.5f};
+  moveTo(feet);
+  CHECK(rejected(run(PlaceBlock{{5, ground + 1, 5}, BlockType::STONE})));
+  CHECK(rejected(run(PlaceBlock{{5, ground + 2, 5}, BlockType::STONE})));
+  CHECK(run(PlaceBlock{{5, ground + 3, 5}, BlockType::STONE}).size() == 1);
+}
+
+TEST_CASE_FIXTURE(EditGame, "crouching lowers the box used for placement") {
+  // Feet 0.4 into the cell: standing (1.8) reaches into ground+3,
+  // crouched (1.5) stops below it.
+  glm::ivec3 cell{5, ground + 3, 5};
+  moveTo({5.5f, ground + 1.4f, 5.5f});
+  CHECK(rejected(run(PlaceBlock{cell, BlockType::STONE})));
+
+  moveTo({5.5f, ground + 1.4f, 5.5f}, /*crouch=*/true);
+  CHECK(run(PlaceBlock{cell, BlockType::STONE}).size() == 1);
+  CHECK(at(cell) == BlockType::STONE);
+}
+
+TEST_CASE_FIXTURE(EditGame, "placing inside another player's box is rejected") {
+  // Move the observer next to the target cell.
+  other.send(MovePlayer{{5.5f, ground + 1.0f, 6.5f}, 0, 0, false, false});
+  game.pump();
+  CHECK(rejected(run(PlaceBlock{{5, ground + 1, 6}, BlockType::STONE})));
+}
+
+TEST_CASE_FIXTURE(EditGame, "placing into an unloaded chunk is rejected") {
+  // Both players stay in chunk (0,0), so chunk (-1,0) is never streamed.
+  other.send(MovePlayer{{8.5f, ground + 1.0f, 8.5f}, 0, 0, false, false});
+  moveTo({0.5f, ground + 1.0f, 5.5f});
+  REQUIRE(game.world().getChunk(-1, 0) == nullptr);
+  CHECK(rejected(run(PlaceBlock{{-1, ground + 1, 5}, BlockType::STONE})));
+}
+
+TEST_CASE_FIXTURE(EditGame, "glowstone placed through the Game lights and unlights") {
+  glm::ivec3 lamp{5, ground + 2, 5};
+  REQUIRE(run(PlaceBlock{lamp, BlockType::GLOWSTONE}).size() == 1);
+  CHECK(game.world().getBlockLightAt(lamp + glm::ivec3(1, 0, 0)) > 0);
+
+  REQUIRE(run(BreakBlock{lamp}).size() == 1);
+  CHECK(game.world().getBlockLightAt(lamp + glm::ivec3(1, 0, 0)) == 0);
 }

@@ -1,4 +1,5 @@
 #include "sim/game.hpp"
+#include "block/block_data.hpp"
 #include "core/settings.hpp"
 #include <cmath>
 #include <type_traits>
@@ -27,6 +28,33 @@ PlayerState *Game::playerFor(const Client &client) {
 
 void Game::reject(Client &client, std::string reason) {
   client.link->deliver(CommandRejected{std::move(reason)});
+}
+
+void Game::broadcast(const Event &ev) {
+  for (Client &client : clients) client.link->deliver(ev);
+}
+
+// The client's raycast measures reach to the face it hit; the block's centre
+// can be up to half a block-diagonal further than that.
+bool Game::inReach(const PlayerState &ps, const glm::ivec3 &block) const {
+  constexpr float kHalfBlockDiagonal = 0.8660254f; // sqrt(3) / 2
+  glm::vec3 centre = glm::vec3(block) + 0.5f;
+  return glm::distance(ps.eyePosition(), centre) <=
+         kPlayerReach + kHalfBlockDiagonal;
+}
+
+bool Game::overlapsAnyPlayer(const glm::ivec3 &block) const {
+  const glm::vec3 bmin(block);
+  const glm::vec3 bmax = bmin + 1.0f;
+  for (const auto &[id, ps] : players) {
+    const glm::vec3 pmin = ps.position - glm::vec3(kPlayerHalfWidth, 0.0f, kPlayerHalfWidth);
+    const glm::vec3 pmax = ps.position + glm::vec3(kPlayerHalfWidth, ps.height(), kPlayerHalfWidth);
+    bool overlaps = pmin.x < bmax.x && pmax.x > bmin.x &&
+                    pmin.y < bmax.y && pmax.y > bmin.y &&
+                    pmin.z < bmax.z && pmax.z > bmin.z;
+    if (overlaps) return true;
+  }
+  return false;
 }
 
 // ─── Loop ──────────────────────────────────────────────────────────────
@@ -73,6 +101,8 @@ void Game::apply(Client &client, const Command &cmd) {
         if constexpr (std::is_same_v<T, Join> ||
                       std::is_same_v<T, MovePlayer> ||
                       std::is_same_v<T, SelectSlot> ||
+                      std::is_same_v<T, BreakBlock> ||
+                      std::is_same_v<T, PlaceBlock> ||
                       std::is_same_v<T, SetTimeOfDay>)
           apply(client, c);
         // Remaining commands are routed through Game in later tasks.
@@ -119,6 +149,46 @@ void Game::apply(Client &client, const SelectSlot &cmd) {
   if (cmd.slot < 0 || cmd.slot >= kHotbarSlots)
     return reject(client, "hotbar slot out of range");
   ps->selected_slot = cmd.slot;
+}
+
+void Game::apply(Client &client, const BreakBlock &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps) return;
+  if (cmd.pos.y < 0 || cmd.pos.y >= kChunkHeight)
+    return reject(client, "break: outside world height");
+  if (!inReach(*ps, cmd.pos)) return reject(client, "break: out of reach");
+
+  BlockType target = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
+  if (target == BlockType::AIR) return reject(client, "break: nothing there");
+  if (target == BlockType::BEDROCK || target == BlockType::WATER)
+    return reject(client, "break: unbreakable block");
+
+  world_.setBlockAt(cmd.pos, BlockType::AIR);
+  broadcast(BlockChanged{cmd.pos, BlockType::AIR});
+}
+
+void Game::apply(Client &client, const PlaceBlock &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps) return;
+  if (cmd.type == BlockType::AIR) return reject(client, "place: no block");
+  if (cmd.pos.y < 0 || cmd.pos.y >= kChunkHeight)
+    return reject(client, "place: outside world height");
+  if (!inReach(*ps, cmd.pos)) return reject(client, "place: out of reach");
+
+  // An unloaded cell reads as AIR but World::setBlockAt would drop the edit.
+  int cx = static_cast<int>(std::floor(static_cast<float>(cmd.pos.x) / kChunkWidth));
+  int cz = static_cast<int>(std::floor(static_cast<float>(cmd.pos.z) / kChunkDepth));
+  if (!world_.getChunk(cx, cz)) return reject(client, "place: chunk not loaded");
+
+  // Only air or liquid can be replaced.
+  BlockType existing = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
+  if (existing != BlockType::AIR && !isLiquid(existing))
+    return reject(client, "place: cell occupied");
+  if (overlapsAnyPlayer(cmd.pos))
+    return reject(client, "place: inside a player");
+
+  world_.setBlockAt(cmd.pos, cmd.type);
+  broadcast(BlockChanged{cmd.pos, cmd.type});
 }
 
 void Game::apply(Client &, const SetTimeOfDay &cmd) {

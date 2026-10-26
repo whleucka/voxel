@@ -258,6 +258,9 @@ void Engine::handleEvents() {
       player->setSelectedHotbarSlot(joined->slot);
       *player->getFlyModePtr() = joined->fly;
     }
+    else if (const auto *rejected = std::get_if<CommandRejected>(&ev)) {
+      last_rejection = rejected->reason;
+    }
     // BlockChanged needs no handling yet: in single-player the client renders
     // the Game's own World, which is already up to date.
   }
@@ -381,6 +384,8 @@ void Engine::debug() {
                       player->getSelectedHotbarSlot() + 1,
                       static_cast<int>(blockName(player->getHotbarBlock()).size()),
                       blockName(player->getHotbarBlock()).data());
+          if (!last_rejection.empty())
+            ImGui::Text("Rejected   : %s", last_rejection.c_str());
         }
 
         // World / Raycast
@@ -635,57 +640,18 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
 
   if (action != GLFW_PRESS) return;
 
+  // The client only aims; the Game validates and applies the edit on the next
+  // pump, which runs before the next frame renders.
   auto& player = engine->player;
   const Camera& cam = player->getCamera();
   RaycastResult ray = engine->game.world().raycast(cam.position, cam.front, kPlayerReach);
+  if (!ray.hit) return;
 
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
-    // Destroy block (left click)
-    if (ray.hit && ray.block_type != BlockType::BEDROCK
-                && ray.block_type != BlockType::WATER) {
-      engine->game.world().setBlockAt(ray.block_pos, BlockType::AIR);
-    }
+    engine->connection.send(BreakBlock{ray.block_pos});
   } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-    // Place block (right click)
-    if (ray.hit) {
-      glm::ivec3 place_pos = ray.block_pos + ray.normal;
-
-      // Don't place outside world height bounds
-      if (place_pos.y < 0 || place_pos.y >= kChunkHeight) return;
-
-      // Don't place if the target cell is already occupied by a solid block
-      BlockType existing = engine->game.world().getBlockAt(
-          glm::vec3(place_pos) + glm::vec3(0.5f));
-      if (existing != BlockType::AIR && !isLiquid(existing)) return;
-
-      // Get the block type from the selected hotbar slot
-      BlockType block_to_place = player->getHotbarBlock();
-      if (block_to_place == BlockType::AIR) return;
-
-      // Prevent placing the block inside the player's AABB
-      float height = player->isCrouching() ? kPlayerCrouchHeight : kPlayerHeight;
-      glm::vec3 ppos = player->getPosition();
-      float pMinX = ppos.x - kPlayerHalfWidth;
-      float pMaxX = ppos.x + kPlayerHalfWidth;
-      float pMinY = ppos.y;
-      float pMaxY = ppos.y + height;
-      float pMinZ = ppos.z - kPlayerHalfWidth;
-      float pMaxZ = ppos.z + kPlayerHalfWidth;
-
-      float bMinX = static_cast<float>(place_pos.x);
-      float bMaxX = bMinX + 1.0f;
-      float bMinY = static_cast<float>(place_pos.y);
-      float bMaxY = bMinY + 1.0f;
-      float bMinZ = static_cast<float>(place_pos.z);
-      float bMaxZ = bMinZ + 1.0f;
-
-      bool overlaps = pMinX < bMaxX && pMaxX > bMinX &&
-                      pMinY < bMaxY && pMaxY > bMinY &&
-                      pMinZ < bMaxZ && pMaxZ > bMinZ;
-      if (overlaps) return;
-
-      engine->game.world().setBlockAt(place_pos, block_to_place);
-    }
+    engine->connection.send(
+        PlaceBlock{ray.block_pos + ray.normal, player->getHotbarBlock()});
   }
 }
 

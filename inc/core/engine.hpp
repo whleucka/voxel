@@ -30,6 +30,7 @@ private:
   LocalConnection connection;
   PlayerId player_id = 0;
   std::unique_ptr<Player> player; // the local player; created on Joined
+  std::string last_rejection;     // latest CommandRejected, for the debug panel
   std::string save_dir; // saves/<world_name>, resolved at run() start
 
   bool first_mouse = true;
