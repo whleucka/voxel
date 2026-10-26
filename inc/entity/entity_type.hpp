@@ -16,11 +16,11 @@ class Brain;
 enum class EntityKind : uint16_t {
   DroppedItem = 1,
   TestCreature = 2, // debug-panel only; exercises brains and hitting
-  Woolly = 3,       // animals (see SPEC-animals.md)
+  Woolly = 3,       // friendly animals
   Bunny = 4,
   ShellTurtle = 5,
   BlossomDeer = 6,
-  Gloomling = 7,    // enemies (see SPEC-enemies.md)
+  Gloomling = 7,    // enemies
   ThornCrawler = 8,
   CaveGrumble = 9,
 };

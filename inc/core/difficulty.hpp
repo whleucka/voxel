@@ -5,7 +5,7 @@
 #include <string_view>
 
 // How hard enemies are. Peaceful has none; Easy has fewer, weaker and slower
-// ones; Normal uses the values in the enemy table (SPEC-enemies.md).
+// ones; Normal uses the values in the enemy table (entity_type.cpp).
 enum class Difficulty { Peaceful, Easy, Normal };
 
 constexpr std::string_view difficultyName(Difficulty d) {
