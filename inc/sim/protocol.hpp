@@ -95,6 +95,10 @@ struct BlockChanged { glm::ivec3 pos{0}; BlockType type = BlockType::AIR; };
 struct PlayerJoined { PlayerId id = 0; std::string name; };
 struct PlayerLeft { PlayerId id = 0; };
 struct CommandRejected { std::string reason; };
+// The link to the host is gone: the host quit (it sends this first) or the
+// connection failed (the guest's NetConnection reports it). Back to the menu.
+struct Disconnected { std::string reason; };
+
 // The Join was refused (name in use, game full); the link is then closed.
 struct JoinRefused { std::string reason; };
 
@@ -153,4 +157,4 @@ struct EntitySnapshot {
 using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            CommandRejected, InventoryContents, VitalsChanged,
                            Respawned, EntitySnapshot, KnockedBack, JoinRefused,
-                           Welcome, TimeSync>;
+                           Welcome, TimeSync, Disconnected>;

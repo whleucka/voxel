@@ -192,6 +192,7 @@ template <class IO> void fields(IO &io, Welcome &m) {
   io(m.seed, m.noise_offset, m.time_of_day, m.time_scale, m.edits);
 }
 template <class IO> void fields(IO &io, TimeSync &m) { io(m.time_of_day, m.time_scale); }
+template <class IO> void fields(IO &io, Disconnected &m) { io(m.reason); }
 
 template <class T> requires std::is_class_v<T> void Writer::put(const T &v) {
   fields(*this, const_cast<T &>(v));

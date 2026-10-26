@@ -26,7 +26,7 @@ Plan: [multiplayer-plan.md](multiplayer-plan.md) · Spec: [SPEC-multiplayer.md](
 - [x] Frames reassemble from single bytes. Garbage, truncated and oversized frames are rejected.
 
 ## T5: Transport
-- [ ] Loopback: join, edits seen by both, snapshots, leaving, and the right reasons for a duplicate name, a full game, a host quitting and a wrong version.
+- [x] Loopback: join, edits seen by both, snapshots, leaving, and the right reasons for a duplicate name, a full game, a host quitting and a wrong version.
 
 ## T6: Discovery
 - [ ] The beacon round-trips. The browser adds games and expires them after 3 s. Loopback send and receive works.
