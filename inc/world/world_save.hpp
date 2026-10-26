@@ -45,6 +45,9 @@ bool loadLevel(const std::string &dir, LevelData &out);
 bool loadPlayer(const std::string &dir, PlayerData &out);
 bool loadEdits(const std::string &dir, WorldEdits &out);
 
+// Writes just level.dat into dir (created if needed): a brand-new world.
+bool saveLevel(const std::string &dir, const LevelData &level);
+
 // Writes level.dat, player.dat and edits.dat into dir (created if needed).
 bool save(const std::string &dir, const LevelData &level,
           const PlayerData &player, const WorldEdits &edits);

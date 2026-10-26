@@ -18,7 +18,7 @@ Spec: [SPEC-title-screen.md](../SPEC-title-screen.md) · Tasks: [title-screen-to
 
 ## Tasks
 - [x] T1: `core/seed`: `resolveSeed`, `noiseOffsetFor` (moved, tested)
-- [ ] T2: World list: list, create, rename, delete, last-played text (tests)
+- [x] T2: World list: list, create, rename, delete, last-played text (tests)
 - [ ] T3: Menu scene: orbit maths (tests) and `MenuScene` (GL)
 - [ ] T4: Title menu pages and the world list UI
 - [ ] T5: `Engine` wiring: scene lifecycle, Play/Host the chosen world, last played

@@ -11,9 +11,9 @@ Plan: [title-screen-plan.md](title-screen-plan.md) · Spec: [SPEC-title-screen.m
 - [x] `resolveSeed` (blank random, digits as-is, text hashed) and `noiseOffsetFor` are shared, and the config tests pass.
 
 ## T2: World list
-- [ ] Lists worlds newest first with seed, last played and size. Unreadable folders are skipped.
-- [ ] Create, rename and delete work. They refuse invalid or taken names, missing worlds, and escapes from `saves/`.
-- [ ] `lastPlayedText` covers minutes, today, yesterday and days ago.
+- [x] Lists worlds newest first with seed, last played and size. Unreadable folders are skipped.
+- [x] Create, rename and delete work. They refuse invalid or taken names, missing worlds, and escapes from `saves/`.
+- [x] `lastPlayedText` covers minutes, today, yesterday and days ago.
 
 ## T3: Menu scene
 - [ ] The orbit keeps its distance and height, looks at the centre, and repeats every period.
