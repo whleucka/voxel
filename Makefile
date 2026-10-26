@@ -24,7 +24,6 @@ endif
 
 # Auto-generated header dependency files (-MMD produces .d alongside .o)
 DEPFLAGS    := -MMD -MP
-DEPS        := $(OBJECTS:.o=.d)
 
 # Libraries
 LIB         := -lglfw -lGL -lX11 -lpthread -lXrandr -lXi -ldl
@@ -53,6 +52,18 @@ IMGUI_OBJ   := $(patsubst %.cpp,$(BUILDDIR)/%.o,$(IMGUI_SRC))
 
 OBJECTS     := $(APP_OBJECTS) $(GLAD_OBJ) $(IMGUI_OBJ)
 
+# --- Tests (doctest 2.4.11, vendored at external/doctest/doctest.h) ---
+# The test binary links every app object except main.o, so tests exercise the
+# real code. Libraries are the same as the app's, but tests must never open a
+# window or touch GL.
+TESTDIR      := tests
+TEST_SOURCES := $(wildcard $(TESTDIR)/*.$(SRCEXT))
+TEST_OBJECTS := $(patsubst $(TESTDIR)/%.$(SRCEXT),$(BUILDDIR)/$(TESTDIR)/%.$(OBJEXT),$(TEST_SOURCES))
+TEST_TARGET  := tests
+
+# Must come after OBJECTS/TEST_OBJECTS: := expands immediately.
+DEPS        := $(OBJECTS:.o=.d) $(TEST_OBJECTS:.o=.d)
+
 # Default target
 all: directories resources $(TARGET) compile_commands.json
 
@@ -62,6 +73,15 @@ $(TARGET): $(OBJECTS)
 
 # Compile C++ files
 $(BUILDDIR)/%.$(OBJEXT): $(SRCDIR)/%.$(SRCEXT)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INC) -c -o $@ $<
+
+# Build and run the unit tests
+test: directories $(TEST_OBJECTS) $(filter-out $(BUILDDIR)/main.o,$(OBJECTS))
+	$(CC) -o $(TARGETDIR)/$(TEST_TARGET) $(TEST_OBJECTS) $(filter-out $(BUILDDIR)/main.o,$(OBJECTS)) $(LIB)
+	./$(TARGETDIR)/$(TEST_TARGET)
+
+$(BUILDDIR)/$(TESTDIR)/%.$(OBJEXT): $(TESTDIR)/%.$(SRCEXT)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(DEPFLAGS) $(INC) -c -o $@ $<
 
@@ -106,7 +126,7 @@ compile_commands.json.tmp:
 compile_commands.json: compile_commands.json.tmp
 	@if ! cmp -s $@ $<; then mv $< $@; else rm $<; fi
 
-.PHONY: all clean cleaner resources directories
+.PHONY: all clean cleaner resources directories test
 
 # Include auto-generated header dependency rules (silently ignored on first build)
 -include $(DEPS)

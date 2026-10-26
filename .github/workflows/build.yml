@@ -36,3 +36,8 @@ jobs:
         run: |
           test -x bin/app
           ls -l bin/app
+
+      # Unit tests construct World/Game directly and never open a window, so
+      # they run on the headless runner without a display.
+      - name: test
+        run: make test -j"$(nproc)"
