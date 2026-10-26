@@ -34,3 +34,7 @@ enum class BlockType : uint8_t {
   CHERRY_LOG,
   CHERRY_LEAF,
 };
+
+// The highest BlockType value. Update it when appending a type; a test in
+// tests/item_test.cpp fails if a named type exists past it.
+constexpr BlockType kLastBlockType = BlockType::CHERRY_LEAF;
