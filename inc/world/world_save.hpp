@@ -1,10 +1,13 @@
 #pragma once
 
 #include "chunk/chunk.hpp" // ChunkKey, ChunkKeyHash
+#include "item/item_stack.hpp"
 #include "robin_hood/robin_hood.h"
 #include <cstdint>
 #include <glm/glm.hpp>
+#include <span>
 #include <string>
+#include <vector>
 
 // Player-made block edits, keyed by chunk. Terrain itself is regenerated from
 // the world seed, so only these deltas need to be persisted.
@@ -44,5 +47,11 @@ bool loadEdits(const std::string &dir, WorldEdits &out);
 // Writes level.dat, player.dat and edits.dat into dir (created if needed).
 bool save(const std::string &dir, const LevelData &level,
           const PlayerData &player, const WorldEdits &edits);
+
+// inventory.dat — the host player's inventory slots, in slot order. Kept
+// separate so the files above stay readable by older builds. Items this build
+// doesn't know load as empty slots; the caller copies however many slots fit.
+bool loadInventory(const std::string &dir, std::vector<ItemStack> &out);
+bool saveInventory(const std::string &dir, std::span<const ItemStack> slots);
 
 } // namespace WorldSave

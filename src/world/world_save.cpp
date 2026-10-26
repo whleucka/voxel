@@ -36,6 +36,7 @@ bool checkHeader(std::istream &i, const char magic[4]) {
 constexpr char kLevelMagic[4]  = {'V', 'X', 'L', 'V'};
 constexpr char kPlayerMagic[4] = {'V', 'X', 'P', 'L'};
 constexpr char kEditMagic[4]   = {'V', 'X', 'E', 'D'};
+constexpr char kInvMagic[4]    = {'V', 'X', 'I', 'N'};
 
 } // namespace
 
@@ -131,6 +132,40 @@ bool save(const std::string &dir, const LevelData &level,
     }
   }
   return true;
+}
+
+// ─── inventory.dat ──────────────────────────────────────────────────────────
+bool loadInventory(const std::string &dir, std::vector<ItemStack> &out) {
+  std::ifstream in(dir + "/inventory.dat", std::ios::binary);
+  if (!in || !checkHeader(in, kInvMagic)) return false;
+
+  uint16_t slot_count = 0;
+  if (!rd(in, slot_count)) return false;
+  std::vector<ItemStack> slots(slot_count);
+  for (ItemStack &s : slots) {
+    uint16_t id, count;
+    if (!rd(in, id) || !rd(in, count)) return false;
+    ItemId item = static_cast<ItemId>(id);
+    if (isValidItem(item) && count > 0) s = {item, count};
+  }
+  out = std::move(slots);
+  return true;
+}
+
+bool saveInventory(const std::string &dir, std::span<const ItemStack> slots) {
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+  if (ec) return false;
+
+  std::ofstream o(dir + "/inventory.dat", std::ios::binary | std::ios::trunc);
+  if (!o) return false;
+  writeHeader(o, kInvMagic);
+  wr(o, static_cast<uint16_t>(slots.size()));
+  for (const ItemStack &s : slots) {
+    wr(o, static_cast<uint16_t>(s.empty() ? ItemId::NONE : s.id));
+    wr(o, static_cast<uint16_t>(s.empty() ? 0 : s.count));
+  }
+  return static_cast<bool>(o);
 }
 
 } // namespace WorldSave
