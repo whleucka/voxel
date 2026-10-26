@@ -66,3 +66,22 @@ const ItemDef &itemDef(ItemId id) {
     return materialDefs()[v - static_cast<uint16_t>(kFirstMaterialItem)];
   return kUnknown;
 }
+
+std::optional<ItemId> dropFor(BlockType b) {
+  switch (b) {
+    case BlockType::AIR:
+    case BlockType::WATER:
+    case BlockType::BEDROCK:     return std::nullopt;
+    case BlockType::GRASS:
+    case BlockType::SNOW_DIRT:   return itemForBlock(BlockType::DIRT);
+    case BlockType::STONE:       return itemForBlock(BlockType::COBBLESTONE);
+    case BlockType::COAL_ORE:    return ItemId::COAL;
+    case BlockType::DIAMOND_ORE: return ItemId::DIAMOND;
+    case BlockType::EMERALD_ORE: return ItemId::EMERALD;
+    case BlockType::RUBY_ORE:    return ItemId::RUBY;
+    case BlockType::IRON_ORE:    return ItemId::RAW_IRON;
+    case BlockType::GOLD_ORE:    return ItemId::RAW_GOLD;
+    case BlockType::COPPER_ORE:  return ItemId::RAW_COPPER;
+    default:                     return itemForBlock(b);
+  }
+}

@@ -79,3 +79,44 @@ TEST_CASE("isValidItem rejects the empty item, water and unknown ids") {
       static_cast<ItemId>(static_cast<uint16_t>(kLastMaterialItem) + 1)));
   CHECK(itemDef(static_cast<ItemId>(9999)).name == "Unknown");
 }
+
+// ─── Drops ─────────────────────────────────────────────────────────────
+
+TEST_CASE("air, water and bedrock drop nothing") {
+  CHECK_FALSE(dropFor(BlockType::AIR).has_value());
+  CHECK_FALSE(dropFor(BlockType::WATER).has_value());
+  CHECK_FALSE(dropFor(BlockType::BEDROCK).has_value());
+}
+
+TEST_CASE("grass and snow dirt drop dirt; stone drops cobblestone") {
+  CHECK(dropFor(BlockType::GRASS) == itemForBlock(BlockType::DIRT));
+  CHECK(dropFor(BlockType::SNOW_DIRT) == itemForBlock(BlockType::DIRT));
+  CHECK(dropFor(BlockType::STONE) == itemForBlock(BlockType::COBBLESTONE));
+}
+
+TEST_CASE("ores drop their material") {
+  CHECK(dropFor(BlockType::COAL_ORE) == ItemId::COAL);
+  CHECK(dropFor(BlockType::DIAMOND_ORE) == ItemId::DIAMOND);
+  CHECK(dropFor(BlockType::EMERALD_ORE) == ItemId::EMERALD);
+  CHECK(dropFor(BlockType::RUBY_ORE) == ItemId::RUBY);
+  CHECK(dropFor(BlockType::IRON_ORE) == ItemId::RAW_IRON);
+  CHECK(dropFor(BlockType::GOLD_ORE) == ItemId::RAW_GOLD);
+  CHECK(dropFor(BlockType::COPPER_ORE) == ItemId::RAW_COPPER);
+}
+
+TEST_CASE("every other block drops itself, and every drop is a valid item") {
+  const std::set<BlockType> special = {
+      BlockType::AIR,         BlockType::WATER,       BlockType::BEDROCK,
+      BlockType::GRASS,       BlockType::SNOW_DIRT,   BlockType::STONE,
+      BlockType::COAL_ORE,    BlockType::DIAMOND_ORE, BlockType::EMERALD_ORE,
+      BlockType::RUBY_ORE,    BlockType::IRON_ORE,    BlockType::GOLD_ORE,
+      BlockType::COPPER_ORE,
+  };
+  for (uint16_t v = 0; v <= kLastBlock; ++v) {
+    BlockType b = static_cast<BlockType>(v);
+    CAPTURE(blockName(b));
+    auto drop = dropFor(b);
+    if (drop) CHECK(isValidItem(*drop));
+    if (!special.count(b)) CHECK(drop == itemForBlock(b));
+  }
+}

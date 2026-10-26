@@ -47,3 +47,6 @@ inline ItemId itemForBlock(BlockType b) {
 bool isValidItem(ItemId id);
 // Precondition: isValidItem(id). Unknown ids get a placeholder "Unknown" def.
 const ItemDef &itemDef(ItemId id);
+
+// What breaking a block yields (always a single item), or nothing.
+std::optional<ItemId> dropFor(BlockType b);
