@@ -7,6 +7,7 @@
 #include "robin_hood/robin_hood.h"
 #include "util/lock.hpp"
 #include "util/thread_pool.hpp"
+#include "world/block_edit.hpp"
 #include "world/world_save.hpp"
 #include <atomic>
 #include <glm/glm.hpp>
@@ -54,6 +55,15 @@ public:
   void setLoadedEdits(WorldEdits e);
   // Thread-safe copy of all player edits, for writing to disk.
   WorldEdits snapshotEdits() const;
+  // The same edits as a flat list in world coordinates (for Welcome).
+  std::vector<BlockEdit> editList() const;
+  // An edit made in another copy of this world (a guest mirroring the host).
+  // Unlike setBlockAt it is never lost: an edit to a chunk that isn't loaded
+  // yet is recorded and appears when the chunk streams in. Main thread only.
+  void applyEdit(const glm::ivec3 &pos, BlockType type);
+  // Applies recorded remote edits whose chunks have finished loading. Called
+  // by update(); tests call it directly.
+  void flushPendingEdits();
 
   const RenderStats &getRenderStats() const { return renderer->getStats(); }
   BlockType getBlockAt(const glm::vec3& worldPos) const;
@@ -102,6 +112,10 @@ private:
   // generated chunks. Guarded because generation runs on worker threads.
   mutable std::mutex edits_mutex;
   WorldEdits edits;
+  // Remote edits to chunks that were missing when they arrived. A chunk may
+  // be generating at that moment, past the point where it reads `edits`, so
+  // these are checked again once it is loaded. Main thread only.
+  std::vector<BlockEdit> pending_edits;
 
   // Cross-chunk relight requests queued from generation, drained on the main
   // thread in update(). Gated by emitters_exist so torch-free worlds pay nothing.

@@ -226,6 +226,10 @@ void Game::tick() {
   ++tick_count;
   flushVitals();
   sendEntitySnapshots();
+  if (tick_count % kTimeSyncTicks == 0)
+    for (Client &client : clients)
+      if (client.player && client.role == Role::Guest)
+        client.link->deliver(TimeSync{clock_.time_of_day, clock_.scale});
 }
 
 void Game::sendEntitySnapshots() {
@@ -238,6 +242,12 @@ void Game::sendEntitySnapshots() {
       if (glm::distance(e.body.position, ps->position) > kEntityViewRange) continue;
       snap.entities.push_back({id, e.kind, e.body.position, e.yaw, e.item.id,
                                e.hurt_ms > 0, e.happy_ms > 0, false});
+    }
+    for (const auto &[pid, other] : players) {
+      if (pid == ps->id || other.vitals.dead()) continue;
+      if (glm::distance(other.position, ps->position) > kEntityViewRange) continue;
+      snap.players.push_back({pid, other.name, other.position, other.yaw, other.pitch,
+                              other.crouch, false});
     }
     client.link->deliver(std::move(snap));
   }
@@ -312,6 +322,11 @@ void Game::apply(Client &client, const Join &cmd) {
     ps.inventory = starterKit();
   }
 
+  // A guest builds its own copy of the world before it hears it has joined.
+  if (client.role == Role::Guest)
+    client.link->deliver(Welcome{g_settings.world_seed, g_settings.noise_offset,
+                                 clock_.time_of_day, g_settings.time_scale,
+                                 world_.editList()});
   for (Client &other : clients)
     if (other.player) other.link->deliver(PlayerJoined{ps.id, ps.name});
   players[ps.id] = ps;

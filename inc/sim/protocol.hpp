@@ -3,6 +3,7 @@
 #include "block/block_type.hpp"
 #include "entity/entity_type.hpp"
 #include "inventory/inventory.hpp"
+#include "world/block_edit.hpp"
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <string>
@@ -76,6 +77,19 @@ struct Joined {
   bool fly = false;
 };
 
+// Sent to a guest before Joined: everything needed to build its own copy of
+// the host's world (terrain comes from the seed; edits are replayed on top).
+struct Welcome {
+  uint32_t seed = 0;
+  glm::vec2 noise_offset{0.0f};
+  float time_of_day = 0.0f; // seconds
+  float time_scale = 1.0f;
+  std::vector<BlockEdit> edits;
+};
+
+// The host's clock, once a second, so every guest's sky matches.
+struct TimeSync { float time_of_day = 0.0f; float time_scale = 1.0f; };
+
 struct BlockChanged { glm::ivec3 pos{0}; BlockType type = BlockType::AIR; };
 // Another player joined or left (never sent about yourself).
 struct PlayerJoined { PlayerId id = 0; std::string name; };
@@ -117,13 +131,26 @@ struct EntityView {
   bool moving = false;        // set client-side by the interpolator
 };
 
-// Every entity within range of this player, sent every tick. An entity that
-// isn't listed is gone (or out of range).
+// Another living player, as a client draws them.
+struct PlayerView {
+  PlayerId id = 0;
+  std::string name;
+  glm::vec3 position{0.0f}; // feet
+  float yaw = -90.0f;       // camera convention (degrees)
+  float pitch = 0.0f;
+  bool crouch = false;
+  bool moving = false;      // set client-side by the interpolator
+};
+
+// Every entity and other player within range of this player, sent every tick.
+// One that isn't listed is gone (or out of range). Never includes yourself.
 struct EntitySnapshot {
   uint32_t tick = 0;
   std::vector<EntityView> entities;
+  std::vector<PlayerView> players;
 };
 
 using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            CommandRejected, InventoryContents, VitalsChanged,
-                           Respawned, EntitySnapshot, KnockedBack, JoinRefused>;
+                           Respawned, EntitySnapshot, KnockedBack, JoinRefused,
+                           Welcome, TimeSync>;

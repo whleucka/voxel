@@ -13,9 +13,9 @@ Plan: [multiplayer-plan.md](multiplayer-plan.md) · Spec: [SPEC-multiplayer.md](
 - [x] Moves with an old respawn counter are ignored.
 
 ## T2: Game: shared world
-- [ ] Guests get `Welcome` (seed, offset, time, edits) before `Joined`. `TimeSync` arrives every second.
-- [ ] Snapshots list the other players, not yourself.
-- [ ] `World::applyEdit` takes effect when an unloaded chunk loads. A world built from `Welcome` matches the host's.
+- [x] Guests get `Welcome` (seed, offset, time, edits) before `Joined`. `TimeSync` arrives every second.
+- [x] Snapshots list the other players, not yourself.
+- [x] `World::applyEdit` takes effect when an unloaded chunk loads. A world built from `Welcome` matches the host's.
 
 ## T3: Guest records
 - [ ] `players/<name>.dat` round-trips. Old saves load.

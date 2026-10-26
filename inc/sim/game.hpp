@@ -25,6 +25,7 @@ public:
   static constexpr float kEntityViewRange = 96.0f;
   static constexpr size_t kMaxPlayers = 8; // host included
   static constexpr size_t kMaxNameLength = 16;
+  static constexpr int kTimeSyncTicks = 20; // once a second
   // Dropped items
   static constexpr int kBreakDropDelayMs = 500;
   static constexpr int kThrowDropDelayMs = 1500;

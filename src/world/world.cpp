@@ -209,6 +209,7 @@ void World::addChunk(int x, int z) {
 
 void World::update(float dt) {
   cloud_time += dt;
+  flushPendingEdits();
 
   // Drain cross-chunk relight requests queued as chunks stream in near torches.
   if (emitters_exist.load(std::memory_order_relaxed)) {
@@ -729,4 +730,50 @@ void World::setLoadedEdits(WorldEdits e) {
 WorldEdits World::snapshotEdits() const {
   std::lock_guard lk(edits_mutex);
   return edits;
+}
+
+// ─── Remote edits ──────────────────────────────────────────────────────
+
+std::vector<BlockEdit> World::editList() const {
+  std::vector<BlockEdit> out;
+  std::lock_guard lk(edits_mutex);
+  for (const auto &[key, chunk_edits] : edits)
+    for (const auto &[idx, block] : chunk_edits) {
+      int lx = static_cast<int>(idx % kChunkWidth);
+      int lz = static_cast<int>((idx / kChunkWidth) % kChunkDepth);
+      int y = static_cast<int>(idx / (kChunkWidth * kChunkDepth));
+      out.push_back({{key.x * kChunkWidth + lx, y, key.z * kChunkDepth + lz},
+                     static_cast<BlockType>(block)});
+    }
+  return out;
+}
+
+void World::applyEdit(const glm::ivec3 &pos, BlockType type) {
+  if (pos.y < 0 || pos.y >= kChunkHeight) return;
+  int cx = static_cast<int>(std::floor(static_cast<float>(pos.x) / kChunkWidth));
+  int cz = static_cast<int>(std::floor(static_cast<float>(pos.z) / kChunkDepth));
+  if (getChunk(cx, cz)) {
+    setBlockAt(pos, type);
+    return;
+  }
+  // Record it for chunks generated from now on, and remember it in case the
+  // chunk is being generated right now.
+  int lx = pos.x - cx * kChunkWidth;
+  int lz = pos.z - cz * kChunkDepth;
+  uint32_t idx = lx + kChunkWidth * (lz + kChunkDepth * pos.y);
+  {
+    std::lock_guard lk(edits_mutex);
+    edits[{cx, cz}][idx] = static_cast<uint8_t>(type);
+  }
+  pending_edits.push_back({pos, type});
+}
+
+void World::flushPendingEdits() {
+  std::erase_if(pending_edits, [&](const BlockEdit &e) {
+    int cx = static_cast<int>(std::floor(static_cast<float>(e.pos.x) / kChunkWidth));
+    int cz = static_cast<int>(std::floor(static_cast<float>(e.pos.z) / kChunkDepth));
+    if (!getChunk(cx, cz)) return false;
+    if (getBlockAt(glm::vec3(e.pos) + 0.5f) != e.type) setBlockAt(e.pos, e.type);
+    return true;
+  });
 }

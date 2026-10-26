@@ -1546,3 +1546,79 @@ TEST_CASE_FIXTURE(VitalsGame, "moves from before a respawn are ignored") {
   send(fresh);
   CHECK(me().position == fresh.position);
 }
+
+// ─── Multiplayer: the shared world ─────────────────────────────────────
+
+TEST_CASE_FIXTURE(PartyGame, "a guest is welcomed with the world before it joins") {
+  game.world().loadChunkSync(0, 0);
+  game.world().setBlockAt({3, 200, 3}, BlockType::GLOWSTONE);
+  auto evs = joinGuest("Bea");
+  REQUIRE(evs.size() >= 2);
+  REQUIRE(std::holds_alternative<Welcome>(evs[0]));
+  CHECK(std::holds_alternative<Joined>(evs[1]));
+  const Welcome &w = std::get<Welcome>(evs[0]);
+  CHECK(w.seed == g_settings.world_seed);
+  CHECK(w.noise_offset == g_settings.noise_offset);
+  CHECK(w.time_of_day == game.clock().time_of_day);
+  CHECK(w.time_scale == g_settings.time_scale);
+  CHECK(std::find(w.edits.begin(), w.edits.end(),
+                  BlockEdit{{3, 200, 3}, BlockType::GLOWSTONE}) != w.edits.end());
+}
+
+TEST_CASE_FIXTURE(SmallGame, "the host isn't sent a Welcome") {
+  LocalConnection host;
+  game.addClient(host, Game::Role::Host);
+  host.send(Join{"Host"});
+  game.pump();
+  for (const Event &e : pollAll(host)) CHECK_FALSE(std::holds_alternative<Welcome>(e));
+}
+
+TEST_CASE_FIXTURE(PartyGame, "guests get the time once a second; the host doesn't") {
+  joinGuest("Bea");
+  pollAll(host);
+  game.advance(Game::kTickSeconds * (Game::kTimeSyncTicks * 3));
+  int syncs = 0;
+  float last = -1.0f;
+  for (const Event &e : pollAll(guest()))
+    if (auto *t = std::get_if<TimeSync>(&e)) {
+      ++syncs;
+      last = t->time_of_day;
+      CHECK(t->time_scale == g_settings.time_scale);
+    }
+  CHECK(syncs == 3);
+  CHECK(last == game.clock().time_of_day);
+  for (const Event &e : pollAll(host)) CHECK_FALSE(std::holds_alternative<TimeSync>(e));
+}
+
+TEST_CASE_FIXTURE(PartyGame, "snapshots show the other players but not yourself") {
+  PlayerId bea = PartyGame::find<Joined>(joinGuest("Bea"))->id;
+  PlayerId host_id = 0;
+  for (PlayerId id = 1; id < 10; ++id)
+    if (game.findPlayer(id) && game.findPlayer(id)->name == "Host") host_id = id;
+  glm::vec3 near = game.findPlayer(host_id)->position + glm::vec3(2, 0, 0);
+  MovePlayer move{near, 30.0f, -10.0f, false, true};
+  send(guest(), move);
+  pollAll(host);
+
+  game.advance(Game::kTickSeconds);
+  auto last = [](const std::vector<Event> &evs) {
+    const EntitySnapshot *snap = nullptr;
+    for (const Event &e : evs)
+      if (auto *s = std::get_if<EntitySnapshot>(&e)) snap = s;
+    REQUIRE(snap);
+    return *snap;
+  };
+  EntitySnapshot to_host = last(pollAll(host));
+  REQUIRE(to_host.players.size() == 1);
+  const PlayerView &v = to_host.players[0];
+  CHECK(v.id == bea);
+  CHECK(v.name == "Bea");
+  CHECK(v.position == near);
+  CHECK(v.yaw == 30.0f);
+  CHECK(v.pitch == -10.0f);
+  CHECK(v.crouch);
+
+  EntitySnapshot to_bea = last(pollAll(guest()));
+  REQUIRE(to_bea.players.size() == 1);
+  CHECK(to_bea.players[0].id == host_id);
+}

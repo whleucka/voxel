@@ -23,7 +23,7 @@ Spec: [SPEC-multiplayer.md](../SPEC-multiplayer.md) · Tasks: [multiplayer-todo.
 
 ## Tasks
 - [x] T1: Protocol and `Game`: names, host flag, leaving, host-only cheats, respawn counter
-- [ ] T2: `Game`: `Welcome`, `TimeSync`, other players in snapshots; `World::applyEdit`
+- [x] T2: `Game`: `Welcome`, `TimeSync`, other players in snapshots; `World::applyEdit`
 - [ ] T3: Guest records in the save (`players/<name>.dat`)
 - [ ] T4: Wire format: frames and codecs for every Command and Event
 - [ ] T5: Sockets, `NetServer` and `NetConnection` (loopback tests)
