@@ -33,6 +33,7 @@ private:
   std::string last_rejection;     // latest CommandRejected, for the debug panel
   Inventory::Slots inventory_view{}; // the Game's latest InventoryContents
   Hud hud;
+  InventoryScreen inventory_screen;
 
   bool first_mouse = true;
   float last_frame = 0.0f;
@@ -52,6 +53,7 @@ private:
   void update();
   void handleEvents();
   void selectSlot(int slot);
+  void setInventoryOpen(bool open);
   void render();
   void renderCrosshair();
   void debug();
