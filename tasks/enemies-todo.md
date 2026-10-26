@@ -40,4 +40,4 @@ Plan: [enemies-plan.md](enemies-plan.md) · Spec: [SPEC-enemies.md](../SPEC-enem
 - [ ] Manual check (user): the spec's night, cave, light, sunrise and Peaceful checks.
 
 ## T8: Wrap-up
-- [ ] Map and spec status are updated, CI is green, and the PR is merged.
+- [x] Map and spec status are updated, CI is green, and the PR is merged.

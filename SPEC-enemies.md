@@ -2,6 +2,8 @@
 
 Module of [CAPABILITY_MAP.md](CAPABILITY_MAP.md). Depends on: `entities`, `vitals`, `items`.
 
+**Status:** implemented. Criteria 1 and 3 are met; criterion 2 (manual check) is up to you.
+
 ## Objective
 
 Give nights and caves some tension, without making it too scary for young

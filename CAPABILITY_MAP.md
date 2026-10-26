@@ -13,7 +13,7 @@ next to this file; this map is the index of what exists.
 | hud ✅ | Hotbar (keys 1..0) with icons + counts, inventory screen; reserves space for vitals bars | inventory, items |
 | entities ✅ | Generic non-player entities: AABB physics, box-model rendering, spawn/despawn near players | sim-core |
 | animals ✅ | Friendly animals: biome spawning, cautious wandering, feeding for products, food | entities, items |
-| enemies | Hostile mobs: spawn rules, voxel pathfinding, melee attack | entities, vitals |
+| enemies ✅ | Hostile mobs: spawn rules, voxel pathfinding, melee attack, difficulty | entities, vitals |
 | multiplayer | LAN host/join, sync edits, players, entities, inventories | sim-core (+ all above) |
 
 Build order: sim-core → items → inventory → hud → vitals → entities → animals → enemies → multiplayer
@@ -42,3 +42,11 @@ Build order: sim-core → items → inventory → hud → vitals → entities �
   could arrive after it. It would put the player back where they died and
   could count a fall. **For `multiplayer`:** tag moves with a respawn or
   teleport counter and drop stale ones.
+- **No natural caves** (noted in enemies T5). Worldgen doesn't carve caves,
+  so Cave Grumbles only appear in tunnels players dig. Cave placement looks
+  12–32 blocks from players for that reason. Carving caves in worldgen would
+  make the Grumble much more common: ask first.
+- **Horizontal friction depends on frame rate** (noted in enemies T7).
+  `PhysicsBody::move` multiplies horizontal velocity by 0.85 every call, so
+  the player's knockback carries further at low FPS than at high FPS.
+  Entities step at a fixed 20 Hz, so they aren't affected.
