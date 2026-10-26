@@ -42,13 +42,15 @@ struct SelectSlot { int slot = 0; };
 struct Save {};
 struct SetTimeOfDay { float seconds = 0.0f; }; // debug panel
 struct GiveItem { ItemId id = ItemId::NONE; uint16_t count = 0; }; // debug panel
+// Throw the held item (one, or the whole stack) forward from the eyes.
+struct DropItem { bool whole_stack = false; };
 // Move count items (0 = the whole stack) between inventory slots; see
 // Inventory::move for the merge/swap rules.
 struct MoveItems { int from = 0; int to = 0; uint16_t count = 0; };
 
 using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SelectSlot, Save, SetTimeOfDay, GiveItem,
-                             MoveItems>;
+                             MoveItems, DropItem>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 

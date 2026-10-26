@@ -606,7 +606,7 @@ void Engine::debugInventory() {
 
 // ─── Key Callback (event-based, for toggle actions) ────────────────────
 
-void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
+void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods) {
   Engine *engine =
       reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
@@ -644,6 +644,12 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
     // Inventory toggle
     case GLFW_KEY_E:
       engine->setInventoryOpen(!engine->player->isInventoryOpen());
+      break;
+
+    // Q drops one of the held item, Ctrl+Q the whole stack
+    case GLFW_KEY_Q:
+      if (!engine->player->isInventoryOpen() && !engine->vitals_view.dead)
+        engine->connection.send(DropItem{(mods & GLFW_MOD_CONTROL) != 0});
       break;
 
     // Esc closes the inventory screen first; otherwise it quits

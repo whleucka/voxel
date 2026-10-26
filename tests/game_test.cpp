@@ -476,18 +476,29 @@ TEST_CASE_FIXTURE(EditGame, "breaking ore collects its material") {
   CHECK(countOf(inventory(), itemForBlock(BlockType::DIAMOND_ORE)) == 0);
 }
 
-TEST_CASE_FIXTURE(EditGame, "with a full inventory the block breaks and the drop is lost") {
+TEST_CASE_FIXTURE(EditGame, "with a full inventory the drop pops out of the block") {
   run(GiveItem{itemForBlock(BlockType::SAND), 64 * kInventorySlots});
   // Every slot but the kit's glowstone is now a full stack of sand.
   REQUIRE(countOf(inventory(), itemForBlock(BlockType::SAND)) ==
           64 * (kInventorySlots - 1));
   Inventory before = inventory();
+  size_t entities_before = game.entities().size();
 
   glm::ivec3 target{5, ground + 1, 5};
   game.world().setBlockAt(target, BlockType::COBBLESTONE);
   CHECK(changes(run(BreakBlock{target})) == 1);
   CHECK(at(target) == BlockType::AIR);
   CHECK(inventory().slots() == before.slots());
+
+  REQUIRE(game.entities().size() == entities_before + 1);
+  const Entity *drop = nullptr;
+  for (const auto &[id, e] : game.entities().all())
+    if (e.item.id == itemForBlock(BlockType::COBBLESTONE)) drop = &e;
+  REQUIRE(drop);
+  CHECK(drop->kind == EntityKind::DroppedItem);
+  CHECK(drop->item.count == 1);
+  CHECK(glm::distance(drop->body.position, glm::vec3(target) + 0.5f) < 1.0f);
+  CHECK(drop->pickup_delay_ms > 0);
 }
 
 TEST_CASE_FIXTURE(EditGame, "placing consumes one of the held block") {
@@ -815,10 +826,116 @@ TEST_CASE_FIXTURE(VitalsGame, "snapshots carry what the client needs to draw") {
   auto id = game.entities().spawn(EntityKind::DroppedItem, me().position);
   REQUIRE(id);
   game.entities().find(*id)->item = {ItemId::RUBY, 3};
+  game.entities().find(*id)->pickup_delay_ms = 10000; // don't pick it up
   auto snap = lastSnapshot(advance(0.05f));
   REQUIRE(snap);
   REQUIRE(snap->entities.size() == 1);
   CHECK(snap->entities[0].kind == EntityKind::DroppedItem);
   CHECK(snap->entities[0].item == ItemId::RUBY);
   CHECK(snap->tick > 0);
+}
+
+// ─── Dropped items ─────────────────────────────────────────────────────
+
+namespace {
+
+std::vector<const Entity *> droppedItems(const Game &g) {
+  std::vector<const Entity *> out;
+  for (const auto &[id, e] : g.entities().all())
+    if (e.kind == EntityKind::DroppedItem) out.push_back(&e);
+  return out;
+}
+
+} // namespace
+
+TEST_CASE_FIXTURE(EditGame, "Q throws one of the held item; it can't be grabbed straight back") {
+  const ItemId glow = itemForBlock(BlockType::GLOWSTONE);
+  run(SelectSlot{0});
+  run(DropItem{false});
+  CHECK(inventory().slot(0) == ItemStack{glow, 7});
+  auto drops = droppedItems(game);
+  REQUIRE(drops.size() == 1);
+  EntityId id = drops[0]->id;
+  CHECK(drops[0]->item == ItemStack{glow, 1});
+
+  // Hold it right at the player for most of the delay: still on the ground.
+  glm::vec3 centre = game.findPlayer(this->id)->position + glm::vec3(0, 0.9f, 0);
+  for (int i = 0; i < 25; ++i) { // 1.25 s
+    game.entities().find(id)->body.position = centre;
+    game.advance(0.05f);
+  }
+  REQUIRE(game.entities().find(id));
+  CHECK(inventory().slot(0).count == 7);
+
+  for (int i = 0; i < 6; ++i) { // past 1.5 s
+    if (Entity *e = game.entities().find(id)) e->body.position = centre;
+    game.advance(0.05f);
+  }
+  CHECK_FALSE(game.entities().find(id));
+  CHECK(inventory().slot(0).count == 8);
+}
+
+TEST_CASE_FIXTURE(EditGame, "Ctrl+Q throws the whole stack; an empty hand throws nothing") {
+  run(SelectSlot{0});
+  run(DropItem{true});
+  CHECK(inventory().slot(0).empty());
+  auto drops = droppedItems(game);
+  REQUIRE(drops.size() == 1);
+  CHECK(drops[0]->item.count == 8);
+
+  CHECK(rejected(run(DropItem{false})));
+  CHECK(droppedItems(game).size() == 1);
+}
+
+TEST_CASE_FIXTURE(EditGame, "picking up takes what fits and leaves the rest") {
+  run(GiveItem{itemForBlock(BlockType::SAND), 64 * (kInventorySlots - 1)});
+  REQUIRE(inventory().slot(0).count == 8); // glowstone: room for 56 more
+  glm::vec3 centre = game.findPlayer(id)->position + glm::vec3(0, 0.9f, 0);
+  auto drop = game.entities().spawn(EntityKind::DroppedItem, centre);
+  REQUIRE(drop);
+  game.entities().find(*drop)->item = {itemForBlock(BlockType::GLOWSTONE), 60};
+  game.entities().find(*drop)->pickup_delay_ms = 0;
+
+  auto evs = [&] { game.advance(0.05f); return pollAll(conn); }();
+  CHECK(inventory().slot(0).count == 64);
+  REQUIRE(game.entities().find(*drop));
+  CHECK(game.entities().find(*drop)->item.count == 4);
+  CHECK(lastContents(evs));
+}
+
+TEST_CASE_FIXTURE(EditGame, "identical items lying together merge") {
+  glm::vec3 spot{10.5f, ground + 1.0f, 2.5f}; // well away from the player
+  auto a = game.entities().spawn(EntityKind::DroppedItem, spot);
+  auto b = game.entities().spawn(EntityKind::DroppedItem, spot + glm::vec3(0.5f, 0, 0));
+  auto c = game.entities().spawn(EntityKind::DroppedItem, spot + glm::vec3(0, 0, 0.4f));
+  game.entities().find(*a)->item = {ItemId::COAL, 3};
+  game.entities().find(*b)->item = {ItemId::COAL, 4};
+  game.entities().find(*c)->item = {ItemId::RUBY, 1}; // different item: stays
+  game.advance(0.05f);
+
+  CHECK(game.entities().find(*a)->item == ItemStack{ItemId::COAL, 7});
+  CHECK_FALSE(game.entities().find(*b));
+  CHECK(game.entities().find(*c));
+}
+
+TEST_CASE_FIXTURE(EditGame, "merging stops at the max stack") {
+  glm::vec3 spot{10.5f, ground + 1.0f, 2.5f};
+  auto a = game.entities().spawn(EntityKind::DroppedItem, spot);
+  auto b = game.entities().spawn(EntityKind::DroppedItem, spot + glm::vec3(0.3f, 0, 0));
+  game.entities().find(*a)->item = {ItemId::COAL, 60};
+  game.entities().find(*b)->item = {ItemId::COAL, 10};
+  game.advance(0.05f);
+  CHECK(game.entities().find(*a)->item.count == 64);
+  REQUIRE(game.entities().find(*b));
+  CHECK(game.entities().find(*b)->item.count == 6);
+}
+
+TEST_CASE_FIXTURE(EditGame, "give overflow lands at your feet") {
+  run(GiveItem{itemForBlock(BlockType::SAND), 64 * (kInventorySlots - 1)});
+  run(GiveItem{itemForBlock(BlockType::GLOWSTONE), 56}); // inventory now full
+  run(GiveItem{ItemId::DIAMOND, 5});
+  auto drops = droppedItems(game);
+  REQUIRE(drops.size() == 1);
+  CHECK(drops[0]->item == ItemStack{ItemId::DIAMOND, 5});
+  CHECK(glm::distance(drops[0]->body.position, game.findPlayer(id)->position) < 1.0f);
 }

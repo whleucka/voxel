@@ -21,6 +21,11 @@ public:
   static constexpr int kTickMs = 50;
   static constexpr int kRespawnDelayMs = 3000;
   static constexpr float kEntityViewRange = 96.0f;
+  // Dropped items
+  static constexpr int kBreakDropDelayMs = 500;
+  static constexpr int kThrowDropDelayMs = 1500;
+  static constexpr float kPickupRange = 1.5f;
+  static constexpr float kMergeRange = 1.0f;
 
   // Bind the game to a save directory and load it if a world exists there.
   // An existing world keeps its own seed (written to g_settings) and clock;
@@ -75,6 +80,13 @@ private:
   void apply(Client &client, const Save &cmd);
   void apply(Client &client, const GiveItem &cmd);
   void apply(Client &client, const MoveItems &cmd);
+  void apply(Client &client, const DropItem &cmd);
+
+  // Puts a stack into the world as a dropped item. Returns false (the stack is
+  // lost) only if the entity cap is reached.
+  bool dropItem(ItemStack stack, glm::vec3 pos, glm::vec3 velocity, int pickup_delay_ms);
+  void mergeDroppedItems();
+  void pickUpDroppedItems();
 
   PlayerState *playerFor(const Client &client);
   void reject(Client &client, std::string reason);

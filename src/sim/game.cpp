@@ -177,6 +177,8 @@ void Game::tick() {
   std::vector<glm::vec3> positions;
   for (const auto &[id, ps] : players) positions.push_back(ps.position);
   entities_.tick(world_, rng_, positions);
+  mergeDroppedItems();
+  pickUpDroppedItems();
 
   ++tick_count;
   flushVitals();
@@ -305,11 +307,16 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
   world_.setBlockAt(cmd.pos, BlockType::AIR);
   broadcast(BlockChanged{cmd.pos, BlockType::AIR});
 
-  // Survival: collect the drop. With a full inventory the block still breaks
-  // and the item is lost (until dropped items exist in the world).
+  // Survival: collect the drop.
   if (auto drop = dropFor(target)) {
-    ps->inventory.add({*drop, 1});
+    ItemStack left = ps->inventory.add({*drop, 1});
     sendInventory(client, *ps);
+    // No room: it pops out of the block instead.
+    if (!left.empty()) {
+      std::uniform_real_distribution<float> side(-1.0f, 1.0f);
+      dropItem(left, glm::vec3(cmd.pos) + glm::vec3(0.5f, 0.3f, 0.5f),
+               {side(rng_), 4.0f, side(rng_)}, kBreakDropDelayMs);
+    }
   }
 }
 
@@ -355,9 +362,15 @@ void Game::apply(Client &client, const GiveItem &cmd) {
   if (!ps) return;
   if (!isValidItem(cmd.id) || cmd.count == 0)
     return reject(client, "give: unknown item");
-  // Same as collecting a drop: whatever doesn't fit is lost.
-  ps->inventory.add({cmd.id, cmd.count});
+  // Same as collecting a drop: whatever doesn't fit lands at your feet.
+  ItemStack left = ps->inventory.add({cmd.id, cmd.count});
   sendInventory(client, *ps);
+  while (!left.empty()) {
+    ItemStack stack = split(left, itemDef(left.id).max_stack);
+    if (!dropItem(stack, ps->position + glm::vec3(0, 0.5f, 0), {0, 2.0f, 0},
+                  kThrowDropDelayMs))
+      break;
+  }
 }
 
 void Game::apply(Client &client, const MoveItems &cmd) {
@@ -366,4 +379,81 @@ void Game::apply(Client &client, const MoveItems &cmd) {
   if (!ps->inventory.move(cmd.from, cmd.to, cmd.count))
     return reject(client, "move: not allowed");
   sendInventory(client, *ps);
+}
+
+// ─── Dropped items ─────────────────────────────────────────────────────
+
+void Game::apply(Client &client, const DropItem &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead()) return;
+  const ItemStack &held = ps->inventory.slot(ps->selected_slot);
+  if (held.empty()) return reject(client, "drop: nothing held");
+
+  ItemStack thrown = ps->inventory.take(ps->selected_slot, cmd.whole_stack ? held.count : 1);
+  sendInventory(client, *ps);
+
+  // Throw along the look direction (same convention as the camera).
+  float yaw = glm::radians(ps->yaw), pitch = glm::radians(ps->pitch);
+  glm::vec3 look{std::cos(yaw) * std::cos(pitch), std::sin(pitch),
+                 std::sin(yaw) * std::cos(pitch)};
+  glm::vec3 from = ps->eyePosition() - glm::vec3(0.0f, 0.3f, 0.0f);
+  dropItem(thrown, from, look * 6.0f + glm::vec3(0.0f, 2.0f, 0.0f), kThrowDropDelayMs);
+}
+
+bool Game::dropItem(ItemStack stack, glm::vec3 pos, glm::vec3 velocity,
+                    int pickup_delay_ms) {
+  if (stack.empty()) return true;
+  auto id = entities_.spawn(EntityKind::DroppedItem, pos);
+  if (!id) {
+    std::cerr << "[game] entity cap reached; dropped item lost\n";
+    return false;
+  }
+  Entity *e = entities_.find(*id);
+  e->item = stack;
+  e->body.velocity = velocity;
+  e->pickup_delay_ms = pickup_delay_ms;
+  return true;
+}
+
+// Identical items lying close together become one stack (the older entity
+// keeps it), so a pile of drops stays one pickup and one draw.
+void Game::mergeDroppedItems() {
+  auto &all = entities_.all();
+  std::vector<EntityId> merged;
+  for (auto a = all.begin(); a != all.end(); ++a) {
+    Entity &ea = a->second;
+    if (ea.kind != EntityKind::DroppedItem || ea.item.empty()) continue;
+    for (auto b = std::next(a); b != all.end(); ++b) {
+      Entity &eb = b->second;
+      if (eb.kind != EntityKind::DroppedItem || eb.item.empty()) continue;
+      if (eb.item.id != ea.item.id) continue;
+      if (glm::distance(ea.body.position, eb.body.position) > kMergeRange) continue;
+      mergeInto(ea.item, eb.item);
+      ea.pickup_delay_ms = std::max(ea.pickup_delay_ms, eb.pickup_delay_ms);
+      if (eb.item.empty()) merged.push_back(b->first);
+    }
+  }
+  for (EntityId id : merged) entities_.remove(id);
+}
+
+void Game::pickUpDroppedItems() {
+  std::vector<EntityId> taken;
+  for (Client &client : clients) {
+    PlayerState *ps = playerFor(client);
+    if (!ps || ps->vitals.dead()) continue;
+    glm::vec3 centre = ps->position + glm::vec3(0.0f, 0.9f, 0.0f);
+    bool changed = false;
+    for (auto &[id, e] : entities_.all()) {
+      if (e.kind != EntityKind::DroppedItem || e.item.empty()) continue;
+      if (e.pickup_delay_ms > 0) continue;
+      if (glm::distance(e.body.position, centre) > kPickupRange) continue;
+      ItemStack before = e.item;
+      e.item = ps->inventory.add(e.item);
+      if (e.item == before) continue; // no room at all
+      changed = true;
+      if (e.item.empty()) taken.push_back(id);
+    }
+    if (changed) sendInventory(client, *ps);
+  }
+  for (EntityId id : taken) entities_.remove(id);
 }
