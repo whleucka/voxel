@@ -94,11 +94,13 @@ Drawing blocks couldn't be *that* hard... *Right?*
 
 ## Playing together (home network)
 
-The game opens on a title menu. Type your name, then:
+The game opens on a title menu, with your last world slowly circling behind
+it. Type your name, then:
 
-*   **Host game:** play your world and let others on your network join.
-    F1 shows the address and port guests can use.
-*   **Join a game:** games on your network are listed automatically; if yours
+*   **Single player:** pick a world from your list (or create, rename or
+    delete one), then **Play**, or **Host on network** to let others on your
+    network join. F1 shows the address and port guests can use.
+*   **Multiplayer:** games on your network are listed automatically; if yours
     isn't, type the host's address (e.g. `192.168.1.20`).
 
 Up to 8 players. Guests keep their inventory in the host's world under their

@@ -27,4 +27,4 @@ Plan: [title-screen-plan.md](title-screen-plan.md) · Spec: [SPEC-title-screen.m
 - [ ] Manual check (user): the spec's manual check.
 
 ## T6: Wrap-up
-- [ ] Map and spec status are updated, CI is green, and the PR is merged.
+- [x] Map and spec status are updated, CI is green, and the PR is merged.

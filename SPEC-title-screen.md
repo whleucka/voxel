@@ -2,6 +2,8 @@
 
 Module of [CAPABILITY_MAP.md](CAPABILITY_MAP.md). Depends on: `multiplayer` (title menu, `Session`).
 
+**Status:** implemented. Criteria 1 and 3 are met; criterion 2 (manual check) is up to you.
+
 ## Objective
 
 Make the title screen feel like the start of a game, and let the kids keep
