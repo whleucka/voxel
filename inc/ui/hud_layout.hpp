@@ -33,8 +33,9 @@ public:
 
   // ─── In-game hotbar ─────────────────────────────────────────────────
   Rect hotbarSlot(int i) const;  // 0..kHotbarSlots-1, bottom centre
-  Rect barStrip() const;         // reserved above the hotbar for vitals bars
-  Rect nameArea() const;         // held-item name popup, above the bar strip
+  Rect barStrip() const;         // hearts (left) and stamina bolts (right)
+  Rect breathStrip() const;      // breath bubbles, above the bar strip
+  Rect nameArea() const;         // held-item name popup, above the breath strip
 
   // ─── Inventory screen ───────────────────────────────────────────────
   Rect screenPanel() const;

@@ -8,7 +8,7 @@ next to this file; this map is the index of what exists.
 |---|---|---|
 | sim-core ✅ | Split authoritative game state from rendering; input becomes commands; world supports N players | — |
 | items ✅ | Item definitions (blocks + non-block items), ItemStack, stack limits | — |
-| vitals | Health, stamina (sprint drain/regen), damage, death & respawn; adds HUD bars | sim-core, hud |
+| vitals ✅ | Health, stamina (sprint drain/regen), damage, death & respawn; adds HUD bars | sim-core, hud |
 | inventory ✅ | Classic grid: 10-slot hotbar + storage grid, move/split stacks, survival break→collect / place→consume, persisted | items, sim-core |
 | hud ✅ | Hotbar (keys 1..0) with icons + counts, inventory screen; reserves space for vitals bars | inventory, items |
 | entities | Generic non-player entities: AABB physics, box-model rendering, spawn/despawn near players | sim-core |
@@ -36,3 +36,9 @@ Build order: sim-core → items → inventory → hud → vitals → entities �
   timing. Generation now draws from a per-chunk RNG seeded from
   `(world_seed, cx, cz)`, so a chunk is identical on every reload and every
   machine with the same seed. That was a prerequisite for `multiplayer`.
+- **Stale moves after a respawn** (noted in vitals T3). `Game` trusts
+  `MovePlayer` positions. In-process, a respawn is always applied before
+  the client's next move, but over a network a move sent before `Respawned`
+  could arrive after it. It would put the player back where they died and
+  could count a fall. **For `multiplayer`:** tag moves with a respawn or
+  teleport counter and drop stale ones.

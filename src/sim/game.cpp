@@ -137,6 +137,7 @@ void Game::pump() {
     for (const Command &cmd : cmds) apply(client, cmd);
   }
   updateInterestPoints();
+  flushVitals();
 }
 
 void Game::updateInterestPoints() {
@@ -147,10 +148,11 @@ void Game::updateInterestPoints() {
 }
 
 int Game::advance(float dt) {
-  tick_accumulator += dt;
+  constexpr int64_t kTickUs = kTickMs * 1000;
+  tick_accumulator_us += std::llround(static_cast<double>(dt) * 1e6);
   int ticks = 0;
-  while (tick_accumulator >= kTickSeconds) {
-    tick_accumulator -= kTickSeconds;
+  while (tick_accumulator_us >= kTickUs) {
+    tick_accumulator_us -= kTickUs;
     tick();
     ++ticks;
   }
@@ -160,6 +162,46 @@ int Game::advance(float dt) {
 void Game::tick() {
   clock_.scale = g_settings.time_scale;
   clock_.update(kTickSeconds);
+
+  for (Client &client : clients) {
+    PlayerState *ps = playerFor(client);
+    if (!ps) continue;
+    if (ps->vitals.dead()) {
+      ps->dead_ms += kTickMs;
+      if (ps->dead_ms >= kRespawnDelayMs) respawn(client, *ps);
+    } else {
+      ps->vitals.tick(kTickMs, ps->activity);
+    }
+  }
+  flushVitals();
+}
+
+// ─── Vitals ────────────────────────────────────────────────────────────
+
+void Game::flushVitals() {
+  for (Client &client : clients) {
+    PlayerState *ps = playerFor(client);
+    if (!ps) continue;
+    const Vitals &v = ps->vitals;
+    VitalsChanged now{v.health(), v.stamina(), v.breath(), v.canSprint(), v.dead()};
+    if (ps->vitals_sent == now) continue;
+    ps->vitals_sent = now;
+    client.link->deliver(now);
+  }
+}
+
+glm::vec3 Game::respawnPoint() {
+  if (!respawn_point) respawn_point = world_.findSpawn();
+  return *respawn_point;
+}
+
+// Back to the world spawn with full vitals. The inventory is kept.
+void Game::respawn(Client &client, PlayerState &ps) {
+  ps.vitals.reset();
+  ps.fall.reset();
+  ps.dead_ms = 0;
+  ps.position = respawnPoint();
+  client.link->deliver(Respawned{ps.position});
 }
 
 // ─── Commands ──────────────────────────────────────────────────────────
@@ -204,12 +246,17 @@ void Game::apply(Client &client, const Join &) {
 
 void Game::apply(Client &client, const MovePlayer &cmd) {
   PlayerState *ps = playerFor(client);
-  if (!ps) return;
+  // The dead stay put until they respawn.
+  if (!ps || ps->vitals.dead()) return;
   ps->position = cmd.position;
   ps->yaw = cmd.yaw;
   ps->pitch = cmd.pitch;
   ps->fly = cmd.fly;
   ps->crouch = cmd.crouch;
+  ps->activity = {cmd.sprinting, cmd.eyes_underwater, cmd.fly};
+
+  int fall = ps->fall.update(cmd.position.y, cmd.on_ground, cmd.in_water, cmd.fly);
+  if (fall > 0) ps->vitals.damage(fall);
 }
 
 void Game::apply(Client &client, const SelectSlot &cmd) {
@@ -223,7 +270,7 @@ void Game::apply(Client &client, const SelectSlot &cmd) {
 
 void Game::apply(Client &client, const BreakBlock &cmd) {
   PlayerState *ps = playerFor(client);
-  if (!ps) return;
+  if (!ps || ps->vitals.dead()) return;
   if (cmd.pos.y < 0 || cmd.pos.y >= kChunkHeight)
     return reject(client, "break: outside world height");
   if (!inReach(*ps, cmd.pos)) return reject(client, "break: out of reach");
@@ -246,7 +293,7 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
 
 void Game::apply(Client &client, const PlaceBlock &cmd) {
   PlayerState *ps = playerFor(client);
-  if (!ps) return;
+  if (!ps || ps->vitals.dead()) return;
 
   const ItemStack &held = ps->inventory.slot(ps->selected_slot);
   if (held.empty()) return reject(client, "place: nothing held");

@@ -43,10 +43,15 @@ public:
   bool isFlyMode() const { return fly_mode; }
   bool *getFlyModePtr() { return &fly_mode; }
   void toggleFlyMode() { fly_mode = !fly_mode; }
-  bool isUnderwater() const { return underwater; }
+  bool isUnderwater() const { return underwater; }  // eyes in water
+  bool isInWater() const { return underwater || at_water_surface; }
   bool isOnGround() const { return on_ground; }
   bool isCrouching() const { return crouching; }
   bool isSprinting() const { return sprinting; }
+  // The Game decides when stamina allows sprinting.
+  void setSprintAllowed(bool allowed) { sprint_allowed = allowed; }
+  // Put the player somewhere new (respawn) with no momentum carried over.
+  void respawnAt(glm::vec3 pos);
 
   // Inventory screen and hotbar selection. The inventory itself lives in the
   // Game; the client keeps a view of it (Engine::inventory_view).
@@ -59,6 +64,7 @@ private:
   // Movement modes
   bool fly_mode = false;
   bool sprinting = false;
+  bool sprint_allowed = true;
   bool crouching = false;
 
   // Physics state

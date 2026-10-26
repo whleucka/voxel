@@ -22,6 +22,13 @@ float Player::getPlayerEyeHeight() const {
   return crouching ? kPlayerCrouchEyeHeight : kPlayerEyeHeight;
 }
 
+void Player::respawnAt(glm::vec3 pos) {
+  position = pos;
+  velocity = glm::vec3(0.0f);
+  on_ground = false;
+  camera.position = getEyePosition();
+}
+
 void Player::setSelectedHotbarSlot(int slot) {
   if (slot >= 0 && slot < kHotbarSlots) {
     selected_hotbar_slot = slot;
@@ -134,8 +141,8 @@ void Player::processKeyboard(float dt, const PlayerInput& input) {
   // Crouch state
   crouching = input.crouch;
 
-  // Sprint: only while moving forward, not crouching, and not underwater
-  sprinting = input.sprint && input.forward && !crouching;
+  // Sprint: only while moving forward, not crouching, and with stamina left
+  sprinting = input.sprint && sprint_allowed && input.forward && !crouching;
 
   // Determine movement speed
   float speed;
