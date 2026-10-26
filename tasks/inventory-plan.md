@@ -23,12 +23,12 @@ Every task leaves the game playable.
 
 ## Tasks
 
-- [ ] T1: `Inventory` type and `kHotbarSlots = 10`
-- [ ] T2: `inventory.dat` load/save
-- [ ] T3: `Game`: break collects, place consumes, `InventoryContents`, starter kit
-- [ ] T4: `Game`: `MoveItems`, `GiveItem`, inventory in `Game` save/load
-- [ ] T5: Client: inventory view, key 0, debug panel, remove `hotbar_blocks`
-- [ ] T6: Wrap-up, PR, merge when green
+- [x] T1: `Inventory` type and `kHotbarSlots = 10`
+- [x] T2: `inventory.dat` load/save
+- [x] T3: `Game`: break collects, place consumes, `InventoryContents`, starter kit
+- [x] T4: `Game`: `MoveItems`, `GiveItem`, inventory in `Game` save/load
+- [x] T5: Client: inventory view, key 0, debug panel, remove `hotbar_blocks`
+- [x] T6: Wrap-up, PR, merge when green
 
 Checkpoint after T3: the game plays as survival (verified by tests), and
 the client still builds.

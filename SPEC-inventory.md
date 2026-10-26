@@ -3,6 +3,8 @@
 Module of [CAPABILITY_MAP.md](CAPABILITY_MAP.md). Depends on: `items`, `sim-core`.
 Used by: `hud` (hotbar, inventory screen), `multiplayer` (per-player inventories).
 
+**Status:** implemented. Criteria 1–3 and 5 are met; criterion 4 (manual play check) is up to you.
+
 ## Objective
 
 Turn the game into survival: what you break goes into your inventory, and
