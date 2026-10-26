@@ -14,8 +14,8 @@ Spec: [SPEC-vitals.md](../SPEC-vitals.md) · Tasks: [vitals-todo.md](vitals-todo
   compares with the last snapshot sent to that player.
 
 ## Tasks
-- [ ] T1: `Vitals` and `FallTracker` (pure) with tests
-- [ ] T2: Protocol and `Game` integration: falls, tick, death and respawn
-- [ ] T3: Client: `MovePlayer` flags, sprint allowed, respawn, input while dead
-- [ ] T4: HUD: breath strip, hearts, bolts, bubbles, damage flash, death overlay
-- [ ] T5: Wrap-up, PR, merge when green
+- [x] T1: `Vitals` and `FallTracker` (pure) with tests
+- [x] T2: Protocol and `Game` integration: falls, tick, death and respawn
+- [x] T3: Client: `MovePlayer` flags, sprint allowed, respawn, input while dead
+- [x] T4: HUD: breath strip, hearts, bolts, bubbles, damage flash, death overlay
+- [x] T5: Wrap-up, PR, merge when green

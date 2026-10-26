@@ -3,6 +3,8 @@
 Module of [CAPABILITY_MAP.md](CAPABILITY_MAP.md). Depends on: `sim-core`, `hud`.
 Used by: `enemies` (damage), `animals` (food, later).
 
+**Status:** implemented. Criteria 1 and 3 are met; criterion 2 (manual check) is up to you.
+
 ## Objective
 
 Give players health and stamina so the world has stakes. Falling too far and
