@@ -30,8 +30,13 @@ Rect HudLayout::barStrip() const {
   return {first.x, first.y - 2 * gap_ - strip_h, rowWidth(), strip_h};
 }
 
-Rect HudLayout::nameArea() const {
+Rect HudLayout::breathStrip() const {
   Rect strip = barStrip();
+  return {strip.x, strip.y - gap_ - strip.h, strip.w, strip.h};
+}
+
+Rect HudLayout::nameArea() const {
+  Rect strip = breathStrip();
   float name_h = std::round(slot * 0.4f);
   return {strip.x, strip.y - gap_ - name_h, strip.w, name_h};
 }

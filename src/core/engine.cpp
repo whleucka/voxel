@@ -282,12 +282,15 @@ void Engine::render() {
 
   const ImGuiIO &io = ImGui::GetIO();
   HudLayout layout(io.DisplaySize.x, io.DisplaySize.y);
-  if (player->isInventoryOpen())
+  if (player->isInventoryOpen()) {
     hud.drawInventoryScreen(layout, inventory_view, inventory_screen,
                             {io.MousePos.x, io.MousePos.y});
-  else
+  } else {
     hud.drawHotbar(layout, inventory_view, player->getSelectedHotbarSlot(),
                    glfwGetTime());
+    hud.drawVitals(layout, vitals_view, glfwGetTime());
+  }
+  if (vitals_view.dead) hud.drawDeathScreen();
 
   debug();
 }

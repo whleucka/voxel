@@ -2,6 +2,7 @@
 #include "block/block_data.hpp"
 #include "imgui/imgui.h"
 #include "ui/item_icon_geometry.hpp"
+#include "vitals/vitals.hpp"
 #include <algorithm>
 #include <iostream>
 #include <stb_image.h>
@@ -192,4 +193,123 @@ void Hud::drawInventoryScreen(const HudLayout &layout, const Inventory::Slots &i
                       rgba(15, 15, 20, 0.92f), 3.0f);
     fg->AddText(nullptr, size, pos, rgba(255, 255, 255, 1.0f), name.c_str());
   }
+}
+
+// ─── Vitals ────────────────────────────────────────────────────────────
+
+namespace {
+
+constexpr int kIcons = 10;
+
+// Simple vector icons centred on c with size s; no art needed. `fill` is the
+// colour, `outline` is drawn slightly larger behind it.
+void heart(ImDrawList *dl, ImVec2 c, float s, ImU32 col) {
+  float r = s * 0.27f;
+  dl->AddCircleFilled(ImVec2(c.x - s * 0.22f, c.y - s * 0.12f), r, col);
+  dl->AddCircleFilled(ImVec2(c.x + s * 0.22f, c.y - s * 0.12f), r, col);
+  dl->AddTriangleFilled(ImVec2(c.x - s * 0.48f, c.y - s * 0.04f),
+                        ImVec2(c.x + s * 0.48f, c.y - s * 0.04f),
+                        ImVec2(c.x, c.y + s * 0.46f), col);
+}
+
+void bolt(ImDrawList *dl, ImVec2 c, float s, ImU32 col) {
+  const ImVec2 pts[] = {
+      {c.x + s * 0.12f, c.y - s * 0.50f}, {c.x - s * 0.30f, c.y + s * 0.06f},
+      {c.x - s * 0.02f, c.y + s * 0.06f}, {c.x - s * 0.14f, c.y + s * 0.50f},
+      {c.x + s * 0.30f, c.y - s * 0.08f}, {c.x + s * 0.02f, c.y - s * 0.08f},
+  };
+  dl->AddConcavePolyFilled(pts, 6, col);
+}
+
+void bubble(ImDrawList *dl, ImVec2 c, float s, ImU32 col) {
+  dl->AddCircleFilled(c, s * 0.38f, col);
+  dl->AddCircleFilled(ImVec2(c.x - s * 0.12f, c.y - s * 0.12f), s * 0.09f,
+                      IM_COL32(255, 255, 255, 220));
+}
+
+} // namespace
+
+void Hud::drawIconRow(ImDrawList *dl, const Rect &strip, Icon icon, int value,
+                      bool right_aligned) const {
+  float s = strip.h;
+  float step = s * 1.22f; // room for the outlines between icons
+  auto shape = [&](ImVec2 c, float size, ImU32 col) {
+    switch (icon) {
+      case Icon::Heart:  heart(dl, c, size, col); break;
+      case Icon::Bolt:   bolt(dl, c, size, col); break;
+      case Icon::Bubble: bubble(dl, c, size, col); break;
+    }
+  };
+  ImU32 full = icon == Icon::Heart  ? IM_COL32(220, 30, 40, 255)
+             : icon == Icon::Bolt   ? IM_COL32(250, 200, 40, 255)
+                                    : IM_COL32(90, 170, 255, 255);
+
+  for (int i = 0; i < kIcons; ++i) {
+    // Hearts and bubbles fill from the left; bolts mirror from the right.
+    int slot = right_aligned ? kIcons - 1 - i : i;
+    float cx = right_aligned ? strip.right() - s * 0.5f - slot * step
+                             : strip.x + s * 0.5f + slot * step;
+    ImVec2 c(cx, strip.y + s * 0.5f);
+    int points = std::clamp(value - i * 2, 0, 2);
+
+    if (icon == Icon::Bubble) {
+      // Bubbles just disappear as breath runs out.
+      if (points > 0) shape(c, s * (points == 2 ? 1.0f : 0.7f), full);
+      continue;
+    }
+    shape(c, s * 1.18f, IM_COL32(0, 0, 0, 200));    // outline
+    shape(c, s, IM_COL32(60, 60, 60, 230));         // empty
+    if (points == 2) {
+      shape(c, s, full);
+    } else if (points == 1) {
+      // Half icon: the half nearest the row's start.
+      ImVec2 a = right_aligned ? ImVec2(c.x, c.y - s) : ImVec2(c.x - s, c.y - s);
+      ImVec2 b = right_aligned ? ImVec2(c.x + s, c.y + s) : ImVec2(c.x, c.y + s);
+      dl->PushClipRect(a, b, true);
+      shape(c, s, full);
+      dl->PopClipRect();
+    }
+  }
+}
+
+void Hud::drawVitals(const HudLayout &layout, const VitalsChanged &v, double now) {
+  ImDrawList *dl = ImGui::GetBackgroundDrawList();
+  Rect strip = layout.barStrip();
+  drawIconRow(dl, strip, Icon::Heart, v.health, false);
+  drawIconRow(dl, strip, Icon::Bolt, v.stamina, true);
+  if (v.breath < Vitals::kMax)
+    drawIconRow(dl, layout.breathStrip(), Icon::Bubble, v.breath, false);
+
+  // Red edges fading out after damage.
+  constexpr double kFlash = 0.4;
+  double age = now - damage_since;
+  if (age >= 0 && age < kFlash) {
+    float a = static_cast<float>(1.0 - age / kFlash) * 0.55f;
+    ImVec2 d = ImGui::GetIO().DisplaySize;
+    float e = std::min(d.x, d.y) * 0.12f;
+    ImU32 red = rgba(200, 0, 0, a), clear = rgba(200, 0, 0, 0.0f);
+    ImDrawList *fg = ImGui::GetForegroundDrawList();
+    fg->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2(d.x, e), red, red, clear, clear);
+    fg->AddRectFilledMultiColor(ImVec2(0, d.y - e), d, clear, clear, red, red);
+    fg->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2(e, d.y), red, clear, clear, red);
+    fg->AddRectFilledMultiColor(ImVec2(d.x - e, 0), d, clear, red, red, clear);
+  }
+}
+
+void Hud::drawDeathScreen() {
+  ImDrawList *fg = ImGui::GetForegroundDrawList();
+  ImVec2 d = ImGui::GetIO().DisplaySize;
+  fg->AddRectFilled(ImVec2(0, 0), d, rgba(90, 0, 0, 0.55f));
+
+  const char *title = "You died";
+  float size = std::round(d.y * 0.08f);
+  ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, title);
+  shadowText(fg, size, ImVec2((d.x - ext.x) * 0.5f, d.y * 0.38f),
+             rgba(255, 255, 255, 1.0f), 1.0f, title);
+
+  const char *sub = "Respawning...";
+  float sub_size = std::round(size * 0.35f);
+  ImVec2 sub_ext = ImGui::GetFont()->CalcTextSizeA(sub_size, FLT_MAX, 0.0f, sub);
+  shadowText(fg, sub_size, ImVec2((d.x - sub_ext.x) * 0.5f, d.y * 0.38f + size * 1.3f),
+             rgba(230, 230, 230, 1.0f), 1.0f, sub);
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "inventory/inventory.hpp"
+#include "sim/protocol.hpp"
 #include "ui/hud_layout.hpp"
 #include "ui/inventory_screen.hpp"
 #include <glad/glad.h>
@@ -29,6 +30,12 @@ public:
   void drawHotbar(const HudLayout &layout, const Inventory::Slots &inv,
                   int selected, double now);
 
+  // Hearts, stamina bolts and (when below full) breath bubbles, plus the
+  // damage flash. Drawn with the hotbar during play.
+  void drawVitals(const HudLayout &layout, const VitalsChanged &v, double now);
+  // Full-screen "You died" while waiting to respawn.
+  void drawDeathScreen();
+
   // Start the red edge flash shown after taking damage.
   void flashDamage(double now) { damage_since = now; }
 
@@ -53,4 +60,8 @@ private:
                 bool highlighted, float alpha, int number_label) const;
   void drawIcon(ImDrawList *dl, const Rect &r, ItemId id, float alpha) const;
   void drawCount(ImDrawList *dl, const Rect &r, uint16_t count, float alpha) const;
+  // A row of 10 icons for a 0..20 value (2 points per icon, halves allowed).
+  enum class Icon { Heart, Bolt, Bubble };
+  void drawIconRow(ImDrawList *dl, const Rect &strip, Icon icon, int value,
+                   bool right_aligned) const;
 };

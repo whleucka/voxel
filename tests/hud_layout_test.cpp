@@ -42,13 +42,16 @@ TEST_CASE("hotbar slots run left to right along the bottom, centred") {
   }
 }
 
-TEST_CASE("the bar strip and name area stack above the hotbar") {
+TEST_CASE("the bar strip, breath strip and name area stack above the hotbar") {
   for (auto [w, h] : kSizes) {
     HudLayout l(w, h);
-    Rect strip = l.barStrip(), name = l.nameArea();
+    Rect strip = l.barStrip(), breath = l.breathStrip(), name = l.nameArea();
     CHECK(strip.bottom() <= l.hotbarSlot(0).y);
-    CHECK(name.bottom() <= strip.y);
+    CHECK(breath.bottom() <= strip.y);
+    CHECK(name.bottom() <= breath.y);
+    CHECK(breath.h == strip.h);
     CHECK(inside(strip, w, h));
+    CHECK(inside(breath, w, h));
     CHECK(inside(name, w, h));
     CHECK(strip.x == l.hotbarSlot(0).x);
     CHECK(strip.right() == doctest::Approx(l.hotbarSlot(kHotbarSlots - 1).right()));
