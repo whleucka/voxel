@@ -151,7 +151,7 @@ struct PlayerView {
 struct EntitySnapshot {
   uint32_t tick = 0;
   std::vector<EntityView> entities;
-  std::vector<PlayerView> players;
+  std::vector<PlayerView> players = {};
 };
 
 using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,

@@ -8,6 +8,7 @@
 #include "imgui/backends/imgui_impl_glfw.h"
 #include "imgui/backends/imgui_impl_opengl3.h"
 #include "imgui/imgui.h"
+#include "entity/player_model.hpp"
 #include "physics/ray.hpp"
 #include "util/memory.hpp"
 #include <algorithm>
@@ -373,13 +374,14 @@ void Engine::render() {
   );
 
   world().render(view, proj, session->clock().fractionOfDay(), win_width,
-                      win_height, player->getPosition(), player->isUnderwater());
+                 win_height, player->getPosition(), player->isUnderwater());
 
   // Entities are drawn between the last two snapshots (one tick behind).
   double now = glfwGetTime();
   float alpha = static_cast<float>((now - last_snapshot_time) / Game::kTickSeconds);
   entity_views = entity_interp.views(alpha);
-  entity_renderer.draw(entity_views, world(), view, proj,
+  player_views = entity_interp.players(alpha);
+  entity_renderer.draw(entity_views, player_views, world(), view, proj,
                        player->getCamera().position, player->isUnderwater(),
                        session->clock().fractionOfDay(), now);
 
@@ -390,6 +392,7 @@ void Engine::render() {
   ImGui::NewFrame();
 
   renderCrosshair();
+  renderNameTags(proj * view);
 
   const ImGuiIO &io = ImGui::GetIO();
   HudLayout layout(io.DisplaySize.x, io.DisplaySize.y);
@@ -404,6 +407,31 @@ void Engine::render() {
   if (vitals_view.dead) hud.drawDeathScreen();
 
   debug();
+}
+
+// ─── Name tags ─────────────────────────────────────────────────────────
+// Each other player's name floats above their head, readable from any side.
+
+void Engine::renderNameTags(const glm::mat4 &view_projection) {
+  constexpr float kTagRange = 48.0f;
+  ImDrawList *draw = ImGui::GetBackgroundDrawList();
+  for (const PlayerView &p : player_views) {
+    glm::vec3 above = p.position + glm::vec3(0.0f, kPlayerHeight + 0.35f, 0.0f);
+    if (glm::distance(above, player->getCamera().position) > kTagRange) continue;
+    auto at = projectToScreen(above, view_projection, static_cast<float>(win_width),
+                              static_cast<float>(win_height));
+    if (!at) continue;
+    ImVec2 size = ImGui::CalcTextSize(p.name.c_str());
+    ImVec2 lo(at->x - size.x * 0.5f - 4.0f, at->y - size.y - 2.0f);
+    ImVec2 hi(at->x + size.x * 0.5f + 4.0f, at->y + 2.0f);
+    draw->AddRectFilled(lo, hi, IM_COL32(0, 0, 0, 120), 3.0f);
+    const glm::vec3 &c = playerColor(p.name);
+    draw->AddText(ImVec2(lo.x + 4.0f, lo.y + 2.0f),
+                  IM_COL32(255, 255, 255, 255), p.name.c_str());
+    // A small stripe in their colour, to match the shirt.
+    draw->AddRectFilled(ImVec2(lo.x, hi.y - 2.0f), ImVec2(hi.x, hi.y),
+                        IM_COL32(c.r * 255, c.g * 255, c.b * 255, 255));
+  }
 }
 
 // ─── Crosshair ─────────────────────────────────────────────────────────

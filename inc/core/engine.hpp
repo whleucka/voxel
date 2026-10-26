@@ -78,6 +78,7 @@ private:
   void setInventoryOpen(bool open);
   void render();
   void renderCrosshair();
+  void renderNameTags(const glm::mat4 &view_projection);
   void debug();
   void debugInventory();
   void cleanup();

@@ -30,7 +30,7 @@ Spec: [SPEC-multiplayer.md](../SPEC-multiplayer.md) · Tasks: [multiplayer-todo.
 - [x] T6: LAN discovery (beacon and browser)
 - [x] T7: `Engine` refactor: optional `Game`, guest world and clock, properties keys
 - [x] T8: Title menu, host and join flows, disconnect handling
-- [ ] T9: Drawing other players with name tags
+- [x] T9: Drawing other players with name tags
 - [ ] T10: Wrap-up, PR, merge when green
 
 ### Checkpoints

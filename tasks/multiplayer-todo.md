@@ -39,7 +39,7 @@ Plan: [multiplayer-plan.md](multiplayer-plan.md) · Spec: [SPEC-multiplayer.md](
 - [x] The title menu offers Single player, Host, Join (live list and address) and Quit. Errors return to the menu with a reason.
 
 ## T9: Other players
-- [ ] Blocky figures in name colours, with swinging legs and name tags, interpolated.
+- [x] Blocky figures in name colours, with swinging legs and name tags, interpolated.
 - [ ] Manual check (user): the spec's two-player check.
 
 ## T10: Wrap-up
