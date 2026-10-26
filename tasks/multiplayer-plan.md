@@ -29,7 +29,7 @@ Spec: [SPEC-multiplayer.md](../SPEC-multiplayer.md) · Tasks: [multiplayer-todo.
 - [x] T5: Sockets, `NetServer` and `NetConnection` (loopback tests)
 - [x] T6: LAN discovery (beacon and browser)
 - [x] T7: `Engine` refactor: optional `Game`, guest world and clock, properties keys
-- [ ] T8: Title menu, host and join flows, disconnect handling
+- [x] T8: Title menu, host and join flows, disconnect handling
 - [ ] T9: Drawing other players with name tags
 - [ ] T10: Wrap-up, PR, merge when green
 

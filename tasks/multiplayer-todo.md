@@ -36,7 +36,7 @@ Plan: [multiplayer-plan.md](multiplayer-plan.md) · Spec: [SPEC-multiplayer.md](
 - [x] `player-name` and `server-port` round-trip.
 
 ## T8: Menu and flows
-- [ ] The title menu offers Single player, Host, Join (live list and address) and Quit. Errors return to the menu with a reason.
+- [x] The title menu offers Single player, Host, Join (live list and address) and Quit. Errors return to the menu with a reason.
 
 ## T9: Other players
 - [ ] Blocky figures in name colours, with swinging legs and name tags, interpolated.

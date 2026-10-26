@@ -5,6 +5,7 @@
 #include "render/camera.hpp"
 #include "core/session.hpp"
 #include "ui/hud.hpp"
+#include "ui/title_menu.hpp"
 #include "entity/entity_interp.hpp"
 #include "render/entity_renderer.hpp"
 #include <GLFW/glfw3.h>
@@ -40,7 +41,10 @@ private:
   EntityInterpolator entity_interp;
   double last_snapshot_time = 0.0;
   std::vector<EntityView> entity_views; // this frame's interpolated entities
+  std::vector<PlayerView> player_views; // this frame's other players
   InventoryScreen inventory_screen;
+  TitleMenu menu;
+  double join_started = 0.0; // a guest waiting for Joined since then
 
   bool first_mouse = true;
   float last_frame = 0.0f;
@@ -60,8 +64,13 @@ private:
   Connection &connection() { return session->connection(); }
   // Starts playing in `s` with fresh client-side state.
   void startSession(std::unique_ptr<Session> s);
-  // Saves and leaves the current game.
-  void endSession();
+  // Saves and leaves the current game, back to the menu with `message`.
+  void endSession(std::string message = {});
+  bool playing() const { return session && player; }
+  void menuFrame();
+  void startFromMenu(const TitleMenu::Choice &choice);
+  void setCursorCaptured(bool captured);
+  void debugMultiplayer();
   void processInput(GLFWwindow *window);
   void update();
   void handleEvents();

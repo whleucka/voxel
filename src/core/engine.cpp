@@ -125,32 +125,95 @@ bool Engine::init() {
 }
 
 void Engine::run() {
-  // An existing world keeps its own seed/clock; the properties seed only
-  // matters when creating a fresh world.
-  Session::Options opts;
-  opts.name = g_settings.player_name;
-  opts.save_dir = WorldSave::worldDir(g_settings.world_name);
-  std::string error;
-  startSession(Session::local(Session::Mode::Single, opts, error));
-  if (!player) {
-    std::cerr << "Failed to join game: " << error << "\n";
-    return;
-  }
-
+  setCursorCaptured(false);
+  menu.open();
   while (!glfwWindowShouldClose(window)) {
     float currentFrame = glfwGetTime();
     delta_time = currentFrame - last_frame;
     last_frame = currentFrame;
 
-    processInput(window);
-    update();
-    render();
+    if (playing()) {
+      processInput(window);
+      update();
+      if (playing()) render(); // the update may have ended the game
+    } else {
+      menuFrame();
+    }
 
     glfwSwapBuffers(window);
     glfwPollEvents();
   }
 
   endSession(); // persist on quit
+}
+
+// ─── Title menu ────────────────────────────────────────────────────────
+
+void Engine::menuFrame() {
+  // A guest waits here for the host's Joined (or a refusal).
+  if (session) {
+    session->frame(delta_time, glfwGetTime());
+    handleEvents();
+    if (session && !player && glfwGetTime() - join_started > 10.0)
+      endSession("The host didn't answer");
+  }
+
+  glClearColor(0.10f, 0.12f, 0.16f, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  ImGui_ImplOpenGL3_NewFrame();
+  ImGui_ImplGlfw_NewFrame();
+  ImGui::NewFrame();
+  std::string name = g_settings.player_name;
+  TitleMenu::Choice choice =
+      menu.draw(glfwGetTime(), name, static_cast<uint16_t>(g_settings.server_port));
+  g_settings.player_name = name;
+  ImGui::Render();
+  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+  if (session) return; // already joining: ignore the buttons
+  if (choice.kind == TitleMenu::Choice::Quit) glfwSetWindowShouldClose(window, true);
+  else if (choice.kind != TitleMenu::Choice::None) startFromMenu(choice);
+}
+
+void Engine::startFromMenu(const TitleMenu::Choice &choice) {
+  saveServerProperties(); // remember the name for next time
+
+  Session::Options opts;
+  opts.name = g_settings.player_name;
+  opts.save_dir = WorldSave::worldDir(g_settings.world_name);
+  opts.world_name = g_settings.world_name;
+  opts.port = static_cast<uint16_t>(g_settings.server_port);
+
+  std::string error;
+  std::unique_ptr<Session> s;
+  switch (choice.kind) {
+    case TitleMenu::Choice::Single:
+      s = Session::local(Session::Mode::Single, opts, error);
+      break;
+    case TitleMenu::Choice::Host:
+      s = Session::local(Session::Mode::Host, opts, error);
+      break;
+    case TitleMenu::Choice::Join:
+      opts.port = choice.address.port;
+      menu.setStatus("Joining " + choice.address.host + "...");
+      s = Session::join(choice.address.host, opts, error);
+      break;
+    default:
+      return;
+  }
+  if (!s) {
+    menu.open(error);
+    return;
+  }
+  join_started = glfwGetTime();
+  startSession(std::move(s));
+}
+
+void Engine::setCursorCaptured(bool captured) {
+  glfwSetInputMode(window, GLFW_CURSOR,
+                   captured && !g_settings.show_cursor ? GLFW_CURSOR_DISABLED
+                                                       : GLFW_CURSOR_NORMAL);
+  first_mouse = true; // no camera jump when it's captured again
 }
 
 void Engine::startSession(std::unique_ptr<Session> s) {
@@ -165,17 +228,21 @@ void Engine::startSession(std::unique_ptr<Session> s) {
   vitals_view = {Vitals::kMax, Vitals::kMax, Vitals::kMax, true, false};
   entity_interp = EntityInterpolator{};
   entity_views.clear();
+  player_views.clear();
   world().init();
   // The Joined reply creates the local player (at once in-process; a guest
-  // waits for the host).
+  // waits for the host in the menu).
   handleEvents();
 }
 
-void Engine::endSession() {
+void Engine::endSession(std::string message) {
   if (!session) return;
   session->end();
   session.reset();
   player.reset();
+  g_settings.show_debug = false;
+  setCursorCaptured(false);
+  menu.open(std::move(message));
 }
 
 // ─── Input Processing (polled every frame) ─────────────────────────────
@@ -225,6 +292,7 @@ void Engine::update() {
 
   session->frame(delta_time, glfwGetTime());
   handleEvents();
+  if (!session) return; // the game ended (host left, connection lost)
 
   world().update(delta_time);
 
@@ -252,6 +320,14 @@ void Engine::handleEvents() {
       cam.processMouseMovement(0.0f, 0.0f); // refresh direction vectors
       player->setSelectedHotbarSlot(joined->slot);
       *player->getFlyModePtr() = joined->fly;
+      menu.close();
+      setCursorCaptured(true);
+    }
+    else if (const auto *refused = std::get_if<JoinRefused>(&ev)) {
+      return endSession(refused->reason);
+    }
+    else if (const auto *gone = std::get_if<Disconnected>(&ev)) {
+      return endSession(gone->reason);
     }
     else if (const auto *rejected = std::get_if<CommandRejected>(&ev)) {
       last_rejection = rejected->reason;
@@ -263,13 +339,13 @@ void Engine::handleEvents() {
     else if (const auto *vitals = std::get_if<VitalsChanged>(&ev)) {
       if (vitals->health < vitals_view.health) hud.flashDamage(glfwGetTime());
       vitals_view = *vitals;
-      player->setSprintAllowed(vitals->can_sprint);
+      if (player) player->setSprintAllowed(vitals->can_sprint);
     }
-    else if (const auto *respawned = std::get_if<Respawned>(&ev)) {
+    else if (const auto *respawned = std::get_if<Respawned>(&ev); respawned && player) {
       player->respawnAt(respawned->position);
       respawn_count = respawned->respawn;
     }
-    else if (const auto *knocked = std::get_if<KnockedBack>(&ev)) {
+    else if (const auto *knocked = std::get_if<KnockedBack>(&ev); knocked && player) {
       player->knock(knocked->velocity);
     }
     else if (const auto *snap = std::get_if<EntitySnapshot>(&ev)) {
@@ -426,10 +502,15 @@ void Engine::debug() {
             ImGui::Text("Rejected   : %s", last_rejection.c_str());
         }
 
+        debugMultiplayer();
         debugInventory();
 
+        // Cheats are the host's: a guest's Game would refuse them anyway.
+        bool cheats = !session->isGuest();
         if (ImGui::CollapsingHeader("Entities")) {
           ImGui::Text("Visible    : %zu", entity_views.size());
+        }
+        if (cheats && ImGui::CollapsingHeader("Spawn and difficulty")) {
           if (ImGui::Button("Spawn test creature"))
             connection().send(SpawnDebugEntity{EntityKind::TestCreature});
           // Surface enemies vanish in daylight: set the time to night first.
@@ -500,23 +581,29 @@ void Engine::debug() {
 
         // Atmosphere
         if (ImGui::CollapsingHeader("Atmosphere", ImGuiTreeNodeFlags_DefaultOpen)) {
-          // Time of day in hours (0–24); changes go to the Game as a command
+          // Time of day in hours (0–24); changes go to the Game as a command.
+          // The clock is the host's, so guests only see it.
+          bool host_clock = !session->isGuest();
           float tod_hours = session->clock().time_of_day / 3600.0f;
           ImGui::PushItemWidth(180);
+          ImGui::BeginDisabled(!host_clock);
           if (ImGui::SliderFloat("Time of day", &tod_hours, 0.0f, 24.0f, "%.1f h"))
             connection().send(SetTimeOfDay{tod_hours * 3600.0f});
 
           ImGui::SliderFloat("Time scale",       &g_settings.time_scale,
                              0.0f, 720.0f, "%.0f");
+          ImGui::EndDisabled();
           ImGui::SliderFloat("Water fog",        &g_settings.water_fog_density,
                              0.0f, 0.20f,  "%.3f");
           ImGui::PopItemWidth();
 
+          ImGui::BeginDisabled(!host_clock);
           if (ImGui::Button("Freeze time"))  g_settings.time_scale = 0.0f;
           ImGui::SameLine();
           if (ImGui::Button("Normal speed")) g_settings.time_scale = 72.0f;
           ImGui::SameLine();
           if (ImGui::Button("Fast (10x)"))   g_settings.time_scale = 720.0f;
+          ImGui::EndDisabled();
         }
 
         // Shadows
@@ -560,7 +647,7 @@ void Engine::debug() {
         }
 
         static double world_saved_at = -10.0;
-        if (ImGui::Button("Save world (F5)")) {
+        if (!session->isGuest() && ImGui::Button("Save world (F5)")) {
           connection().send(Save{});
           world_saved_at = ImGui::GetTime();
         }
@@ -579,6 +666,30 @@ void Engine::debug() {
   }
   ImGui::Render();
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
+// ─── Debug: Multiplayer ────────────────────────────────────────────────
+// Who is playing, and for a host the address guests can type in.
+
+void Engine::debugMultiplayer() {
+  if (!ImGui::CollapsingHeader("Multiplayer", ImGuiTreeNodeFlags_DefaultOpen)) return;
+  ImGui::Text("Name       : %s", g_settings.player_name.c_str());
+  switch (session->mode()) {
+    case Session::Mode::Single:
+      ImGui::TextDisabled("Single player (Esc for the menu to host)");
+      break;
+    case Session::Mode::Host: {
+      ImGui::Text("Hosting    : %zu player(s)", session->game()->playerCount());
+      static const std::vector<std::string> addresses = net::lanAddresses();
+      for (const std::string &a : addresses)
+        ImGui::Text("Address    : %s:%u", a.c_str(), session->server()->port());
+      if (addresses.empty()) ImGui::TextDisabled("No network address found");
+      break;
+    }
+    case Session::Mode::Guest:
+      ImGui::Text("Guest      : %zu other player(s) nearby", player_views.size());
+      break;
+  }
 }
 
 // ─── Debug: Inventory ──────────────────────────────────────────────────
@@ -639,7 +750,10 @@ void Engine::debugInventory() {
   ImGui::PopItemWidth();
   ImGui::PopItemWidth();
   ImGui::SameLine();
-  if (ImGui::Button("Give"))
+  ImGui::BeginDisabled(session->isGuest()); // a cheat: the host's
+  bool give = ImGui::Button("Give");
+  ImGui::EndDisabled();
+  if (give)
     connection().send(GiveItem{all_items[give_index],
                              static_cast<uint16_t>(give_count)});
 }
@@ -651,6 +765,8 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
       reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
   if (action != GLFW_PRESS) return;
+  // In the menu, keys belong to ImGui (typing a name or an address).
+  if (!engine->playing()) return;
 
   switch (key) {
     // Debug panel toggle – release/recapture cursor so ImGui is usable
@@ -692,12 +808,13 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
         engine->connection().send(DropItem{(mods & GLFW_MOD_CONTROL) != 0});
       break;
 
-    // Esc closes the inventory screen first; otherwise it quits
+    // Esc closes the inventory screen first; otherwise it leaves the game
+    // (saving it) for the title menu
     case GLFW_KEY_ESCAPE:
       if (engine->player->isInventoryOpen())
         engine->setInventoryOpen(false);
       else
-        glfwSetWindowShouldClose(window, true);
+        engine->endSession();
       break;
 
     // Hotbar slots: keys 1..9, then 0 for the tenth
@@ -740,8 +857,8 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
 void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
-  // Don't process mouse look when inventory or debug panel is open
-  if (engine->player->isInventoryOpen()) return;
+  // Don't process mouse look in the menu, or when inventory or debug panel is open
+  if (!engine->playing() || engine->player->isInventoryOpen()) return;
   if (g_settings.show_debug) return;
 
   if (engine->first_mouse) {
@@ -764,7 +881,7 @@ void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
 void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int mods) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
-  if (action != GLFW_PRESS) return;
+  if (action != GLFW_PRESS || !engine->playing()) return;
 
   // Inventory screen: clicks move items instead of breaking/placing. Clicks
   // on an ImGui window (the F1 panel) belong to that window.
@@ -835,6 +952,7 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
 
 void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
+  if (!engine->playing()) return;
   auto& player = engine->player;
 
   int slot = player->getSelectedHotbarSlot();
