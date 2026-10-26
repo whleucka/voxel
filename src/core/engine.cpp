@@ -252,6 +252,9 @@ void Engine::handleEvents() {
     else if (const auto *respawned = std::get_if<Respawned>(&ev)) {
       player->respawnAt(respawned->position);
     }
+    else if (const auto *knocked = std::get_if<KnockedBack>(&ev)) {
+      player->knock(knocked->velocity);
+    }
     else if (const auto *snap = std::get_if<EntitySnapshot>(&ev)) {
       entity_interp.push(*snap);
       last_snapshot_time = glfwGetTime();
@@ -412,6 +415,19 @@ void Engine::debug() {
           ImGui::Text("Visible    : %zu", entity_views.size());
           if (ImGui::Button("Spawn test creature"))
             connection.send(SpawnDebugEntity{EntityKind::TestCreature});
+          // Surface enemies vanish in daylight: set the time to night first.
+          for (EntityKind k : kEnemyKinds) {
+            ImGui::SameLine();
+            std::string label = std::string(entityType(k).name);
+            if (ImGui::Button(label.c_str())) connection.send(SpawnDebugEntity{k});
+          }
+          // Read by the Game every tick; "Save settings" writes it out.
+          int difficulty = static_cast<int>(g_settings.difficulty);
+          const char *kDifficulties[] = {"Peaceful", "Easy", "Normal"};
+          ImGui::PushItemWidth(180);
+          if (ImGui::Combo("Difficulty", &difficulty, kDifficulties, 3))
+            g_settings.difficulty = static_cast<Difficulty>(difficulty);
+          ImGui::PopItemWidth();
         }
 
         // World / Raycast

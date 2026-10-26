@@ -1,6 +1,7 @@
 #include "player/player.hpp"
 #include "core/constants.hpp"
 #include "world/world.hpp"
+#include <algorithm>
 
 Player::Player(glm::vec3 start_pos) {
   body.position = start_pos;
@@ -26,6 +27,16 @@ void Player::respawnAt(glm::vec3 pos) {
   camera.position = getEyePosition();
 }
 
+void Player::knock(glm::vec3 velocity) {
+  if (fly_mode) return;
+  constexpr float kKnockbackSteerDelay = 0.2f;
+  body.velocity.x += velocity.x;
+  body.velocity.z += velocity.z;
+  body.velocity.y = std::max(body.velocity.y, velocity.y);
+  body.on_ground = false;
+  knockback_left = kKnockbackSteerDelay;
+}
+
 void Player::setSelectedHotbarSlot(int slot) {
   if (slot >= 0 && slot < kHotbarSlots) {
     selected_hotbar_slot = slot;
@@ -37,6 +48,7 @@ void Player::setSelectedHotbarSlot(int slot) {
 void Player::update(float dt, World* world) {
   body.height = getPlayerHeight();
   body.eye_height = getPlayerEyeHeight();
+  knockback_left = std::max(0.0f, knockback_left - dt);
   body.updateWater(world);
   if (!fly_mode) body.move(dt, world);
   camera.position = getEyePosition();
@@ -95,7 +107,7 @@ void Player::processKeyboard(float dt, const PlayerInput& input) {
   if (input.left)     wish_dir -= flat_right;
   if (input.right)    wish_dir += flat_right;
 
-  if (glm::length(wish_dir) > 0.001f) {
+  if (glm::length(wish_dir) > 0.001f && knockback_left <= 0.0f) {
     wish_dir = glm::normalize(wish_dir);
     body.velocity.x = wish_dir.x * speed;
     body.velocity.z = wish_dir.z * speed;

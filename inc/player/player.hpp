@@ -53,6 +53,9 @@ public:
   void setSprintAllowed(bool allowed) { sprint_allowed = allowed; }
   // Put the player somewhere new (respawn) with no momentum carried over.
   void respawnAt(glm::vec3 pos);
+  // Pushed by an enemy hit (the Game's KnockedBack). Input doesn't steer for
+  // a moment afterwards, so the push isn't cancelled straight away.
+  void knock(glm::vec3 velocity);
 
   // Inventory screen and hotbar selection. The inventory itself lives in the
   // Game; the client keeps a view of it (Engine::inventory_view).
@@ -67,6 +70,7 @@ private:
   bool sprinting = false;
   bool sprint_allowed = true;
   bool crouching = false;
+  float knockback_left = 0.0f; // seconds before input steers again
 
   // Physics state (shared rules with entities)
   PhysicsBody body;

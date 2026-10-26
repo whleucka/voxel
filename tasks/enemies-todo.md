@@ -36,7 +36,7 @@ Plan: [enemies-plan.md](enemies-plan.md) · Spec: [SPEC-enemies.md](../SPEC-enem
 - [x] Dying to an enemy respawns you with your items.
 
 ## T7: Client
-- [ ] `KnockedBack` pushes the player. F1 has a difficulty picker and enemy spawn buttons. Eyes glow.
+- [x] `KnockedBack` pushes the player. F1 has a difficulty picker and enemy spawn buttons. Eyes glow.
 - [ ] Manual check (user): the spec's night, cave, light, sunrise and Peaceful checks.
 
 ## T8: Wrap-up
