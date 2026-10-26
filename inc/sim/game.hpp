@@ -26,6 +26,12 @@ public:
   static constexpr int kThrowDropDelayMs = 1500;
   static constexpr float kPickupRange = 1.5f;
   static constexpr float kMergeRange = 1.0f;
+  // Hitting entities
+  static constexpr int kAttackCooldownMs = 400;
+  static constexpr int kAttackDamage = 2; // bare hands
+  static constexpr int kHurtFlashMs = 300;
+  static constexpr float kKnockback = 6.0f;
+  static constexpr float kKnockUp = 4.0f;
 
   // Bind the game to a save directory and load it if a world exists there.
   // An existing world keeps its own seed (written to g_settings) and clock;
@@ -81,6 +87,7 @@ private:
   void apply(Client &client, const GiveItem &cmd);
   void apply(Client &client, const MoveItems &cmd);
   void apply(Client &client, const DropItem &cmd);
+  void apply(Client &client, const AttackEntity &cmd);
 
   // Puts a stack into the world as a dropped item. Returns false (the stack is
   // lost) only if the entity cap is reached.

@@ -54,7 +54,6 @@ void EntityStore::tick(const World &world, Rng &rng,
   for (auto &[id, e] : entities) {
     const EntityTypeDef &def = entityType(e.kind);
     e.age_ms += kTickMs;
-    e.hurt_ms = std::max(0, e.hurt_ms - kTickMs);
     e.pickup_delay_ms = std::max(0, e.pickup_delay_ms - kTickMs);
 
     if (def.despawn_age_ms > 0 && e.age_ms >= def.despawn_age_ms) {
@@ -74,7 +73,8 @@ void EntityStore::tick(const World &world, Rng &rng,
     // Unloaded ground: freeze rather than fall out of the world.
     if (!chunkLoaded(world, e.body.position)) continue;
 
-    if (e.brain) {
+    // A freshly hit creature is knocked back, not steering.
+    if (e.brain && e.hurt_ms == 0) {
       Intent in = e.brain->think(e, world, rng);
       e.yaw = in.yaw;
       if (glm::length(in.move_dir) > 0.0f) {
@@ -87,6 +87,7 @@ void EntityStore::tick(const World &world, Rng &rng,
       }
     }
     e.body.step(dt, &world);
+    e.hurt_ms = std::max(0, e.hurt_ms - kTickMs);
   }
 
   for (EntityId id : gone) entities.erase(id);

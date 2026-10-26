@@ -23,6 +23,7 @@ struct PlayerState {
   FallTracker fall;
   Activity activity;       // from the latest MovePlayer
   int dead_ms = 0;         // time spent dead, toward respawn
+  int attack_cooldown_ms = 0;
   std::optional<VitalsChanged> vitals_sent; // last snapshot sent to the owner
 
   float height() const { return crouch ? kPlayerCrouchHeight : kPlayerHeight; }

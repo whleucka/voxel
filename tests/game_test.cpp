@@ -939,3 +939,109 @@ TEST_CASE_FIXTURE(EditGame, "give overflow lands at your feet") {
   CHECK(drops[0]->item == ItemStack{ItemId::DIAMOND, 5});
   CHECK(glm::distance(drops[0]->body.position, game.findPlayer(id)->position) < 1.0f);
 }
+
+// ─── Hitting entities ──────────────────────────────────────────────────
+
+namespace {
+
+// EditGame plus a test creature two blocks in front (-Z) of the player.
+struct FightGame : EditGame {
+  EntityId target = 0;
+  glm::vec3 spot;
+
+  FightGame() {
+    // A flat stone arena with clear air above, so terrain can't get in the way.
+    for (int x = 1; x < 15; ++x)
+      for (int z = 1; z < 15; ++z) {
+        game.world().setBlockAt({x, ground, z}, BlockType::STONE);
+        for (int y = ground + 1; y <= ground + 4; ++y)
+          game.world().setBlockAt({x, y, z}, BlockType::AIR);
+      }
+    spot = game.findPlayer(id)->position + glm::vec3(0, 0, -2);
+    auto t = game.entities().spawn(EntityKind::TestCreature, spot);
+    REQUIRE(t);
+    target = *t;
+  }
+
+  Entity *creature() { return game.entities().find(target); }
+
+  // Wait out the cooldown, putting the creature back in place.
+  void wait(float seconds) {
+    game.advance(seconds);
+    pollAll(conn);
+    if (Entity *e = creature()) {
+      e->body.position = spot;
+      e->body.velocity = glm::vec3(0.0f);
+    }
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(FightGame, "a hit hurts, flashes and knocks the creature away") {
+  int max = entityType(EntityKind::TestCreature).max_health;
+  CHECK(run(AttackEntity{target}).empty());
+  CHECK(creature()->health == max - Game::kAttackDamage);
+  CHECK(creature()->hurt_ms > 0);
+  CHECK(creature()->body.velocity.z < -1.0f); // away from the player (-Z)
+  CHECK(creature()->body.velocity.y > 0.0f);
+}
+
+TEST_CASE_FIXTURE(FightGame, "hits have a cooldown") {
+  int max = entityType(EntityKind::TestCreature).max_health;
+  run(AttackEntity{target});
+  CHECK(rejected(run(AttackEntity{target})));
+  CHECK(creature()->health == max - 2);
+  wait(0.4f);
+  run(AttackEntity{target});
+  CHECK(creature()->health == max - 4);
+}
+
+TEST_CASE_FIXTURE(FightGame, "creatures out of reach can't be hit") {
+  creature()->body.position = spot + glm::vec3(0, 0, -6);
+  CHECK(rejected(run(AttackEntity{target})));
+  CHECK(creature()->health == entityType(EntityKind::TestCreature).max_health);
+}
+
+TEST_CASE_FIXTURE(FightGame, "dropped items and unknown ids can't be hit") {
+  auto item = game.entities().spawn(EntityKind::DroppedItem, spot);
+  game.entities().find(*item)->item = {ItemId::COAL, 1};
+  CHECK(rejected(run(AttackEntity{*item})));
+  CHECK(rejected(run(AttackEntity{999999})));
+}
+
+TEST_CASE_FIXTURE(FightGame, "a knocked-back creature doesn't steer until the flash ends") {
+  run(AttackEntity{target});
+  game.advance(0.05f);
+  CHECK(creature()->body.velocity.z < -1.0f); // still flying back
+}
+
+TEST_CASE_FIXTURE(FightGame, "the dead can't attack") {
+  // Fall to death first.
+  // ::at is the MovePlayer helper (EditGame::at reads blocks).
+  glm::vec3 p = game.findPlayer(id)->position;
+  conn.send(::at(p + glm::vec3(0, 40, 0), true));
+  conn.send(::at(p + glm::vec3(0, 39, 0), false));
+  conn.send(::at(p, true));
+  game.pump();
+  REQUIRE(game.findPlayer(id)->vitals.dead());
+  pollAll(conn);
+  CHECK(run(AttackEntity{target}).empty());
+  CHECK(creature()->health == entityType(EntityKind::TestCreature).max_health);
+}
+
+TEST_CASE_FIXTURE(FightGame, "killing a creature removes it and drops its loot") {
+  int hits = 0;
+  while (creature() && hits < 20) {
+    run(AttackEntity{target});
+    ++hits;
+    wait(0.4f);
+  }
+  CHECK_FALSE(creature());
+  CHECK(hits == entityType(EntityKind::TestCreature).max_health / Game::kAttackDamage);
+  bool loot = false;
+  for (const auto &[eid, e] : game.entities().all())
+    loot |= e.kind == EntityKind::DroppedItem && e.item.id == ItemId::COAL;
+  // The coal may already have been picked up by the player standing nearby.
+  CHECK((loot || countOf(inventory(), ItemId::COAL) == 1));
+}

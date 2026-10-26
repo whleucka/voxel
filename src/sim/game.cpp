@@ -166,6 +166,7 @@ void Game::tick() {
   for (Client &client : clients) {
     PlayerState *ps = playerFor(client);
     if (!ps) continue;
+    ps->attack_cooldown_ms = std::max(0, ps->attack_cooldown_ms - kTickMs);
     if (ps->vitals.dead()) {
       ps->dead_ms += kTickMs;
       if (ps->dead_ms >= kRespawnDelayMs) respawn(client, *ps);
@@ -456,4 +457,47 @@ void Game::pickUpDroppedItems() {
     if (changed) sendInventory(client, *ps);
   }
   for (EntityId id : taken) entities_.remove(id);
+}
+
+// ─── Hitting entities ──────────────────────────────────────────────────
+
+void Game::apply(Client &client, const AttackEntity &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead()) return;
+  Entity *e = entities_.find(cmd.id);
+  if (!e) return reject(client, "attack: no such entity");
+  const EntityTypeDef &def = entityType(e->kind);
+  if (def.max_health <= 0) return reject(client, "attack: can't hit that");
+  if (ps->attack_cooldown_ms > 0) return reject(client, "attack: too soon");
+
+  // Reach is measured to the nearest point of the entity's box, matching the
+  // client's ray against that box.
+  glm::vec3 lo = e->body.position - glm::vec3(e->body.half_width, 0, e->body.half_width);
+  glm::vec3 hi = e->body.position + glm::vec3(e->body.half_width, e->body.height,
+                                              e->body.half_width);
+  glm::vec3 eye = ps->eyePosition();
+  if (glm::distance(eye, glm::clamp(eye, lo, hi)) > kPlayerReach)
+    return reject(client, "attack: out of reach");
+
+  ps->attack_cooldown_ms = kAttackCooldownMs;
+  e->health -= kAttackDamage;
+  e->hurt_ms = kHurtFlashMs;
+
+  // Knock it away from the attacker (straight back if they overlap).
+  glm::vec2 away(e->body.position.x - ps->position.x, e->body.position.z - ps->position.z);
+  if (glm::length(away) < 1e-3f) {
+    float yaw = glm::radians(ps->yaw);
+    away = {std::cos(yaw), std::sin(yaw)};
+  }
+  away = glm::normalize(away) * kKnockback;
+  e->body.velocity = {away.x, kKnockUp, away.y};
+  e->body.on_ground = false;
+
+  if (e->health <= 0) {
+    std::uniform_real_distribution<float> side(-1.0f, 1.0f);
+    glm::vec3 at = e->body.position + glm::vec3(0.0f, 0.3f, 0.0f);
+    for (const ItemStack &drop : def.drops)
+      dropItem(drop, at, {side(rng_), 4.0f, side(rng_)}, kBreakDropDelayMs);
+    entities_.remove(cmd.id);
+  }
 }

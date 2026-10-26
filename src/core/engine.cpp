@@ -8,6 +8,7 @@
 #include "imgui/backends/imgui_impl_glfw.h"
 #include "imgui/backends/imgui_impl_opengl3.h"
 #include "imgui/imgui.h"
+#include "physics/ray.hpp"
 #include "util/memory.hpp"
 #include <algorithm>
 #include <string>
@@ -753,11 +754,27 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
   auto& player = engine->player;
   const Camera& cam = player->getCamera();
   RaycastResult ray = engine->game.world().raycast(cam.position, cam.front, kPlayerReach);
-  if (!ray.hit) return;
 
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
-    engine->connection.send(BreakBlock{ray.block_pos});
-  } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+    // Whichever is nearer along the aim, a hittable entity or a block.
+    std::optional<EntityId> target;
+    float nearest = ray.hit ? ray.distance : kPlayerReach;
+    for (const EntityView &v : engine->entity_views) {
+      const EntityTypeDef &def = entityType(v.kind);
+      if (def.max_health <= 0) continue;
+      glm::vec3 lo = v.position - glm::vec3(def.half_width, 0.0f, def.half_width);
+      glm::vec3 hi = v.position + glm::vec3(def.half_width, def.height, def.half_width);
+      auto t = rayAabb(cam.position, cam.front, lo, hi);
+      if (t && *t <= nearest) {
+        nearest = *t;
+        target = v.id;
+      }
+    }
+    if (target)
+      engine->connection.send(AttackEntity{*target});
+    else if (ray.hit)
+      engine->connection.send(BreakBlock{ray.block_pos});
+  } else if (button == GLFW_MOUSE_BUTTON_RIGHT && ray.hit) {
     engine->connection.send(PlaceBlock{ray.block_pos + ray.normal});
   }
 }
