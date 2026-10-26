@@ -206,6 +206,7 @@ struct EditGame : SmallGame {
     other.send(Join{});
     game.pump();
     pollAll(other);
+    pollAll(conn); // PlayerJoined about the observer
     moveTo({5.5f, ground + 1.0f, 8.5f});
   }
 
@@ -1391,4 +1392,308 @@ TEST_CASE_FIXTURE(EnemyGame, "the dead aren't attacked") {
   if (Entity *e = foe()) e->body.position = me_pos + glm::vec3(0.0f, 0.0f, -0.8f);
   game.advance(Game::kTickSeconds);
   CHECK(knocks(pollAll(conn)).empty());
+}
+
+// ─── Multiplayer: players ──────────────────────────────────────────────
+
+namespace {
+
+// A host plus guests, each on its own in-process link.
+struct PartyGame : SmallGame {
+  LocalConnection host;
+  std::vector<std::unique_ptr<LocalConnection>> guests;
+
+  PartyGame() {
+    game.addClient(host, Game::Role::Host);
+    host.send(Join{"Host"});
+    game.pump();
+    pollAll(host);
+  }
+
+  // Joins a guest and returns everything it was sent.
+  std::vector<Event> joinGuest(std::string name) {
+    guests.push_back(std::make_unique<LocalConnection>());
+    game.addClient(*guests.back(), Game::Role::Guest);
+    guests.back()->send(Join{std::move(name)});
+    game.pump();
+    return pollAll(*guests.back());
+  }
+  LocalConnection &guest(size_t i = 0) { return *guests[i]; }
+
+  std::vector<Event> send(LocalConnection &c, Command cmd) {
+    c.send(std::move(cmd));
+    game.pump();
+    return pollAll(c);
+  }
+
+  template <class T>
+  static const T *find(const std::vector<Event> &evs) {
+    for (const Event &e : evs)
+      if (auto *t = std::get_if<T>(&e)) return t;
+    return nullptr;
+  }
+};
+
+} // namespace
+
+TEST_CASE("player names: letters, digits, _ and -, up to 16") {
+  CHECK(Game::validName("Ada"));
+  CHECK(Game::validName("kid_2-b"));
+  CHECK(Game::validName("abcdefghijklmnop"));
+  CHECK_FALSE(Game::validName(""));
+  CHECK_FALSE(Game::validName("abcdefghijklmnopq"));
+  CHECK_FALSE(Game::validName("has space"));
+  CHECK_FALSE(Game::validName("emoji\xF0\x9F\x98\x80"));
+}
+
+TEST_CASE_FIXTURE(PartyGame, "a guest joins by name and the others are told") {
+  auto evs = joinGuest("Bea");
+  auto *joined = find<Joined>(evs);
+  REQUIRE(joined);
+  CHECK(game.findPlayer(joined->id)->name == "Bea");
+  auto host_evs = pollAll(host);
+  auto *told = find<PlayerJoined>(host_evs);
+  REQUIRE(told);
+  CHECK(told->id == joined->id);
+  CHECK(told->name == "Bea");
+  CHECK(game.playerCount() == 2);
+}
+
+TEST_CASE_FIXTURE(PartyGame, "an empty name becomes Player<id>") {
+  auto evs = joinGuest("");
+  auto *joined = find<Joined>(evs);
+  REQUIRE(joined);
+  CHECK(game.findPlayer(joined->id)->name == "Player" + std::to_string(joined->id));
+}
+
+TEST_CASE_FIXTURE(PartyGame, "a name already in the game is refused") {
+  auto evs = joinGuest("Host");
+  auto *refused = find<JoinRefused>(evs);
+  REQUIRE(refused);
+  CHECK(refused->reason == "Name already in use");
+  CHECK_FALSE(find<Joined>(evs));
+  CHECK(game.playerCount() == 1);
+}
+
+TEST_CASE_FIXTURE(PartyGame, "a bad name is refused") {
+  auto evs = joinGuest("no spaces please");
+  CHECK(find<JoinRefused>(evs));
+  CHECK(game.playerCount() == 1);
+}
+
+TEST_CASE_FIXTURE(PartyGame, "the game holds at most 8 players") {
+  for (int i = 1; i < static_cast<int>(Game::kMaxPlayers); ++i)
+    REQUIRE(find<Joined>(joinGuest("g" + std::to_string(i))));
+  auto evs = joinGuest("late");
+  auto *refused = find<JoinRefused>(evs);
+  REQUIRE(refused);
+  CHECK(refused->reason == "Game is full");
+  CHECK(game.playerCount() == Game::kMaxPlayers);
+}
+
+TEST_CASE_FIXTURE(PartyGame, "a leaving guest is removed and everyone is told") {
+  PlayerId id = find<Joined>(joinGuest("Bea"))->id;
+  pollAll(host);
+  game.removeClient(guest());
+  CHECK(game.playerCount() == 1);
+  CHECK_FALSE(game.findPlayer(id));
+  auto host_evs = pollAll(host);
+  auto *left = find<PlayerLeft>(host_evs);
+  REQUIRE(left);
+  CHECK(left->id == id);
+  // The name is free again.
+  CHECK(find<Joined>(joinGuest("Bea")));
+}
+
+TEST_CASE_FIXTURE(PartyGame, "removing a link that never joined is harmless") {
+  LocalConnection stray;
+  game.addClient(stray, Game::Role::Guest);
+  game.removeClient(stray);
+  game.removeClient(stray);
+  CHECK(pollAll(host).empty());
+}
+
+TEST_CASE_FIXTURE(PartyGame, "cheats are for the host only") {
+  joinGuest("Bea");
+  auto rejectedWith = [](const std::vector<Event> &evs) {
+    auto *r = find<CommandRejected>(evs);
+    return r ? r->reason : std::string();
+  };
+  CHECK(rejectedWith(send(guest(), GiveItem{ItemId::DIAMOND, 1})) == "give: host only");
+  CHECK(rejectedWith(send(guest(), SetTimeOfDay{0.0f})) == "time: host only");
+  CHECK(rejectedWith(send(guest(), SpawnDebugEntity{EntityKind::TestCreature})) ==
+        "spawn: host only");
+  CHECK(rejectedWith(send(guest(), Save{})) == "save: host only");
+  CHECK(game.entities().size() == 0);
+
+  CHECK(rejectedWith(send(host, GiveItem{ItemId::DIAMOND, 1})).empty());
+}
+
+TEST_CASE_FIXTURE(VitalsGame, "moves from before a respawn are ignored") {
+  fall(40.0f);
+  REQUIRE(me().vitals.dead());
+  advance(Game::kRespawnDelayMs / 1000.0f + 0.1f);
+  REQUIRE_FALSE(me().vitals.dead());
+  REQUIRE(me().respawn == 1);
+  glm::vec3 spawn = me().position;
+
+  MovePlayer stale = at({50.5f, 100.0f, 50.5f}, true); // respawn 0: in flight
+  send(stale);
+  CHECK(me().position == spawn);
+
+  MovePlayer fresh = stale;
+  fresh.respawn = 1;
+  send(fresh);
+  CHECK(me().position == fresh.position);
+}
+
+// ─── Multiplayer: the shared world ─────────────────────────────────────
+
+TEST_CASE_FIXTURE(PartyGame, "a guest is welcomed with the world before it joins") {
+  game.world().loadChunkSync(0, 0);
+  game.world().setBlockAt({3, 200, 3}, BlockType::GLOWSTONE);
+  auto evs = joinGuest("Bea");
+  REQUIRE(evs.size() >= 2);
+  REQUIRE(std::holds_alternative<Welcome>(evs[0]));
+  CHECK(std::holds_alternative<Joined>(evs[1]));
+  const Welcome &w = std::get<Welcome>(evs[0]);
+  CHECK(w.seed == g_settings.world_seed);
+  CHECK(w.noise_offset == g_settings.noise_offset);
+  CHECK(w.time_of_day == game.clock().time_of_day);
+  CHECK(w.time_scale == g_settings.time_scale);
+  CHECK(std::find(w.edits.begin(), w.edits.end(),
+                  BlockEdit{{3, 200, 3}, BlockType::GLOWSTONE}) != w.edits.end());
+}
+
+TEST_CASE_FIXTURE(SmallGame, "the host isn't sent a Welcome") {
+  LocalConnection host;
+  game.addClient(host, Game::Role::Host);
+  host.send(Join{"Host"});
+  game.pump();
+  for (const Event &e : pollAll(host)) CHECK_FALSE(std::holds_alternative<Welcome>(e));
+}
+
+TEST_CASE_FIXTURE(PartyGame, "guests get the time once a second; the host doesn't") {
+  joinGuest("Bea");
+  pollAll(host);
+  game.advance(Game::kTickSeconds * (Game::kTimeSyncTicks * 3));
+  int syncs = 0;
+  float last = -1.0f;
+  for (const Event &e : pollAll(guest()))
+    if (auto *t = std::get_if<TimeSync>(&e)) {
+      ++syncs;
+      last = t->time_of_day;
+      CHECK(t->time_scale == g_settings.time_scale);
+    }
+  CHECK(syncs == 3);
+  CHECK(last == game.clock().time_of_day);
+  for (const Event &e : pollAll(host)) CHECK_FALSE(std::holds_alternative<TimeSync>(e));
+}
+
+TEST_CASE_FIXTURE(PartyGame, "snapshots show the other players but not yourself") {
+  PlayerId bea = PartyGame::find<Joined>(joinGuest("Bea"))->id;
+  PlayerId host_id = 0;
+  for (PlayerId id = 1; id < 10; ++id)
+    if (game.findPlayer(id) && game.findPlayer(id)->name == "Host") host_id = id;
+  glm::vec3 near = game.findPlayer(host_id)->position + glm::vec3(2, 0, 0);
+  MovePlayer move{near, 30.0f, -10.0f, false, true};
+  send(guest(), move);
+  pollAll(host);
+
+  game.advance(Game::kTickSeconds);
+  auto last = [](const std::vector<Event> &evs) {
+    const EntitySnapshot *snap = nullptr;
+    for (const Event &e : evs)
+      if (auto *s = std::get_if<EntitySnapshot>(&e)) snap = s;
+    REQUIRE(snap);
+    return *snap;
+  };
+  EntitySnapshot to_host = last(pollAll(host));
+  REQUIRE(to_host.players.size() == 1);
+  const PlayerView &v = to_host.players[0];
+  CHECK(v.id == bea);
+  CHECK(v.name == "Bea");
+  CHECK(v.position == near);
+  CHECK(v.yaw == 30.0f);
+  CHECK(v.pitch == -10.0f);
+  CHECK(v.crouch);
+
+  EntitySnapshot to_bea = last(pollAll(guest()));
+  REQUIRE(to_bea.players.size() == 1);
+  CHECK(to_bea.players[0].id == host_id);
+}
+
+// ─── Multiplayer: guest records ────────────────────────────────────────
+
+namespace {
+
+// A party bound to a save directory, so guests' records hit the disk.
+struct SavedParty : PartyGame {
+  ScopedSeed seed;
+  TempDir dir;
+  SavedParty() { game.load(dir.path.string()); } // nothing there yet: binds the dir
+
+  PlayerId joinedId(const std::vector<Event> &evs) {
+    auto *j = find<Joined>(evs);
+    REQUIRE(j);
+    return j->id;
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(SavedParty, "a guest who leaves is saved and comes back with their stuff") {
+  PlayerId id = joinedId(joinGuest("Bea"));
+  MovePlayer move{{5.5f, 90.0f, 6.5f}, 12.0f, -4.0f, true};
+  send(guest(), move);
+  send(guest(), SelectSlot{4});
+  const Inventory before = game.findPlayer(id)->inventory;
+
+  game.removeClient(guest());
+  CHECK(std::filesystem::exists(dir.path / "players" / "Bea.dat"));
+
+  auto evs = joinGuest("Bea");
+  auto *j = find<Joined>(evs);
+  REQUIRE(j);
+  CHECK(j->position == move.position);
+  CHECK(j->yaw == 12.0f);
+  CHECK(j->pitch == -4.0f);
+  CHECK(j->slot == 4);
+  CHECK(j->fly);
+  CHECK(game.findPlayer(j->id)->inventory.slots() == before.slots());
+}
+
+TEST_CASE_FIXTURE(SavedParty, "a new name starts at spawn with the starter kit") {
+  PlayerId id = joinedId(joinGuest("New"));
+  CHECK(game.findPlayer(id)->inventory.slots() == Game::starterKit().slots());
+  CHECK_FALSE(game.guestRecord("New"));
+}
+
+TEST_CASE_FIXTURE(SavedParty, "the host's save writes guests still playing, and load reads them") {
+  joinGuest("Bea");
+  MovePlayer move{{1.5f, 95.0f, 2.5f}, 0.0f, 0.0f};
+  send(guest(), move);
+  REQUIRE(game.save());
+  CHECK(std::filesystem::exists(dir.path / "players" / "Bea.dat"));
+
+  Game reloaded;
+  reloaded.load(dir.path.string());
+  const auto *rec = reloaded.guestRecord("Bea");
+  REQUIRE(rec);
+  CHECK(rec->player.position == move.position);
+}
+
+TEST_CASE_FIXTURE(SavedParty, "the host never takes a guest's record") {
+  joinGuest("Bea");
+  game.removeClient(guest());
+  REQUIRE(game.guestRecord("Bea"));
+  LocalConnection host2;
+  game.removeClient(host);
+  game.addClient(host2, Game::Role::Host);
+  host2.send(Join{"Bea"}); // same name as the record, but the host
+  game.pump();
+  auto evs = pollAll(host2);
+  auto *j = find<Joined>(evs);
+  REQUIRE(j);
+  CHECK(game.findPlayer(j->id)->inventory.slots() == Game::starterKit().slots());
 }

@@ -19,6 +19,30 @@ void EntityInterpolator::push(EntitySnapshot snap) {
   curr = std::move(snap);
 }
 
+std::vector<PlayerView> EntityInterpolator::players(float alpha) const {
+  alpha = std::clamp(alpha, 0.0f, 1.0f);
+  std::unordered_map<PlayerId, const PlayerView *> before;
+  if (have_prev)
+    for (const PlayerView &v : prev.players) before[v.id] = &v;
+
+  std::vector<PlayerView> out;
+  out.reserve(curr.players.size());
+  for (const PlayerView &now : curr.players) {
+    PlayerView v = now;
+    auto it = before.find(now.id);
+    if (it != before.end()) {
+      const PlayerView &was = *it->second;
+      v.position = glm::mix(was.position, now.position, alpha);
+      v.yaw = lerpAngle(was.yaw, now.yaw, alpha);
+      v.pitch = was.pitch + (now.pitch - was.pitch) * alpha;
+      glm::vec2 step(now.position.x - was.position.x, now.position.z - was.position.z);
+      v.moving = glm::length(step) > 0.01f;
+    }
+    out.push_back(v);
+  }
+  return out;
+}
+
 std::vector<EntityView> EntityInterpolator::views(float alpha) const {
   alpha = std::clamp(alpha, 0.0f, 1.0f);
   std::unordered_map<EntityId, const EntityView *> before;

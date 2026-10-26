@@ -88,7 +88,22 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **W, A, S, D:** Move camera forward, left, backward, right.
 *   **Space:** Jump.
 *   **Mouse:** Look around.
-*   **ESC:** Exit program.
+*   **ESC:** Close the inventory, or save and go back to the title menu.
+*   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
+*   **T:** Toggle fly mode. **F5:** Save the world.
+
+## Playing together (home network)
+
+The game opens on a title menu. Type your name, then:
+
+*   **Host game:** play your world and let others on your network join.
+    F1 shows the address and port guests can use.
+*   **Join a game:** games on your network are listed automatically; if yours
+    isn't, type the host's address (e.g. `192.168.1.20`).
+
+Up to 8 players. Guests keep their inventory in the host's world under their
+name. The host needs TCP port 47800 and UDP port 47801 open. Only the host
+can use the F1 cheats.
 
 
 ## Contributing

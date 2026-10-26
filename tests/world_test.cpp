@@ -150,3 +150,58 @@ TEST_CASE("findSpawn picks a standable column") {
   CHECK(world.getBlockAt(spawn + glm::vec3(0, 0.5f, 0)) == BlockType::AIR);
   CHECK(world.getBlockAt(spawn + glm::vec3(0, 1.5f, 0)) == BlockType::AIR);
 }
+
+// ─── Remote edits ──────────────────────────────────────────────────────
+
+TEST_CASE("an edit to a chunk that isn't loaded appears when it loads") {
+  World world;
+  world.applyEdit({20, 200, 5}, BlockType::GLOWSTONE); // chunk (1, 0)
+  CHECK(world.getBlockAt({20.5f, 200.5f, 5.5f}) == BlockType::AIR); // unloaded
+  world.loadChunkSync(1, 0);
+  world.flushPendingEdits();
+  CHECK(world.getBlockAt({20.5f, 200.5f, 5.5f}) == BlockType::GLOWSTONE);
+}
+
+TEST_CASE("an edit to a loaded chunk applies at once") {
+  World world;
+  world.loadChunkSync(0, 0);
+  world.applyEdit({3, 200, 3}, BlockType::STONE);
+  CHECK(world.getBlockAt({3.5f, 200.5f, 3.5f}) == BlockType::STONE);
+}
+
+TEST_CASE("a pending edit is applied even if its chunk loaded without it") {
+  World world;
+  world.applyEdit({3, 200, 3}, BlockType::STONE);
+  // As if the chunk had been generated from the edits read just before.
+  world.loadChunkSync(0, 0);
+  world.setBlockAt({3, 200, 3}, BlockType::AIR);
+  world.flushPendingEdits();
+  CHECK(world.getBlockAt({3.5f, 200.5f, 3.5f}) == BlockType::STONE);
+  world.setBlockAt({3, 200, 3}, BlockType::AIR);
+  world.flushPendingEdits(); // applied once, not forever
+  CHECK(world.getBlockAt({3.5f, 200.5f, 3.5f}) == BlockType::AIR);
+}
+
+TEST_CASE("a guest world built from the host's edit list matches the host") {
+  World host;
+  host.loadChunkSync(0, 0);
+  host.loadChunkSync(-1, 0);
+  host.setBlockAt({3, 200, 3}, BlockType::GLOWSTONE);
+  host.setBlockAt({-5, 120, 7}, BlockType::AIR);
+  host.setBlockAt({-1, 201, 15}, BlockType::STONE);
+
+  World guest;
+  guest.setLoadedEdits(std::span<const BlockEdit>(host.editList()));
+  CHECK(host.editList().size() == 3);
+  guest.loadChunkSync(0, 0);
+  guest.loadChunkSync(-1, 0);
+  guest.flushPendingEdits();
+  for (int x = -16; x < 16; ++x)
+    for (int z = 0; z < 16; ++z)
+      for (int y = 0; y < kChunkHeight; ++y) {
+        glm::vec3 p(x + 0.5f, y + 0.5f, z + 0.5f);
+        if (host.getBlockAt(p) != guest.getBlockAt(p)) {
+          FAIL("block differs at " << x << "," << y << "," << z);
+        }
+      }
+}

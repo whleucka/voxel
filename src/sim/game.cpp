@@ -3,24 +3,30 @@
 #include "entity/animals.hpp"
 #include "entity/enemies.hpp"
 #include "core/settings.hpp"
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <iostream>
 
 // ─── Setup ─────────────────────────────────────────────────────────────
 
-Game::Game() {
+Game::Game() : seed_(g_settings.world_seed), noise_offset_(g_settings.noise_offset) {
   registerAnimalSpawns(spawner_);
   registerEnemySpawns(spawner_);
 }
 
 bool Game::load(const std::string &dir) {
   save_dir = dir;
+  seed_ = g_settings.world_seed;
+  noise_offset_ = g_settings.noise_offset;
 
   WorldSave::LevelData level;
   if (!WorldSave::loadLevel(dir, level)) return false;
 
   g_settings.world_seed   = level.seed;
   g_settings.noise_offset = level.noise_offset;
+  seed_ = level.seed;
+  noise_offset_ = level.noise_offset;
 
   WorldEdits edits;
   WorldSave::loadEdits(dir, edits);
@@ -31,6 +37,7 @@ bool Game::load(const std::string &dir) {
     inventory = std::move(inv);
 
   restore(level, std::move(edits), player, std::move(inventory));
+  WorldSave::loadGuests(dir, guest_records);
   return true;
 }
 
@@ -61,8 +68,15 @@ bool Game::save() {
   std::optional<std::vector<ItemStack>> inv = saved_inventory;
   if (host) inv.emplace(host->inventory.slots().begin(), host->inventory.slots().end());
 
+  // Guests in the game now, then everyone who has ever played here.
+  for (const Client &c : clients)
+    if (c.player && c.role == Role::Guest) storeGuest(players.at(*c.player));
+  bool guests_ok = true;
+  for (const auto &[name, rec] : guest_records)
+    guests_ok &= WorldSave::saveGuest(save_dir, name, rec);
+
   if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits()) ||
-      (inv && !WorldSave::saveInventory(save_dir, *inv))) {
+      (inv && !WorldSave::saveInventory(save_dir, *inv)) || !guests_ok) {
     std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";
     return false;
   }
@@ -79,7 +93,47 @@ void Game::restore(const WorldSave::LevelData &level, WorldEdits edits,
   saved_inventory = std::move(inventory);
 }
 
-void Game::addClient(ClientLink &link) { clients.push_back({&link, {}}); }
+void Game::addClient(ClientLink &link, Role role) { clients.push_back({&link, {}, role}); }
+
+void Game::removeClient(ClientLink &link) {
+  auto it = std::find_if(clients.begin(), clients.end(),
+                         [&](const Client &c) { return c.link == &link; });
+  if (it == clients.end()) return;
+  std::optional<PlayerId> gone = it->player;
+  bool guest = it->role == Role::Guest;
+  clients.erase(it);
+  if (!gone) return;
+  // A guest's stuff is written straight away, so a host crash can't lose it.
+  if (guest) {
+    const PlayerState &ps = players.at(*gone);
+    storeGuest(ps);
+    if (!save_dir.empty() &&
+        !WorldSave::saveGuest(save_dir, ps.name, guest_records.at(ps.name)))
+      std::cerr << "[game] couldn't save guest '" << ps.name << "'\n";
+  }
+  players.erase(*gone);
+  broadcast(PlayerLeft{*gone});
+}
+
+const WorldSave::GuestRecord *Game::guestRecord(const std::string &name) const {
+  auto it = guest_records.find(name);
+  return it == guest_records.end() ? nullptr : &it->second;
+}
+
+void Game::storeGuest(const PlayerState &ps) {
+  WorldSave::GuestRecord rec;
+  rec.player = {ps.position, ps.yaw, ps.pitch, ps.selected_slot,
+                static_cast<uint8_t>(ps.fly ? 1 : 0)};
+  rec.inventory.assign(ps.inventory.slots().begin(), ps.inventory.slots().end());
+  guest_records[ps.name] = std::move(rec);
+}
+
+bool Game::validName(std::string_view name) {
+  if (name.empty() || name.size() > kMaxNameLength) return false;
+  return std::all_of(name.begin(), name.end(), [](char c) {
+    return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-';
+  });
+}
 
 const PlayerState *Game::findPlayer(PlayerId id) const {
   auto it = players.find(id);
@@ -94,6 +148,13 @@ PlayerState *Game::playerFor(const Client &client) {
 
 void Game::reject(Client &client, std::string reason) {
   client.link->deliver(CommandRejected{std::move(reason)});
+}
+
+// Debug-panel cheats belong to the host; a guest's attempt is refused.
+bool Game::hostOnly(Client &client, std::string_view what) {
+  if (client.role == Role::Host) return true;
+  reject(client, std::string(what) + ": host only");
+  return false;
 }
 
 void Game::broadcast(const Event &ev) {
@@ -199,6 +260,10 @@ void Game::tick() {
   ++tick_count;
   flushVitals();
   sendEntitySnapshots();
+  if (tick_count % kTimeSyncTicks == 0)
+    for (Client &client : clients)
+      if (client.player && client.role == Role::Guest)
+        client.link->deliver(TimeSync{clock_.time_of_day, clock_.scale});
 }
 
 void Game::sendEntitySnapshots() {
@@ -211,6 +276,12 @@ void Game::sendEntitySnapshots() {
       if (glm::distance(e.body.position, ps->position) > kEntityViewRange) continue;
       snap.entities.push_back({id, e.kind, e.body.position, e.yaw, e.item.id,
                                e.hurt_ms > 0, e.happy_ms > 0, false});
+    }
+    for (const auto &[pid, other] : players) {
+      if (pid == ps->id || other.vitals.dead()) continue;
+      if (glm::distance(other.position, ps->position) > kEntityViewRange) continue;
+      snap.players.push_back({pid, other.name, other.position, other.yaw, other.pitch,
+                              other.crouch, false});
     }
     client.link->deliver(std::move(snap));
   }
@@ -241,7 +312,8 @@ void Game::respawn(Client &client, PlayerState &ps) {
   ps.fall.reset();
   ps.dead_ms = 0;
   ps.position = respawnPoint();
-  client.link->deliver(Respawned{ps.position});
+  ++ps.respawn;
+  client.link->deliver(Respawned{ps.position, ps.respawn});
 }
 
 // ─── Commands ──────────────────────────────────────────────────────────
@@ -252,12 +324,27 @@ void Game::apply(Client &client, const Command &cmd) {
   std::visit([&](const auto &c) { apply(client, c); }, cmd);
 }
 
-void Game::apply(Client &client, const Join &) {
+void Game::apply(Client &client, const Join &cmd) {
   if (client.player) return; // already joined
 
   PlayerState ps;
-  ps.id = next_player_id++;
-  if (saved_player) {
+  ps.id = next_player_id;
+  ps.name = cmd.name.empty() ? "Player" + std::to_string(ps.id) : cmd.name;
+  if (!validName(ps.name))
+    return client.link->deliver(JoinRefused{"Names are 1-16 letters, digits, _ or -"});
+  for (const auto &[id, other] : players)
+    if (other.name == ps.name) return client.link->deliver(JoinRefused{"Name already in use"});
+  if (players.size() >= kMaxPlayers) return client.link->deliver(JoinRefused{"Game is full"});
+  ++next_player_id;
+  const WorldSave::GuestRecord *rec =
+      client.role == Role::Guest ? guestRecord(ps.name) : nullptr;
+  if (rec) {
+    ps.position = rec->player.position;
+    ps.yaw = rec->player.yaw;
+    ps.pitch = rec->player.pitch;
+    ps.selected_slot = rec->player.selected_slot;
+    ps.fly = rec->player.fly_mode != 0;
+  } else if (client.role == Role::Host && saved_player) {
     ps.position = saved_player->position;
     ps.yaw = saved_player->yaw;
     ps.pitch = saved_player->pitch;
@@ -267,9 +354,12 @@ void Game::apply(Client &client, const Join &) {
   } else {
     ps.position = world_.findSpawn();
   }
-  // The first join takes over the saved inventory, like the saved player;
-  // anyone without one starts with the kit.
-  if (saved_inventory) {
+  // A guest gets their record's inventory and the host takes over the saved
+  // one, like the saved player; anyone without one starts with the kit.
+  if (rec) {
+    for (int i = 0; i < kInventorySlots && i < static_cast<int>(rec->inventory.size()); ++i)
+      ps.inventory.set(i, rec->inventory[i]);
+  } else if (client.role == Role::Host && saved_inventory) {
     for (int i = 0; i < kInventorySlots && i < static_cast<int>(saved_inventory->size()); ++i)
       ps.inventory.set(i, (*saved_inventory)[i]);
     saved_inventory.reset();
@@ -277,6 +367,13 @@ void Game::apply(Client &client, const Join &) {
     ps.inventory = starterKit();
   }
 
+  // A guest builds its own copy of the world before it hears it has joined.
+  if (client.role == Role::Guest)
+    client.link->deliver(Welcome{seed_, noise_offset_,
+                                 clock_.time_of_day, g_settings.time_scale,
+                                 world_.editList()});
+  for (Client &other : clients)
+    if (other.player) other.link->deliver(PlayerJoined{ps.id, ps.name});
   players[ps.id] = ps;
   client.player = ps.id;
   client.link->deliver(Joined{ps.id, ps.position, ps.yaw, ps.pitch,
@@ -286,8 +383,9 @@ void Game::apply(Client &client, const Join &) {
 
 void Game::apply(Client &client, const MovePlayer &cmd) {
   PlayerState *ps = playerFor(client);
-  // The dead stay put until they respawn.
-  if (!ps || ps->vitals.dead()) return;
+  // The dead stay put until they respawn, and moves from before the respawn
+  // (still in flight when it happened) are stale.
+  if (!ps || ps->vitals.dead() || cmd.respawn != ps->respawn) return;
   ps->position = cmd.position;
   ps->yaw = cmd.yaw;
   ps->pitch = cmd.pitch;
@@ -367,15 +465,18 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
   sendInventory(client, *ps);
 }
 
-void Game::apply(Client &, const SetTimeOfDay &cmd) {
+void Game::apply(Client &client, const SetTimeOfDay &cmd) {
+  if (!hostOnly(client, "time")) return;
   clock_.time_of_day = std::fmod(std::max(cmd.seconds, 0.0f), 86400.0f);
 }
 
-void Game::apply(Client &, const Save &) { save(); }
+void Game::apply(Client &client, const Save &) {
+  if (hostOnly(client, "save")) save();
+}
 
 void Game::apply(Client &client, const GiveItem &cmd) {
   PlayerState *ps = playerFor(client);
-  if (!ps) return;
+  if (!ps || !hostOnly(client, "give")) return;
   if (!isValidItem(cmd.id) || cmd.count == 0)
     return reject(client, "give: unknown item");
   // Same as collecting a drop: whatever doesn't fit lands at your feet.
@@ -516,7 +617,7 @@ void Game::apply(Client &client, const AttackEntity &cmd) {
 
 void Game::apply(Client &client, const SpawnDebugEntity &cmd) {
   PlayerState *ps = playerFor(client);
-  if (!ps || ps->vitals.dead()) return;
+  if (!ps || ps->vitals.dead() || !hostOnly(client, "spawn")) return;
   if (!isValidEntityKind(cmd.kind)) return reject(client, "spawn: unknown kind");
   float yaw = glm::radians(ps->yaw);
   glm::vec3 ahead{std::cos(yaw), 0.0f, std::sin(yaw)};

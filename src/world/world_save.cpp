@@ -1,5 +1,6 @@
 #include "world/world_save.hpp"
 
+#include <cctype>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -37,6 +38,52 @@ constexpr char kLevelMagic[4]  = {'V', 'X', 'L', 'V'};
 constexpr char kPlayerMagic[4] = {'V', 'X', 'P', 'L'};
 constexpr char kEditMagic[4]   = {'V', 'X', 'E', 'D'};
 constexpr char kInvMagic[4]    = {'V', 'X', 'I', 'N'};
+constexpr char kGuestMagic[4]  = {'V', 'X', 'G', 'P'};
+
+bool safeName(const std::string &name) {
+  if (name.empty() || name.size() > 16) return false;
+  for (char c : name)
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') return false;
+  return true;
+}
+
+void writePlayer(std::ostream &o, const WorldSave::PlayerData &p) {
+  wr(o, p.position.x);
+  wr(o, p.position.y);
+  wr(o, p.position.z);
+  wr(o, p.yaw);
+  wr(o, p.pitch);
+  wr(o, p.selected_slot);
+  wr(o, p.fly_mode);
+}
+
+bool readPlayer(std::istream &in, WorldSave::PlayerData &p) {
+  return rd(in, p.position.x) && rd(in, p.position.y) && rd(in, p.position.z) &&
+         rd(in, p.yaw) && rd(in, p.pitch) && rd(in, p.selected_slot) && rd(in, p.fly_mode);
+}
+
+void writeSlots(std::ostream &o, std::span<const ItemStack> slots) {
+  wr(o, static_cast<uint16_t>(slots.size()));
+  for (const ItemStack &s : slots) {
+    wr(o, static_cast<uint16_t>(s.empty() ? ItemId::NONE : s.id));
+    wr(o, static_cast<uint16_t>(s.empty() ? 0 : s.count));
+  }
+}
+
+// Items this build doesn't know load as empty slots.
+bool readSlots(std::istream &in, std::vector<ItemStack> &out) {
+  uint16_t slot_count = 0;
+  if (!rd(in, slot_count)) return false;
+  std::vector<ItemStack> slots(slot_count);
+  for (ItemStack &s : slots) {
+    uint16_t id, count;
+    if (!rd(in, id) || !rd(in, count)) return false;
+    ItemId item = static_cast<ItemId>(id);
+    if (isValidItem(item) && count > 0) s = {item, count};
+  }
+  out = std::move(slots);
+  return true;
+}
 
 } // namespace
 
@@ -57,9 +104,7 @@ bool loadLevel(const std::string &dir, LevelData &out) {
 bool loadPlayer(const std::string &dir, PlayerData &out) {
   std::ifstream in(dir + "/player.dat", std::ios::binary);
   if (!in || !checkHeader(in, kPlayerMagic)) return false;
-  return rd(in, out.position.x) && rd(in, out.position.y) &&
-         rd(in, out.position.z) && rd(in, out.yaw) && rd(in, out.pitch) &&
-         rd(in, out.selected_slot) && rd(in, out.fly_mode);
+  return readPlayer(in, out);
 }
 
 bool loadEdits(const std::string &dir, WorldEdits &out) {
@@ -108,13 +153,7 @@ bool save(const std::string &dir, const LevelData &level,
     std::ofstream o(dir + "/player.dat", std::ios::binary | std::ios::trunc);
     if (!o) return false;
     writeHeader(o, kPlayerMagic);
-    wr(o, player.position.x);
-    wr(o, player.position.y);
-    wr(o, player.position.z);
-    wr(o, player.yaw);
-    wr(o, player.pitch);
-    wr(o, player.selected_slot);
-    wr(o, player.fly_mode);
+    writePlayer(o, player);
   }
   {
     std::ofstream o(dir + "/edits.dat", std::ios::binary | std::ios::trunc);
@@ -138,18 +177,7 @@ bool save(const std::string &dir, const LevelData &level,
 bool loadInventory(const std::string &dir, std::vector<ItemStack> &out) {
   std::ifstream in(dir + "/inventory.dat", std::ios::binary);
   if (!in || !checkHeader(in, kInvMagic)) return false;
-
-  uint16_t slot_count = 0;
-  if (!rd(in, slot_count)) return false;
-  std::vector<ItemStack> slots(slot_count);
-  for (ItemStack &s : slots) {
-    uint16_t id, count;
-    if (!rd(in, id) || !rd(in, count)) return false;
-    ItemId item = static_cast<ItemId>(id);
-    if (isValidItem(item) && count > 0) s = {item, count};
-  }
-  out = std::move(slots);
-  return true;
+  return readSlots(in, out);
 }
 
 bool saveInventory(const std::string &dir, std::span<const ItemStack> slots) {
@@ -160,12 +188,43 @@ bool saveInventory(const std::string &dir, std::span<const ItemStack> slots) {
   std::ofstream o(dir + "/inventory.dat", std::ios::binary | std::ios::trunc);
   if (!o) return false;
   writeHeader(o, kInvMagic);
-  wr(o, static_cast<uint16_t>(slots.size()));
-  for (const ItemStack &s : slots) {
-    wr(o, static_cast<uint16_t>(s.empty() ? ItemId::NONE : s.id));
-    wr(o, static_cast<uint16_t>(s.empty() ? 0 : s.count));
-  }
+  writeSlots(o, slots);
   return static_cast<bool>(o);
+}
+
+// ─── players/<name>.dat ─────────────────────────────────────────────────────
+
+bool saveGuest(const std::string &dir, const std::string &name, const GuestRecord &rec) {
+  if (!safeName(name)) return false;
+  std::error_code ec;
+  std::filesystem::create_directories(dir + "/players", ec);
+  if (ec) return false;
+  std::ofstream o(dir + "/players/" + name + ".dat", std::ios::binary | std::ios::trunc);
+  if (!o) return false;
+  writeHeader(o, kGuestMagic);
+  writePlayer(o, rec.player);
+  writeSlots(o, rec.inventory);
+  return static_cast<bool>(o);
+}
+
+bool loadGuests(const std::string &dir, std::map<std::string, GuestRecord> &out) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  fs::path folder = fs::path(dir) / "players";
+  if (!fs::is_directory(folder, ec)) return true;
+  for (const fs::directory_entry &entry : fs::directory_iterator(folder, ec)) {
+    if (entry.path().extension() != ".dat") continue;
+    std::string name = entry.path().stem().string();
+    std::ifstream in(entry.path(), std::ios::binary);
+    GuestRecord rec;
+    if (!safeName(name) || !in || !checkHeader(in, kGuestMagic) ||
+        !readPlayer(in, rec.player) || !readSlots(in, rec.inventory)) {
+      std::cerr << "[save] skipping unreadable " << entry.path() << "\n";
+      continue;
+    }
+    out[name] = std::move(rec);
+  }
+  return !ec;
 }
 
 } // namespace WorldSave

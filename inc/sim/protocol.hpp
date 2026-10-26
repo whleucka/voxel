@@ -3,6 +3,7 @@
 #include "block/block_type.hpp"
 #include "entity/entity_type.hpp"
 #include "inventory/inventory.hpp"
+#include "world/block_edit.hpp"
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <string>
@@ -17,7 +18,8 @@ using EntityId = uint32_t;
 
 // ─── Commands (client → sim) ───────────────────────────────────────────
 
-struct Join {};
+// The first command on every link. An empty name becomes "Player<id>".
+struct Join { std::string name; };
 
 // Movement is client-authoritative: the client runs physics and reports where
 // it ended up. Fine on a home LAN, and it keeps movement smooth.
@@ -32,6 +34,9 @@ struct MovePlayer {
   bool sprinting = false;
   bool in_water = false;        // feet or eyes in water
   bool eyes_underwater = false;
+  // The latest Respawned counter this client has seen. Moves sent before a
+  // respawn arrive with the old one and are ignored.
+  uint32_t respawn = 0;
 };
 
 struct BreakBlock { glm::ivec3 pos{0}; };
@@ -72,10 +77,30 @@ struct Joined {
   bool fly = false;
 };
 
+// Sent to a guest before Joined: everything needed to build its own copy of
+// the host's world (terrain comes from the seed; edits are replayed on top).
+struct Welcome {
+  uint32_t seed = 0;
+  glm::vec2 noise_offset{0.0f};
+  float time_of_day = 0.0f; // seconds
+  float time_scale = 1.0f;
+  std::vector<BlockEdit> edits;
+};
+
+// The host's clock, once a second, so every guest's sky matches.
+struct TimeSync { float time_of_day = 0.0f; float time_scale = 1.0f; };
+
 struct BlockChanged { glm::ivec3 pos{0}; BlockType type = BlockType::AIR; };
-struct PlayerJoined { PlayerId id = 0; };
+// Another player joined or left (never sent about yourself).
+struct PlayerJoined { PlayerId id = 0; std::string name; };
 struct PlayerLeft { PlayerId id = 0; };
 struct CommandRejected { std::string reason; };
+// The link to the host is gone: the host quit (it sends this first) or the
+// connection failed (the guest's NetConnection reports it). Back to the menu.
+struct Disconnected { std::string reason; };
+
+// The Join was refused (name in use, game full); the link is then closed.
+struct JoinRefused { std::string reason; };
 
 // The owner's full inventory, sent after joining and after every change.
 // 40 slots is small enough that a snapshot beats tracking deltas.
@@ -92,7 +117,7 @@ struct VitalsChanged {
 };
 
 // The Game moved this player (respawn); the client must jump there and stop.
-struct Respawned { glm::vec3 position{0.0f}; };
+struct Respawned { glm::vec3 position{0.0f}; uint32_t respawn = 0; };
 
 // An enemy hit this player: the client adds this to its velocity (movement is
 // client-side, so the Game can't push the player itself).
@@ -110,13 +135,26 @@ struct EntityView {
   bool moving = false;        // set client-side by the interpolator
 };
 
-// Every entity within range of this player, sent every tick. An entity that
-// isn't listed is gone (or out of range).
+// Another living player, as a client draws them.
+struct PlayerView {
+  PlayerId id = 0;
+  std::string name;
+  glm::vec3 position{0.0f}; // feet
+  float yaw = -90.0f;       // camera convention (degrees)
+  float pitch = 0.0f;
+  bool crouch = false;
+  bool moving = false;      // set client-side by the interpolator
+};
+
+// Every entity and other player within range of this player, sent every tick.
+// One that isn't listed is gone (or out of range). Never includes yourself.
 struct EntitySnapshot {
   uint32_t tick = 0;
   std::vector<EntityView> entities;
+  std::vector<PlayerView> players = {};
 };
 
 using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            CommandRejected, InventoryContents, VitalsChanged,
-                           Respawned, EntitySnapshot, KnockedBack>;
+                           Respawned, EntitySnapshot, KnockedBack, JoinRefused,
+                           Welcome, TimeSync, Disconnected>;

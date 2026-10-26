@@ -3,9 +3,9 @@
 #include "glad/glad.h"
 #include "player/player.hpp"
 #include "render/camera.hpp"
-#include "sim/game.hpp"
-#include "sim/local_connection.hpp"
+#include "core/session.hpp"
 #include "ui/hud.hpp"
+#include "ui/title_menu.hpp"
 #include "entity/entity_interp.hpp"
 #include "render/entity_renderer.hpp"
 #include <GLFW/glfw3.h>
@@ -28,9 +28,10 @@ private:
   int win_width, win_height;
   int win_pos_x, win_pos_y;
 
-  Game game;
-  LocalConnection connection;
+  // The game being played (single player, hosted or joined); null in the menu.
+  std::unique_ptr<Session> session;
   PlayerId player_id = 0;
+  uint32_t respawn_count = 0;     // echoed in MovePlayer; see Respawned
   std::unique_ptr<Player> player; // the local player; created on Joined
   std::string last_rejection;     // latest CommandRejected, for the debug panel
   Inventory::Slots inventory_view{}; // the Game's latest InventoryContents
@@ -40,7 +41,10 @@ private:
   EntityInterpolator entity_interp;
   double last_snapshot_time = 0.0;
   std::vector<EntityView> entity_views; // this frame's interpolated entities
+  std::vector<PlayerView> player_views; // this frame's other players
   InventoryScreen inventory_screen;
+  TitleMenu menu;
+  double join_started = 0.0; // a guest waiting for Joined since then
 
   bool first_mouse = true;
   float last_frame = 0.0f;
@@ -56,6 +60,17 @@ private:
   static void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods);
   static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
   static void windowResize(GLFWwindow *window, int width, int height);
+  World &world() { return session->world(); }
+  Connection &connection() { return session->connection(); }
+  // Starts playing in `s` with fresh client-side state.
+  void startSession(std::unique_ptr<Session> s);
+  // Saves and leaves the current game, back to the menu with `message`.
+  void endSession(std::string message = {});
+  bool playing() const { return session && player; }
+  void menuFrame();
+  void startFromMenu(const TitleMenu::Choice &choice);
+  void setCursorCaptured(bool captured);
+  void debugMultiplayer();
   void processInput(GLFWwindow *window);
   void update();
   void handleEvents();
@@ -63,6 +78,7 @@ private:
   void setInventoryOpen(bool open);
   void render();
   void renderCrosshair();
+  void renderNameTags(const glm::mat4 &view_projection);
   void debug();
   void debugInventory();
   void cleanup();

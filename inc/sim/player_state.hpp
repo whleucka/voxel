@@ -11,6 +11,8 @@
 // Player (physics, camera) reports into this via MovePlayer.
 struct PlayerState {
   PlayerId id = 0;
+  std::string name;
+  uint32_t respawn = 0;    // bumped on every respawn; see MovePlayer::respawn
   glm::vec3 position{0.0f}; // feet
   float yaw = -90.0f;
   float pitch = 0.0f;

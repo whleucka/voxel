@@ -14,7 +14,7 @@ next to this file; this map is the index of what exists.
 | entities ✅ | Generic non-player entities: AABB physics, box-model rendering, spawn/despawn near players | sim-core |
 | animals ✅ | Friendly animals: biome spawning, cautious wandering, feeding for products, food | entities, items |
 | enemies ✅ | Hostile mobs: spawn rules, voxel pathfinding, melee attack, difficulty | entities, vitals |
-| multiplayer | LAN host/join, sync edits, players, entities, inventories | sim-core (+ all above) |
+| multiplayer ✅ | LAN host/join, sync edits, players, entities, inventories | sim-core (+ all above) |
 
 Build order: sim-core → items → inventory → hud → vitals → entities → animals → enemies → multiplayer
 (hud moved ahead of vitals on 2026-10-26, so the hotbar is visible sooner)
@@ -36,7 +36,7 @@ Build order: sim-core → items → inventory → hud → vitals → entities �
   timing. Generation now draws from a per-chunk RNG seeded from
   `(world_seed, cx, cz)`, so a chunk is identical on every reload and every
   machine with the same seed. That was a prerequisite for `multiplayer`.
-- **Stale moves after a respawn** (noted in vitals T3). `Game` trusts
+- ~~**Stale moves after a respawn**~~ (noted in vitals T3; fixed in multiplayer T1 with a respawn counter on `Respawned` and `MovePlayer`). `Game` trusts
   `MovePlayer` positions. In-process, a respawn is always applied before
   the client's next move, but over a network a move sent before `Respawned`
   could arrive after it. It would put the player back where they died and

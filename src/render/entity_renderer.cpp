@@ -2,6 +2,7 @@
 #include "block/block_data.hpp"
 #include "core/settings.hpp"
 #include "entity/entity_type.hpp"
+#include "entity/player_model.hpp"
 #include "render/texture_util.hpp"
 #include "ui/item_icon_geometry.hpp"
 #include "world/world.hpp"
@@ -80,11 +81,43 @@ void EntityRenderer::drawBox(const glm::mat4 &entity_model, glm::vec3 offset,
   glDrawArrays(GL_TRIANGLES, 0, 36);
 }
 
-void EntityRenderer::draw(const std::vector<EntityView> &entities, const World &world,
+void EntityRenderer::setLight(const World &world, glm::vec3 position) const {
+  glm::ivec3 cell = glm::ivec3(glm::floor(position + glm::vec3(0.0f, 0.5f, 0.0f)));
+  shader->setFloat("uSkyLight", world.getSkyLightAt(cell) / 15.0f);
+  shader->setFloat("uBlockLight", world.getBlockLightAt(cell) / 15.0f);
+}
+
+void EntityRenderer::drawModel(const std::vector<ModelBox> &model, glm::vec3 position,
+                               float yaw, bool moving, const World &world, double now) const {
+  setLight(world, position);
+  // Models face -Z at yaw 0; positive yaw turns toward +X.
+  glm::mat4 m = glm::rotate(glm::translate(glm::mat4(1.0f), position), -glm::radians(yaw),
+                            glm::vec3(0, 1, 0));
+  shader->setInt("uMode", 0);
+  float swing = moving ? std::sin(static_cast<float>(now) * 10.0f) * glm::radians(30.0f) : 0.0f;
+  for (const ModelBox &box : model) {
+    shader->setVec3("uColor", box.color);
+    if (box.glow) shader->setBool("uGlow", true);
+    if (box.swing == 0 || swing == 0.0f) {
+      drawBox(m, box.offset, box.size);
+    } else {
+      // Legs (and arms) swing forward and back about the top of the box.
+      glm::vec3 pivot = box.offset + glm::vec3(box.size.x * 0.5f, box.size.y, box.size.z * 0.5f);
+      glm::mat4 local = glm::translate(glm::mat4(1.0f), pivot) *
+                        glm::rotate(glm::mat4(1.0f), swing * box.swing, glm::vec3(1, 0, 0)) *
+                        glm::translate(glm::mat4(1.0f), -pivot);
+      drawBox(m, box.offset, box.size, local);
+    }
+    if (box.glow) shader->setBool("uGlow", false);
+  }
+}
+
+void EntityRenderer::draw(const std::vector<EntityView> &entities,
+                          const std::vector<PlayerView> &players, const World &world,
                           const glm::mat4 &view, const glm::mat4 &projection,
                           glm::vec3 camera_pos, bool underwater, float time_of_day,
                           double now) {
-  if (!shader || entities.empty()) return;
+  if (!shader || (entities.empty() && players.empty())) return;
 
   SceneLighting light = Renderer::sceneLighting(time_of_day);
   shader->use();
@@ -109,9 +142,7 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities, const World &
   glActiveTexture(GL_TEXTURE0);
 
   for (const EntityView &e : entities) {
-    glm::ivec3 cell = glm::ivec3(glm::floor(e.position + glm::vec3(0.0f, 0.5f, 0.0f)));
-    shader->setFloat("uSkyLight", world.getSkyLightAt(cell) / 15.0f);
-    shader->setFloat("uBlockLight", world.getBlockLightAt(cell) / 15.0f);
+    setLight(world, e.position);
     shader->setFloat("uHurt", e.hurt ? 0.55f : 0.0f);
 
     if (e.kind == EntityKind::DroppedItem) {
@@ -147,28 +178,7 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities, const World &
     }
 
     const EntityTypeDef &def = entityType(e.kind);
-    // Models face -Z at yaw 0; positive yaw turns toward +X.
-    glm::mat4 m = glm::rotate(glm::translate(glm::mat4(1.0f), e.position),
-                              -glm::radians(e.yaw), glm::vec3(0, 1, 0));
-    shader->setInt("uMode", 0);
-    float swing = e.moving ? std::sin(static_cast<float>(now) * 10.0f) * glm::radians(30.0f)
-                           : 0.0f;
-    for (const ModelBox &box : def.model) {
-      shader->setVec3("uColor", box.color);
-      if (box.glow) shader->setBool("uGlow", true);
-      if (box.swing == 0 || swing == 0.0f) {
-        drawBox(m, box.offset, box.size);
-        if (box.glow) shader->setBool("uGlow", false);
-        continue;
-      }
-      // Legs swing forward and back about the top of the leg.
-      glm::vec3 pivot = box.offset + glm::vec3(box.size.x * 0.5f, box.size.y, box.size.z * 0.5f);
-      glm::mat4 local = glm::translate(glm::mat4(1.0f), pivot) *
-                        glm::rotate(glm::mat4(1.0f), swing * box.swing, glm::vec3(1, 0, 0)) *
-                        glm::translate(glm::mat4(1.0f), -pivot);
-      drawBox(m, box.offset, box.size, local);
-      if (box.glow) shader->setBool("uGlow", false);
-    }
+    drawModel(def.model, e.position, e.yaw, e.moving, world, now);
 
     // A fed animal shows a little bobbing heart above its head (not turned
     // with the body, so it always reads as a heart).
@@ -184,6 +194,12 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities, const World &
       drawBox(h, {-0.04f, -0.09f, -0.03f}, {0.08f, 0.07f, 0.06f}); // point
     }
   }
+
+  // Other players: blocky figures in their name's colour.
+  shader->setFloat("uHurt", 0.0f);
+  for (const PlayerView &p : players)
+    drawModel(playerModel(playerColor(p.name)), p.position, playerModelYaw(p.yaw), p.moving,
+              world, now);
 
   glBindVertexArray(0);
   glEnable(GL_CULL_FACE);
