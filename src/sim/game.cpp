@@ -19,6 +19,16 @@ const PlayerState *Game::findPlayer(PlayerId id) const {
   return it == players.end() ? nullptr : &it->second;
 }
 
+PlayerState *Game::playerFor(const Client &client) {
+  if (!client.player) return nullptr;
+  auto it = players.find(*client.player);
+  return it == players.end() ? nullptr : &it->second;
+}
+
+void Game::reject(Client &client, std::string reason) {
+  client.link->deliver(CommandRejected{std::move(reason)});
+}
+
 // ─── Loop ──────────────────────────────────────────────────────────────
 
 void Game::pump() {
@@ -28,6 +38,14 @@ void Game::pump() {
     client.link->drain(cmds);
     for (const Command &cmd : cmds) apply(client, cmd);
   }
+  updateInterestPoints();
+}
+
+void Game::updateInterestPoints() {
+  std::vector<glm::vec3> points;
+  points.reserve(players.size());
+  for (const auto &[id, ps] : players) points.push_back(ps.position);
+  world_.setInterestPoints(points);
 }
 
 int Game::advance(float dt) {
@@ -53,6 +71,8 @@ void Game::apply(Client &client, const Command &cmd) {
       [&](const auto &c) {
         using T = std::decay_t<decltype(c)>;
         if constexpr (std::is_same_v<T, Join> ||
+                      std::is_same_v<T, MovePlayer> ||
+                      std::is_same_v<T, SelectSlot> ||
                       std::is_same_v<T, SetTimeOfDay>)
           apply(client, c);
         // Remaining commands are routed through Game in later tasks.
@@ -80,6 +100,25 @@ void Game::apply(Client &client, const Join &) {
   client.player = ps.id;
   client.link->deliver(Joined{ps.id, ps.position, ps.yaw, ps.pitch,
                               ps.selected_slot, ps.fly});
+}
+
+void Game::apply(Client &client, const MovePlayer &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps) return;
+  ps->position = cmd.position;
+  ps->yaw = cmd.yaw;
+  ps->pitch = cmd.pitch;
+  ps->fly = cmd.fly;
+  ps->crouch = cmd.crouch;
+}
+
+void Game::apply(Client &client, const SelectSlot &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps) return;
+  // Same rule as the client's Player: out-of-range selections are ignored.
+  if (cmd.slot < 0 || cmd.slot >= kHotbarSlots)
+    return reject(client, "hotbar slot out of range");
+  ps->selected_slot = cmd.slot;
 }
 
 void Game::apply(Client &, const SetTimeOfDay &cmd) {

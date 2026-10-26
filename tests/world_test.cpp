@@ -5,7 +5,7 @@
 // upload meshes, which needs a GL context. Mesh building itself is CPU-only.
 #include "doctest/doctest.h"
 #include "core/constants.hpp"
-#include "core/settings.hpp"
+#include "test_util.hpp"
 #include "world/world.hpp"
 #include <chrono>
 #include <thread>
@@ -24,26 +24,6 @@ int topSolidY(const World &world, int bx, int bz) {
 uint32_t linearIndex(int lx, int y, int lz) {
   return lx + kChunkWidth * (lz + kChunkDepth * y);
 }
-
-// Chunk generation is async; wait (bounded) for a chunk to appear.
-bool waitForChunk(const World &world, int cx, int cz) {
-  using namespace std::chrono;
-  auto deadline = steady_clock::now() + seconds(20);
-  while (steady_clock::now() < deadline) {
-    if (world.getChunk(cx, cz)) return true;
-    std::this_thread::sleep_for(milliseconds(5));
-  }
-  return false;
-}
-
-// Shrinks the streaming radius for one test; World reads it at construction.
-struct ScopedRenderDistance {
-  int saved = g_settings.render_distance;
-  explicit ScopedRenderDistance(int chunks) {
-    g_settings.render_distance = chunks * kChunkWidth;
-  }
-  ~ScopedRenderDistance() { g_settings.render_distance = saved; }
-};
 
 } // namespace
 

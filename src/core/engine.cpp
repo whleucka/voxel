@@ -153,9 +153,6 @@ void Engine::run() {
     return;
   }
 
-  const glm::vec3 interest[] = {player->getPosition()};
-  game.world().setInterestPoints(interest);
-
   while (!glfwWindowShouldClose(window)) {
     float currentFrame = glfwGetTime();
     delta_time = currentFrame - last_frame;
@@ -223,15 +220,18 @@ void Engine::processInput(GLFWwindow *window) {
 // ─── Update ────────────────────────────────────────────────────────────
 
 void Engine::update() {
+  // Physics runs locally; the Game is told where we ended up, and streams
+  // chunks around every player's reported position when it pumps.
+  player->update(delta_time, &game.world());
+  const Camera &cam = player->getCamera();
+  connection.send(MovePlayer{player->getPosition(), cam.yaw, cam.pitch,
+                             player->isFlyMode(), player->isCrouching()});
+
   game.pump();
   game.advance(delta_time);
   handleEvents();
 
-  World &world = game.world();
-  player->update(delta_time, &world);
-  const glm::vec3 interest[] = {player->getPosition()};
-  world.setInterestPoints(interest);
-  world.update(delta_time);
+  game.world().update(delta_time);
 
   if (g_settings.wireframe) {
     glLineWidth(2.0f);
@@ -568,15 +568,15 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
     }
 
     // Hotbar slots 1-9
-    case GLFW_KEY_1: engine->player->setSelectedHotbarSlot(0); break;
-    case GLFW_KEY_2: engine->player->setSelectedHotbarSlot(1); break;
-    case GLFW_KEY_3: engine->player->setSelectedHotbarSlot(2); break;
-    case GLFW_KEY_4: engine->player->setSelectedHotbarSlot(3); break;
-    case GLFW_KEY_5: engine->player->setSelectedHotbarSlot(4); break;
-    case GLFW_KEY_6: engine->player->setSelectedHotbarSlot(5); break;
-    case GLFW_KEY_7: engine->player->setSelectedHotbarSlot(6); break;
-    case GLFW_KEY_8: engine->player->setSelectedHotbarSlot(7); break;
-    case GLFW_KEY_9: engine->player->setSelectedHotbarSlot(8); break;
+    case GLFW_KEY_1: engine->selectSlot(0); break;
+    case GLFW_KEY_2: engine->selectSlot(1); break;
+    case GLFW_KEY_3: engine->selectSlot(2); break;
+    case GLFW_KEY_4: engine->selectSlot(3); break;
+    case GLFW_KEY_5: engine->selectSlot(4); break;
+    case GLFW_KEY_6: engine->selectSlot(5); break;
+    case GLFW_KEY_7: engine->selectSlot(6); break;
+    case GLFW_KEY_8: engine->selectSlot(7); break;
+    case GLFW_KEY_9: engine->selectSlot(8); break;
 
     // Fullscreen toggle
     case GLFW_KEY_F11: {
@@ -701,7 +701,14 @@ void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
   } else if (yoffset > 0) {
     slot = (slot - 1 + kHotbarSlots) % kHotbarSlots;
   }
+  engine->selectSlot(slot);
+}
+
+// The local Player mirrors the selection immediately (it picks the block to
+// place); the Game holds the authoritative copy.
+void Engine::selectSlot(int slot) {
   player->setSelectedHotbarSlot(slot);
+  connection.send(SelectSlot{slot});
 }
 
 // ─── Window Resize ─────────────────────────────────────────────────────

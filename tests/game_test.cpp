@@ -4,9 +4,17 @@
 #include "core/settings.hpp"
 #include "sim/game.hpp"
 #include "sim/local_connection.hpp"
+#include "test_util.hpp"
 #include <cmath>
 
 namespace {
+
+// Joining makes the Game stream chunks around the player; keep the radius
+// tiny so tests don't generate a full render distance of terrain.
+struct SmallGame {
+  ScopedRenderDistance rd{1};
+  Game game;
+};
 
 std::vector<Event> pollAll(LocalConnection &conn) {
   std::vector<Event> out;
@@ -27,19 +35,17 @@ Joined join(Game &game, LocalConnection &conn) {
 
 } // namespace
 
-TEST_CASE("advance runs whole fixed ticks and carries the remainder") {
-  Game game;
+TEST_CASE_FIXTURE(SmallGame, "advance runs whole fixed ticks and carries the remainder") {
   CHECK(game.advance(0.125f) == 2);  // 100 ms used, 25 ms carried
   CHECK(game.advance(0.025f) == 1);  // carried 25 + 25 = one more tick
   CHECK(game.advance(0.049f) == 0);
   CHECK(game.advance(0.0f) == 0);
 }
 
-TEST_CASE("the clock advances only on ticks") {
+TEST_CASE_FIXTURE(SmallGame, "the clock advances only on ticks") {
   float saved_scale = g_settings.time_scale;
   g_settings.time_scale = 72.0f;
 
-  Game game;
   float t0 = game.clock().time_of_day;
   game.advance(0.04f); // under one tick
   CHECK(game.clock().time_of_day == t0);
@@ -50,8 +56,7 @@ TEST_CASE("the clock advances only on ticks") {
   g_settings.time_scale = saved_scale;
 }
 
-TEST_CASE("joining a fresh world spawns on solid ground") {
-  Game game;
+TEST_CASE_FIXTURE(SmallGame, "joining a fresh world spawns on solid ground") {
   LocalConnection conn;
   Joined j = join(game, conn);
 
@@ -67,7 +72,7 @@ TEST_CASE("joining a fresh world spawns on solid ground") {
                                   static_cast<int>(std::floor(j.position.z))));
 }
 
-TEST_CASE("the first join restores the saved player") {
+TEST_CASE_FIXTURE(SmallGame, "the first join restores the saved player") {
   WorldSave::LevelData level;
   level.time_of_day = 1000.0f;
   WorldSave::PlayerData pd;
@@ -77,7 +82,6 @@ TEST_CASE("the first join restores the saved player") {
   pd.selected_slot = 6;
   pd.fly_mode = 1;
 
-  Game game;
   game.restore(level, {}, pd);
   CHECK(game.clock().time_of_day == 1000.0f);
 
@@ -96,8 +100,7 @@ TEST_CASE("the first join restores the saved player") {
   CHECK(j2.position != pd.position);
 }
 
-TEST_CASE("joining twice on one connection is ignored") {
-  Game game;
+TEST_CASE_FIXTURE(SmallGame, "joining twice on one connection is ignored") {
   LocalConnection conn;
   join(game, conn);
   conn.send(Join{});
@@ -105,8 +108,7 @@ TEST_CASE("joining twice on one connection is ignored") {
   CHECK(pollAll(conn).empty());
 }
 
-TEST_CASE("SetTimeOfDay sets and wraps the clock") {
-  Game game;
+TEST_CASE_FIXTURE(SmallGame, "SetTimeOfDay sets and wraps the clock") {
   LocalConnection conn;
   join(game, conn);
 
@@ -117,4 +119,59 @@ TEST_CASE("SetTimeOfDay sets and wraps the clock") {
   conn.send(SetTimeOfDay{24 * 3600.0f});
   game.pump();
   CHECK(game.clock().time_of_day == 0.0f);
+}
+
+TEST_CASE_FIXTURE(SmallGame, "MovePlayer updates the player's state") {
+  LocalConnection conn;
+  Joined j = join(game, conn);
+
+  conn.send(MovePlayer{{40.5f, 70.0f, -8.5f}, 15.0f, -20.0f, true, true});
+  game.pump();
+
+  const PlayerState *ps = game.findPlayer(j.id);
+  REQUIRE(ps);
+  CHECK(ps->position == glm::vec3(40.5f, 70.0f, -8.5f));
+  CHECK(ps->yaw == 15.0f);
+  CHECK(ps->pitch == -20.0f);
+  CHECK(ps->fly);
+  CHECK(ps->crouch);
+  CHECK(ps->height() == kPlayerCrouchHeight);
+}
+
+TEST_CASE_FIXTURE(SmallGame, "chunks stream around each player's position") {
+  LocalConnection conn;
+  join(game, conn);
+
+  const glm::vec3 far{200.5f * kChunkWidth, 80.0f, 0.5f};
+  conn.send(MovePlayer{far, 0.0f, 0.0f, false, false});
+  game.pump();
+
+  CHECK(waitForChunk(game.world(), 200, 0));
+}
+
+TEST_CASE_FIXTURE(SmallGame, "SelectSlot stores valid slots and rejects others") {
+  LocalConnection conn;
+  Joined j = join(game, conn);
+
+  conn.send(SelectSlot{3});
+  game.pump();
+  CHECK(game.findPlayer(j.id)->selected_slot == 3);
+  CHECK(pollAll(conn).empty());
+
+  conn.send(SelectSlot{42});
+  conn.send(SelectSlot{-1});
+  game.pump();
+  CHECK(game.findPlayer(j.id)->selected_slot == 3);
+  auto events = pollAll(conn);
+  REQUIRE(events.size() == 2);
+  CHECK(std::holds_alternative<CommandRejected>(events[0]));
+}
+
+TEST_CASE_FIXTURE(SmallGame, "commands before Join are ignored") {
+  LocalConnection conn;
+  game.addClient(conn);
+  conn.send(MovePlayer{{1.0f, 2.0f, 3.0f}, 0.0f, 0.0f, false, false});
+  conn.send(SelectSlot{2});
+  game.pump();
+  CHECK(pollAll(conn).empty());
 }

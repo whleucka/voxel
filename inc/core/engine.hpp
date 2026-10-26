@@ -49,6 +49,7 @@ private:
   void processInput(GLFWwindow *window);
   void update();
   void handleEvents();
+  void selectSlot(int slot);
   void render();
   void renderCrosshair();
   void debug();
