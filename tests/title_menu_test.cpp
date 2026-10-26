@@ -21,3 +21,10 @@ TEST_CASE("typed addresses: host, or host:port") {
   CHECK_FALSE(parseAddress(":47800", 47800));
   CHECK_FALSE(parseAddress("two words", 47800));
 }
+
+TEST_CASE("world sizes read nicely") {
+  CHECK(sizeText(0) == "0 B");
+  CHECK(sizeText(1023) == "1023 B");
+  CHECK(sizeText(48 * 1024) == "48 KB");
+  CHECK(sizeText(3565158) == "3.4 MB");
+}

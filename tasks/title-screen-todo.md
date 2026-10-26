@@ -20,7 +20,7 @@ Plan: [title-screen-plan.md](title-screen-plan.md) · Spec: [SPEC-title-screen.m
 - [x] `MenuScene` loads the last world (or a scenic seed), orbits, and runs its clock. It never saves.
 
 ## T4: Menu pages
-- [ ] Main, Single player (world list and actions with a delete confirm) and Multiplayer pages.
+- [x] Main, Single player (world list and actions with a delete confirm) and Multiplayer pages.
 
 ## T5: Engine
 - [ ] The scene shows on the menu and closes before a session. Play and Host start the chosen world and make it the last played. Rename follows `world-name`.

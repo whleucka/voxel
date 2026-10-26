@@ -160,9 +160,14 @@ void Engine::menuFrame() {
   ImGui_ImplGlfw_NewFrame();
   ImGui::NewFrame();
   std::string name = g_settings.player_name;
-  TitleMenu::Choice choice =
-      menu.draw(glfwGetTime(), name, static_cast<uint16_t>(g_settings.server_port));
+  std::string last_world = g_settings.world_name;
+  TitleMenu::Choice choice = menu.draw(glfwGetTime(), name, last_world,
+                                       static_cast<uint16_t>(g_settings.server_port));
   g_settings.player_name = name;
+  if (last_world != g_settings.world_name) { // a rename, or a world chosen to play
+    g_settings.world_name = last_world;
+    saveServerProperties();
+  }
   ImGui::Render();
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
@@ -176,14 +181,14 @@ void Engine::startFromMenu(const TitleMenu::Choice &choice) {
 
   Session::Options opts;
   opts.name = g_settings.player_name;
-  opts.save_dir = WorldSave::worldDir(g_settings.world_name);
-  opts.world_name = g_settings.world_name;
+  opts.save_dir = WorldSave::worldDir(choice.world);
+  opts.world_name = choice.world;
   opts.port = static_cast<uint16_t>(g_settings.server_port);
 
   std::string error;
   std::unique_ptr<Session> s;
   switch (choice.kind) {
-    case TitleMenu::Choice::Single:
+    case TitleMenu::Choice::Play:
       s = Session::local(Session::Mode::Single, opts, error);
       break;
     case TitleMenu::Choice::Host:
