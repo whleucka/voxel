@@ -15,9 +15,9 @@ Spec: [SPEC-animals.md](../SPEC-animals.md) · Tasks: [animals-todo.md](animals-
   snapshot flags: `moving` (set by the interpolator) and `happy` (from `Game`).
 
 ## Tasks
-- [ ] T1: New items (WOOL, BERRIES, SEA_SHELL, SWEET_PETALS), `food_heal`, icons
-- [ ] T2: `WanderBrain` options: cautious (water and drops) and hop
-- [ ] T3: Animal kinds, models, `AnimalDef`, spawn predicate and rules
-- [ ] T4: `Game`: `InteractEntity` feeding, `EatItem`, rules registered
-- [ ] T5: Client: right-click routing, `moving`/`happy` flags, leg swing, heart
-- [ ] T6: Wrap-up, PR, merge when green
+- [x] T1: New items (WOOL, BERRIES, SEA_SHELL, SWEET_PETALS), `food_heal`, icons
+- [x] T2: `WanderBrain` options: cautious (water and drops) and hop
+- [x] T3: Animal kinds, models, `AnimalDef`, spawn predicate and rules
+- [x] T4: `Game`: `InteractEntity` feeding, `EatItem`, rules registered
+- [x] T5: Client: right-click routing, `moving`/`happy` flags, leg swing, heart
+- [x] T6: Wrap-up, PR, merge when green
