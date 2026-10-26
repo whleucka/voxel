@@ -2,8 +2,10 @@
 
 #include "core/constants.hpp"
 #include "inventory/inventory.hpp"
+#include "vitals/vitals.hpp"
 #include "sim/protocol.hpp"
 #include <glm/glm.hpp>
+#include <optional>
 
 // The Game's authoritative record of one connected player. The client-side
 // Player (physics, camera) reports into this via MovePlayer.
@@ -16,6 +18,12 @@ struct PlayerState {
   bool fly = false;
   bool crouch = false;
   Inventory inventory;
+
+  Vitals vitals;
+  FallTracker fall;
+  Activity activity;       // from the latest MovePlayer
+  int dead_ms = 0;         // time spent dead, toward respawn
+  std::optional<VitalsChanged> vitals_sent; // last snapshot sent to the owner
 
   float height() const { return crouch ? kPlayerCrouchHeight : kPlayerHeight; }
   glm::vec3 eyePosition() const {

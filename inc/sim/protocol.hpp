@@ -24,6 +24,11 @@ struct MovePlayer {
   float pitch = 0.0f;
   bool fly = false;
   bool crouch = false;
+  // Physics state the Game needs for vitals (fall damage, stamina, breath).
+  bool on_ground = false;
+  bool sprinting = false;
+  bool in_water = false;        // feet or eyes in water
+  bool eyes_underwater = false;
 };
 
 struct BreakBlock { glm::ivec3 pos{0}; };
@@ -62,5 +67,19 @@ struct CommandRejected { std::string reason; };
 // 40 slots is small enough that a snapshot beats tracking deltas.
 struct InventoryContents { Inventory::Slots slots{}; };
 
+// The owner's vitals, sent after joining and whenever a shown value changes.
+struct VitalsChanged {
+  int health = 0;
+  int stamina = 0;
+  int breath = 0;
+  bool can_sprint = true;
+  bool dead = false;
+  bool operator==(const VitalsChanged &) const = default;
+};
+
+// The Game moved this player (respawn); the client must jump there and stop.
+struct Respawned { glm::vec3 position{0.0f}; };
+
 using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
-                           CommandRejected, InventoryContents>;
+                           CommandRejected, InventoryContents, VitalsChanged,
+                           Respawned>;

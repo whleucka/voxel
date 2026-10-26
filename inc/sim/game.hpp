@@ -5,6 +5,7 @@
 #include "world/game_clock.hpp"
 #include "world/world.hpp"
 #include "world/world_save.hpp"
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -16,6 +17,8 @@
 class Game {
 public:
   static constexpr float kTickSeconds = 0.05f; // 20 Hz
+  static constexpr int kTickMs = 50;
+  static constexpr int kRespawnDelayMs = 3000;
 
   // Bind the game to a save directory and load it if a world exists there.
   // An existing world keeps its own seed (written to g_settings) and clock;
@@ -75,10 +78,15 @@ private:
   bool overlapsAnyPlayer(const glm::ivec3 &block) const;
   // Stream chunks around every player.
   void updateInterestPoints();
+  // Send VitalsChanged to every owner whose shown vitals changed.
+  void flushVitals();
+  void respawn(Client &client, PlayerState &ps);
+  glm::vec3 respawnPoint();
 
   World world_;
   GameClock clock_;
-  float tick_accumulator = 0.0f;
+  // Whole microseconds, so N ticks' worth of frame time runs exactly N ticks.
+  int64_t tick_accumulator_us = 0;
 
   std::vector<Client> clients;
   std::unordered_map<PlayerId, PlayerState> players;
@@ -86,4 +94,5 @@ private:
   std::optional<WorldSave::PlayerData> saved_player;
   std::optional<std::vector<ItemStack>> saved_inventory;
   std::string save_dir;
+  std::optional<glm::vec3> respawn_point; // world spawn, found on first death
 };

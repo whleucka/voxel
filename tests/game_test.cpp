@@ -29,9 +29,10 @@ Joined join(Game &game, LocalConnection &conn) {
   conn.send(Join{});
   game.pump();
   auto events = pollAll(conn);
-  REQUIRE(events.size() == 2);
+  REQUIRE(events.size() == 3);
   REQUIRE(std::holds_alternative<Joined>(events[0]));
   REQUIRE(std::holds_alternative<InventoryContents>(events[1]));
+  REQUIRE(std::holds_alternative<VitalsChanged>(events[2]));
   return std::get<Joined>(events[0]);
 }
 
@@ -594,4 +595,171 @@ TEST_CASE_FIXTURE(SmallGame, "only the first join takes the saved inventory") {
   Joined jb = join(game, b);
   CHECK(game.findPlayer(ja.id)->inventory.slot(4) == ItemStack{ItemId::RUBY, 2});
   CHECK(game.findPlayer(jb.id)->inventory.slots() == Game::starterKit().slots());
+}
+
+// ─── Vitals ────────────────────────────────────────────────────────────
+
+namespace {
+
+std::optional<VitalsChanged> lastVitals(const std::vector<Event> &evs) {
+  std::optional<VitalsChanged> out;
+  for (const Event &e : evs)
+    if (const auto *v = std::get_if<VitalsChanged>(&e)) out = *v;
+  return out;
+}
+
+MovePlayer at(glm::vec3 pos, bool on_ground) {
+  MovePlayer m;
+  m.position = pos;
+  m.on_ground = on_ground;
+  return m;
+}
+
+// Joined player plus an observer, for vitals tests.
+struct VitalsGame : SmallGame {
+  LocalConnection conn, other;
+  PlayerId id = 0;
+
+  VitalsGame() {
+    id = join(game, conn).id;
+    join(game, other);
+  }
+
+  const PlayerState &me() const { return *game.findPlayer(id); }
+
+  std::vector<Event> send(Command cmd) {
+    conn.send(std::move(cmd));
+    game.pump();
+    return pollAll(conn);
+  }
+
+  // Falls from `height` blocks above y=100 onto y=100.
+  std::vector<Event> fall(float height) {
+    send(at({0.5f, 100.0f + height, 0.5f}, true));
+    send(at({0.5f, 100.0f + height - 0.1f, 0.5f}, false));
+    return send(at({0.5f, 100.0f, 0.5f}, true));
+  }
+
+  std::vector<Event> advance(float seconds) {
+    game.advance(seconds);
+    return pollAll(conn);
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(VitalsGame, "joining sends full vitals") {
+  LocalConnection c;
+  game.addClient(c);
+  c.send(Join{});
+  game.pump();
+  auto v = lastVitals(pollAll(c));
+  REQUIRE(v);
+  CHECK(*v == VitalsChanged{20, 20, 20, true, false});
+}
+
+TEST_CASE_FIXTURE(VitalsGame, "a long fall hurts its owner, who alone is told") {
+  pollAll(other);
+  auto evs = fall(10.0f);
+  CHECK(me().vitals.health() == 13);
+  auto v = lastVitals(evs);
+  REQUIRE(v);
+  CHECK(v->health == 13);
+  CHECK_FALSE(lastVitals(pollAll(other)));
+}
+
+TEST_CASE_FIXTURE(VitalsGame, "a short fall doesn't hurt and sends nothing") {
+  auto evs = fall(3.0f);
+  CHECK(me().vitals.health() == 20);
+  CHECK_FALSE(lastVitals(evs));
+}
+
+TEST_CASE_FIXTURE(VitalsGame, "fly mode and water make falls safe") {
+  MovePlayer up = at({0.5f, 150.0f, 0.5f}, false);
+  up.fly = true;
+  send(up);
+  send(at({0.5f, 149.0f, 0.5f}, false)); // stopped flying
+  MovePlayer splash = at({0.5f, 100.0f, 0.5f}, false);
+  splash.in_water = true;
+  send(splash);
+  send(at({0.5f, 100.0f, 0.5f}, true));
+  CHECK(me().vitals.health() == 20);
+}
+
+TEST_CASE_FIXTURE(VitalsGame, "staying underwater drowns over ticks") {
+  MovePlayer under = at({0.5f, 60.0f, 0.5f}, false);
+  under.in_water = under.eyes_underwater = true;
+  send(under);
+
+  auto evs = advance(5.0f);
+  CHECK(me().vitals.breath() == 10);
+  REQUIRE(lastVitals(evs));
+  CHECK(lastVitals(evs)->breath == 10);
+
+  advance(6.0f);
+  CHECK(me().vitals.breath() == 0);
+  CHECK(me().vitals.health() == 18);
+}
+
+TEST_CASE_FIXTURE(VitalsGame, "health regenerates over ticks") {
+  fall(8.0f); // 5 damage
+  CHECK(me().vitals.health() == 15);
+  advance(6.0f);
+  CHECK(me().vitals.health() == 16);
+}
+
+TEST_CASE_FIXTURE(VitalsGame, "sprinting until exhausted tells the client to stop") {
+  MovePlayer run = at({0.5f, 70.0f, 0.5f}, true);
+  run.sprinting = true;
+  send(run);
+  auto evs = advance(10.0f);
+  auto v = lastVitals(evs);
+  REQUIRE(v);
+  CHECK(v->stamina == 0);
+  CHECK_FALSE(v->can_sprint);
+}
+
+TEST_CASE_FIXTURE(VitalsGame, "death freezes the player, then respawns them with their items") {
+  send(GiveItem{ItemId::DIAMOND, 4});
+  Inventory before = me().inventory;
+
+  auto evs = fall(40.0f);
+  REQUIRE(me().vitals.dead());
+  auto v = lastVitals(evs);
+  REQUIRE(v);
+  CHECK(v->dead);
+  CHECK(v->health == 0);
+
+  // Dead: movement and edits are ignored, without rejections.
+  glm::vec3 where = me().position;
+  CHECK(send(at({50.5f, 90.0f, 50.5f}, true)).empty());
+  CHECK(me().position == where);
+  CHECK(send(BreakBlock{{0, 99, 0}}).empty());
+  CHECK(send(PlaceBlock{{0, 101, 0}}).empty());
+
+  advance(2.9f);
+  CHECK(me().vitals.dead());
+
+  evs = advance(0.2f);
+  CHECK_FALSE(me().vitals.dead());
+  bool respawned = false;
+  for (const Event &e : evs)
+    if (const auto *r = std::get_if<Respawned>(&e)) {
+      respawned = true;
+      CHECK(r->position == game.world().findSpawn());
+    }
+  CHECK(respawned);
+  REQUIRE(lastVitals(evs));
+  CHECK(*lastVitals(evs) == VitalsChanged{20, 20, 20, true, false});
+  CHECK(me().position == game.world().findSpawn());
+  CHECK(me().inventory.slots() == before.slots());
+}
+
+TEST_CASE_FIXTURE(VitalsGame, "a fall in progress at respawn doesn't count") {
+  fall(40.0f);
+  advance(3.1f);
+  // The client was mid-air when it died; its next report lands at spawn.
+  glm::vec3 spawn = game.world().findSpawn();
+  send(at(spawn, true));
+  CHECK(me().vitals.health() == 20);
 }
