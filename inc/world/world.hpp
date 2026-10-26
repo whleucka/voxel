@@ -53,6 +53,8 @@ public:
   // ─── Persistence ─────────────────────────────────────────────────────────
   // Installed before chunks load; replayed onto each freshly generated chunk.
   void setLoadedEdits(WorldEdits e);
+  // The same from a flat list (a guest's Welcome), before any chunk loads.
+  void setLoadedEdits(std::span<const BlockEdit> list);
   // Thread-safe copy of all player edits, for writing to disk.
   WorldEdits snapshotEdits() const;
   // The same edits as a flat list in world coordinates (for Welcome).

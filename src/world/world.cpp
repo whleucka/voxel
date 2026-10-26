@@ -734,6 +734,20 @@ WorldEdits World::snapshotEdits() const {
 
 // ─── Remote edits ──────────────────────────────────────────────────────
 
+void World::setLoadedEdits(std::span<const BlockEdit> list) {
+  WorldEdits e;
+  for (const BlockEdit &edit : list) {
+    if (edit.pos.y < 0 || edit.pos.y >= kChunkHeight) continue;
+    int cx = static_cast<int>(std::floor(static_cast<float>(edit.pos.x) / kChunkWidth));
+    int cz = static_cast<int>(std::floor(static_cast<float>(edit.pos.z) / kChunkDepth));
+    int lx = edit.pos.x - cx * kChunkWidth;
+    int lz = edit.pos.z - cz * kChunkDepth;
+    e[{cx, cz}][lx + kChunkWidth * (lz + kChunkDepth * edit.pos.y)] =
+        static_cast<uint8_t>(edit.type);
+  }
+  setLoadedEdits(std::move(e));
+}
+
 std::vector<BlockEdit> World::editList() const {
   std::vector<BlockEdit> out;
   std::lock_guard lk(edits_mutex);

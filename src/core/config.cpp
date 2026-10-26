@@ -89,6 +89,12 @@ std::string serializeSettings(const Settings &s, bool blank_seed) {
     << "# Enemies: peaceful (none), easy (fewer, weaker, slower) or normal.\n"
     << "difficulty=" << difficultyName(s.difficulty) << "\n"
     << "\n"
+    << "# ─── Multiplayer ─────────────────────────────────────────\n"
+    << "# Your name in shared games (1-16 letters, digits, _ or -).\n"
+    << "player-name=" << s.player_name << "\n"
+    << "# The TCP port a hosted game listens on.\n"
+    << "server-port=" << s.server_port << "\n"
+    << "\n"
     << "# ─── Window ──────────────────────────────────────────────\n"
     << "fullscreen=" << (s.fullscreen ? "true" : "false") << "\n"
     << "vsync=" << (s.vsync ? "true" : "false") << "\n"
@@ -181,6 +187,8 @@ void loadServerProperties(const std::string &path) {
   for (const auto &[k, v] : kv) {
     if      (k == "world-name")        { if (!v.empty()) g_settings.world_name = v; }
     else if (k == "view-distance")     applyInt(k, v, g_settings.render_distance);
+    else if (k == "player-name")       { if (!v.empty()) g_settings.player_name = v; }
+    else if (k == "server-port")       applyInt(k, v, g_settings.server_port);
     else if (k == "difficulty") {
       if (auto d = parseDifficulty(v)) g_settings.difficulty = *d;
       else std::cerr << "[config] 'difficulty': expected peaceful/easy/normal, got '"

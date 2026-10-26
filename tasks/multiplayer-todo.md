@@ -32,8 +32,8 @@ Plan: [multiplayer-plan.md](multiplayer-plan.md) · Spec: [SPEC-multiplayer.md](
 - [x] The beacon round-trips. The browser adds games and expires them after 3 s. Loopback send and receive works.
 
 ## T7: Engine refactor
-- [ ] Single-player works through the optional `Game`. The guest mode uses its own `World` and clock.
-- [ ] `player-name` and `server-port` round-trip.
+- [x] Single-player works through the optional `Game`. The guest mode uses its own `World` and clock.
+- [x] `player-name` and `server-port` round-trip.
 
 ## T8: Menu and flows
 - [ ] The title menu offers Single player, Host, Join (live list and address) and Quit. Errors return to the menu with a reason.

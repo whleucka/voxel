@@ -3,8 +3,7 @@
 #include "glad/glad.h"
 #include "player/player.hpp"
 #include "render/camera.hpp"
-#include "sim/game.hpp"
-#include "sim/local_connection.hpp"
+#include "core/session.hpp"
 #include "ui/hud.hpp"
 #include "entity/entity_interp.hpp"
 #include "render/entity_renderer.hpp"
@@ -28,8 +27,8 @@ private:
   int win_width, win_height;
   int win_pos_x, win_pos_y;
 
-  Game game;
-  LocalConnection connection;
+  // The game being played (single player, hosted or joined); null in the menu.
+  std::unique_ptr<Session> session;
   PlayerId player_id = 0;
   uint32_t respawn_count = 0;     // echoed in MovePlayer; see Respawned
   std::unique_ptr<Player> player; // the local player; created on Joined
@@ -57,6 +56,12 @@ private:
   static void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods);
   static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
   static void windowResize(GLFWwindow *window, int width, int height);
+  World &world() { return session->world(); }
+  Connection &connection() { return session->connection(); }
+  // Starts playing in `s` with fresh client-side state.
+  void startSession(std::unique_ptr<Session> s);
+  // Saves and leaves the current game.
+  void endSession();
   void processInput(GLFWwindow *window);
   void update();
   void handleEvents();

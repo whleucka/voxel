@@ -191,7 +191,7 @@ TEST_CASE("a guest world built from the host's edit list matches the host") {
   host.setBlockAt({-1, 201, 15}, BlockType::STONE);
 
   World guest;
-  for (const BlockEdit &e : host.editList()) guest.applyEdit(e.pos, e.type);
+  guest.setLoadedEdits(std::span<const BlockEdit>(host.editList()));
   CHECK(host.editList().size() == 3);
   guest.loadChunkSync(0, 0);
   guest.loadChunkSync(-1, 0);

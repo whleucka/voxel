@@ -10,19 +10,23 @@
 
 // ─── Setup ─────────────────────────────────────────────────────────────
 
-Game::Game() {
+Game::Game() : seed_(g_settings.world_seed), noise_offset_(g_settings.noise_offset) {
   registerAnimalSpawns(spawner_);
   registerEnemySpawns(spawner_);
 }
 
 bool Game::load(const std::string &dir) {
   save_dir = dir;
+  seed_ = g_settings.world_seed;
+  noise_offset_ = g_settings.noise_offset;
 
   WorldSave::LevelData level;
   if (!WorldSave::loadLevel(dir, level)) return false;
 
   g_settings.world_seed   = level.seed;
   g_settings.noise_offset = level.noise_offset;
+  seed_ = level.seed;
+  noise_offset_ = level.noise_offset;
 
   WorldEdits edits;
   WorldSave::loadEdits(dir, edits);
@@ -365,7 +369,7 @@ void Game::apply(Client &client, const Join &cmd) {
 
   // A guest builds its own copy of the world before it hears it has joined.
   if (client.role == Role::Guest)
-    client.link->deliver(Welcome{g_settings.world_seed, g_settings.noise_offset,
+    client.link->deliver(Welcome{seed_, noise_offset_,
                                  clock_.time_of_day, g_settings.time_scale,
                                  world_.editList()});
   for (Client &other : clients)

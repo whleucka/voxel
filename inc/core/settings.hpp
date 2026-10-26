@@ -13,6 +13,10 @@ struct Settings {
   int        render_distance; // how far (in world units) chunks stay loaded
   Difficulty difficulty;      // enemies; read by the Game every tick
 
+  // Multiplayer
+  std::string player_name;   // shown above your head; also your guest record
+  int        server_port;    // TCP port a host listens on
+
   // UI
   bool show_debug;
 
@@ -50,6 +54,7 @@ struct Settings {
       : world_name("world"),
         world_seed(0), noise_offset(0.0f, 0.0f), render_distance(320),
         difficulty(Difficulty::Easy),
+        player_name("Player"), server_port(47800),
         show_debug(false),
         window_width(1600), window_height(900),
         wireframe(false), vsync(false), fullscreen(true), show_cursor(false),

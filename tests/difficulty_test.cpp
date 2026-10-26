@@ -68,3 +68,19 @@ TEST_CASE("easy halves caps and damage, at least 1, and slows enemies") {
   CHECK(scaledDamage(2, Difficulty::Normal) == 2);
   CHECK(speedScale(Difficulty::Normal) == 1.0f);
 }
+
+TEST_CASE("player name and server port round-trip through voxel.properties") {
+  ScopedSettings keep;
+  TempDir dir;
+  std::string path = (dir.path / "voxel.properties").string();
+  CHECK(Settings{}.player_name == "Player");
+  CHECK(Settings{}.server_port == 47800);
+  g_settings.player_name = "Bea";
+  g_settings.server_port = 50123;
+  REQUIRE(saveServerProperties(path));
+  g_settings.player_name = "x";
+  g_settings.server_port = 1;
+  loadServerProperties(path);
+  CHECK(g_settings.player_name == "Bea");
+  CHECK(g_settings.server_port == 50123);
+}
