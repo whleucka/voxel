@@ -1,6 +1,7 @@
 #include "doctest/doctest.h"
 #include "block/block_data.hpp"
 #include "item/item.hpp"
+#include "item/item_stack.hpp"
 #include <set>
 #include <utility>
 
@@ -119,4 +120,77 @@ TEST_CASE("every other block drops itself, and every drop is a valid item") {
     if (drop) CHECK(isValidItem(*drop));
     if (!special.count(b)) CHECK(drop == itemForBlock(b));
   }
+}
+
+// ─── Stacks ────────────────────────────────────────────────────────────
+
+namespace {
+const ItemId kDirt = itemForBlock(BlockType::DIRT);
+const ItemId kSand = itemForBlock(BlockType::SAND);
+} // namespace
+
+TEST_CASE("empty stacks") {
+  CHECK(ItemStack{}.empty());
+  CHECK(ItemStack{kDirt, 0}.empty());
+  CHECK(ItemStack{ItemId::NONE, 5}.empty());
+  CHECK_FALSE(ItemStack{kDirt, 1}.empty());
+  CHECK(ItemStack{}.space() == 64);
+  CHECK(ItemStack{kDirt, 60}.space() == 4);
+  CHECK(ItemStack{kDirt, 64}.space() == 0);
+}
+
+TEST_CASE("merging into an empty stack adopts the source") {
+  ItemStack dst, src{kDirt, 10};
+  CHECK(mergeInto(dst, src) == 10);
+  CHECK(dst == ItemStack{kDirt, 10});
+  CHECK(src == ItemStack{});
+}
+
+TEST_CASE("merging into a partial stack fills it and keeps the remainder") {
+  ItemStack dst{kDirt, 60}, src{kDirt, 10};
+  CHECK(mergeInto(dst, src) == 4);
+  CHECK(dst == ItemStack{kDirt, 64});
+  CHECK(src == ItemStack{kDirt, 6});
+}
+
+TEST_CASE("merging into a full stack moves nothing") {
+  ItemStack dst{kDirt, 64}, src{kDirt, 10};
+  CHECK(mergeInto(dst, src) == 0);
+  CHECK(dst == ItemStack{kDirt, 64});
+  CHECK(src == ItemStack{kDirt, 10});
+}
+
+TEST_CASE("different items don't merge") {
+  ItemStack dst{kDirt, 5}, src{kSand, 5};
+  CHECK(mergeInto(dst, src) == 0);
+  CHECK(dst == ItemStack{kDirt, 5});
+  CHECK(src == ItemStack{kSand, 5});
+}
+
+TEST_CASE("merging an empty source does nothing") {
+  ItemStack dst{kDirt, 5}, src;
+  CHECK(mergeInto(dst, src) == 0);
+  CHECK(dst == ItemStack{kDirt, 5});
+}
+
+TEST_CASE("an oversized source merges up to the max") {
+  ItemStack dst, src{kDirt, 100};
+  CHECK(mergeInto(dst, src) == 64);
+  CHECK(dst == ItemStack{kDirt, 64});
+  CHECK(src == ItemStack{kDirt, 36});
+}
+
+TEST_CASE("split takes up to n") {
+  ItemStack s{ItemId::DIAMOND, 10};
+  CHECK(split(s, 3) == ItemStack{ItemId::DIAMOND, 3});
+  CHECK(s == ItemStack{ItemId::DIAMOND, 7});
+
+  CHECK(split(s, 0) == ItemStack{});
+  CHECK(s == ItemStack{ItemId::DIAMOND, 7});
+
+  CHECK(split(s, 50) == ItemStack{ItemId::DIAMOND, 7});
+  CHECK(s == ItemStack{});
+
+  ItemStack empty;
+  CHECK(split(empty, 5) == ItemStack{});
 }
