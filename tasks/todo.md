@@ -119,7 +119,7 @@ Plan: [plan.md](plan.md) · Spec: [SPEC-sim-core.md](../SPEC-sim-core.md)
 ## Checkpoint B
 - [ ] All tests pass and CI is green.
 - [ ] Full manual parity checklist (spec criterion 5) passes.
-- [ ] **Human review of the new `sim/` structure before routing gameplay through it.**
+- [x] **Human review of the new `sim/` structure before routing gameplay through it.**
 
 ---
 
