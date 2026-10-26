@@ -4,7 +4,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
-#include <type_traits>
 
 // ─── Setup ─────────────────────────────────────────────────────────────
 
@@ -145,20 +144,10 @@ void Game::tick() {
 
 // ─── Commands ──────────────────────────────────────────────────────────
 
+// Every Command alternative needs an apply() overload; a missing one is a
+// compile error here rather than a silently dropped command.
 void Game::apply(Client &client, const Command &cmd) {
-  std::visit(
-      [&](const auto &c) {
-        using T = std::decay_t<decltype(c)>;
-        if constexpr (std::is_same_v<T, Join> ||
-                      std::is_same_v<T, MovePlayer> ||
-                      std::is_same_v<T, SelectSlot> ||
-                      std::is_same_v<T, BreakBlock> ||
-                      std::is_same_v<T, PlaceBlock> ||
-                      std::is_same_v<T, SetTimeOfDay> ||
-                      std::is_same_v<T, Save>)
-          apply(client, c);
-      },
-      cmd);
+  std::visit([&](const auto &c) { apply(client, c); }, cmd);
 }
 
 void Game::apply(Client &client, const Join &) {

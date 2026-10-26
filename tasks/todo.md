@@ -131,12 +131,12 @@ Plan: [plan.md](plan.md) · Spec: [SPEC-sim-core.md](../SPEC-sim-core.md)
 - Number keys 1–9 and the scroll wheel send `SelectSlot`. `Game` clamps it to `0..kHotbarSlots-1` and stores it.
 
 **Acceptance criteria:**
-- [ ] Chunk streaming is driven by `PlayerState` positions, not by Engine directly.
-- [ ] `SelectSlot {42}` is clamped or rejected, and the state stays valid.
+- [x] Chunk streaming is driven by `PlayerState` positions, not by Engine directly.
+- [x] `SelectSlot {42}` is clamped or rejected, and the state stays valid.
 - [ ] Movement and slot selection feel identical to before.
 
 **Verification:**
-- [ ] `make test` passes: `MovePlayer` updates the state and the interest points; `SelectSlot` is clamped.
+- [x] `make test` passes: `MovePlayer` updates the state and the interest points; `SelectSlot` is clamped.
 - [ ] Manual check: walk, sprint, fly (T), scroll and number keys.
 
 **Dependencies:** T4
@@ -155,12 +155,12 @@ Plan: [plan.md](plan.md) · Spec: [SPEC-sim-core.md](../SPEC-sim-core.md)
 - Engine sends commands only.
 
 **Acceptance criteria:**
-- [ ] `grep -n "setBlockAt" src/core` returns nothing.
-- [ ] Each rejection rule has a test, and a valid break or place emits exactly one `BlockChanged`.
-- [ ] Glowstone placement still lights the area, and breaking it removes the light.
+- [x] `grep -n "setBlockAt" src/core` returns nothing.
+- [x] Each rejection rule has a test, and a valid break or place emits exactly one `BlockChanged`.
+- [x] Glowstone placement still lights the area, and breaking it removes the light.
 
 **Verification:**
-- [ ] `make test` passes with the validation tests.
+- [x] `make test` passes with the validation tests.
 - [ ] Manual check:
   - Break and place at max reach.
   - Try to place inside yourself, standing and crouched.
@@ -184,12 +184,12 @@ Plan: [plan.md](plan.md) · Spec: [SPEC-sim-core.md](../SPEC-sim-core.md)
 - The save format is unchanged.
 
 **Acceptance criteria:**
-- [ ] Saves written before this change load correctly. Use a copy of a real `saves/` world.
-- [ ] A test plays commands into a `Game` (break, place, select slot, move), saves to a temp dir, and constructs a new `Game` from it. Edits and player state match.
-- [ ] Engine contains no `WorldSave::` calls.
+- [x] Saves written before this change load correctly. Use a copy of a real `saves/` world.
+- [x] A test plays commands into a `Game` (break, place, select slot, move), saves to a temp dir, and constructs a new `Game` from it. Edits and player state match.
+- [x] Engine contains no `WorldSave::` calls. *(Only the `WorldSave::worldDir()` path helper remains; it does no file I/O.)*
 
 **Verification:**
-- [ ] `make test` passes with the round-trip test.
+- [x] `make test` passes with the round-trip test.
 - [ ] Manual check: edit, press F5, quit, relaunch. Edits and position persist. Load an old save.
 
 **Dependencies:** T4 (T5/T6 recommended first so the test can use real commands)
@@ -210,7 +210,7 @@ Plan: [plan.md](plan.md) · Spec: [SPEC-sim-core.md](../SPEC-sim-core.md)
 - [ ] The build has zero new warnings and CI is green.
 
 **Verification:**
-- [ ] `make test` passes, and `make DEBUG=1` builds clean.
+- [x] `make test` passes, and `make DEBUG=1` builds clean.
 - [ ] The full manual parity checklist passes on a fresh world and an existing save.
 - [ ] **Human review and approval of the PR.**
 

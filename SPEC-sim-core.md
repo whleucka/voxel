@@ -2,6 +2,10 @@
 
 Module of [CAPABILITY_MAP.md](CAPABILITY_MAP.md). Depends on: nothing.
 
+**Status:** implemented on `feat/sim-core` (T1–T8). Criteria 1–4 and 7
+were checked automatically. Criteria 5 (manual parity) and 6 (FPS) still
+need a play-through.
+
 ## Objective
 
 Separate *what the game state is* from *how one machine shows and controls

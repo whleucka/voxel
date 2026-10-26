@@ -61,6 +61,15 @@ sudo pacman -S glm glfw
     ```
     This will compile all source files and create the executable in the `bin/` directory.
 
+### Testing
+
+```bash
+make test
+```
+
+This builds and runs the unit tests in `tests/` (doctest). They exercise the
+game simulation directly and never open a window, so they also run in CI.
+
 ### Running
 
 After successful compilation, you can run the game using:
