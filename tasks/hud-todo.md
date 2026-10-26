@@ -30,16 +30,16 @@ Files: `inc/ui/inventory_screen.hpp`, `src/ui/inventory_screen.cpp`, `tests/inve
 
 ## T4: Hotbar drawing
 - [x] `Hud` loads both atlases as sRGB and draws the hotbar with icons and counts, plus the name popup.
-- [ ] Manual check (user): the hotbar looks right and the selection follows keys and scroll.
+- [x] Manual check (user): the hotbar looks right and the selection follows keys and scroll.
 
 Files: `inc/ui/hud.hpp`, `src/ui/hud.cpp`, `inc/core/engine.hpp`, `src/core/engine.cpp`
 
 ## T5: Inventory screen
 - [x] E toggles the screen, clicks are routed to `InventoryScreen`, moves are sent, and Esc closes the screen while it's open.
-- [ ] Manual check (user): every control works, including after resizing and in fullscreen.
+- [x] Manual check (user): every control works, including after resizing and in fullscreen.
 
 Files: `src/ui/hud.cpp`, `src/core/engine.cpp`, `inc/core/engine.hpp`
 
 ## T6: Wrap-up
 - [x] Map and spec status are updated, CI is green, and the PR is merged.
-- [ ] Manual check (user): FPS with the HUD is within 5% of `main`.
+- [x] Manual check (user): FPS with the HUD is within 5% of `main`.

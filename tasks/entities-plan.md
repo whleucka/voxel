@@ -21,12 +21,12 @@ Spec: [SPEC-entities.md](../SPEC-entities.md) · Tasks: [entities-todo.md](entit
   per-box draw calls are fine.
 
 ## Tasks
-- [ ] T1: Player physics characterization tests
-- [ ] T2: Extract `PhysicsBody`; `Player` uses it
-- [ ] T3: Entity core: kinds and defs, store, tick with physics, despawn, `WanderBrain`
-- [ ] T4: Snapshots in `Game`, client `EntityInterpolator`, ray vs AABB
-- [ ] T5: `EntityRenderer` (shader, boxes, atlas faces), drawn in `Engine`
-- [ ] T6: Dropped items: overflow, Q/Ctrl+Q, pickup, merge, age despawn
-- [ ] T7: Hitting: `AttackEntity`, cooldown, knockback, hurt flash, death drops; client entity ray
-- [ ] T8: Spawner and spawn rules; debug "Spawn test creature"
-- [ ] T9: Wrap-up, PR, merge when green
+- [x] T1: Player physics characterization tests
+- [x] T2: Extract `PhysicsBody`; `Player` uses it
+- [x] T3: Entity core: kinds and defs, store, tick with physics, despawn, `WanderBrain`
+- [x] T4: Snapshots in `Game`, client `EntityInterpolator`, ray vs AABB
+- [x] T5: `EntityRenderer` (shader, boxes, atlas faces), drawn in `Engine`
+- [x] T6: Dropped items: overflow, Q/Ctrl+Q, pickup, merge, age despawn
+- [x] T7: Hitting: `AttackEntity`, cooldown, knockback, hurt flash, death drops; client entity ray
+- [x] T8: Spawner and spawn rules; debug "Spawn test creature"
+- [x] T9: Wrap-up, PR, merge when green

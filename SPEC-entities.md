@@ -3,6 +3,8 @@
 Module of [CAPABILITY_MAP.md](CAPABILITY_MAP.md). Depends on: `sim-core`, `items`, `inventory`, `vitals`.
 Used by: `animals`, `enemies`, `multiplayer`.
 
+**Status:** implemented. Criteria 1, 2 and 4 are met; criterion 3 (manual check: looks, movement feel, FPS) is up to you.
+
 ## Objective
 
 Give the world things other than players: objects that move with physics,
