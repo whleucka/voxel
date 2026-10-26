@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate placeholder icons for non-block items into res/item_atlas.png.
 
-The atlas is 256x256 with 32 px tiles (8x8). Material items occupy row 0 in
-ItemId order (see src/item/item.cpp). Shapes and colours are fixed, so running
+The atlas is 256x256 with 32 px tiles (8x8). Material items fill it row by
+row in ItemId order, tile (i % 8, i // 8) (see src/item/item.cpp). Shapes and colours are fixed, so running
 this again produces the same image. Replace tiles with real art at any time;
 nothing in the code depends on what they look like.
 
@@ -47,10 +47,58 @@ def tile_image(shape, fill, outline, highlight):
     return img
 
 
+def wool():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    puffs = [(10, 13, 7), (17, 10, 8), (23, 14, 7), (12, 20, 7), (20, 20, 8)]
+    for x, y, r in puffs:  # outline pass, then fill pass
+        d.ellipse([x - r - 1, y - r - 1, x + r + 1, y + r + 1], fill=(150, 150, 160, 255))
+    for x, y, r in puffs:
+        d.ellipse([x - r, y - r, x + r, y + r], fill=(245, 245, 250, 255))
+    d.rectangle([13, 11, 15, 13], fill=(255, 255, 255, 255))
+    return img
+
+
+def berries():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.polygon([(16, 4), (24, 7), (18, 11)], fill=(60, 160, 70, 255))  # leaf
+    for x, y in [(11, 15), (20, 15), (15, 22)]:
+        d.ellipse([x - 6, y - 6, x + 6, y + 6], fill=(110, 20, 60, 255))
+        d.ellipse([x - 5, y - 5, x + 5, y + 5], fill=(200, 40, 90, 255))
+        d.rectangle([x - 3, y - 3, x - 2, y - 2], fill=(255, 190, 210, 255))
+    return img
+
+
+def shell():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.pieslice([4, 4, 28, 30], 200, 340, fill=(250, 215, 190, 255), outline=(170, 120, 100, 255))
+    for x in (8, 12, 16, 20, 24):  # ridges fanning from the hinge
+        d.line([(16, 17), (x, 7)], fill=(215, 160, 140, 255))
+    d.rectangle([13, 16, 19, 20], fill=(230, 180, 160, 255), outline=(170, 120, 100, 255))
+    return img
+
+
+def petals():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    for x, y in [(16, 8), (24, 14), (21, 23), (11, 23), (8, 14)]:
+        d.ellipse([x - 6, y - 6, x + 6, y + 6], fill=(235, 130, 175, 255), outline=(170, 70, 120, 255))
+    d.ellipse([12, 12, 20, 20], fill=(255, 220, 90, 255))
+    return img
+
+
+# Animal products, after the shape-based materials, in ItemId order.
+DRAWN = [wool, berries, shell, petals]
+
+
 def main():
     atlas = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    for i, spec in enumerate(MATERIALS):
-        atlas.paste(tile_image(*spec), (i * TILE, 0))
+    tiles = [tile_image(*spec) for spec in MATERIALS] + [draw() for draw in DRAWN]
+    cols = SIZE // TILE
+    for i, tile in enumerate(tiles):
+        atlas.paste(tile, ((i % cols) * TILE, (i // cols) * TILE))
     atlas.save(OUT)
     print(f"wrote {OUT}")
 

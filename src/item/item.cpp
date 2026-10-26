@@ -7,11 +7,19 @@ namespace {
 constexpr uint16_t kMaterialCount = static_cast<uint16_t>(kLastMaterialItem) -
                                     static_cast<uint16_t>(kFirstMaterialItem) + 1;
 
-// Material items, in ItemId order. Their icon tiles sit in row 0 of the item
-// atlas in the same order (see tools/gen_item_placeholders.py).
-constexpr std::array<std::string_view, kMaterialCount> kMaterialNames = {
-    "Coal", "Diamond", "Emerald", "Ruby", "Raw Iron", "Raw Gold", "Raw Copper",
+// Material items, in ItemId order. Their icon tiles fill the item atlas row
+// by row in the same order: tile (i % 8, i / 8) (see
+// tools/gen_item_placeholders.py).
+struct Material {
+  std::string_view name;
+  int food_heal;
 };
+constexpr std::array<Material, kMaterialCount> kMaterials = {{
+    {"Coal", 0},     {"Diamond", 0},  {"Emerald", 0},   {"Ruby", 0},
+    {"Raw Iron", 0}, {"Raw Gold", 0}, {"Raw Copper", 0},
+    {"Wool", 0},     {"Berries", 4},  {"Sea Shell", 0}, {"Sweet Petals", 6},
+}};
+constexpr int kItemAtlasCols = 8;
 
 bool isPlaceableBlock(uint16_t v) {
   if (v == 0 || v > static_cast<uint16_t>(kLastBlockType)) return false;
@@ -44,8 +52,9 @@ const std::array<ItemDef, kMaterialCount> &materialDefs() {
   static const std::array<ItemDef, kMaterialCount> defs = [] {
     std::array<ItemDef, kMaterialCount> d{};
     for (uint16_t i = 0; i < kMaterialCount; ++i)
-      d[i] = {kMaterialNames[i], kDefaultMaxStack,
-              {ItemIcon::Atlas::Item, {static_cast<int>(i), 0}}, std::nullopt};
+      d[i] = {kMaterials[i].name, kDefaultMaxStack,
+              {ItemIcon::Atlas::Item, {i % kItemAtlasCols, i / kItemAtlasCols}},
+              std::nullopt, kMaterials[i].food_heal};
     return d;
   }();
   return defs;
