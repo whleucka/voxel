@@ -4,6 +4,7 @@
 #include "item/item_stack.hpp"
 #include "robin_hood/robin_hood.h"
 #include <cstdint>
+#include <map>
 #include <glm/glm.hpp>
 #include <span>
 #include <string>
@@ -53,5 +54,17 @@ bool save(const std::string &dir, const LevelData &level,
 // doesn't know load as empty slots; the caller copies however many slots fit.
 bool loadInventory(const std::string &dir, std::vector<ItemStack> &out);
 bool saveInventory(const std::string &dir, std::span<const ItemStack> slots);
+
+// players/<name>.dat — a guest's state, kept in the host's world so they carry
+// on where they left off. The host's own record stays in player.dat and
+// inventory.dat. Names must be 1-16 of [A-Za-z0-9_-] (they're file names).
+struct GuestRecord {
+  PlayerData player;
+  std::vector<ItemStack> inventory; // slot order
+};
+bool saveGuest(const std::string &dir, const std::string &name, const GuestRecord &rec);
+// Every readable record under dir/players/, keyed by name. Missing folder:
+// none yet (true). Unreadable files are skipped with a warning.
+bool loadGuests(const std::string &dir, std::map<std::string, GuestRecord> &out);
 
 } // namespace WorldSave

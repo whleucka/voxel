@@ -8,6 +8,7 @@
 #include "world/world.hpp"
 #include "world/world_save.hpp"
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -54,7 +55,8 @@ public:
   // otherwise the properties seed creates a fresh one. Call before any Join.
   // Returns true if an existing world was loaded.
   bool load(const std::string &dir);
-  // Write level, edits and the host player to the bound directory.
+  // Write level, edits, the host player and every guest record to the bound
+  // directory.
   bool save();
 
   // Install already-loaded save data before any client joins. The first Join
@@ -92,6 +94,8 @@ public:
   // Drives spawning, wandering and hops; tests reseed it for determinism.
   Rng &rng() { return rng_; }
   const PlayerState *findPlayer(PlayerId id) const;
+  // A guest's saved state, if they've played here before.
+  const WorldSave::GuestRecord *guestRecord(const std::string &name) const;
 
   // What a player with no saved inventory starts with.
   static Inventory starterKit();
@@ -160,6 +164,9 @@ private:
   PlayerId next_player_id = 1;
   std::optional<WorldSave::PlayerData> saved_player;
   std::optional<std::vector<ItemStack>> saved_inventory;
+  // Guests who have played in this world, by name (players/<name>.dat).
+  std::map<std::string, WorldSave::GuestRecord> guest_records;
+  void storeGuest(const PlayerState &ps);
   std::string save_dir;
   std::optional<glm::vec3> respawn_point; // world spawn, found on first death
 };

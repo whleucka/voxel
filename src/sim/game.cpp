@@ -33,6 +33,7 @@ bool Game::load(const std::string &dir) {
     inventory = std::move(inv);
 
   restore(level, std::move(edits), player, std::move(inventory));
+  WorldSave::loadGuests(dir, guest_records);
   return true;
 }
 
@@ -63,8 +64,15 @@ bool Game::save() {
   std::optional<std::vector<ItemStack>> inv = saved_inventory;
   if (host) inv.emplace(host->inventory.slots().begin(), host->inventory.slots().end());
 
+  // Guests in the game now, then everyone who has ever played here.
+  for (const Client &c : clients)
+    if (c.player && c.role == Role::Guest) storeGuest(players.at(*c.player));
+  bool guests_ok = true;
+  for (const auto &[name, rec] : guest_records)
+    guests_ok &= WorldSave::saveGuest(save_dir, name, rec);
+
   if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits()) ||
-      (inv && !WorldSave::saveInventory(save_dir, *inv))) {
+      (inv && !WorldSave::saveInventory(save_dir, *inv)) || !guests_ok) {
     std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";
     return false;
   }
@@ -88,10 +96,32 @@ void Game::removeClient(ClientLink &link) {
                          [&](const Client &c) { return c.link == &link; });
   if (it == clients.end()) return;
   std::optional<PlayerId> gone = it->player;
+  bool guest = it->role == Role::Guest;
   clients.erase(it);
   if (!gone) return;
+  // A guest's stuff is written straight away, so a host crash can't lose it.
+  if (guest) {
+    const PlayerState &ps = players.at(*gone);
+    storeGuest(ps);
+    if (!save_dir.empty() &&
+        !WorldSave::saveGuest(save_dir, ps.name, guest_records.at(ps.name)))
+      std::cerr << "[game] couldn't save guest '" << ps.name << "'\n";
+  }
   players.erase(*gone);
   broadcast(PlayerLeft{*gone});
+}
+
+const WorldSave::GuestRecord *Game::guestRecord(const std::string &name) const {
+  auto it = guest_records.find(name);
+  return it == guest_records.end() ? nullptr : &it->second;
+}
+
+void Game::storeGuest(const PlayerState &ps) {
+  WorldSave::GuestRecord rec;
+  rec.player = {ps.position, ps.yaw, ps.pitch, ps.selected_slot,
+                static_cast<uint8_t>(ps.fly ? 1 : 0)};
+  rec.inventory.assign(ps.inventory.slots().begin(), ps.inventory.slots().end());
+  guest_records[ps.name] = std::move(rec);
 }
 
 bool Game::validName(std::string_view name) {
@@ -302,7 +332,15 @@ void Game::apply(Client &client, const Join &cmd) {
     if (other.name == ps.name) return client.link->deliver(JoinRefused{"Name already in use"});
   if (players.size() >= kMaxPlayers) return client.link->deliver(JoinRefused{"Game is full"});
   ++next_player_id;
-  if (saved_player) {
+  const WorldSave::GuestRecord *rec =
+      client.role == Role::Guest ? guestRecord(ps.name) : nullptr;
+  if (rec) {
+    ps.position = rec->player.position;
+    ps.yaw = rec->player.yaw;
+    ps.pitch = rec->player.pitch;
+    ps.selected_slot = rec->player.selected_slot;
+    ps.fly = rec->player.fly_mode != 0;
+  } else if (client.role == Role::Host && saved_player) {
     ps.position = saved_player->position;
     ps.yaw = saved_player->yaw;
     ps.pitch = saved_player->pitch;
@@ -312,9 +350,12 @@ void Game::apply(Client &client, const Join &cmd) {
   } else {
     ps.position = world_.findSpawn();
   }
-  // The first join takes over the saved inventory, like the saved player;
-  // anyone without one starts with the kit.
-  if (saved_inventory) {
+  // A guest gets their record's inventory and the host takes over the saved
+  // one, like the saved player; anyone without one starts with the kit.
+  if (rec) {
+    for (int i = 0; i < kInventorySlots && i < static_cast<int>(rec->inventory.size()); ++i)
+      ps.inventory.set(i, rec->inventory[i]);
+  } else if (client.role == Role::Host && saved_inventory) {
     for (int i = 0; i < kInventorySlots && i < static_cast<int>(saved_inventory->size()); ++i)
       ps.inventory.set(i, (*saved_inventory)[i]);
     saved_inventory.reset();

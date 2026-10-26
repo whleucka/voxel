@@ -18,8 +18,8 @@ Plan: [multiplayer-plan.md](multiplayer-plan.md) · Spec: [SPEC-multiplayer.md](
 - [x] `World::applyEdit` takes effect when an unloaded chunk loads. A world built from `Welcome` matches the host's.
 
 ## T3: Guest records
-- [ ] `players/<name>.dat` round-trips. Old saves load.
-- [ ] Leaving saves the record, and rejoining restores it. A new name gets the starter kit.
+- [x] `players/<name>.dat` round-trips. Old saves load.
+- [x] Leaving saves the record, and rejoining restores it. A new name gets the starter kit.
 
 ## T4: Wire format
 - [ ] Every Command and Event round-trips, including edge values.

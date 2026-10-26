@@ -1622,3 +1622,78 @@ TEST_CASE_FIXTURE(PartyGame, "snapshots show the other players but not yourself"
   REQUIRE(to_bea.players.size() == 1);
   CHECK(to_bea.players[0].id == host_id);
 }
+
+// ─── Multiplayer: guest records ────────────────────────────────────────
+
+namespace {
+
+// A party bound to a save directory, so guests' records hit the disk.
+struct SavedParty : PartyGame {
+  ScopedSeed seed;
+  TempDir dir;
+  SavedParty() { game.load(dir.path.string()); } // nothing there yet: binds the dir
+
+  PlayerId joinedId(const std::vector<Event> &evs) {
+    auto *j = find<Joined>(evs);
+    REQUIRE(j);
+    return j->id;
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(SavedParty, "a guest who leaves is saved and comes back with their stuff") {
+  PlayerId id = joinedId(joinGuest("Bea"));
+  MovePlayer move{{5.5f, 90.0f, 6.5f}, 12.0f, -4.0f, true};
+  send(guest(), move);
+  send(guest(), SelectSlot{4});
+  const Inventory before = game.findPlayer(id)->inventory;
+
+  game.removeClient(guest());
+  CHECK(std::filesystem::exists(dir.path / "players" / "Bea.dat"));
+
+  auto evs = joinGuest("Bea");
+  auto *j = find<Joined>(evs);
+  REQUIRE(j);
+  CHECK(j->position == move.position);
+  CHECK(j->yaw == 12.0f);
+  CHECK(j->pitch == -4.0f);
+  CHECK(j->slot == 4);
+  CHECK(j->fly);
+  CHECK(game.findPlayer(j->id)->inventory.slots() == before.slots());
+}
+
+TEST_CASE_FIXTURE(SavedParty, "a new name starts at spawn with the starter kit") {
+  PlayerId id = joinedId(joinGuest("New"));
+  CHECK(game.findPlayer(id)->inventory.slots() == Game::starterKit().slots());
+  CHECK_FALSE(game.guestRecord("New"));
+}
+
+TEST_CASE_FIXTURE(SavedParty, "the host's save writes guests still playing, and load reads them") {
+  joinGuest("Bea");
+  MovePlayer move{{1.5f, 95.0f, 2.5f}, 0.0f, 0.0f};
+  send(guest(), move);
+  REQUIRE(game.save());
+  CHECK(std::filesystem::exists(dir.path / "players" / "Bea.dat"));
+
+  Game reloaded;
+  reloaded.load(dir.path.string());
+  const auto *rec = reloaded.guestRecord("Bea");
+  REQUIRE(rec);
+  CHECK(rec->player.position == move.position);
+}
+
+TEST_CASE_FIXTURE(SavedParty, "the host never takes a guest's record") {
+  joinGuest("Bea");
+  game.removeClient(guest());
+  REQUIRE(game.guestRecord("Bea"));
+  LocalConnection host2;
+  game.removeClient(host);
+  game.addClient(host2, Game::Role::Host);
+  host2.send(Join{"Bea"}); // same name as the record, but the host
+  game.pump();
+  auto evs = pollAll(host2);
+  auto *j = find<Joined>(evs);
+  REQUIRE(j);
+  CHECK(game.findPlayer(j->id)->inventory.slots() == Game::starterKit().slots());
+}

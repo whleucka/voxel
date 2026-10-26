@@ -122,3 +122,56 @@ TEST_CASE("a missing or truncated inventory.dat fails to load") {
   }
   CHECK_FALSE(WorldSave::loadInventory(dir.path.string(), loaded));
 }
+
+// ─── Guest records ─────────────────────────────────────────────────────
+
+TEST_CASE("guest records round-trip, one file per name") {
+  TempDir dir;
+  WorldSave::GuestRecord bea;
+  bea.player = {{1.5f, 70.0f, -3.25f}, 45.0f, -10.0f, 3, 1};
+  bea.inventory = {{ItemId::COAL, 5}, {}, {ItemId::DIAMOND, 1}};
+  WorldSave::GuestRecord cy;
+  cy.player.position = {-8.0f, 90.0f, 2.0f};
+  REQUIRE(WorldSave::saveGuest(dir.path.string(), "Bea", bea));
+  REQUIRE(WorldSave::saveGuest(dir.path.string(), "cy_2", cy));
+  CHECK(std::filesystem::exists(dir.path / "players" / "Bea.dat"));
+
+  std::map<std::string, WorldSave::GuestRecord> loaded;
+  REQUIRE(WorldSave::loadGuests(dir.path.string(), loaded));
+  REQUIRE(loaded.size() == 2);
+  const auto &b = loaded.at("Bea");
+  CHECK(b.player.position == bea.player.position);
+  CHECK(b.player.yaw == 45.0f);
+  CHECK(b.player.pitch == -10.0f);
+  CHECK(b.player.selected_slot == 3);
+  CHECK(b.player.fly_mode == 1);
+  CHECK(b.inventory == bea.inventory);
+  CHECK(loaded.at("cy_2").player.position == cy.player.position);
+}
+
+TEST_CASE("a save without a players folder has no guests yet") {
+  TempDir dir;
+  std::map<std::string, WorldSave::GuestRecord> loaded;
+  CHECK(WorldSave::loadGuests(dir.path.string(), loaded));
+  CHECK(loaded.empty());
+}
+
+TEST_CASE("guest names that aren't safe file names are refused") {
+  TempDir dir;
+  WorldSave::GuestRecord rec;
+  CHECK_FALSE(WorldSave::saveGuest(dir.path.string(), "../evil", rec));
+  CHECK_FALSE(WorldSave::saveGuest(dir.path.string(), "", rec));
+  CHECK_FALSE(WorldSave::saveGuest(dir.path.string(), "a/b", rec));
+}
+
+TEST_CASE("unreadable guest files are skipped") {
+  TempDir dir;
+  WorldSave::GuestRecord rec;
+  REQUIRE(WorldSave::saveGuest(dir.path.string(), "good", rec));
+  std::ofstream(dir.path / "players" / "broken.dat") << "nope";
+  std::ofstream(dir.path / "players" / "bad name.dat") << "nope";
+  std::map<std::string, WorldSave::GuestRecord> loaded;
+  WorldSave::loadGuests(dir.path.string(), loaded);
+  CHECK(loaded.size() == 1);
+  CHECK(loaded.count("good") == 1);
+}
