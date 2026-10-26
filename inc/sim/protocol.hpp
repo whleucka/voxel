@@ -42,6 +42,10 @@ struct SelectSlot { int slot = 0; };
 struct Save {};
 struct SetTimeOfDay { float seconds = 0.0f; }; // debug panel
 struct GiveItem { ItemId id = ItemId::NONE; uint16_t count = 0; }; // debug panel
+// Right-click on an entity: feed an animal its favourite (held) block.
+struct InteractEntity { EntityId id = 0; };
+// Eat one of the held food item.
+struct EatItem {};
 // Debug panel: put an entity a few blocks in front of the player.
 struct SpawnDebugEntity { EntityKind kind = EntityKind::TestCreature; };
 // Hit an entity the client is aiming at. The Game checks reach and cooldown.
@@ -55,7 +59,7 @@ struct MoveItems { int from = 0; int to = 0; uint16_t count = 0; };
 using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SelectSlot, Save, SetTimeOfDay, GiveItem,
                              MoveItems, DropItem, AttackEntity,
-                             SpawnDebugEntity>;
+                             SpawnDebugEntity, InteractEntity, EatItem>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 
@@ -98,6 +102,8 @@ struct EntityView {
   float yaw = 0.0f;
   ItemId item = ItemId::NONE; // dropped items: what to draw
   bool hurt = false;          // flash red
+  bool happy = false;         // fed animal: show a heart
+  bool moving = false;        // set client-side by the interpolator
 };
 
 // Every entity within range of this player, sent every tick. An entity that

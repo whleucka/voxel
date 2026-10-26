@@ -1,10 +1,13 @@
 #include "sim/game.hpp"
 #include "block/block_data.hpp"
+#include "entity/animals.hpp"
 #include "core/settings.hpp"
 #include <cmath>
 #include <iostream>
 
 // ─── Setup ─────────────────────────────────────────────────────────────
+
+Game::Game() { registerAnimalSpawns(spawner_); }
 
 bool Game::load(const std::string &dir) {
   save_dir = dir;
@@ -179,6 +182,7 @@ void Game::tick() {
   for (const auto &[id, ps] : players) positions.push_back(ps.position);
   entities_.tick(world_, rng_, positions);
   spawner_.tick(entities_, world_, rng_, positions, clock_.fractionOfDay());
+  releaseAnimalProducts();
   mergeDroppedItems();
   pickUpDroppedItems();
 
@@ -196,7 +200,7 @@ void Game::sendEntitySnapshots() {
     for (const auto &[id, e] : entities_.all()) {
       if (glm::distance(e.body.position, ps->position) > kEntityViewRange) continue;
       snap.entities.push_back({id, e.kind, e.body.position, e.yaw, e.item.id,
-                               e.hurt_ms > 0});
+                               e.hurt_ms > 0, e.happy_ms > 0, false});
     }
     client.link->deliver(std::move(snap));
   }
@@ -471,14 +475,7 @@ void Game::apply(Client &client, const AttackEntity &cmd) {
   if (def.max_health <= 0) return reject(client, "attack: can't hit that");
   if (ps->attack_cooldown_ms > 0) return reject(client, "attack: too soon");
 
-  // Reach is measured to the nearest point of the entity's box, matching the
-  // client's ray against that box.
-  glm::vec3 lo = e->body.position - glm::vec3(e->body.half_width, 0, e->body.half_width);
-  glm::vec3 hi = e->body.position + glm::vec3(e->body.half_width, e->body.height,
-                                              e->body.half_width);
-  glm::vec3 eye = ps->eyePosition();
-  if (glm::distance(eye, glm::clamp(eye, lo, hi)) > kPlayerReach)
-    return reject(client, "attack: out of reach");
+  if (!inReachOf(*ps, *e)) return reject(client, "attack: out of reach");
 
   ps->attack_cooldown_ms = kAttackCooldownMs;
   e->health -= kAttackDamage;
@@ -511,4 +508,66 @@ void Game::apply(Client &client, const SpawnDebugEntity &cmd) {
   glm::vec3 ahead{std::cos(yaw), 0.0f, std::sin(yaw)};
   if (!entities_.spawn(cmd.kind, ps->position + ahead * 3.0f + glm::vec3(0, 0.5f, 0)))
     reject(client, "spawn: entity cap reached");
+}
+
+// Reach is measured to the nearest point of the entity's box, matching the
+// client's ray against that box.
+bool Game::inReachOf(const PlayerState &ps, const Entity &e) const {
+  glm::vec3 lo = e.body.position - glm::vec3(e.body.half_width, 0, e.body.half_width);
+  glm::vec3 hi = e.body.position + glm::vec3(e.body.half_width, e.body.height,
+                                             e.body.half_width);
+  glm::vec3 eye = ps.eyePosition();
+  return glm::distance(eye, glm::clamp(eye, lo, hi)) <= kPlayerReach;
+}
+
+// ─── Animals and food ──────────────────────────────────────────────────
+
+void Game::apply(Client &client, const InteractEntity &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead()) return;
+  Entity *e = entities_.find(cmd.id);
+  if (!e || !isAnimal(e->kind)) return reject(client, "interact: nothing to do");
+  if (!inReachOf(*ps, *e)) return reject(client, "interact: out of reach");
+
+  const AnimalDef &animal = *entityType(e->kind).animal;
+  const ItemStack &held = ps->inventory.slot(ps->selected_slot);
+  if (held.empty() || held.id != animal.favourite)
+    return reject(client, "feed: it doesn't want that");
+  if (e->fed_cooldown_ms > 0) return reject(client, "feed: not hungry yet");
+
+  ps->inventory.take(ps->selected_slot, 1);
+  sendInventory(client, *ps);
+  e->happy_ms = kHappyMs;
+  e->fed_cooldown_ms = kFedCooldownMs;
+  e->product_delay_ms = kProductDelayMs;
+  e->product_pending = true;
+}
+
+// A fed animal's product pops out once its short delay has passed.
+void Game::releaseAnimalProducts() {
+  std::vector<std::pair<ItemStack, glm::vec3>> out;
+  for (auto &[id, e] : entities_.all()) {
+    if (!e.product_pending || e.product_delay_ms > 0) continue;
+    e.product_pending = false;
+    out.push_back({entityType(e.kind).animal->product,
+                   e.body.position + glm::vec3(0.0f, e.body.height * 0.6f, 0.0f)});
+  }
+  // Spawn after iterating: dropItem adds to the store being walked.
+  std::uniform_real_distribution<float> side(-1.0f, 1.0f);
+  for (auto &[stack, at] : out)
+    dropItem(stack, at, {side(rng_), 3.5f, side(rng_)}, kBreakDropDelayMs);
+}
+
+void Game::apply(Client &client, const EatItem &) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead()) return;
+  const ItemStack &held = ps->inventory.slot(ps->selected_slot);
+  if (held.empty() || itemDef(held.id).food_heal <= 0)
+    return reject(client, "eat: that isn't food");
+  if (ps->vitals.health() >= Vitals::kMax) return reject(client, "eat: not hungry");
+
+  int heal = itemDef(held.id).food_heal;
+  ps->inventory.take(ps->selected_slot, 1);
+  sendInventory(client, *ps);
+  ps->vitals.heal(heal);
 }
