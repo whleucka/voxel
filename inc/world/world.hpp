@@ -2,7 +2,7 @@
 
 #include "block/block_type.hpp"
 #include "chunk/chunk.hpp"
-#include "player/player.hpp"
+#include "render/camera.hpp"
 #include "render/renderer.hpp"
 #include "robin_hood/robin_hood.h"
 #include "util/lock.hpp"
@@ -12,6 +12,8 @@
 #include <glm/glm.hpp>
 #include <memory>
 #include <mutex>
+#include <span>
+#include <vector>
 
 // Result of a DDA raycast into the voxel world
 struct RaycastResult {
@@ -29,21 +31,27 @@ public:
 
   void init();
   void update(float delta_time);
+  // viewer_pos drives shadow/cloud placement and fog; it is the local
+  // player's feet position.
   void render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay,
-              int viewportWidth, int viewportHeight);
+              int viewportWidth, int viewportHeight,
+              const glm::vec3 &viewer_pos, bool viewer_underwater);
+
+  // Chunks stream in around each point (one per player). Loading only reacts
+  // when a point crosses a chunk boundary; the first call also preloads.
+  void setInterestPoints(std::span<const glm::vec3> points);
+  glm::vec3 findSpawn() const;
   void addChunk(int x, int z);
   // Generates a chunk on the calling thread and inserts it without queueing a
   // mesh build or GPU upload. For tests, which run without a GL context.
   void loadChunkSync(int x, int z);
   std::shared_ptr<Chunk> getChunk(int x, int z);
   std::shared_ptr<const Chunk> getChunk(int x, int z) const;
-  std::unique_ptr<Player> &getPlayer() { return player; }
   size_t getChunkCount() const;
 
   // ─── Persistence ─────────────────────────────────────────────────────────
-  // Installed before init(); consulted while generating chunks / placing spawn.
+  // Installed before chunks load; replayed onto each freshly generated chunk.
   void setLoadedEdits(WorldEdits e);
-  void setLoadedPlayer(const WorldSave::PlayerData &p);
   // Thread-safe copy of all player edits, for writing to disk.
   WorldEdits snapshotEdits() const;
 
@@ -80,15 +88,13 @@ private:
   mutable SharedMutex chunks_mutex;
 
   std::unique_ptr<Renderer> renderer;
-  std::unique_ptr<Player> player;
 
   robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash>
       chunks;
   std::queue<std::shared_ptr<Chunk>> mesh_queue;
   std::queue<std::shared_ptr<Chunk>> upload_queue;
 
-  int last_chunk_x = 0;
-  int last_chunk_z = 0;
+  std::vector<glm::ivec2> interest_chunks; // chunk coords of each interest point
 
   float cloud_time = 0.0f; // accumulated time for cloud drift
 
@@ -96,9 +102,6 @@ private:
   // generated chunks. Guarded because generation runs on worker threads.
   mutable std::mutex edits_mutex;
   WorldEdits edits;
-
-  bool has_loaded_player = false;
-  WorldSave::PlayerData loaded_player;
 
   // Cross-chunk relight requests queued from generation, drained on the main
   // thread in update(). Gated by emitters_exist so torch-free worlds pay nothing.

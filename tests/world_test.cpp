@@ -5,7 +5,10 @@
 // upload meshes, which needs a GL context. Mesh building itself is CPU-only.
 #include "doctest/doctest.h"
 #include "core/constants.hpp"
+#include "core/settings.hpp"
 #include "world/world.hpp"
+#include <chrono>
+#include <thread>
 
 namespace {
 
@@ -21,6 +24,26 @@ int topSolidY(const World &world, int bx, int bz) {
 uint32_t linearIndex(int lx, int y, int lz) {
   return lx + kChunkWidth * (lz + kChunkDepth * y);
 }
+
+// Chunk generation is async; wait (bounded) for a chunk to appear.
+bool waitForChunk(const World &world, int cx, int cz) {
+  using namespace std::chrono;
+  auto deadline = steady_clock::now() + seconds(20);
+  while (steady_clock::now() < deadline) {
+    if (world.getChunk(cx, cz)) return true;
+    std::this_thread::sleep_for(milliseconds(5));
+  }
+  return false;
+}
+
+// Shrinks the streaming radius for one test; World reads it at construction.
+struct ScopedRenderDistance {
+  int saved = g_settings.render_distance;
+  explicit ScopedRenderDistance(int chunks) {
+    g_settings.render_distance = chunks * kChunkWidth;
+  }
+  ~ScopedRenderDistance() { g_settings.render_distance = saved; }
+};
 
 } // namespace
 
@@ -90,4 +113,60 @@ TEST_CASE("placing a light emitter lights its neighbourhood") {
 
   world.setBlockAt(pos, BlockType::AIR);
   CHECK(world.getBlockLightAt(pos + glm::ivec3(1, 0, 0)) == 0);
+}
+
+TEST_CASE("chunks stream around every interest point") {
+  ScopedRenderDistance rd(2);
+  World world;
+
+  const glm::vec3 points[] = {
+      {0.5f, 80.0f, 0.5f},
+      {100.5f * kChunkWidth, 80.0f, 0.5f},
+  };
+  world.setInterestPoints(points);
+
+  CHECK(waitForChunk(world, 0, 0));
+  CHECK(waitForChunk(world, 1, 1));
+  CHECK(waitForChunk(world, 100, 0));
+  CHECK(waitForChunk(world, 99, -1));
+  // Nothing in between is loaded.
+  CHECK(world.getChunk(50, 0) == nullptr);
+}
+
+TEST_CASE("chunks far from every interest point are unloaded") {
+  ScopedRenderDistance rd(2);
+  World world;
+
+  const glm::vec3 here[] = {{0.5f, 80.0f, 0.5f}};
+  world.setInterestPoints(here);
+  REQUIRE(waitForChunk(world, 0, 0));
+
+  const glm::vec3 there[] = {{100.5f * kChunkWidth, 80.0f, 0.5f}};
+  world.setInterestPoints(there);
+  REQUIRE(waitForChunk(world, 100, 0));
+
+  // Generation of the old area may still be in flight; poll until it drains
+  // and the stale chunk has been dropped by a later streaming update.
+  for (int i = 0; i < 400 && world.getChunk(0, 0); ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    const glm::vec3 nudge[] = {{101.5f * kChunkWidth, 80.0f, 0.5f}};
+    const glm::vec3 back[] = {{100.5f * kChunkWidth, 80.0f, 0.5f}};
+    world.setInterestPoints(i % 2 ? back : nudge);
+  }
+  CHECK(world.getChunk(0, 0) == nullptr);
+}
+
+TEST_CASE("findSpawn picks a standable column") {
+  World world;
+  glm::vec3 spawn = world.findSpawn();
+
+  int cx = static_cast<int>(std::floor(spawn.x / kChunkWidth));
+  int cz = static_cast<int>(std::floor(spawn.z / kChunkDepth));
+  world.loadChunkSync(cx, cz);
+
+  CHECK(world.isSolidBlock(static_cast<int>(std::floor(spawn.x)),
+                           static_cast<int>(spawn.y) - 1,
+                           static_cast<int>(std::floor(spawn.z))));
+  CHECK(world.getBlockAt(spawn + glm::vec3(0, 0.5f, 0)) == BlockType::AIR);
+  CHECK(world.getBlockAt(spawn + glm::vec3(0, 1.5f, 0)) == BlockType::AIR);
 }

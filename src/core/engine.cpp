@@ -122,6 +122,8 @@ void Engine::run() {
   // matters when creating a fresh world.
   save_dir = WorldSave::worldDir(g_settings.world_name);
   WorldSave::LevelData level;
+  WorldSave::PlayerData saved_player;
+  bool has_saved_player = false;
   if (WorldSave::loadLevel(save_dir, level)) {
     g_settings.world_seed   = level.seed;
     g_settings.noise_offset = level.noise_offset;
@@ -132,8 +134,7 @@ void Engine::run() {
     WorldSave::loadEdits(save_dir, saved_edits);
     world.setLoadedEdits(std::move(saved_edits));
 
-    WorldSave::PlayerData pd;
-    if (WorldSave::loadPlayer(save_dir, pd)) world.setLoadedPlayer(pd);
+    has_saved_player = WorldSave::loadPlayer(save_dir, saved_player);
 
     std::cout << "Loaded world '" << g_settings.world_name << "' (seed "
               << level.seed << ")\n";
@@ -143,6 +144,23 @@ void Engine::run() {
   }
 
   world.init();
+
+  // A restored world keeps its stored position instead of searching for a
+  // fresh spawn point.
+  glm::vec3 spawn = has_saved_player ? saved_player.position : world.findSpawn();
+  player = std::make_unique<Player>(spawn);
+  player->getCamera().setPosition(spawn);
+  if (has_saved_player) {
+    Camera &cam = player->getCamera();
+    cam.yaw = saved_player.yaw;
+    cam.pitch = saved_player.pitch;
+    cam.processMouseMovement(0.0f, 0.0f); // refresh direction vectors
+    player->setSelectedHotbarSlot(saved_player.selected_slot);
+    *player->getFlyModePtr() = (saved_player.fly_mode != 0);
+  }
+
+  const glm::vec3 interest[] = {player->getPosition()};
+  world.setInterestPoints(interest);
 
   while (!glfwWindowShouldClose(window)) {
     float currentFrame = glfwGetTime();
@@ -166,7 +184,6 @@ void Engine::saveGame() {
   level.noise_offset = g_settings.noise_offset;
   level.time_of_day  = game_clock.time_of_day;
 
-  auto &player = world.getPlayer();
   const Camera &cam = player->getCamera();
   WorldSave::PlayerData pd;
   pd.position      = player->getPosition();
@@ -189,7 +206,6 @@ void Engine::processInput(GLFWwindow *window) {
     glfwSetWindowShouldClose(window, true);
 
   // Don't process movement when inventory is open
-  auto& player = world.getPlayer();
   if (player->isInventoryOpen()) return;
 
   PlayerInput input;
@@ -215,6 +231,10 @@ void Engine::processInput(GLFWwindow *window) {
 void Engine::update() {
   game_clock.scale = g_settings.time_scale;
   game_clock.update(delta_time);
+
+  player->update(delta_time, &world);
+  const glm::vec3 interest[] = {player->getPosition()};
+  world.setInterestPoints(interest);
   world.update(delta_time);
 
   if (g_settings.wireframe) {
@@ -232,7 +252,7 @@ void Engine::render() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Render scene
-  glm::mat4 view = world.getPlayer()->getCamera().getViewMatrix();
+  glm::mat4 view = player->getCamera().getViewMatrix();
   glm::mat4 proj = glm::perspective(
       glm::radians(g_settings.fov),                  // field of view from settings
       (float)win_width / (float)win_height,           // aspect ratio
@@ -240,7 +260,8 @@ void Engine::render() {
       1000.0f                                         // far plane
   );
 
-  world.render(view, proj, game_clock.fractionOfDay(), win_width, win_height);
+  world.render(view, proj, game_clock.fractionOfDay(), win_width, win_height,
+               player->getPosition(), player->isUnderwater());
 
   // ImGui frame must always be opened here so both renderCrosshair() and
   // debug() can safely submit widgets regardless of game state.
@@ -256,11 +277,11 @@ void Engine::render() {
 
 void Engine::renderCrosshair() {
   // Don't show crosshair when inventory is open
-  if (world.getPlayer()->isInventoryOpen()) return;
+  if (player->isInventoryOpen()) return;
 
   // Dark overlay when the camera eye is inside a solid block (e.g. clipping into a wall)
   {
-    glm::vec3 eyePos = world.getPlayer()->getEyePosition();
+    glm::vec3 eyePos = player->getEyePosition();
     BlockType eyeBlock = world.getBlockAt(eyePos);
     if (eyeBlock != BlockType::AIR && !isLiquid(eyeBlock)) {
       ImDrawList* overlay = ImGui::GetForegroundDrawList();
@@ -285,7 +306,6 @@ void Engine::renderCrosshair() {
 
 void Engine::debug() {
   if (g_settings.show_debug) {
-    auto& player = world.getPlayer();
     ImGuiIO& io  = ImGui::GetIO();
 
     ImGui::SetNextWindowSize(ImVec2(360, 0), ImGuiCond_FirstUseEver);
@@ -508,7 +528,7 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
 
     // Fly mode toggle
     case GLFW_KEY_T:
-      engine->world.getPlayer()->toggleFlyMode();
+      engine->player->toggleFlyMode();
       break;
 
     // Quick-save the world
@@ -518,7 +538,7 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
 
     // Inventory toggle
     case GLFW_KEY_E: {
-      auto& player = engine->world.getPlayer();
+      auto& player = engine->player;
       player->toggleInventory();
       if (player->isInventoryOpen()) {
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
@@ -530,15 +550,15 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
     }
 
     // Hotbar slots 1-9
-    case GLFW_KEY_1: engine->world.getPlayer()->setSelectedHotbarSlot(0); break;
-    case GLFW_KEY_2: engine->world.getPlayer()->setSelectedHotbarSlot(1); break;
-    case GLFW_KEY_3: engine->world.getPlayer()->setSelectedHotbarSlot(2); break;
-    case GLFW_KEY_4: engine->world.getPlayer()->setSelectedHotbarSlot(3); break;
-    case GLFW_KEY_5: engine->world.getPlayer()->setSelectedHotbarSlot(4); break;
-    case GLFW_KEY_6: engine->world.getPlayer()->setSelectedHotbarSlot(5); break;
-    case GLFW_KEY_7: engine->world.getPlayer()->setSelectedHotbarSlot(6); break;
-    case GLFW_KEY_8: engine->world.getPlayer()->setSelectedHotbarSlot(7); break;
-    case GLFW_KEY_9: engine->world.getPlayer()->setSelectedHotbarSlot(8); break;
+    case GLFW_KEY_1: engine->player->setSelectedHotbarSlot(0); break;
+    case GLFW_KEY_2: engine->player->setSelectedHotbarSlot(1); break;
+    case GLFW_KEY_3: engine->player->setSelectedHotbarSlot(2); break;
+    case GLFW_KEY_4: engine->player->setSelectedHotbarSlot(3); break;
+    case GLFW_KEY_5: engine->player->setSelectedHotbarSlot(4); break;
+    case GLFW_KEY_6: engine->player->setSelectedHotbarSlot(5); break;
+    case GLFW_KEY_7: engine->player->setSelectedHotbarSlot(6); break;
+    case GLFW_KEY_8: engine->player->setSelectedHotbarSlot(7); break;
+    case GLFW_KEY_9: engine->player->setSelectedHotbarSlot(8); break;
 
     // Fullscreen toggle
     case GLFW_KEY_F11: {
@@ -569,7 +589,7 @@ void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
   // Don't process mouse look when inventory or debug panel is open
-  if (engine->world.getPlayer()->isInventoryOpen()) return;
+  if (engine->player->isInventoryOpen()) return;
   if (g_settings.show_debug) return;
 
   if (engine->first_mouse) {
@@ -584,7 +604,7 @@ void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
   engine->last_x = xpos;
   engine->last_y = ypos;
 
-  engine->world.getPlayer()->processMouseMovement(xoffset, yoffset);
+  engine->player->processMouseMovement(xoffset, yoffset);
 }
 
 // ─── Mouse Button Callback ─────────────────────────────────────────────
@@ -593,11 +613,11 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
   // Don't process when inventory is open
-  if (engine->world.getPlayer()->isInventoryOpen()) return;
+  if (engine->player->isInventoryOpen()) return;
 
   if (action != GLFW_PRESS) return;
 
-  auto& player = engine->world.getPlayer();
+  auto& player = engine->player;
   const Camera& cam = player->getCamera();
   RaycastResult ray = engine->world.raycast(cam.position, cam.front, kPlayerReach);
 
@@ -655,7 +675,7 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
 
 void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
-  auto& player = engine->world.getPlayer();
+  auto& player = engine->player;
 
   int slot = player->getSelectedHotbarSlot();
   if (yoffset < 0) {

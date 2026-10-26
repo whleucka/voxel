@@ -1,11 +1,13 @@
 #pragma once
 
 #include "glad/glad.h"
+#include "player/player.hpp"
 #include "render/camera.hpp"
 #include "world/game_clock.hpp"
 #include "world/world.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include <memory>
 #include <string>
 
 class Engine {
@@ -25,6 +27,7 @@ private:
   int win_pos_x, win_pos_y;
 
   World world;
+  std::unique_ptr<Player> player; // the local player; created in run()
   std::string save_dir; // saves/<world_name>, resolved at run() start
 
   bool first_mouse = true;

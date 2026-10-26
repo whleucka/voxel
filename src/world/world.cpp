@@ -12,8 +12,9 @@
 #include <memory>
 
 World::World()
-    : renderer(std::make_unique<Renderer>()),
-      player(std::make_unique<Player>(glm::vec3(0.0f, 0.0f, 0.0f))) {}
+    : spiral_offsets(
+          generateSpiralOrder(g_settings.render_distance / kChunkWidth)),
+      renderer(std::make_unique<Renderer>()) {}
 
 World::~World() {
   // Stop worker threads before any members (chunks, renderer, ...) unwind —
@@ -24,70 +25,78 @@ World::~World() {
 
 void World::init() {
   renderer->init();
+}
 
-  spiral_offsets = generateSpiralOrder(g_settings.render_distance / kChunkWidth);
-
-  glm::vec3 pos;
-  if (has_loaded_player) {
-    // Restoring a saved world — use the stored position instead of searching
-    // for a fresh spawn point.
-    pos = loaded_player.position;
-  } else {
-    // Spiral outward (by chunk) using only Biome::getHeight() — pure math, no
-    // chunk allocation — until we find a chunk whose center is above sea level.
-    int spawn_cx = 0, spawn_cz = 0;
-    constexpr int kMaxSpawnSearch = 200;
-    for (int r = 0; r <= kMaxSpawnSearch; ++r) {
-      bool found = false;
-      for (int dx = -r; dx <= r && !found; ++dx) {
-        for (int dz = -r; dz <= r && !found; ++dz) {
-          if (std::abs(dx) != r && std::abs(dz) != r) continue;
-          float wx = (dx + 0.5f) * kChunkWidth;
-          float wz = (dz + 0.5f) * kChunkDepth;
-          if (Biome::getHeight({wx, wz}) > kSeaLevel + 3) {
-            spawn_cx = dx;
-            spawn_cz = dz;
-            found = true;
-          }
+// A fresh spawn point: the first land chunk found spiralling out from the
+// origin, then a grass/dirt (or failing that, any solid) column with headroom.
+glm::vec3 World::findSpawn() const {
+  // Spiral outward (by chunk) using only Biome::getHeight() — pure math, no
+  // chunk allocation — until we find a chunk whose center is above sea level.
+  int spawn_cx = 0, spawn_cz = 0;
+  constexpr int kMaxSpawnSearch = 200;
+  for (int r = 0; r <= kMaxSpawnSearch; ++r) {
+    bool found = false;
+    for (int dx = -r; dx <= r && !found; ++dx) {
+      for (int dz = -r; dz <= r && !found; ++dz) {
+        if (std::abs(dx) != r && std::abs(dz) != r) continue;
+        float wx = (dx + 0.5f) * kChunkWidth;
+        float wz = (dz + 0.5f) * kChunkDepth;
+        if (Biome::getHeight({wx, wz}) > kSeaLevel + 3) {
+          spawn_cx = dx;
+          spawn_cz = dz;
+          found = true;
         }
       }
-      if (found) break;
+    }
+    if (found) break;
+  }
+
+  // Generate that land chunk synchronously to scan actual block data.
+  // Do NOT insert it into the chunks map — let preloadChunks handle it through
+  // the normal async pipeline so its mesh gets built and uploaded properly.
+  Chunk spawn_chunk(spawn_cx, spawn_cz);
+  spawn_chunk.init();
+
+  // Scan all columns for grass/dirt with 2 clear air blocks above (player is
+  // 1.8 blocks tall so we need y+1 and y+2 both to be air).
+  auto scanColumn = [&](int lx, int lz, auto predicate) -> int {
+    for (int y = kChunkHeight - 3; y >= 1; --y) {
+      BlockType surface = spawn_chunk.at(lx, y,     lz);
+      BlockType above1  = spawn_chunk.at(lx, y + 1, lz);
+      BlockType above2  = spawn_chunk.at(lx, y + 2, lz);
+      if (predicate(surface) && above1 == BlockType::AIR && above2 == BlockType::AIR)
+        return y + 1;
+    }
+    return -1;
+  };
+
+  auto isGrassDirt = [](BlockType b) {
+    return b == BlockType::GRASS || b == BlockType::DIRT;
+  };
+  auto isSolid = [](BlockType b) {
+    return b != BlockType::AIR && b != BlockType::WATER;
+  };
+
+  float spawn_x = (spawn_cx + 0.5f) * kChunkWidth;
+  float spawn_y = -1.0f;
+  float spawn_z = (spawn_cz + 0.5f) * kChunkDepth;
+
+  // Pass 1: grass or dirt surface
+  for (int lx = 0; lx < kChunkWidth && spawn_y < 0; ++lx)
+    for (int lz = 0; lz < kChunkDepth && spawn_y < 0; ++lz) {
+      int y = scanColumn(lx, lz, isGrassDirt);
+      if (y >= 0) {
+        spawn_x = spawn_cx * kChunkWidth + lx + 0.5f;
+        spawn_y = static_cast<float>(y);
+        spawn_z = spawn_cz * kChunkDepth + lz + 0.5f;
+      }
     }
 
-    // Generate that land chunk synchronously to scan actual block data.
-    // Do NOT insert it into the chunks map — let preloadChunks handle it through
-    // the normal async pipeline so its mesh gets built and uploaded properly.
-    Chunk spawn_chunk(spawn_cx, spawn_cz);
-    spawn_chunk.init();
-
-    // Scan all columns for grass/dirt with 2 clear air blocks above (player is
-    // 1.8 blocks tall so we need y+1 and y+2 both to be air).
-    auto scanColumn = [&](int lx, int lz, auto predicate) -> int {
-      for (int y = kChunkHeight - 3; y >= 1; --y) {
-        BlockType surface = spawn_chunk.at(lx, y,     lz);
-        BlockType above1  = spawn_chunk.at(lx, y + 1, lz);
-        BlockType above2  = spawn_chunk.at(lx, y + 2, lz);
-        if (predicate(surface) && above1 == BlockType::AIR && above2 == BlockType::AIR)
-          return y + 1;
-      }
-      return -1;
-    };
-
-    auto isGrassDirt = [](BlockType b) {
-      return b == BlockType::GRASS || b == BlockType::DIRT;
-    };
-    auto isSolid = [](BlockType b) {
-      return b != BlockType::AIR && b != BlockType::WATER;
-    };
-
-    float spawn_x = (spawn_cx + 0.5f) * kChunkWidth;
-    float spawn_y = -1.0f;
-    float spawn_z = (spawn_cz + 0.5f) * kChunkDepth;
-
-    // Pass 1: grass or dirt surface
+  // Pass 2: any solid non-water surface (snow, stone peaks)
+  if (spawn_y < 0)
     for (int lx = 0; lx < kChunkWidth && spawn_y < 0; ++lx)
       for (int lz = 0; lz < kChunkDepth && spawn_y < 0; ++lz) {
-        int y = scanColumn(lx, lz, isGrassDirt);
+        int y = scanColumn(lx, lz, isSolid);
         if (y >= 0) {
           spawn_x = spawn_cx * kChunkWidth + lx + 0.5f;
           spawn_y = static_cast<float>(y);
@@ -95,40 +104,7 @@ void World::init() {
         }
       }
 
-    // Pass 2: any solid non-water surface (snow, stone peaks)
-    if (spawn_y < 0)
-      for (int lx = 0; lx < kChunkWidth && spawn_y < 0; ++lx)
-        for (int lz = 0; lz < kChunkDepth && spawn_y < 0; ++lz) {
-          int y = scanColumn(lx, lz, isSolid);
-          if (y >= 0) {
-            spawn_x = spawn_cx * kChunkWidth + lx + 0.5f;
-            spawn_y = static_cast<float>(y);
-            spawn_z = spawn_cz * kChunkDepth + lz + 0.5f;
-          }
-        }
-
-    pos = glm::vec3(spawn_x, spawn_y, spawn_z);
-  }
-
-  player->setPosition(pos);
-  player->getCamera().setPosition(pos);
-
-  if (has_loaded_player) {
-    Camera &cam = player->getCamera();
-    cam.yaw = loaded_player.yaw;
-    cam.pitch = loaded_player.pitch;
-    cam.processMouseMovement(0.0f, 0.0f); // refresh direction vectors
-    player->setSelectedHotbarSlot(loaded_player.selected_slot);
-    *player->getFlyModePtr() = (loaded_player.fly_mode != 0);
-  }
-
-  // Now compute chunk center and kick off loading
-  const glm::vec3 p = player->getPosition();
-  last_chunk_x = static_cast<int>(std::floor(p.x / kChunkWidth));
-  last_chunk_z = static_cast<int>(std::floor(p.z / kChunkDepth));
-
-  preloadChunks();
-  updateLoadedChunks();
+  return glm::vec3(spawn_x, spawn_y, spawn_z);
 }
 
 std::vector<glm::ivec2> World::generateSpiralOrder(int radius) {
@@ -232,7 +208,6 @@ void World::addChunk(int x, int z) {
 }
 
 void World::update(float dt) {
-  player->update(dt, this);
   cloud_time += dt;
 
   // Drain cross-chunk relight requests queued as chunks stream in near torches.
@@ -252,16 +227,6 @@ void World::update(float dt) {
     }
   }
 
-  glm::vec3 pos = player->getPosition();
-  int current_chunk_x = static_cast<int>(floor(pos.x / kChunkWidth));
-  int current_chunk_z = static_cast<int>(floor(pos.z / kChunkDepth));
-
-  if (current_chunk_x != last_chunk_x || current_chunk_z != last_chunk_z) {
-    last_chunk_x = current_chunk_x;
-    last_chunk_z = current_chunk_z;
-    updateLoadedChunks();
-  }
-
   int uploads_this_frame = 0;
   {
     WriteLock lock(chunks_mutex);
@@ -273,20 +238,33 @@ void World::update(float dt) {
   }
 }
 
+void World::setInterestPoints(std::span<const glm::vec3> points) {
+  std::vector<glm::ivec2> centers;
+  centers.reserve(points.size());
+  for (const glm::vec3 &p : points)
+    centers.emplace_back(static_cast<int>(std::floor(p.x / kChunkWidth)),
+                         static_cast<int>(std::floor(p.z / kChunkDepth)));
+
+  // Streaming only reacts to chunk-boundary crossings, as it always has.
+  if (centers == interest_chunks) return;
+
+  bool first = interest_chunks.empty();
+  interest_chunks = std::move(centers);
+  if (first) preloadChunks();
+  updateLoadedChunks();
+}
+
 void World::preloadChunks() {
-  int chunksAdded = 0;
+  for (const glm::ivec2 &center : interest_chunks) {
+    for (const auto &offset : spiral_offsets) {
+      if (offset.x * offset.x + offset.y * offset.y >
+          kChunkPreloadRadius * kChunkPreloadRadius)
+        continue;
 
-  for (const auto &offset : spiral_offsets) {
-    if (offset.x * offset.x + offset.y * offset.y >
-        kChunkPreloadRadius * kChunkPreloadRadius)
-      continue;
+      int cx = center.x + offset.x;
+      int cz = center.y + offset.y;
 
-    int cx = last_chunk_x + offset.x;
-    int cz = last_chunk_z + offset.y;
-
-    if (!getChunk(cx, cz)) {
-      addChunk(cx, cz);
-      ++chunksAdded;
+      if (!getChunk(cx, cz)) addChunk(cx, cz);
     }
   }
 }
@@ -304,22 +282,25 @@ void World::updateLoadedChunks() {
   }
 
   robin_hood::unordered_set<ChunkKey, ChunkKeyHash> keep;
-  keep.reserve((2 * r + 1) * (2 * r + 1));
+  keep.reserve(interest_chunks.size() * (2 * r + 1) * (2 * r + 1));
 
+  // The per-frame chunk budget is shared by all interest points.
   int chunksAdded = 0;
 
-  for (const auto &offset : spiral_offsets) {
-    int cx = last_chunk_x + offset.x;
-    int cz = last_chunk_z + offset.y;
+  for (const glm::ivec2 &center : interest_chunks) {
+    for (const auto &offset : spiral_offsets) {
+      int cx = center.x + offset.x;
+      int cz = center.y + offset.y;
 
-    if (offset.x * offset.x + offset.y * offset.y > r * r)
-      continue;
+      if (offset.x * offset.x + offset.y * offset.y > r * r)
+        continue;
 
-    keep.insert({cx, cz});
+      keep.insert({cx, cz});
 
-    if (!getChunk(cx, cz) && chunksAdded < kMaxChunksPerFrame) {
-      addChunk(cx, cz);
-      ++chunksAdded;
+      if (!getChunk(cx, cz) && chunksAdded < kMaxChunksPerFrame) {
+        addChunk(cx, cz);
+        ++chunksAdded;
+      }
     }
   }
 
@@ -521,13 +502,14 @@ bool World::isChunkInFrustum(const glm::vec4 planes[6], const glm::vec3 &min,
 }
 
 void World::render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay,
-                   int viewportWidth, int viewportHeight) {
+                   int viewportWidth, int viewportHeight,
+                   const glm::vec3 &viewer_pos, bool viewer_underwater) {
   ReadLock lock(chunks_mutex);
 
   glm::mat4 viewProj = projection * view;
 
   glm::vec4 planes[6];
-  player->getCamera().getFrustumPlanes(planes, viewProj);
+  Camera::getFrustumPlanes(planes, viewProj);
 
   std::vector<Chunk *> visibleChunks;
   visibleChunks.reserve(chunks.size());
@@ -546,7 +528,7 @@ void World::render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay,
 
   // Shadow pass: render depth from sun's perspective (uses all loaded chunks
   // so that off-screen geometry can still cast shadows into view)
-  renderer->shadowPass(chunks, player->getPosition(), timeOfDay,
+  renderer->shadowPass(chunks, viewer_pos, timeOfDay,
                        viewportWidth, viewportHeight);
 
   // Sky must be drawn before world geometry (it uses GL_LEQUAL depth and writes
@@ -554,11 +536,11 @@ void World::render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay,
   renderer->drawSky(view, projection, timeOfDay);
 
   renderer->drawChunks(visibleChunks, view, projection,
-                       player->getPosition(), player->isUnderwater(), timeOfDay);
+                       viewer_pos, viewer_underwater, timeOfDay);
 
   // Clouds drawn after opaque & transparent terrain so they blend correctly
   // with the sky behind them while terrain in front occludes them via depth.
-  renderer->drawClouds(view, projection, player->getPosition(), timeOfDay,
+  renderer->drawClouds(view, projection, viewer_pos, timeOfDay,
                        cloud_time);
 }
 
@@ -743,10 +725,6 @@ void World::setLoadedEdits(WorldEdits e) {
   edits = std::move(e);
 }
 
-void World::setLoadedPlayer(const WorldSave::PlayerData &p) {
-  loaded_player = p;
-  has_loaded_player = true;
-}
 
 WorldEdits World::snapshotEdits() const {
   std::lock_guard lk(edits_mutex);
