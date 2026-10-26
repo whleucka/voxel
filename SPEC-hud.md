@@ -5,6 +5,8 @@ Health and stamina bars come later with `vitals`. This module only reserves
 their space. (The build order was swapped on 2026-10-26: `hud` comes before
 `vitals`.)
 
+**Status:** implemented. Criteria 1 and 4 are met; criteria 2–3 (manual check, FPS) are up to you.
+
 ## Objective
 
 Put the inventory on screen. Players see a hotbar at all times and can open

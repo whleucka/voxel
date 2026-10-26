@@ -20,12 +20,12 @@ thin.
 
 ## Tasks
 
-- [ ] T1: `HudLayout`: slot rects, hit-test, bar strip
-- [ ] T2: Icon geometry: atlas UVs and cube face quads
-- [ ] T3: `InventoryScreen` click state machine
-- [ ] T4: `Hud` drawing for the hotbar and name popup, wired into `Engine`
-- [ ] T5: Inventory screen drawing, click routing, Esc to close
-- [ ] T6: Wrap-up, PR, merge when green
+- [x] T1: `HudLayout`: slot rects, hit-test, bar strip
+- [x] T2: Icon geometry: atlas UVs and cube face quads
+- [x] T3: `InventoryScreen` click state machine
+- [x] T4: `Hud` drawing for the hotbar and name popup, wired into `Engine`
+- [x] T5: Inventory screen drawing, click routing, Esc to close
+- [x] T6: Wrap-up, PR, merge when green
 
 Checkpoint after T3: the pure logic is done and tested.
 
