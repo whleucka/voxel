@@ -54,7 +54,7 @@ Plan: [plan.md](plan.md) · Spec: [SPEC-sim-core.md](../SPEC-sim-core.md)
 ---
 
 ## Checkpoint A
-- [ ] `make test` passes locally and in CI.
+- [x] `make test` passes locally and in CI.
 - [ ] The game plays exactly as before.
 
 ---
@@ -117,7 +117,7 @@ Plan: [plan.md](plan.md) · Spec: [SPEC-sim-core.md](../SPEC-sim-core.md)
 ---
 
 ## Checkpoint B
-- [ ] All tests pass and CI is green.
+- [x] All tests pass and CI is green.
 - [ ] Full manual parity checklist (spec criterion 5) passes.
 - [x] **Human review of the new `sim/` structure before routing gameplay through it.**
 
@@ -207,7 +207,7 @@ Plan: [plan.md](plan.md) · Spec: [SPEC-sim-core.md](../SPEC-sim-core.md)
 **Acceptance criteria:**
 - [ ] Spec success criteria 1–7 are all checked.
 - [ ] FPS at spawn (debug panel, default settings, same seed) is within 5% of `main`. Both numbers are recorded in the PR.
-- [ ] The build has zero new warnings and CI is green.
+- [x] The build has zero new warnings and CI is green.
 
 **Verification:**
 - [x] `make test` passes, and `make DEBUG=1` builds clean.
