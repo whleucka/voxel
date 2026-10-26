@@ -22,8 +22,8 @@ Plan: [multiplayer-plan.md](multiplayer-plan.md) · Spec: [SPEC-multiplayer.md](
 - [x] Leaving saves the record, and rejoining restores it. A new name gets the starter kit.
 
 ## T4: Wire format
-- [ ] Every Command and Event round-trips, including edge values.
-- [ ] Frames reassemble from single bytes. Garbage, truncated and oversized frames are rejected.
+- [x] Every Command and Event round-trips, including edge values.
+- [x] Frames reassemble from single bytes. Garbage, truncated and oversized frames are rejected.
 
 ## T5: Transport
 - [ ] Loopback: join, edits seen by both, snapshots, leaving, and the right reasons for a duplicate name, a full game, a host quitting and a wrong version.
