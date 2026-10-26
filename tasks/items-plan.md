@@ -39,14 +39,14 @@ them in order.
 
 ## Task List
 
-- [ ] T1: ItemId, ItemDef, itemDef/itemForBlock/isValidItem
-- [ ] T2: Drop table (`dropFor`)
-- [ ] T3: ItemStack, mergeInto, split
+- [x] T1: ItemId, ItemDef, itemDef/itemForBlock/isValidItem
+- [x] T2: Drop table (`dropFor`)
+- [x] T3: ItemStack, mergeInto, split
 
 ### Checkpoint: logic complete, all tests green
 
-- [ ] T4: Placeholder item atlas and generator script
-- [ ] T5: Wrap-up (map status, CI, PR)
+- [x] T4: Placeholder item atlas and generator script
+- [x] T5: Wrap-up (map status, CI, PR)
 
 ## Risks and Mitigations
 

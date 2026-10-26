@@ -3,6 +3,8 @@
 Module of [CAPABILITY_MAP.md](CAPABILITY_MAP.md). Depends on: nothing.
 Used by: `inventory`, `hud`, `animals`, and later `vitals`/`enemies` (which add items).
 
+**Status:** implemented on `feat/items`, and all success criteria are met.
+
 ## Objective
 
 Give the game a notion of *things you can hold*. Every module that stores,

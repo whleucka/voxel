@@ -16,12 +16,12 @@ Plan: [items-plan.md](items-plan.md) · Spec: [SPEC-items.md](../SPEC-items.md)
 - The 7 materials come from a static table with tiles (0..6, 0) in the item atlas.
 
 **Acceptance criteria:**
-- [ ] Every `BlockType` except AIR and WATER maps to a valid item whose `places` is that block.
-- [ ] All 7 materials are valid, have names, have a max stack of 64, and have unique item-atlas tiles inside the 8×8 grid. They place nothing.
-- [ ] `isValidItem` is false for NONE, WATER's ID, unused block values, and IDs past the last material.
+- [x] Every `BlockType` except AIR and WATER maps to a valid item whose `places` is that block.
+- [x] All 7 materials are valid, have names, have a max stack of 64, and have unique item-atlas tiles inside the 8×8 grid. They place nothing.
+- [x] `isValidItem` is false for NONE, WATER's ID, unused block values, and IDs past the last material.
 
 **Verification:**
-- [ ] `make test` passes with the new `item_test.cpp` cases.
+- [x] `make test` passes with the new `item_test.cpp` cases.
 
 **Dependencies:** None
 
@@ -36,12 +36,12 @@ Plan: [items-plan.md](items-plan.md) · Spec: [SPEC-items.md](../SPEC-items.md)
 **Description:** Implement `dropFor(BlockType)` as specified.
 
 **Acceptance criteria:**
-- [ ] AIR, WATER and BEDROCK drop nothing.
-- [ ] GRASS and SNOW_DIRT drop DIRT, and STONE drops COBBLESTONE.
-- [ ] The 7 ores drop their material. Every other block drops itself, and every drop is a valid item.
+- [x] AIR, WATER and BEDROCK drop nothing.
+- [x] GRASS and SNOW_DIRT drop DIRT, and STONE drops COBBLESTONE.
+- [x] The 7 ores drop their material. Every other block drops itself, and every drop is a valid item.
 
 **Verification:**
-- [ ] `make test` passes, with a case per rule plus a loop over every block.
+- [x] `make test` passes, with a case per rule plus a loop over every block.
 
 **Dependencies:** T1
 
@@ -56,12 +56,12 @@ Plan: [items-plan.md](items-plan.md) · Spec: [SPEC-items.md](../SPEC-items.md)
 **Description:** Add `ItemStack` (`empty`, `space`), `mergeInto` and `split`. Stacks are normalized to `{NONE, 0}` when empty.
 
 **Acceptance criteria:**
-- [ ] Merging into an empty, partial or full stack moves the right amount and leaves any remainder in the source.
-- [ ] Different IDs never merge, and an emptied source becomes `{NONE, 0}`.
-- [ ] `split` takes `min(n, count)`, a split of 0 returns an empty stack, and splitting everything empties the source.
+- [x] Merging into an empty, partial or full stack moves the right amount and leaves any remainder in the source.
+- [x] Different IDs never merge, and an emptied source becomes `{NONE, 0}`.
+- [x] `split` takes `min(n, count)`, a split of 0 returns an empty stack, and splitting everything empties the source.
 
 **Verification:**
-- [ ] `make test` passes with the stack cases.
+- [x] `make test` passes with the stack cases.
 
 **Dependencies:** T1
 
@@ -72,7 +72,7 @@ Plan: [items-plan.md](items-plan.md) · Spec: [SPEC-items.md](../SPEC-items.md)
 ---
 
 ## Checkpoint: logic complete
-- [ ] All tests pass, and the app builds and runs unchanged.
+- [x] All tests pass, and the app builds and runs unchanged.
 
 ---
 
@@ -81,14 +81,14 @@ Plan: [items-plan.md](items-plan.md) · Spec: [SPEC-items.md](../SPEC-items.md)
 **Description:** Add `tools/gen_item_placeholders.py` (Pillow), which writes `res/item_atlas.png` at 256×256 RGBA with 32 px tiles. Material tiles go at (0..6, 0) as simple deterministic shapes: a dark lump for coal, coloured gems for diamond, emerald and ruby, and coloured nuggets for the raw ores. Everything else is transparent. Commit the PNG.
 
 **Acceptance criteria:**
-- [ ] The PNG is 256×256, and tiles 0..6 of row 0 are non-empty while the rest are transparent.
-- [ ] Rerunning the script produces a pixel-identical image.
-- [ ] `make` copies it to `bin/item_atlas.png`.
+- [x] The PNG is 256×256, and tiles 0..6 of row 0 are non-empty while the rest are transparent.
+- [x] Rerunning the script produces a pixel-identical image.
+- [x] `make` copies it to `bin/item_atlas.png`.
 
 **Verification:**
-- [ ] Run the script twice and compare the pixels.
-- [ ] `ls bin/item_atlas.png` after `make`.
-- [ ] Look at the PNG.
+- [x] Run the script twice and compare the pixels.
+- [x] `ls bin/item_atlas.png` after `make`.
+- [x] Look at the PNG.
 
 **Dependencies:** T1 (tile layout)
 
@@ -103,8 +103,8 @@ Plan: [items-plan.md](items-plan.md) · Spec: [SPEC-items.md](../SPEC-items.md)
 **Description:** Mark `items` as done in the capability map, update the spec status, open a PR, and merge once CI is green.
 
 **Acceptance criteria:**
-- [ ] All spec success criteria are met.
-- [ ] CI is green.
+- [x] All spec success criteria are met.
+- [x] CI is green.
 
 **Dependencies:** T1–T4
 
