@@ -650,12 +650,7 @@ glm::vec3 Renderer::skyColor(float timeOfDay) {
 }
 
 // ─── Draw chunks ────────────────────────────────────────────────────────────
-void Renderer::drawChunks(
-    const std::vector<Chunk *> &chunks,
-    const glm::mat4 &view, const glm::mat4 &projection,
-    const glm::vec3 &cameraPos, bool underwater, float timeOfDay)
-{
-  // ── Derive lighting parameters from time-of-day ──────────────────────────
+SceneLighting Renderer::sceneLighting(float timeOfDay) {
   float angle  = (timeOfDay - 0.25f) * 2.0f * glm::pi<float>();
   float sinA   = std::sin(angle);
   float cosA   = std::cos(angle);
@@ -686,6 +681,27 @@ void Renderer::drawChunks(
   // Fog colour matches the sky
   glm::vec3 fogColor = skyColor(timeOfDay);
 
+  // Water fog colour: medium blue by day, fades to near-black at night
+  // Night value kept near-black: 0.04 linear blue → ~21 % after sRGB gamma,
+  // which is the source of the "glowing underwater wall" at night.
+  glm::vec3 waterFogColor = glm::mix(glm::vec3(0.001f, 0.002f, 0.004f),
+                                     glm::vec3(0.10f, 0.30f, 0.50f),
+                                     dayFactor);
+
+  return {sunDir, sunColor, ambientColor, fogColor, waterFogColor};
+}
+
+void Renderer::drawChunks(
+    const std::vector<Chunk *> &chunks,
+    const glm::mat4 &view, const glm::mat4 &projection,
+    const glm::vec3 &cameraPos, bool underwater, float timeOfDay)
+{
+  SceneLighting light = sceneLighting(timeOfDay);
+  const glm::vec3 &sunDir = light.sun_dir;
+  const glm::vec3 &sunColor = light.sun_color;
+  const glm::vec3 &ambientColor = light.ambient;
+  const glm::vec3 &fogColor = light.fog_color;
+
   // Fog distances from settings (tweakable in debug panel)
   const float kFogStart = g_settings.fog_start;
   const float kFogEnd   = g_settings.fog_end;
@@ -715,13 +731,7 @@ void Renderer::drawChunks(
   block_shader->setFloat("uFogStart",         kFogStart);
   block_shader->setFloat("uFogEnd",           kFogEnd);
   block_shader->setFloat("uWaterFogDensity",  g_settings.water_fog_density);
-  // Water fog colour: medium blue by day, fades to near-black at night
-  // Night value kept near-black: 0.04 linear blue → ~21 % after sRGB gamma,
-  // which is the source of the "glowing underwater wall" at night.
-  glm::vec3 waterFogColor = glm::mix(glm::vec3(0.001f, 0.002f, 0.004f),
-                                     glm::vec3(0.10f, 0.30f, 0.50f),
-                                     dayFactor);
-  block_shader->setVec3("uWaterFogColor", waterFogColor);
+  block_shader->setVec3("uWaterFogColor", light.water_fog_color);
 
   // ── Pass 1: Opaque geometry ───────────────────────────────────────────────
   stats.chunks_drawn = static_cast<int>(chunks.size());

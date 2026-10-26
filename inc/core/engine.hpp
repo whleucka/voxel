@@ -6,6 +6,8 @@
 #include "sim/game.hpp"
 #include "sim/local_connection.hpp"
 #include "ui/hud.hpp"
+#include "entity/entity_interp.hpp"
+#include "render/entity_renderer.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <memory>
@@ -34,6 +36,10 @@ private:
   Inventory::Slots inventory_view{}; // the Game's latest InventoryContents
   VitalsChanged vitals_view{Vitals::kMax, Vitals::kMax, Vitals::kMax, true, false};
   Hud hud;
+  EntityRenderer entity_renderer;
+  EntityInterpolator entity_interp;
+  double last_snapshot_time = 0.0;
+  std::vector<EntityView> entity_views; // this frame's interpolated entities
   InventoryScreen inventory_screen;
 
   bool first_mouse = true;

@@ -1,37 +1,13 @@
 #include "ui/hud.hpp"
 #include "block/block_data.hpp"
 #include "imgui/imgui.h"
+#include "render/texture_util.hpp"
 #include "ui/item_icon_geometry.hpp"
 #include "vitals/vitals.hpp"
 #include <algorithm>
-#include <iostream>
-#include <stb_image.h>
 #include <string>
 
 namespace {
-
-GLuint loadTexture(const std::string &path) {
-  int w = 0, h = 0, channels = 0;
-  stbi_set_flip_vertically_on_load(false);
-  unsigned char *data = stbi_load(path.c_str(), &w, &h, &channels, 4);
-  if (!data) {
-    std::cerr << "[hud] failed to load " << path << "\n";
-    return 0;
-  }
-  GLuint tex = 0;
-  glGenTextures(1, &tex);
-  glBindTexture(GL_TEXTURE_2D, tex);
-  // sRGB like the block atlas, so the framebuffer's sRGB encode gives back
-  // the colours as painted.
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA, w, h, 0, GL_RGBA,
-               GL_UNSIGNED_BYTE, data);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  stbi_image_free(data);
-  return tex;
-}
 
 ImVec2 iv(glm::vec2 v) { return {v.x, v.y}; }
 
@@ -57,8 +33,8 @@ void Hud::shutdown() {
 }
 
 bool Hud::init(const std::string &block_atlas, const std::string &item_atlas) {
-  block_tex = loadTexture(block_atlas);
-  item_tex = loadTexture(item_atlas);
+  block_tex = loadSrgbTexture(block_atlas);
+  item_tex = loadSrgbTexture(item_atlas);
   return block_tex && item_tex;
 }
 

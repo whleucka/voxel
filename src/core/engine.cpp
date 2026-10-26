@@ -117,6 +117,8 @@ bool Engine::init() {
 
   if (!hud.init("res/block_atlas.png", "res/item_atlas.png"))
     std::cerr << "HUD icons unavailable; drawing empty slots\n";
+  if (!entity_renderer.init())
+    std::cerr << "Entity textures unavailable\n";
 
   return true;
 }
@@ -249,6 +251,10 @@ void Engine::handleEvents() {
     else if (const auto *respawned = std::get_if<Respawned>(&ev)) {
       player->respawnAt(respawned->position);
     }
+    else if (const auto *snap = std::get_if<EntitySnapshot>(&ev)) {
+      entity_interp.push(*snap);
+      last_snapshot_time = glfwGetTime();
+    }
     // BlockChanged needs no handling yet: in single-player the client renders
     // the Game's own World, which is already up to date.
   }
@@ -271,6 +277,14 @@ void Engine::render() {
 
   game.world().render(view, proj, game.clock().fractionOfDay(), win_width,
                       win_height, player->getPosition(), player->isUnderwater());
+
+  // Entities are drawn between the last two snapshots (one tick behind).
+  double now = glfwGetTime();
+  float alpha = static_cast<float>((now - last_snapshot_time) / Game::kTickSeconds);
+  entity_views = entity_interp.views(alpha);
+  entity_renderer.draw(entity_views, game.world(), view, proj,
+                       player->getCamera().position, player->isUnderwater(),
+                       game.clock().fractionOfDay(), now);
 
   // ImGui frame must always be opened here so both renderCrosshair() and
   // debug() can safely submit widgets regardless of game state.
@@ -789,6 +803,7 @@ void Engine::windowResize(GLFWwindow *window, int w, int h) {
 
 void Engine::cleanup() {
   hud.shutdown(); // GL textures; must go before the context does
+  entity_renderer.shutdown();
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
