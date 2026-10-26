@@ -71,8 +71,8 @@ void EntityRenderer::shutdown() {
 }
 
 void EntityRenderer::drawBox(const glm::mat4 &entity_model, glm::vec3 offset,
-                             glm::vec3 size) const {
-  glm::mat4 m = glm::scale(glm::translate(entity_model, offset), size);
+                             glm::vec3 size, const glm::mat4 &local) const {
+  glm::mat4 m = glm::scale(glm::translate(entity_model * local, offset), size);
   shader->setMat4("uModel", m);
   glm::mat3 normal_mat = glm::transpose(glm::inverse(glm::mat3(m)));
   glUniformMatrix3fv(glGetUniformLocation(shader->ID, "uNormalMat"), 1, GL_FALSE,
@@ -150,9 +150,34 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities, const World &
     glm::mat4 m = glm::rotate(glm::translate(glm::mat4(1.0f), e.position),
                               -glm::radians(e.yaw), glm::vec3(0, 1, 0));
     shader->setInt("uMode", 0);
+    float swing = e.moving ? std::sin(static_cast<float>(now) * 10.0f) * glm::radians(30.0f)
+                           : 0.0f;
     for (const ModelBox &box : def.model) {
       shader->setVec3("uColor", box.color);
-      drawBox(m, box.offset, box.size);
+      if (box.swing == 0 || swing == 0.0f) {
+        drawBox(m, box.offset, box.size);
+        continue;
+      }
+      // Legs swing forward and back about the top of the leg.
+      glm::vec3 pivot = box.offset + glm::vec3(box.size.x * 0.5f, box.size.y, box.size.z * 0.5f);
+      glm::mat4 local = glm::translate(glm::mat4(1.0f), pivot) *
+                        glm::rotate(glm::mat4(1.0f), swing * box.swing, glm::vec3(1, 0, 0)) *
+                        glm::translate(glm::mat4(1.0f), -pivot);
+      drawBox(m, box.offset, box.size, local);
+    }
+
+    // A fed animal shows a little bobbing heart above its head (not turned
+    // with the body, so it always reads as a heart).
+    if (e.happy) {
+      float bob = 0.08f * std::sin(static_cast<float>(now) * 4.0f);
+      glm::mat4 h = glm::translate(glm::mat4(1.0f),
+                                   e.position + glm::vec3(0.0f, def.height + 0.35f + bob, 0.0f));
+      shader->setFloat("uHurt", 0.0f);
+      shader->setVec3("uColor", {0.92f, 0.15f, 0.25f});
+      drawBox(h, {-0.12f, 0.05f, -0.03f}, {0.10f, 0.10f, 0.06f}); // lobes
+      drawBox(h, {0.02f, 0.05f, -0.03f}, {0.10f, 0.10f, 0.06f});
+      drawBox(h, {-0.09f, -0.03f, -0.03f}, {0.18f, 0.09f, 0.06f}); // body
+      drawBox(h, {-0.04f, -0.09f, -0.03f}, {0.08f, 0.07f, 0.06f}); // point
     }
   }
 

@@ -34,6 +34,10 @@ std::vector<EntityView> EntityInterpolator::views(float alpha) const {
       const EntityView &was = *it->second;
       v.position = glm::mix(was.position, now.position, alpha);
       v.yaw = lerpAngle(was.yaw, now.yaw, alpha);
+      // Walking pace is ~0.1 blocks a tick; anything over a small threshold
+      // counts as moving (drives leg swing).
+      glm::vec2 step(now.position.x - was.position.x, now.position.z - was.position.z);
+      v.moving = glm::length(step) > 0.01f;
     }
     out.push_back(v);
   }

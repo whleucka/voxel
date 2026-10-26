@@ -761,13 +761,14 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
   const Camera& cam = player->getCamera();
   RaycastResult ray = engine->game.world().raycast(cam.position, cam.front, kPlayerReach);
 
-  if (button == GLFW_MOUSE_BUTTON_LEFT) {
-    // Whichever is nearer along the aim, a hittable entity or a block.
+  // The nearest entity along the aim that `wanted` accepts, if it's nearer
+  // than the block the ray hit.
+  auto aimedEntity = [&](bool (*wanted)(EntityKind)) -> std::optional<EntityId> {
     std::optional<EntityId> target;
     float nearest = ray.hit ? ray.distance : kPlayerReach;
     for (const EntityView &v : engine->entity_views) {
+      if (!wanted(v.kind)) continue;
       const EntityTypeDef &def = entityType(v.kind);
-      if (def.max_health <= 0) continue;
       glm::vec3 lo = v.position - glm::vec3(def.half_width, 0.0f, def.half_width);
       glm::vec3 hi = v.position + glm::vec3(def.half_width, def.height, def.half_width);
       auto t = rayAabb(cam.position, cam.front, lo, hi);
@@ -776,12 +777,24 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
         target = v.id;
       }
     }
-    if (target)
+    return target;
+  };
+
+  if (button == GLFW_MOUSE_BUTTON_LEFT) {
+    auto hittable = [](EntityKind k) { return entityType(k).max_health > 0; };
+    if (auto target = aimedEntity(hittable))
       engine->connection.send(AttackEntity{*target});
     else if (ray.hit)
       engine->connection.send(BreakBlock{ray.block_pos});
-  } else if (button == GLFW_MOUSE_BUTTON_RIGHT && ray.hit) {
-    engine->connection.send(PlaceBlock{ray.block_pos + ray.normal});
+  } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+    // Feed an animal, else eat held food, else place a block.
+    const ItemStack &held = engine->inventory_view[player->getSelectedHotbarSlot()];
+    if (auto animal = aimedEntity(isAnimal))
+      engine->connection.send(InteractEntity{*animal});
+    else if (!held.empty() && itemDef(held.id).food_heal > 0)
+      engine->connection.send(EatItem{});
+    else if (ray.hit)
+      engine->connection.send(PlaceBlock{ray.block_pos + ray.normal});
   }
 }
 

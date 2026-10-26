@@ -85,3 +85,12 @@ TEST_CASE("diagonal rays hit and graze correctly") {
   CHECK(*t == doctest::Approx(std::sqrt(8.0f)));
   CHECK_FALSE(rayAabb({0, 0, 0}, glm::normalize(glm::vec3(1, 0.2f, 0)), {2, 2, -1}, {3, 3, 1}));
 }
+
+TEST_CASE("entities that changed position between snapshots are moving") {
+  EntityInterpolator in;
+  in.push({1, {view(1, {0, 64, 0}), view(2, {5, 64, 5})}});
+  in.push({2, {view(1, {0.1f, 64, 0}), view(2, {5, 64.5f, 5})}});
+  auto v = in.views(0.5f);
+  CHECK(v[0].moving);
+  CHECK_FALSE(v[1].moving); // only vertical: not walking
+}
