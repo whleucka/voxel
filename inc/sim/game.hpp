@@ -1,0 +1,81 @@
+#pragma once
+
+#include "sim/connection.hpp"
+#include "sim/player_state.hpp"
+#include "world/game_clock.hpp"
+#include "world/world.hpp"
+#include "world/world_save.hpp"
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+// The authoritative simulation. Owns the world, the clock and every player's
+// state; it changes only in response to Commands from attached clients and
+// reports changes back as Events.
+class Game {
+public:
+  static constexpr float kTickSeconds = 0.05f; // 20 Hz
+
+  // Bind the game to a save directory and load it if a world exists there.
+  // An existing world keeps its own seed (written to g_settings) and clock;
+  // otherwise the properties seed creates a fresh one. Call before any Join.
+  // Returns true if an existing world was loaded.
+  bool load(const std::string &dir);
+  // Write level, edits and the host player to the bound directory.
+  bool save();
+
+  // Install already-loaded save data before any client joins. The first Join
+  // takes over the saved player record (single-player); later joins get a
+  // fresh spawn. load() uses this; tests may call it directly.
+  void restore(const WorldSave::LevelData &level, WorldEdits edits,
+               std::optional<WorldSave::PlayerData> player);
+
+  void addClient(ClientLink &link);
+
+  // Apply every pending command. Called once per frame, so edits land with no
+  // added latency; only time-based state waits for tick().
+  void pump();
+  // Run as many fixed ticks as dt (plus the carried remainder) covers.
+  // Returns the number of ticks run.
+  int advance(float dt);
+  void tick();
+
+  World &world() { return world_; }
+  const World &world() const { return world_; }
+  const GameClock &clock() const { return clock_; }
+  const PlayerState *findPlayer(PlayerId id) const;
+
+private:
+  struct Client {
+    ClientLink *link = nullptr;
+    std::optional<PlayerId> player;
+  };
+
+  void apply(Client &client, const Command &cmd);
+  void apply(Client &client, const Join &cmd);
+  void apply(Client &client, const MovePlayer &cmd);
+  void apply(Client &client, const SelectSlot &cmd);
+  void apply(Client &client, const BreakBlock &cmd);
+  void apply(Client &client, const PlaceBlock &cmd);
+  void apply(Client &client, const SetTimeOfDay &cmd);
+  void apply(Client &client, const Save &cmd);
+
+  PlayerState *playerFor(const Client &client);
+  void reject(Client &client, std::string reason);
+  void broadcast(const Event &ev);
+  bool inReach(const PlayerState &ps, const glm::ivec3 &block) const;
+  bool overlapsAnyPlayer(const glm::ivec3 &block) const;
+  // Stream chunks around every player.
+  void updateInterestPoints();
+
+  World world_;
+  GameClock clock_;
+  float tick_accumulator = 0.0f;
+
+  std::vector<Client> clients;
+  std::unordered_map<PlayerId, PlayerState> players;
+  PlayerId next_player_id = 1;
+  std::optional<WorldSave::PlayerData> saved_player;
+  std::string save_dir;
+};

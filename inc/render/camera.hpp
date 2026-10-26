@@ -67,7 +67,8 @@ public:
     updateCameraVectors();
   }
 
-  void getFrustumPlanes(glm::vec4 planes[6], const glm::mat4 &viewProj) const {
+  // Pure function of viewProj (Gribb-Hartmann), so callers need no Camera.
+  static void getFrustumPlanes(glm::vec4 planes[6], const glm::mat4 &viewProj) {
     // Left
     planes[0] = glm::vec4(
       viewProj[0][3] + viewProj[0][0],

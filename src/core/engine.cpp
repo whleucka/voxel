@@ -120,29 +120,24 @@ void Engine::run() {
   // Resolve the active save directory and load it if it already exists.
   // An existing world keeps its own seed/clock; the properties seed only
   // matters when creating a fresh world.
-  save_dir = WorldSave::worldDir(g_settings.world_name);
-  WorldSave::LevelData level;
-  if (WorldSave::loadLevel(save_dir, level)) {
-    g_settings.world_seed   = level.seed;
-    g_settings.noise_offset = level.noise_offset;
-    srand(level.seed);
-    game_clock.time_of_day  = level.time_of_day;
-
-    WorldEdits saved_edits;
-    WorldSave::loadEdits(save_dir, saved_edits);
-    world.setLoadedEdits(std::move(saved_edits));
-
-    WorldSave::PlayerData pd;
-    if (WorldSave::loadPlayer(save_dir, pd)) world.setLoadedPlayer(pd);
-
+  if (game.load(WorldSave::worldDir(g_settings.world_name)))
     std::cout << "Loaded world '" << g_settings.world_name << "' (seed "
-              << level.seed << ")\n";
-  } else {
+              << g_settings.world_seed << ")\n";
+  else
     std::cout << "New world '" << g_settings.world_name << "' (seed "
               << g_settings.world_seed << ")\n";
-  }
 
-  world.init();
+  game.world().init();
+
+  // Join the in-process game; the Joined reply creates the local player.
+  game.addClient(connection);
+  connection.send(Join{});
+  game.pump();
+  handleEvents();
+  if (!player) {
+    std::cerr << "Failed to join game\n";
+    return;
+  }
 
   while (!glfwWindowShouldClose(window)) {
     float currentFrame = glfwGetTime();
@@ -157,28 +152,7 @@ void Engine::run() {
     glfwPollEvents();
   }
 
-  saveGame(); // persist on quit
-}
-
-void Engine::saveGame() {
-  WorldSave::LevelData level;
-  level.seed         = g_settings.world_seed;
-  level.noise_offset = g_settings.noise_offset;
-  level.time_of_day  = game_clock.time_of_day;
-
-  auto &player = world.getPlayer();
-  const Camera &cam = player->getCamera();
-  WorldSave::PlayerData pd;
-  pd.position      = player->getPosition();
-  pd.yaw           = cam.yaw;
-  pd.pitch         = cam.pitch;
-  pd.selected_slot = player->getSelectedHotbarSlot();
-  pd.fly_mode      = player->isFlyMode() ? 1 : 0;
-
-  if (WorldSave::save(save_dir, level, pd, world.snapshotEdits()))
-    std::cout << "Saved world '" << g_settings.world_name << "'\n";
-  else
-    std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";
+  game.save(); // persist on quit
 }
 
 // ─── Input Processing (polled every frame) ─────────────────────────────
@@ -189,7 +163,6 @@ void Engine::processInput(GLFWwindow *window) {
     glfwSetWindowShouldClose(window, true);
 
   // Don't process movement when inventory is open
-  auto& player = world.getPlayer();
   if (player->isInventoryOpen()) return;
 
   PlayerInput input;
@@ -213,15 +186,49 @@ void Engine::processInput(GLFWwindow *window) {
 // ─── Update ────────────────────────────────────────────────────────────
 
 void Engine::update() {
-  game_clock.scale = g_settings.time_scale;
-  game_clock.update(delta_time);
-  world.update(delta_time);
+  // Physics runs locally; the Game is told where we ended up, and streams
+  // chunks around every player's reported position when it pumps.
+  player->update(delta_time, &game.world());
+  const Camera &cam = player->getCamera();
+  connection.send(MovePlayer{player->getPosition(), cam.yaw, cam.pitch,
+                             player->isFlyMode(), player->isCrouching()});
+
+  game.pump();
+  game.advance(delta_time);
+  handleEvents();
+
+  game.world().update(delta_time);
 
   if (g_settings.wireframe) {
     glLineWidth(2.0f);
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
   } else {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+  }
+}
+
+// ─── Events from the Game ──────────────────────────────────────────────
+
+void Engine::handleEvents() {
+  std::vector<Event> events;
+  connection.poll(events);
+  for (const Event &ev : events) {
+    if (const auto *joined = std::get_if<Joined>(&ev)) {
+      player_id = joined->id;
+      player = std::make_unique<Player>(joined->position);
+      player->getCamera().setPosition(joined->position);
+      Camera &cam = player->getCamera();
+      cam.yaw = joined->yaw;
+      cam.pitch = joined->pitch;
+      cam.processMouseMovement(0.0f, 0.0f); // refresh direction vectors
+      player->setSelectedHotbarSlot(joined->slot);
+      *player->getFlyModePtr() = joined->fly;
+    }
+    else if (const auto *rejected = std::get_if<CommandRejected>(&ev)) {
+      last_rejection = rejected->reason;
+    }
+    // BlockChanged needs no handling yet: in single-player the client renders
+    // the Game's own World, which is already up to date.
   }
 }
 
@@ -232,7 +239,7 @@ void Engine::render() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Render scene
-  glm::mat4 view = world.getPlayer()->getCamera().getViewMatrix();
+  glm::mat4 view = player->getCamera().getViewMatrix();
   glm::mat4 proj = glm::perspective(
       glm::radians(g_settings.fov),                  // field of view from settings
       (float)win_width / (float)win_height,           // aspect ratio
@@ -240,7 +247,8 @@ void Engine::render() {
       1000.0f                                         // far plane
   );
 
-  world.render(view, proj, game_clock.fractionOfDay(), win_width, win_height);
+  game.world().render(view, proj, game.clock().fractionOfDay(), win_width,
+                      win_height, player->getPosition(), player->isUnderwater());
 
   // ImGui frame must always be opened here so both renderCrosshair() and
   // debug() can safely submit widgets regardless of game state.
@@ -256,12 +264,12 @@ void Engine::render() {
 
 void Engine::renderCrosshair() {
   // Don't show crosshair when inventory is open
-  if (world.getPlayer()->isInventoryOpen()) return;
+  if (player->isInventoryOpen()) return;
 
   // Dark overlay when the camera eye is inside a solid block (e.g. clipping into a wall)
   {
-    glm::vec3 eyePos = world.getPlayer()->getEyePosition();
-    BlockType eyeBlock = world.getBlockAt(eyePos);
+    glm::vec3 eyePos = player->getEyePosition();
+    BlockType eyeBlock = game.world().getBlockAt(eyePos);
     if (eyeBlock != BlockType::AIR && !isLiquid(eyeBlock)) {
       ImDrawList* overlay = ImGui::GetForegroundDrawList();
       overlay->AddRectFilled(ImVec2(0, 0), ImVec2((float)win_width, (float)win_height),
@@ -285,7 +293,6 @@ void Engine::renderCrosshair() {
 
 void Engine::debug() {
   if (g_settings.show_debug) {
-    auto& player = world.getPlayer();
     ImGuiIO& io  = ImGui::GetIO();
 
     ImGui::SetNextWindowSize(ImVec2(360, 0), ImGuiCond_FirstUseEver);
@@ -312,12 +319,12 @@ void Engine::debug() {
           ImGui::PopItemWidth();
           ImGui::Text("Frame time : %.3f ms", 1000.0f / io.Framerate);
           ImGui::Text("Memory     : %zu MB",  getMemoryUsage());
-          ImGui::Text("Chunks     : %zu",     world.getChunkCount());
-          const RenderStats &rs = world.getRenderStats();
+          ImGui::Text("Chunks     : %zu",     game.world().getChunkCount());
+          const RenderStats &rs = game.world().getRenderStats();
           ImGui::Text("Drawn      : %d (main)", rs.chunks_drawn);
           ImGui::Text("Shadow     : %d / %d",  rs.shadow_chunks_drawn,
                       rs.shadow_chunks_total);
-          ImGui::Text("Game time  : %02d:%02d", game_clock.hour(), game_clock.minute());
+          ImGui::Text("Game time  : %02d:%02d", game.clock().hour(), game.clock().minute());
         }
 
         // Player
@@ -343,12 +350,14 @@ void Engine::debug() {
                       player->getSelectedHotbarSlot() + 1,
                       static_cast<int>(blockName(player->getHotbarBlock()).size()),
                       blockName(player->getHotbarBlock()).data());
+          if (!last_rejection.empty())
+            ImGui::Text("Rejected   : %s", last_rejection.c_str());
         }
 
         // World / Raycast
         if (ImGui::CollapsingHeader("World")) {
           const Camera&   cam = player->getCamera();
-          RaycastResult   ray = world.raycast(cam.position, cam.front, kPlayerReach);
+          RaycastResult   ray = game.world().raycast(cam.position, cam.front, kPlayerReach);
           if (ray.hit) {
             ImGui::Text("Block  (%d, %d, %d)",
                         ray.block_pos.x, ray.block_pos.y, ray.block_pos.z);
@@ -359,7 +368,7 @@ void Engine::debug() {
             // would sit) — handy for verifying block-light propagation.
             glm::ivec3 lit = ray.block_pos + ray.normal;
             ImGui::Text("Sky %2u   Block %2u",
-                        world.getSkyLightAt(lit), world.getBlockLightAt(lit));
+                        game.world().getSkyLightAt(lit), game.world().getBlockLightAt(lit));
           } else {
             ImGui::TextDisabled("Not looking at a block");
           }
@@ -398,11 +407,11 @@ void Engine::debug() {
 
         // Atmosphere
         if (ImGui::CollapsingHeader("Atmosphere", ImGuiTreeNodeFlags_DefaultOpen)) {
-          // Time of day: read/write directly on game_clock (in hours 0–24)
-          float tod_hours = game_clock.time_of_day / 3600.0f;
+          // Time of day in hours (0–24); changes go to the Game as a command
+          float tod_hours = game.clock().time_of_day / 3600.0f;
           ImGui::PushItemWidth(180);
           if (ImGui::SliderFloat("Time of day", &tod_hours, 0.0f, 24.0f, "%.1f h"))
-            game_clock.time_of_day = tod_hours * 3600.0f;
+            connection.send(SetTimeOfDay{tod_hours * 3600.0f});
 
           ImGui::SliderFloat("Time scale",       &g_settings.time_scale,
                              0.0f, 720.0f, "%.0f");
@@ -459,7 +468,7 @@ void Engine::debug() {
 
         static double world_saved_at = -10.0;
         if (ImGui::Button("Save world (F5)")) {
-          saveGame();
+          connection.send(Save{});
           world_saved_at = ImGui::GetTime();
         }
         if (ImGui::GetTime() - world_saved_at < 2.0) {
@@ -508,17 +517,17 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
 
     // Fly mode toggle
     case GLFW_KEY_T:
-      engine->world.getPlayer()->toggleFlyMode();
+      engine->player->toggleFlyMode();
       break;
 
     // Quick-save the world
     case GLFW_KEY_F5:
-      engine->saveGame();
+      engine->connection.send(Save{});
       break;
 
     // Inventory toggle
     case GLFW_KEY_E: {
-      auto& player = engine->world.getPlayer();
+      auto& player = engine->player;
       player->toggleInventory();
       if (player->isInventoryOpen()) {
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
@@ -530,15 +539,15 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
     }
 
     // Hotbar slots 1-9
-    case GLFW_KEY_1: engine->world.getPlayer()->setSelectedHotbarSlot(0); break;
-    case GLFW_KEY_2: engine->world.getPlayer()->setSelectedHotbarSlot(1); break;
-    case GLFW_KEY_3: engine->world.getPlayer()->setSelectedHotbarSlot(2); break;
-    case GLFW_KEY_4: engine->world.getPlayer()->setSelectedHotbarSlot(3); break;
-    case GLFW_KEY_5: engine->world.getPlayer()->setSelectedHotbarSlot(4); break;
-    case GLFW_KEY_6: engine->world.getPlayer()->setSelectedHotbarSlot(5); break;
-    case GLFW_KEY_7: engine->world.getPlayer()->setSelectedHotbarSlot(6); break;
-    case GLFW_KEY_8: engine->world.getPlayer()->setSelectedHotbarSlot(7); break;
-    case GLFW_KEY_9: engine->world.getPlayer()->setSelectedHotbarSlot(8); break;
+    case GLFW_KEY_1: engine->selectSlot(0); break;
+    case GLFW_KEY_2: engine->selectSlot(1); break;
+    case GLFW_KEY_3: engine->selectSlot(2); break;
+    case GLFW_KEY_4: engine->selectSlot(3); break;
+    case GLFW_KEY_5: engine->selectSlot(4); break;
+    case GLFW_KEY_6: engine->selectSlot(5); break;
+    case GLFW_KEY_7: engine->selectSlot(6); break;
+    case GLFW_KEY_8: engine->selectSlot(7); break;
+    case GLFW_KEY_9: engine->selectSlot(8); break;
 
     // Fullscreen toggle
     case GLFW_KEY_F11: {
@@ -569,7 +578,7 @@ void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
   // Don't process mouse look when inventory or debug panel is open
-  if (engine->world.getPlayer()->isInventoryOpen()) return;
+  if (engine->player->isInventoryOpen()) return;
   if (g_settings.show_debug) return;
 
   if (engine->first_mouse) {
@@ -584,7 +593,7 @@ void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
   engine->last_x = xpos;
   engine->last_y = ypos;
 
-  engine->world.getPlayer()->processMouseMovement(xoffset, yoffset);
+  engine->player->processMouseMovement(xoffset, yoffset);
 }
 
 // ─── Mouse Button Callback ─────────────────────────────────────────────
@@ -593,61 +602,22 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
   // Don't process when inventory is open
-  if (engine->world.getPlayer()->isInventoryOpen()) return;
+  if (engine->player->isInventoryOpen()) return;
 
   if (action != GLFW_PRESS) return;
 
-  auto& player = engine->world.getPlayer();
+  // The client only aims; the Game validates and applies the edit on the next
+  // pump, which runs before the next frame renders.
+  auto& player = engine->player;
   const Camera& cam = player->getCamera();
-  RaycastResult ray = engine->world.raycast(cam.position, cam.front, kPlayerReach);
+  RaycastResult ray = engine->game.world().raycast(cam.position, cam.front, kPlayerReach);
+  if (!ray.hit) return;
 
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
-    // Destroy block (left click)
-    if (ray.hit && ray.block_type != BlockType::BEDROCK
-                && ray.block_type != BlockType::WATER) {
-      engine->world.setBlockAt(ray.block_pos, BlockType::AIR);
-    }
+    engine->connection.send(BreakBlock{ray.block_pos});
   } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-    // Place block (right click)
-    if (ray.hit) {
-      glm::ivec3 place_pos = ray.block_pos + ray.normal;
-
-      // Don't place outside world height bounds
-      if (place_pos.y < 0 || place_pos.y >= kChunkHeight) return;
-
-      // Don't place if the target cell is already occupied by a solid block
-      BlockType existing = engine->world.getBlockAt(
-          glm::vec3(place_pos) + glm::vec3(0.5f));
-      if (existing != BlockType::AIR && !isLiquid(existing)) return;
-
-      // Get the block type from the selected hotbar slot
-      BlockType block_to_place = player->getHotbarBlock();
-      if (block_to_place == BlockType::AIR) return;
-
-      // Prevent placing the block inside the player's AABB
-      float height = player->isCrouching() ? kPlayerCrouchHeight : kPlayerHeight;
-      glm::vec3 ppos = player->getPosition();
-      float pMinX = ppos.x - kPlayerHalfWidth;
-      float pMaxX = ppos.x + kPlayerHalfWidth;
-      float pMinY = ppos.y;
-      float pMaxY = ppos.y + height;
-      float pMinZ = ppos.z - kPlayerHalfWidth;
-      float pMaxZ = ppos.z + kPlayerHalfWidth;
-
-      float bMinX = static_cast<float>(place_pos.x);
-      float bMaxX = bMinX + 1.0f;
-      float bMinY = static_cast<float>(place_pos.y);
-      float bMaxY = bMinY + 1.0f;
-      float bMinZ = static_cast<float>(place_pos.z);
-      float bMaxZ = bMinZ + 1.0f;
-
-      bool overlaps = pMinX < bMaxX && pMaxX > bMinX &&
-                      pMinY < bMaxY && pMaxY > bMinY &&
-                      pMinZ < bMaxZ && pMaxZ > bMinZ;
-      if (overlaps) return;
-
-      engine->world.setBlockAt(place_pos, block_to_place);
-    }
+    engine->connection.send(
+        PlaceBlock{ray.block_pos + ray.normal, player->getHotbarBlock()});
   }
 }
 
@@ -655,7 +625,7 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
 
 void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
-  auto& player = engine->world.getPlayer();
+  auto& player = engine->player;
 
   int slot = player->getSelectedHotbarSlot();
   if (yoffset < 0) {
@@ -663,7 +633,14 @@ void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
   } else if (yoffset > 0) {
     slot = (slot - 1 + kHotbarSlots) % kHotbarSlots;
   }
+  engine->selectSlot(slot);
+}
+
+// The local Player mirrors the selection immediately (it picks the block to
+// place); the Game holds the authoritative copy.
+void Engine::selectSlot(int slot) {
   player->setSelectedHotbarSlot(slot);
+  connection.send(SelectSlot{slot});
 }
 
 // ─── Window Resize ─────────────────────────────────────────────────────

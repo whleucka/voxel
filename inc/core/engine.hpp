@@ -1,11 +1,13 @@
 #pragma once
 
 #include "glad/glad.h"
+#include "player/player.hpp"
 #include "render/camera.hpp"
-#include "world/game_clock.hpp"
-#include "world/world.hpp"
+#include "sim/game.hpp"
+#include "sim/local_connection.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include <memory>
 #include <string>
 
 class Engine {
@@ -16,7 +18,6 @@ public:
 
   bool init();
   void run();
-  void saveGame(); // persist world + player to the active save directory
 
 private:
   GLFWwindow *window = nullptr;
@@ -24,8 +25,11 @@ private:
   int win_width, win_height;
   int win_pos_x, win_pos_y;
 
-  World world;
-  std::string save_dir; // saves/<world_name>, resolved at run() start
+  Game game;
+  LocalConnection connection;
+  PlayerId player_id = 0;
+  std::unique_ptr<Player> player; // the local player; created on Joined
+  std::string last_rejection;     // latest CommandRejected, for the debug panel
 
   bool first_mouse = true;
   float last_frame = 0.0f;
@@ -33,7 +37,6 @@ private:
   float last_x;
   float last_y;
 
-  GameClock game_clock;
 
   static void keyCallback(GLFWwindow *window, int key, int, int action, int);
   static void framebufferSizeCallback(GLFWwindow *window, int width,
@@ -44,6 +47,8 @@ private:
   static void windowResize(GLFWwindow *window, int width, int height);
   void processInput(GLFWwindow *window);
   void update();
+  void handleEvents();
+  void selectSlot(int slot);
   void render();
   void renderCrosshair();
   void debug();
