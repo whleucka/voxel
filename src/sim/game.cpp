@@ -2,7 +2,6 @@
 #include "block/block_data.hpp"
 #include "core/settings.hpp"
 #include <cmath>
-#include <cstdlib>
 #include <iostream>
 
 // ─── Setup ─────────────────────────────────────────────────────────────
@@ -15,7 +14,6 @@ bool Game::load(const std::string &dir) {
 
   g_settings.world_seed   = level.seed;
   g_settings.noise_offset = level.noise_offset;
-  srand(level.seed);
 
   WorldEdits edits;
   WorldSave::loadEdits(dir, edits);

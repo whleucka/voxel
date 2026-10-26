@@ -21,7 +21,6 @@ Engine::~Engine() { cleanup(); }
 
 bool Engine::init() {
   // world_seed was already resolved from voxel.properties (blank = random).
-  srand(g_settings.world_seed);
   // Offset noise coordinates to get a unique world each seed.
   // Capped at 5000 units — large enough for variety, small enough to avoid
   // degenerate all-ocean regions that appear at extreme offsets.

@@ -1,6 +1,7 @@
 #include "biome/pine_tree_generator.hpp"
 #include "block/block_type.hpp"
 #include "core/constants.hpp"
+#include "util/worldgen_rng.hpp"
 
 void PineTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
   auto safe_set = [&](int bx, int by, int bz, BlockType type) {
@@ -21,7 +22,7 @@ void PineTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
 
   if (y <= 0 || y >= kChunkHeight - 20) return;
 
-  int h = (rand() % 5) + 10; // height 10-14
+  int h = (worldgen::rand() % 5) + 10; // height 10-14
 
   // --- Trunk ---
   for (int j = 1; j <= h; j++) {
@@ -53,7 +54,7 @@ void PineTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
         if (dist_sq > r_sq) continue;
 
         // Light random skip at outer edges only (8% chance)
-        if (dist_sq > r_sq * 0.6f && rand() % 12 == 0) continue;
+        if (dist_sq > r_sq * 0.6f && worldgen::rand() % 12 == 0) continue;
 
         safe_set_leaf(x + dx, cy, z + dz);
       }

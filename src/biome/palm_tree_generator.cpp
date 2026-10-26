@@ -1,6 +1,7 @@
 #include "biome/palm_tree_generator.hpp"
 #include "block/block_type.hpp"
 #include "core/constants.hpp"
+#include "util/worldgen_rng.hpp"
 #include <cmath>
 
 void PalmTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
@@ -17,16 +18,16 @@ void PalmTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
   if (y <= 0 || y >= kChunkHeight - 16) return;
   if (chunk.at(x, y - 1, z) == BlockType::AIR) return;
 
-  int h = (rand() % 4) + 7; // height 7-10
+  int h = (worldgen::rand() % 4) + 7; // height 7-10
 
   // Slight lean: pick a random direction and lean gently
-  int lean_dx = (rand() % 3) - 1;
-  int lean_dz = (rand() % 3) - 1;
+  int lean_dx = (worldgen::rand() % 3) - 1;
+  int lean_dz = (worldgen::rand() % 3) - 1;
   if (lean_dx == 0 && lean_dz == 0) lean_dx = 1;
 
   float fx = static_cast<float>(x);
   float fz = static_cast<float>(z);
-  float lean_rate = 0.12f + (rand() % 3) * 0.04f; // 0.12 - 0.20
+  float lean_rate = 0.12f + (worldgen::rand() % 3) * 0.04f; // 0.12 - 0.20
 
   // --- Trunk (slight lean, slowing near top) ---
   // Track previous integer position so we can fill gaps when the trunk
@@ -85,7 +86,7 @@ void PalmTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
   struct FrondDir { int dx, dz; };
   FrondDir frond_dirs[4] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
 
-  int frond_len = 3 + (rand() % 2); // 3-4 blocks long
+  int frond_len = 3 + (worldgen::rand() % 2); // 3-4 blocks long
 
   for (auto &dir : frond_dirs) {
     for (int i = 1; i <= frond_len; ++i) {
@@ -112,7 +113,7 @@ void PalmTreeGenerator::generate(Chunk &chunk, int x, int y, int z) {
 
   // --- Diagonal fronds (4 more, shorter) for fullness ---
   FrondDir diag_dirs[4] = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
-  int diag_len = 2 + (rand() % 2); // 2-3 blocks
+  int diag_len = 2 + (worldgen::rand() % 2); // 2-3 blocks
 
   for (auto &dir : diag_dirs) {
     for (int i = 1; i <= diag_len; ++i) {

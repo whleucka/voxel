@@ -3,6 +3,8 @@
 #include "render/texture_manager.hpp"
 #include "biome/biome_manager.hpp"
 #include "core/constants.hpp"
+#include "core/settings.hpp"
+#include "util/worldgen_rng.hpp"
 #include <queue>
 
 Chunk::Chunk(int x, int z)
@@ -14,6 +16,9 @@ Chunk::Chunk(int x, int z)
 
 
 void Chunk::init() {
+  // Everything random below draws from this, so the chunk is a pure function
+  // of (seed, position).
+  worldgen::seedChunk(g_settings.world_seed, pos[0], pos[1]);
   BiomeType biome_type = BiomeManager::getBiomeForChunk(pos[0], pos[1]);
   std::unique_ptr<Biome> biome = BiomeManager::createBiome(biome_type);
   biome->generateTerrain(*this);
