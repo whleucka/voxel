@@ -8,7 +8,7 @@ Plan: [title-screen-plan.md](title-screen-plan.md) · Spec: [SPEC-title-screen.m
 - One commit per task.
 
 ## T1: Seeds
-- [ ] `resolveSeed` (blank random, digits as-is, text hashed) and `noiseOffsetFor` are shared, and the config tests pass.
+- [x] `resolveSeed` (blank random, digits as-is, text hashed) and `noiseOffsetFor` are shared, and the config tests pass.
 
 ## T2: World list
 - [ ] Lists worlds newest first with seed, last played and size. Unreadable folders are skipped.

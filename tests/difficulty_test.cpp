@@ -84,3 +84,27 @@ TEST_CASE("player name and server port round-trip through voxel.properties") {
   CHECK(g_settings.player_name == "Bea");
   CHECK(g_settings.server_port == 50123);
 }
+
+// ─── Seeds ─────────────────────────────────────────────────────────────
+
+#include "core/seed.hpp"
+
+TEST_CASE("seeds from text: numbers as-is, words hashed") {
+  CHECK(resolveSeed("12345") == 12345u);
+  CHECK(resolveSeed("  42 ") == 42u);
+  CHECK(resolveSeed("-1") == 0xFFFFFFFFu);
+  CHECK(resolveSeed("castle") == resolveSeed("castle"));
+  CHECK(resolveSeed("castle") != resolveSeed("Castle"));
+  CHECK(resolveSeed("99999999999999999999999") == resolveSeed("99999999999999999999999"));
+}
+
+TEST_CASE("noise offsets stay within 5000 units") {
+  for (uint32_t seed : {0u, 1u, 4999u, 5000u, 123456789u, 0xFFFFFFFFu}) {
+    glm::vec2 o = noiseOffsetFor(seed);
+    CHECK(o.x >= 0.0f);
+    CHECK(o.x < 5000.0f);
+    CHECK(o.y >= 0.0f);
+    CHECK(o.y < 5000.0f);
+  }
+  CHECK(noiseOffsetFor(5001) == glm::vec2(1.0f, 1.0f));
+}

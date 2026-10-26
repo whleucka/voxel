@@ -1,4 +1,5 @@
 #include "core/config.hpp"
+#include "core/seed.hpp"
 #include "core/settings.hpp"
 
 #include <cctype>
@@ -19,15 +20,6 @@ std::string trim(const std::string &s) {
   if (a == std::string::npos) return "";
   size_t b = s.find_last_not_of(" \t\r\n");
   return s.substr(a, b - a + 1);
-}
-
-bool isInteger(const std::string &s) {
-  if (s.empty()) return false;
-  size_t i = (s[0] == '-' || s[0] == '+') ? 1 : 0;
-  if (i == s.size()) return false;
-  for (; i < s.size(); ++i)
-    if (!std::isdigit(static_cast<unsigned char>(s[i]))) return false;
-  return true;
 }
 
 // Applies a typed value from the file, warning (and keeping the default) when
@@ -53,16 +45,6 @@ void applyFloat(const std::string &k, const std::string &v, float &out) {
     std::cerr << "[config] '" << k << "': expected number, got '" << v
               << "' — keeping default\n";
   }
-}
-
-// ─── Seed resolution (blank = random, digits = verbatim, text = hashed) ─────
-uint32_t resolveSeed(const std::string &raw) {
-  std::string v = trim(raw);
-  if (v.empty())
-    return static_cast<uint32_t>(std::time(nullptr));
-  if (isInteger(v))
-    return static_cast<uint32_t>(std::stoul(v));
-  return static_cast<uint32_t>(std::hash<std::string>{}(v));
 }
 
 // ─── Serialization ─────────────────────────────────────────────────────────
