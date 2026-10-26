@@ -21,7 +21,7 @@ Spec: [SPEC-title-screen.md](../SPEC-title-screen.md) · Tasks: [title-screen-to
 - [x] T2: World list: list, create, rename, delete, last-played text (tests)
 - [x] T3: Menu scene: orbit maths (tests) and `MenuScene` (GL)
 - [x] T4: Title menu pages and the world list UI
-- [ ] T5: `Engine` wiring: scene lifecycle, Play/Host the chosen world, last played
+- [x] T5: `Engine` wiring: scene lifecycle, Play/Host the chosen world, last played
 - [ ] T6: Wrap-up, PR, merge when green
 
 ## Risks and Mitigations

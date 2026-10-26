@@ -59,6 +59,7 @@ void TitleMenu::open(std::string message) {
   status_.clear();
   synced_name = false;
   form = Form::None;
+  selected = -1; // re-read the world list: a game may have just been saved
   std::string error;
   browsing = browser.start(error);
 }

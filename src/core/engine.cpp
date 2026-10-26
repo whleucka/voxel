@@ -141,6 +141,7 @@ void Engine::run() {
   }
 
   endSession(); // persist on quit
+  scene.close(); // while the GL context is still alive
 }
 
 // ─── Title menu ────────────────────────────────────────────────────────
@@ -154,11 +155,22 @@ void Engine::menuFrame() {
       endSession("The host didn't answer");
   }
 
+  // The last played world, circling behind the menu (not while joining:
+  // the scene and a guest's world can't share the global seed).
+  if (!session && !scene.isOpen()) scene.open(WorldSave::worldDir(g_settings.world_name));
+
   glClearColor(0.10f, 0.12f, 0.16f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  scene.frame(delta_time, win_width, win_height);
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplGlfw_NewFrame();
   ImGui::NewFrame();
+  // The scene fades in from the menu colour as its chunks arrive.
+  float cover = scene.isOpen() ? scene.cover() : 1.0f;
+  if (cover > 0.0f)
+    ImGui::GetBackgroundDrawList()->AddRectFilled(
+        ImVec2(0, 0), ImVec2(static_cast<float>(win_width), static_cast<float>(win_height)),
+        IM_COL32(26, 31, 41, static_cast<int>(cover * 255)));
   std::string name = g_settings.player_name;
   std::string last_world = g_settings.world_name;
   TitleMenu::Choice choice = menu.draw(glfwGetTime(), name, last_world,
@@ -177,7 +189,9 @@ void Engine::menuFrame() {
 }
 
 void Engine::startFromMenu(const TitleMenu::Choice &choice) {
-  saveServerProperties(); // remember the name for next time
+  saveServerProperties(); // remember the name (and the last world) for next time
+  // World generation reads the global seed: the scene must be gone first.
+  scene.close();
 
   Session::Options opts;
   opts.name = g_settings.player_name;

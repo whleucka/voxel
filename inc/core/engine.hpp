@@ -6,6 +6,7 @@
 #include "core/session.hpp"
 #include "ui/hud.hpp"
 #include "ui/title_menu.hpp"
+#include "render/menu_scene.hpp"
 #include "entity/entity_interp.hpp"
 #include "render/entity_renderer.hpp"
 #include <GLFW/glfw3.h>
@@ -44,6 +45,7 @@ private:
   std::vector<PlayerView> player_views; // this frame's other players
   InventoryScreen inventory_screen;
   TitleMenu menu;
+  MenuScene scene; // the live world behind the menu
   double join_started = 0.0; // a guest waiting for Joined since then
 
   bool first_mouse = true;
