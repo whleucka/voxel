@@ -19,6 +19,7 @@ struct Entity {
   int health = 0;
   int hurt_ms = 0;  // red flash time left
   int age_ms = 0;
+  int attack_cooldown_ms = 0; // enemies: until the next contact hit
   std::unique_ptr<Brain> brain;
 
   // Animals only

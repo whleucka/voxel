@@ -37,6 +37,11 @@ public:
   static constexpr int kFedCooldownMs = 60000;
   static constexpr int kHappyMs = 2000;
   static constexpr int kProductDelayMs = 1000;
+  // Enemies hitting players
+  static constexpr float kEnemyContactRange = 0.3f; // gap between the boxes
+  static constexpr int kEnemyAttackCooldownMs = 1000;
+  static constexpr float kEnemyKnockback = 7.0f;
+  static constexpr float kEnemyKnockUp = 5.0f;
 
   Game(); // registers natural spawning (animals and enemies)
 
@@ -102,6 +107,9 @@ private:
   // Eye-to-box distance check shared by hitting and feeding.
   bool inReachOf(const PlayerState &ps, const Entity &e) const;
   void releaseAnimalProducts();
+  // Peaceful clears enemies; daylight clears surface enemies under the sky.
+  void removeEnemies();
+  void enemyAttacks();
 
   // Puts a stack into the world as a dropped item. Returns false (the stack is
   // lost) only if the entity cap is reached.

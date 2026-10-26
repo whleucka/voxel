@@ -47,7 +47,7 @@ const Entity *EntityStore::find(EntityId id) const {
 }
 
 void EntityStore::tick(const World &world, Rng &rng, std::span<const glm::vec3> players,
-                       std::span<const glm::vec3> targets) {
+                       std::span<const glm::vec3> targets, float hostile_speed) {
   constexpr float dt = kTickMs / 1000.0f;
   const BrainContext ctx{world, rng, targets};
   std::vector<EntityId> gone;
@@ -59,6 +59,7 @@ void EntityStore::tick(const World &world, Rng &rng, std::span<const glm::vec3> 
     e.fed_cooldown_ms = std::max(0, e.fed_cooldown_ms - kTickMs);
     e.happy_ms = std::max(0, e.happy_ms - kTickMs);
     e.product_delay_ms = std::max(0, e.product_delay_ms - kTickMs);
+    e.attack_cooldown_ms = std::max(0, e.attack_cooldown_ms - kTickMs);
 
     if (def.despawn_age_ms > 0 && e.age_ms >= def.despawn_age_ms) {
       gone.push_back(id);
@@ -81,9 +82,10 @@ void EntityStore::tick(const World &world, Rng &rng, std::span<const glm::vec3> 
     if (e.brain && e.hurt_ms == 0) {
       Intent in = e.brain->think(e, ctx);
       e.yaw = in.yaw;
+      float speed = def.walk_speed * (def.enemy ? hostile_speed : 1.0f);
       if (glm::length(in.move_dir) > 0.0f) {
-        e.body.velocity.x = in.move_dir.x * def.walk_speed;
-        e.body.velocity.z = in.move_dir.y * def.walk_speed;
+        e.body.velocity.x = in.move_dir.x * speed;
+        e.body.velocity.z = in.move_dir.y * speed;
       }
       if (in.jump && e.body.on_ground) {
         e.body.velocity.y = kPlayerJumpStrength;

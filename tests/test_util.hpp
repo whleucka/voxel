@@ -94,3 +94,10 @@ inline glm::ivec3 groundIn(World &world, glm::ivec2 c, BlockType b) {
   return g;
 }
 
+
+// Sets the global difficulty for one test.
+struct ScopedDifficulty {
+  Difficulty saved = g_settings.difficulty;
+  explicit ScopedDifficulty(Difficulty d) { g_settings.difficulty = d; }
+  ~ScopedDifficulty() { g_settings.difficulty = saved; }
+};

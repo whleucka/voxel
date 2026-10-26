@@ -94,6 +94,10 @@ struct VitalsChanged {
 // The Game moved this player (respawn); the client must jump there and stop.
 struct Respawned { glm::vec3 position{0.0f}; };
 
+// An enemy hit this player: the client adds this to its velocity (movement is
+// client-side, so the Game can't push the player itself).
+struct KnockedBack { glm::vec3 velocity{0.0f}; };
+
 // What a client needs to draw one entity.
 struct EntityView {
   EntityId id = 0;
@@ -115,4 +119,4 @@ struct EntitySnapshot {
 
 using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            CommandRejected, InventoryContents, VitalsChanged,
-                           Respawned, EntitySnapshot>;
+                           Respawned, EntitySnapshot, KnockedBack>;

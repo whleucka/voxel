@@ -31,9 +31,9 @@ Plan: [enemies-plan.md](enemies-plan.md) · Spec: [SPEC-enemies.md](../SPEC-enem
 - [x] Cave placement finds pockets and never the surface. Peaceful spawns nothing, and Easy caps are halved.
 
 ## T6: Game
-- [ ] Contact damage with a per-enemy cooldown, and `KnockedBack` goes to the right player.
-- [ ] Easy halves damage (at least 1). Peaceful removes enemies. Surface enemies vanish at sunrise, Grumbles don't.
-- [ ] Dying to an enemy respawns you with your items.
+- [x] Contact damage with a per-enemy cooldown, and `KnockedBack` goes to the right player.
+- [x] Easy halves damage (at least 1). Peaceful removes enemies. Surface enemies vanish at sunrise, Grumbles don't.
+- [x] Dying to an enemy respawns you with your items.
 
 ## T7: Client
 - [ ] `KnockedBack` pushes the player. F1 has a difficulty picker and enemy spawn buttons. Eyes glow.

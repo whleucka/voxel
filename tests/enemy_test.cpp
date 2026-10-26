@@ -342,3 +342,19 @@ TEST_CASE("animal rules ignore difficulty") {
   r.ticks(400, Difficulty::Peaceful);
   CHECK(r.store.size() == 4);
 }
+
+TEST_CASE("enemies walk slower when the hostile speed is scaled") {
+  auto travelled = [](float scale) {
+    ChaseRig r;
+    r.players = {{40.5f, kBase + 1.0f, 8.5f}};
+    r.store.spawn(EntityKind::ThornCrawler, {20.5f, kBase + 1.0f, 8.5f});
+    r.id = r.store.all().begin()->first;
+    for (int i = 0; i < 10; ++i) r.store.tick(r.world, r.rng, r.players, r.players);
+    float start = r.e().body.position.x;
+    for (int i = 0; i < 20; ++i) r.store.tick(r.world, r.rng, r.players, r.players, scale);
+    return r.e().body.position.x - start;
+  };
+  float normal = travelled(1.0f), easy = travelled(0.8f);
+  REQUIRE(normal > 1.0f);
+  CHECK(easy / normal == doctest::Approx(0.8f).epsilon(0.03));
+}
