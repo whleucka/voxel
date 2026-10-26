@@ -48,6 +48,7 @@ This is a refactor. Nothing should look or play differently when it lands.
 | `PlaceBlock {pos, type}` (type comes from the hotbar until `inventory`) | |
 | `SelectSlot {slot}` | |
 | `Save {}` (F5) | |
+| `SetTimeOfDay {seconds}` (debug panel slider; added in T4 so the panel doesn't write the clock directly) | |
 
 Commands and events are plain structs in a `std::variant` and have no
 serialization yet. `multiplayer` adds a wire format.
