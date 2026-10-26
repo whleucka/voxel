@@ -29,7 +29,7 @@ Plan: [multiplayer-plan.md](multiplayer-plan.md) · Spec: [SPEC-multiplayer.md](
 - [x] Loopback: join, edits seen by both, snapshots, leaving, and the right reasons for a duplicate name, a full game, a host quitting and a wrong version.
 
 ## T6: Discovery
-- [ ] The beacon round-trips. The browser adds games and expires them after 3 s. Loopback send and receive works.
+- [x] The beacon round-trips. The browser adds games and expires them after 3 s. Loopback send and receive works.
 
 ## T7: Engine refactor
 - [ ] Single-player works through the optional `Game`. The guest mode uses its own `World` and clock.
