@@ -178,7 +178,24 @@ void Game::tick() {
   for (const auto &[id, ps] : players) positions.push_back(ps.position);
   entities_.tick(world_, rng_, positions);
 
+  ++tick_count;
   flushVitals();
+  sendEntitySnapshots();
+}
+
+void Game::sendEntitySnapshots() {
+  for (Client &client : clients) {
+    PlayerState *ps = playerFor(client);
+    if (!ps) continue;
+    EntitySnapshot snap;
+    snap.tick = tick_count;
+    for (const auto &[id, e] : entities_.all()) {
+      if (glm::distance(e.body.position, ps->position) > kEntityViewRange) continue;
+      snap.entities.push_back({id, e.kind, e.body.position, e.yaw, e.item.id,
+                               e.hurt_ms > 0});
+    }
+    client.link->deliver(std::move(snap));
+  }
 }
 
 // ─── Vitals ────────────────────────────────────────────────────────────

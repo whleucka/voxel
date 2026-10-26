@@ -20,6 +20,7 @@ public:
   static constexpr float kTickSeconds = 0.05f; // 20 Hz
   static constexpr int kTickMs = 50;
   static constexpr int kRespawnDelayMs = 3000;
+  static constexpr float kEntityViewRange = 96.0f;
 
   // Bind the game to a save directory and load it if a world exists there.
   // An existing world keeps its own seed (written to g_settings) and clock;
@@ -85,6 +86,7 @@ private:
   void updateInterestPoints();
   // Send VitalsChanged to every owner whose shown vitals changed.
   void flushVitals();
+  void sendEntitySnapshots();
   void respawn(Client &client, PlayerState &ps);
   glm::vec3 respawnPoint();
 
@@ -92,6 +94,7 @@ private:
   GameClock clock_;
   EntityStore entities_;
   Rng rng_{0x5eed};
+  uint32_t tick_count = 0;
   // Whole microseconds, so N ticks' worth of frame time runs exactly N ticks.
   int64_t tick_accumulator_us = 0;
 

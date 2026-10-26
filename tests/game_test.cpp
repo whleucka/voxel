@@ -763,3 +763,62 @@ TEST_CASE_FIXTURE(VitalsGame, "a fall in progress at respawn doesn't count") {
   send(at(spawn, true));
   CHECK(me().vitals.health() == 20);
 }
+
+// ─── Entity snapshots ──────────────────────────────────────────────────
+
+namespace {
+
+std::optional<EntitySnapshot> lastSnapshot(const std::vector<Event> &evs) {
+  std::optional<EntitySnapshot> out;
+  for (const Event &e : evs)
+    if (const auto *s = std::get_if<EntitySnapshot>(&e)) out = *s;
+  return out;
+}
+
+} // namespace
+
+TEST_CASE_FIXTURE(VitalsGame, "every tick each player gets the entities near them") {
+  glm::vec3 me_at = me().position;
+  auto near = game.entities().spawn(EntityKind::TestCreature, me_at + glm::vec3(5, 0, 0));
+  auto far = game.entities().spawn(EntityKind::TestCreature, me_at + glm::vec3(0, 0, 90));
+  REQUIRE(near);
+  REQUIRE(far);
+  // The observer stands right next to the far creature.
+  other.send(at(me_at + glm::vec3(0, 0, 89), true));
+  game.pump();
+  pollAll(other);
+
+  auto evs = advance(0.05f);
+  auto snap = lastSnapshot(evs);
+  REQUIRE(snap);
+  bool saw_near = false, saw_far = false;
+  for (const EntityView &v : snap->entities) {
+    saw_near |= v.id == *near;
+    saw_far |= v.id == *far;
+  }
+  CHECK(saw_near);
+  CHECK(saw_far); // 90 blocks: inside the 96-block range
+
+  // Move the far one out of my range but keep it within the observer's.
+  game.entities().find(*far)->body.position = me_at + glm::vec3(0, 0, 100);
+  snap = lastSnapshot(advance(0.05f));
+  REQUIRE(snap);
+  for (const EntityView &v : snap->entities) CHECK(v.id != *far);
+  auto theirs = lastSnapshot(pollAll(other));
+  REQUIRE(theirs);
+  bool they_see_far = false;
+  for (const EntityView &v : theirs->entities) they_see_far |= v.id == *far;
+  CHECK(they_see_far);
+}
+
+TEST_CASE_FIXTURE(VitalsGame, "snapshots carry what the client needs to draw") {
+  auto id = game.entities().spawn(EntityKind::DroppedItem, me().position);
+  REQUIRE(id);
+  game.entities().find(*id)->item = {ItemId::RUBY, 3};
+  auto snap = lastSnapshot(advance(0.05f));
+  REQUIRE(snap);
+  REQUIRE(snap->entities.size() == 1);
+  CHECK(snap->entities[0].kind == EntityKind::DroppedItem);
+  CHECK(snap->entities[0].item == ItemId::RUBY);
+  CHECK(snap->tick > 0);
+}

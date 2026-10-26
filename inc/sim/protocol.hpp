@@ -1,16 +1,19 @@
 #pragma once
 
 #include "block/block_type.hpp"
+#include "entity/entity_type.hpp"
 #include "inventory/inventory.hpp"
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <string>
 #include <variant>
+#include <vector>
 
 // Messages between a client (Engine) and the authoritative Game. Plain structs
 // for now; the multiplayer module adds a wire format.
 
 using PlayerId = uint32_t;
+using EntityId = uint32_t;
 
 // ─── Commands (client → sim) ───────────────────────────────────────────
 
@@ -80,6 +83,23 @@ struct VitalsChanged {
 // The Game moved this player (respawn); the client must jump there and stop.
 struct Respawned { glm::vec3 position{0.0f}; };
 
+// What a client needs to draw one entity.
+struct EntityView {
+  EntityId id = 0;
+  EntityKind kind = EntityKind::TestCreature;
+  glm::vec3 position{0.0f}; // feet
+  float yaw = 0.0f;
+  ItemId item = ItemId::NONE; // dropped items: what to draw
+  bool hurt = false;          // flash red
+};
+
+// Every entity within range of this player, sent every tick. An entity that
+// isn't listed is gone (or out of range).
+struct EntitySnapshot {
+  uint32_t tick = 0;
+  std::vector<EntityView> entities;
+};
+
 using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            CommandRejected, InventoryContents, VitalsChanged,
-                           Respawned>;
+                           Respawned, EntitySnapshot>;
