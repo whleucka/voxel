@@ -8,15 +8,16 @@ next to this file; this map is the index of what exists.
 |---|---|---|
 | sim-core ✅ | Split authoritative game state from rendering; input becomes commands; world supports N players | — |
 | items ✅ | Item definitions (blocks + non-block items), ItemStack, stack limits | — |
-| vitals | Health, stamina (sprint drain/regen), damage, death & respawn | sim-core |
+| vitals | Health, stamina (sprint drain/regen), damage, death & respawn; adds HUD bars | sim-core, hud |
 | inventory ✅ | Classic grid: 10-slot hotbar + storage grid, move/split stacks, survival break→collect / place→consume, persisted | items, sim-core |
-| hud | Hotbar (keys 1..0) with icons + counts, health/stamina bars, inventory screen | inventory, vitals |
+| hud | Hotbar (keys 1..0) with icons + counts, inventory screen; reserves space for vitals bars | inventory, items |
 | entities | Generic non-player entities: AABB physics, box-model rendering, spawn/despawn near players | sim-core |
 | animals | Passive mobs: biome spawning, wander AI, drops | entities, items |
 | enemies | Hostile mobs: spawn rules, voxel pathfinding, melee attack | entities, vitals |
 | multiplayer | LAN host/join, sync edits, players, entities, inventories | sim-core (+ all above) |
 
-Build order: sim-core → items → vitals, inventory → hud → entities → animals → enemies → multiplayer
+Build order: sim-core → items → inventory → hud → vitals → entities → animals → enemies → multiplayer
+(hud moved ahead of vitals on 2026-10-26, so the hotbar is visible sooner)
 
 ## Decisions
 
