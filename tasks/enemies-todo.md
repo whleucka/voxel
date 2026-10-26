@@ -12,9 +12,9 @@ Plan: [enemies-plan.md](enemies-plan.md) · Spec: [SPEC-enemies.md](../SPEC-enem
 - [x] Easy halves caps and damage (at least 1) and moves at 80% speed. Normal is unchanged.
 
 ## T2: Pathfinding
-- [ ] Finds a straight line, a way around a wall, and a way up a 1-block step.
-- [ ] Won't climb 2 blocks. Drops 3 but not 4. Needs headroom.
-- [ ] No path, the node limit and the range limit each return nothing.
+- [x] Finds a straight line, a way around a wall, and a way up a 1-block step.
+- [x] Won't climb 2 blocks. Drops 3 but not 4. Needs headroom.
+- [x] No path, the node limit and the range limit each return nothing.
 
 ## T3: Brains
 - [ ] `BrainContext` replaces the brain arguments, and the animal brain tests pass unchanged.
