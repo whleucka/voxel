@@ -1,7 +1,10 @@
 #pragma once
 
+#include "biome/biome_type.hpp"
+#include "block/block_type.hpp"
 #include "item/item_stack.hpp"
 #include <cstdint>
+#include <optional>
 #include <glm/glm.hpp>
 #include <memory>
 #include <string_view>
@@ -13,6 +16,10 @@ class Brain;
 enum class EntityKind : uint16_t {
   DroppedItem = 1,
   TestCreature = 2, // debug-panel only; exercises brains and hitting
+  Woolly = 3,       // animals (see SPEC-animals.md)
+  Bunny = 4,
+  ShellTurtle = 5,
+  BlossomDeer = 6,
 };
 
 // One cuboid of a box model, in blocks, relative to the entity's feet
@@ -21,6 +28,15 @@ struct ModelBox {
   glm::vec3 offset{0.0f}; // min corner
   glm::vec3 size{1.0f};
   glm::vec3 color{1.0f};  // sRGB 0..1
+  int swing = 0;          // legs: +1 / -1 swing in opposite phases while moving
+};
+
+// Friendly animals: fed, never hurt.
+struct AnimalDef {
+  ItemId favourite = ItemId::NONE; // block item it eats
+  ItemStack product;               // what it gives when fed
+  std::vector<BiomeType> biomes;   // where it spawns
+  std::vector<BlockType> ground;   // what it spawns standing on
 };
 
 using BrainFactory = std::unique_ptr<Brain> (*)();
@@ -35,7 +51,14 @@ struct EntityTypeDef {
   std::vector<ModelBox> model; // empty: drawn specially (dropped items)
   BrainFactory brain = nullptr;
   std::vector<ItemStack> drops;
+  std::optional<AnimalDef> animal;
 };
 
 const EntityTypeDef &entityType(EntityKind kind);
 bool isValidEntityKind(EntityKind kind);
+inline bool isAnimal(EntityKind kind) {
+  return isValidEntityKind(kind) && entityType(kind).animal.has_value();
+}
+
+constexpr EntityKind kAnimalKinds[] = {EntityKind::Woolly, EntityKind::Bunny,
+                                       EntityKind::ShellTurtle, EntityKind::BlossomDeer};
