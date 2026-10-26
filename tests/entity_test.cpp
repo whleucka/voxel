@@ -16,8 +16,7 @@ struct Rig {
 
   Rig() {
     world.loadChunkSync(0, 0);
-    for (int x = 1; x < 15; ++x)
-      for (int z = 1; z < 15; ++z) world.setBlockAt({x, kBase, z}, BlockType::STONE);
+    fill(world, {1, kBase, 1}, {14, kBase, 14}, BlockType::STONE);
   }
 
   void ticks(int n) {
@@ -128,9 +127,8 @@ TEST_CASE("the test creature wanders") {
 TEST_CASE("a wandering creature hops up a one-block step") {
   // Raise everything but the centre 4x4: wherever it walks, it meets a step.
   Rig r;
-  for (int x = 1; x < 15; ++x)
-    for (int z = 1; z < 15; ++z)
-      if (x < 6 || x > 9 || z < 6 || z > 9) r.world.setBlockAt({x, kBase + 1, z}, BlockType::STONE);
+  fill(r.world, {1, kBase + 1, 1}, {14, kBase + 1, 14}, BlockType::STONE);
+  fill(r.world, {6, kBase + 1, 6}, {9, kBase + 1, 9}, BlockType::AIR);
   EntityId id = r.spawn(EntityKind::TestCreature, {8.0f, kBase + 1.0f, 8.0f});
   bool climbed = false;
   for (int i = 0; i < 20 * 60 && !climbed; ++i) {
@@ -139,4 +137,97 @@ TEST_CASE("a wandering creature hops up a one-block step") {
     climbed = e->body.on_ground && e->body.position.y > kBase + 1.9f;
   }
   CHECK(climbed);
+}
+
+// ─── Spawner ───────────────────────────────────────────────────────────
+
+#include "block/block_data.hpp"
+#include "entity/spawner.hpp"
+
+namespace {
+
+// Natural terrain loaded 4 chunks around the origin: enough for the whole
+// 24..64 block spawn band around a player standing at the centre.
+struct SpawnRig {
+  World world;
+  EntityStore store;
+  Spawner spawner;
+  Rng rng{99};
+  std::vector<glm::vec3> players{{8.0f, 100.0f, 8.0f}};
+
+  explicit SpawnRig(int radius = 4) {
+    for (int cx = -radius; cx <= radius; ++cx)
+      for (int cz = -radius; cz <= radius; ++cz) world.loadChunkSync(cx, cz);
+  }
+  void ticks(int n) {
+    for (int i = 0; i < n; ++i) spawner.tick(store, world, rng, players, 0.5f);
+  }
+  int count(EntityKind k) const {
+    int n = 0;
+    for (const auto &[id, e] : store.all()) n += e.kind == k;
+    return n;
+  }
+};
+
+bool always(const World &, glm::ivec3, float) { return true; }
+bool never(const World &, glm::ivec3, float) { return false; }
+
+} // namespace
+
+TEST_CASE("spawn rules fill up to their per-player cap") {
+  SpawnRig r;
+  r.spawner.addRule({EntityKind::TestCreature, 3, 100, always});
+  r.ticks(20 * 20);
+  CHECK(r.count(EntityKind::TestCreature) == 3);
+}
+
+TEST_CASE("spawns land 24..64 blocks away, standing on loaded ground") {
+  SpawnRig r;
+  r.spawner.addRule({EntityKind::TestCreature, 10, 50, always});
+  r.ticks(20 * 20);
+  REQUIRE(r.count(EntityKind::TestCreature) > 0);
+  for (const auto &[id, e] : r.store.all()) {
+    glm::vec2 d(e.body.position.x - 8.0f, e.body.position.z - 8.0f);
+    CHECK(glm::length(d) >= Spawner::kMinDistance - 1.5f);
+    CHECK(glm::length(d) <= Spawner::kMaxDistance + 1.5f);
+    // Standing on solid ground with air at feet and head.
+    glm::vec3 p = e.body.position;
+    BlockType below = r.world.getBlockAt(p - glm::vec3(0, 0.5f, 0));
+    CHECK(below != BlockType::AIR);
+    CHECK_FALSE(isLiquid(below));
+    CHECK(r.world.getBlockAt(p + glm::vec3(0, 0.5f, 0)) == BlockType::AIR);
+  }
+}
+
+TEST_CASE("a rule whose predicate refuses never spawns") {
+  SpawnRig r(1);
+  r.spawner.addRule({EntityKind::TestCreature, 5, 50, never});
+  r.ticks(200);
+  CHECK(r.store.size() == 0);
+}
+
+TEST_CASE("nothing spawns into unloaded chunks") {
+  World world;
+  world.loadChunkSync(0, 0); // only the player's own chunk: the band is beyond it
+  EntityStore store;
+  Spawner spawner;
+  Rng rng{5};
+  spawner.addRule({EntityKind::TestCreature, 5, 50, always});
+  std::vector<glm::vec3> players{{8.0f, 100.0f, 8.0f}};
+  for (int i = 0; i < 400; ++i) spawner.tick(store, world, rng, players, 0.5f);
+  CHECK(store.size() == 0);
+}
+
+TEST_CASE("groundAt finds standable surface and skips water") {
+  World world;
+  world.loadChunkSync(0, 0);
+  for (int y = 150; y < kChunkHeight; ++y) world.setBlockAt({3, y, 3}, BlockType::AIR);
+  world.setBlockAt({3, 150, 3}, BlockType::STONE);
+  auto g = Spawner::groundAt(world, 3, 3);
+  REQUIRE(g);
+  CHECK(*g == glm::ivec3(3, 150, 3));
+
+  world.setBlockAt({3, 151, 3}, BlockType::WATER);
+  CHECK_FALSE(Spawner::groundAt(world, 3, 3));
+  CHECK_FALSE(Spawner::groundAt(world, 300, 300)); // unloaded
 }

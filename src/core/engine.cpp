@@ -408,6 +408,12 @@ void Engine::debug() {
 
         debugInventory();
 
+        if (ImGui::CollapsingHeader("Entities")) {
+          ImGui::Text("Visible    : %zu", entity_views.size());
+          if (ImGui::Button("Spawn test creature"))
+            connection.send(SpawnDebugEntity{EntityKind::TestCreature});
+        }
+
         // World / Raycast
         if (ImGui::CollapsingHeader("World")) {
           const Camera&   cam = player->getCamera();

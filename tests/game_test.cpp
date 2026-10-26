@@ -950,12 +950,16 @@ struct FightGame : EditGame {
   glm::vec3 spot;
 
   FightGame() {
-    // A flat stone arena with clear air above, so terrain can't get in the way.
-    for (int x = 1; x < 15; ++x)
-      for (int z = 1; z < 15; ++z) {
-        game.world().setBlockAt({x, ground, z}, BlockType::STONE);
-        for (int y = ground + 1; y <= ground + 4; ++y)
-          game.world().setBlockAt({x, y, z}, BlockType::AIR);
+    // A flat stone strip with clear air above, under the player and the
+    // creature, so terrain can't get in the way. Only changed cells are
+    // written: every setBlockAt relights the chunk.
+    auto put = [&](int x, int y, int z, BlockType b) {
+      if (at({x, y, z}) != b) game.world().setBlockAt({x, y, z}, b);
+    };
+    for (int x = 4; x <= 7; ++x)
+      for (int z = 1; z <= 10; ++z) {
+        put(x, ground, z, BlockType::STONE);
+        for (int y = ground + 1; y <= ground + 3; ++y) put(x, y, z, BlockType::AIR);
       }
     spot = game.findPlayer(id)->position + glm::vec3(0, 0, -2);
     auto t = game.entities().spawn(EntityKind::TestCreature, spot);
@@ -1044,4 +1048,16 @@ TEST_CASE_FIXTURE(FightGame, "killing a creature removes it and drops its loot")
     loot |= e.kind == EntityKind::DroppedItem && e.item.id == ItemId::COAL;
   // The coal may already have been picked up by the player standing nearby.
   CHECK((loot || countOf(inventory(), ItemId::COAL) == 1));
+}
+
+TEST_CASE_FIXTURE(EditGame, "the debug panel can spawn a test creature in front of you") {
+  conn.send(MovePlayer{game.findPlayer(id)->position, -90.0f, 0.0f}); // facing -Z
+  game.pump();
+  CHECK(run(SpawnDebugEntity{EntityKind::TestCreature}).empty());
+  REQUIRE(game.entities().size() == 1);
+  const Entity &e = game.entities().all().begin()->second;
+  CHECK(e.kind == EntityKind::TestCreature);
+  glm::vec3 d = e.body.position - game.findPlayer(id)->position;
+  CHECK(d.z == doctest::Approx(-3.0f).epsilon(0.01));
+  CHECK(rejected(run(SpawnDebugEntity{static_cast<EntityKind>(999)})));
 }

@@ -178,6 +178,7 @@ void Game::tick() {
   std::vector<glm::vec3> positions;
   for (const auto &[id, ps] : players) positions.push_back(ps.position);
   entities_.tick(world_, rng_, positions);
+  spawner_.tick(entities_, world_, rng_, positions, clock_.fractionOfDay());
   mergeDroppedItems();
   pickUpDroppedItems();
 
@@ -500,4 +501,14 @@ void Game::apply(Client &client, const AttackEntity &cmd) {
       dropItem(drop, at, {side(rng_), 4.0f, side(rng_)}, kBreakDropDelayMs);
     entities_.remove(cmd.id);
   }
+}
+
+void Game::apply(Client &client, const SpawnDebugEntity &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead()) return;
+  if (!isValidEntityKind(cmd.kind)) return reject(client, "spawn: unknown kind");
+  float yaw = glm::radians(ps->yaw);
+  glm::vec3 ahead{std::cos(yaw), 0.0f, std::sin(yaw)};
+  if (!entities_.spawn(cmd.kind, ps->position + ahead * 3.0f + glm::vec3(0, 0.5f, 0)))
+    reject(client, "spawn: entity cap reached");
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "entity/entity_store.hpp"
+#include "entity/spawner.hpp"
 #include "sim/connection.hpp"
 #include "sim/player_state.hpp"
 #include "world/game_clock.hpp"
@@ -62,6 +63,7 @@ public:
   const World &world() const { return world_; }
   const GameClock &clock() const { return clock_; }
   EntityStore &entities() { return entities_; }
+  Spawner &spawner() { return spawner_; }
   const EntityStore &entities() const { return entities_; }
   // Drives spawning, wandering and hops; tests reseed it for determinism.
   Rng &rng() { return rng_; }
@@ -88,6 +90,7 @@ private:
   void apply(Client &client, const MoveItems &cmd);
   void apply(Client &client, const DropItem &cmd);
   void apply(Client &client, const AttackEntity &cmd);
+  void apply(Client &client, const SpawnDebugEntity &cmd);
 
   // Puts a stack into the world as a dropped item. Returns false (the stack is
   // lost) only if the entity cap is reached.
@@ -112,6 +115,7 @@ private:
   World world_;
   GameClock clock_;
   EntityStore entities_;
+  Spawner spawner_;
   Rng rng_{0x5eed};
   uint32_t tick_count = 0;
   // Whole microseconds, so N ticks' worth of frame time runs exactly N ticks.

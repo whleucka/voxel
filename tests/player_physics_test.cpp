@@ -19,10 +19,9 @@ struct Rig {
   World world;
   Rig() {
     world.loadChunkSync(0, 0);
-    for (int x = 2; x < 14; ++x)
-      for (int z = 2; z < 14; ++z) world.setBlockAt({x, kBase, z}, BlockType::STONE);
+    fill(world, {2, kBase, 2}, {13, kBase, 13}, BlockType::STONE);
   }
-  void set(int x, int y, int z, BlockType b) { world.setBlockAt({x, y, z}, b); }
+  void set(int x, int y, int z, BlockType b) { fill(world, {x, y, z}, {x, y, z}, b); }
 };
 
 void steps(Player &p, World &w, int n, const PlayerInput &in = {}) {
