@@ -377,6 +377,9 @@ TEST_CASE_FIXTURE(EditGame, "a played game round-trips through save and load") {
   REQUIRE(at(placed) == BlockType::AIR);
   REQUIRE(changes(run(BreakBlock{broken})) == 1);
   REQUIRE(changes(place(placed, BlockType::GLOWSTONE)) == 1);
+  run(GiveItem{ItemId::DIAMOND, 3});
+  run(MoveItems{0, 25, 0}); // glowstone into storage
+  Inventory saved_inv = inventory();
   run(SelectSlot{7});
   conn.send(MovePlayer{{7.5f, ground + 1.0f, 9.5f}, 33.0f, -4.0f, true, false});
   conn.send(SetTimeOfDay{5000.0f});
@@ -404,6 +407,7 @@ TEST_CASE_FIXTURE(EditGame, "a played game round-trips through save and load") {
   CHECK(j.pitch == -4.0f);
   CHECK(j.slot == 7);
   CHECK(j.fly);
+  CHECK(loaded.findPlayer(j.id)->inventory.slots() == saved_inv.slots());
 }
 
 TEST_CASE_FIXTURE(SmallGame, "save without a bound directory fails") {
@@ -540,4 +544,54 @@ TEST_CASE_FIXTURE(EditGame, "GiveItem adds valid items and rejects unknown ones"
 
   CHECK(rejected(run(GiveItem{static_cast<ItemId>(9999), 1})));
   CHECK(rejected(run(GiveItem{ItemId::EMERALD, 0})));
+}
+
+TEST_CASE_FIXTURE(EditGame, "MoveItems rearranges the inventory") {
+  run(GiveItem{ItemId::COAL, 10});
+  REQUIRE(inventory().slot(1) == ItemStack{ItemId::COAL, 10});
+
+  auto evs = run(MoveItems{1, 30, 4});
+  CHECK(inventory().slot(1) == ItemStack{ItemId::COAL, 6});
+  CHECK(inventory().slot(30) == ItemStack{ItemId::COAL, 4});
+  CHECK(lastContents(evs));
+
+  run(MoveItems{0, 1, 0}); // whole glowstone stack onto coal: swap
+  CHECK(inventory().slot(0) == ItemStack{ItemId::COAL, 6});
+  CHECK(inventory().slot(1) == ItemStack{itemForBlock(BlockType::GLOWSTONE), 8});
+
+  CHECK(rejected(run(MoveItems{0, 1, 2})));  // partial onto a different item
+  CHECK(rejected(run(MoveItems{5, 6, 0})));  // empty source
+  CHECK(rejected(run(MoveItems{0, 99, 0}))); // out of range
+}
+
+TEST_CASE_FIXTURE(SmallGame, "an old save without inventory.dat gets the starter kit") {
+  ScopedSeed seed;
+  TempDir dir;
+  WorldSave::LevelData level;
+  WorldSave::PlayerData pd;
+  pd.position = {3.5f, 90.0f, 3.5f};
+  REQUIRE(WorldSave::save(dir.path.string(), level, pd, {}));
+
+  REQUIRE(game.load(dir.path.string()));
+  LocalConnection conn;
+  Joined j = join(game, conn);
+  CHECK(j.position == pd.position);
+  CHECK(game.findPlayer(j.id)->inventory.slots() == Game::starterKit().slots());
+
+  // Saving now writes inventory.dat, so the kit isn't handed out again.
+  REQUIRE(game.save());
+  std::vector<ItemStack> on_disk;
+  CHECK(WorldSave::loadInventory(dir.path.string(), on_disk));
+}
+
+TEST_CASE_FIXTURE(SmallGame, "only the first join takes the saved inventory") {
+  std::vector<ItemStack> saved(kInventorySlots);
+  saved[4] = {ItemId::RUBY, 2};
+  game.restore({}, {}, std::nullopt, saved);
+
+  LocalConnection a, b;
+  Joined ja = join(game, a);
+  Joined jb = join(game, b);
+  CHECK(game.findPlayer(ja.id)->inventory.slot(4) == ItemStack{ItemId::RUBY, 2});
+  CHECK(game.findPlayer(jb.id)->inventory.slots() == Game::starterKit().slots());
 }

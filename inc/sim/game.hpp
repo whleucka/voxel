@@ -29,7 +29,8 @@ public:
   // takes over the saved player record (single-player); later joins get a
   // fresh spawn. load() uses this; tests may call it directly.
   void restore(const WorldSave::LevelData &level, WorldEdits edits,
-               std::optional<WorldSave::PlayerData> player);
+               std::optional<WorldSave::PlayerData> player,
+               std::optional<std::vector<ItemStack>> inventory = std::nullopt);
 
   void addClient(ClientLink &link);
 
@@ -64,6 +65,7 @@ private:
   void apply(Client &client, const SetTimeOfDay &cmd);
   void apply(Client &client, const Save &cmd);
   void apply(Client &client, const GiveItem &cmd);
+  void apply(Client &client, const MoveItems &cmd);
 
   PlayerState *playerFor(const Client &client);
   void reject(Client &client, std::string reason);
@@ -82,5 +84,6 @@ private:
   std::unordered_map<PlayerId, PlayerState> players;
   PlayerId next_player_id = 1;
   std::optional<WorldSave::PlayerData> saved_player;
+  std::optional<std::vector<ItemStack>> saved_inventory;
   std::string save_dir;
 };
