@@ -32,6 +32,9 @@ public:
   void render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay,
               int viewportWidth, int viewportHeight);
   void addChunk(int x, int z);
+  // Generates a chunk on the calling thread and inserts it without queueing a
+  // mesh build or GPU upload. For tests, which run without a GL context.
+  void loadChunkSync(int x, int z);
   std::shared_ptr<Chunk> getChunk(int x, int z);
   std::shared_ptr<const Chunk> getChunk(int x, int z) const;
   std::unique_ptr<Player> &getPlayer() { return player; }
@@ -58,6 +61,7 @@ public:
                         float max_distance) const;
 
 private:
+  void populateChunk(Chunk &chunk, const ChunkKey &key);
   void rebuildChunk(int cx, int cz);
   // Cross-chunk block-light: recompute a 5x5 chunk box around (ccx,ccz) into a
   // temp buffer and persist the inner 3x3, so torch light bleeds across borders.

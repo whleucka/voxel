@@ -165,28 +165,42 @@ std::vector<glm::ivec2> World::generateSpiralOrder(int radius) {
   return spiral;
 }
 
+// Generate terrain, then replay any saved player edits onto the fresh chunk
+// before it gets meshed, re-lighting so shadows/skylight reflect the changes.
+void World::populateChunk(Chunk &chunk, const ChunkKey &key) {
+  chunk.init();
+
+  ChunkEdits ce;
+  {
+    std::lock_guard lk(edits_mutex);
+    auto it = edits.find(key);
+    if (it != edits.end()) ce = it->second;
+  }
+  if (!ce.empty()) {
+    std::lock_guard dlk(chunk.data_mutex);
+    for (const auto &[idx, block] : ce)
+      chunk.setBlockLinear(idx, static_cast<BlockType>(block));
+    chunk.computeSkyLight();
+    chunk.computeBlockLight();
+  }
+}
+
+void World::loadChunkSync(int x, int z) {
+  ChunkKey key{x, z};
+  auto chunk = std::make_shared<Chunk>(x, z);
+  populateChunk(*chunk, key);
+  if (chunk->hasEmitters())
+    emitters_exist.store(true, std::memory_order_relaxed);
+  WriteLock lock(chunks_mutex);
+  chunks.insert_or_assign(key, chunk);
+}
+
 void World::addChunk(int x, int z) {
   ChunkKey key{x, z};
   auto chunk = std::make_shared<Chunk>(x, z);
 
   gen_pool.enqueue([this, chunk, key]() {
-    chunk->init(); // generate terrain
-
-    // Replay any saved player edits onto this freshly generated chunk before
-    // it gets meshed, then re-light so shadows/skylight reflect the changes.
-    ChunkEdits ce;
-    {
-      std::lock_guard lk(edits_mutex);
-      auto it = edits.find(key);
-      if (it != edits.end()) ce = it->second;
-    }
-    if (!ce.empty()) {
-      std::lock_guard dlk(chunk->data_mutex);
-      for (const auto &[idx, block] : ce)
-        chunk->setBlockLinear(idx, static_cast<BlockType>(block));
-      chunk->computeSkyLight();
-      chunk->computeBlockLight();
-    }
+    populateChunk(*chunk, key);
 
     // Once generation is done, queue for meshing
     mesh_pool.enqueue([this, chunk]() {
