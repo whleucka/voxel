@@ -3,6 +3,8 @@
 #include "entity/animals.hpp"
 #include "entity/enemies.hpp"
 #include "core/settings.hpp"
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <iostream>
 
@@ -79,7 +81,25 @@ void Game::restore(const WorldSave::LevelData &level, WorldEdits edits,
   saved_inventory = std::move(inventory);
 }
 
-void Game::addClient(ClientLink &link) { clients.push_back({&link, {}}); }
+void Game::addClient(ClientLink &link, Role role) { clients.push_back({&link, {}, role}); }
+
+void Game::removeClient(ClientLink &link) {
+  auto it = std::find_if(clients.begin(), clients.end(),
+                         [&](const Client &c) { return c.link == &link; });
+  if (it == clients.end()) return;
+  std::optional<PlayerId> gone = it->player;
+  clients.erase(it);
+  if (!gone) return;
+  players.erase(*gone);
+  broadcast(PlayerLeft{*gone});
+}
+
+bool Game::validName(std::string_view name) {
+  if (name.empty() || name.size() > kMaxNameLength) return false;
+  return std::all_of(name.begin(), name.end(), [](char c) {
+    return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-';
+  });
+}
 
 const PlayerState *Game::findPlayer(PlayerId id) const {
   auto it = players.find(id);
@@ -94,6 +114,13 @@ PlayerState *Game::playerFor(const Client &client) {
 
 void Game::reject(Client &client, std::string reason) {
   client.link->deliver(CommandRejected{std::move(reason)});
+}
+
+// Debug-panel cheats belong to the host; a guest's attempt is refused.
+bool Game::hostOnly(Client &client, std::string_view what) {
+  if (client.role == Role::Host) return true;
+  reject(client, std::string(what) + ": host only");
+  return false;
 }
 
 void Game::broadcast(const Event &ev) {
@@ -241,7 +268,8 @@ void Game::respawn(Client &client, PlayerState &ps) {
   ps.fall.reset();
   ps.dead_ms = 0;
   ps.position = respawnPoint();
-  client.link->deliver(Respawned{ps.position});
+  ++ps.respawn;
+  client.link->deliver(Respawned{ps.position, ps.respawn});
 }
 
 // ─── Commands ──────────────────────────────────────────────────────────
@@ -252,11 +280,18 @@ void Game::apply(Client &client, const Command &cmd) {
   std::visit([&](const auto &c) { apply(client, c); }, cmd);
 }
 
-void Game::apply(Client &client, const Join &) {
+void Game::apply(Client &client, const Join &cmd) {
   if (client.player) return; // already joined
 
   PlayerState ps;
-  ps.id = next_player_id++;
+  ps.id = next_player_id;
+  ps.name = cmd.name.empty() ? "Player" + std::to_string(ps.id) : cmd.name;
+  if (!validName(ps.name))
+    return client.link->deliver(JoinRefused{"Names are 1-16 letters, digits, _ or -"});
+  for (const auto &[id, other] : players)
+    if (other.name == ps.name) return client.link->deliver(JoinRefused{"Name already in use"});
+  if (players.size() >= kMaxPlayers) return client.link->deliver(JoinRefused{"Game is full"});
+  ++next_player_id;
   if (saved_player) {
     ps.position = saved_player->position;
     ps.yaw = saved_player->yaw;
@@ -277,6 +312,8 @@ void Game::apply(Client &client, const Join &) {
     ps.inventory = starterKit();
   }
 
+  for (Client &other : clients)
+    if (other.player) other.link->deliver(PlayerJoined{ps.id, ps.name});
   players[ps.id] = ps;
   client.player = ps.id;
   client.link->deliver(Joined{ps.id, ps.position, ps.yaw, ps.pitch,
@@ -286,8 +323,9 @@ void Game::apply(Client &client, const Join &) {
 
 void Game::apply(Client &client, const MovePlayer &cmd) {
   PlayerState *ps = playerFor(client);
-  // The dead stay put until they respawn.
-  if (!ps || ps->vitals.dead()) return;
+  // The dead stay put until they respawn, and moves from before the respawn
+  // (still in flight when it happened) are stale.
+  if (!ps || ps->vitals.dead() || cmd.respawn != ps->respawn) return;
   ps->position = cmd.position;
   ps->yaw = cmd.yaw;
   ps->pitch = cmd.pitch;
@@ -367,15 +405,18 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
   sendInventory(client, *ps);
 }
 
-void Game::apply(Client &, const SetTimeOfDay &cmd) {
+void Game::apply(Client &client, const SetTimeOfDay &cmd) {
+  if (!hostOnly(client, "time")) return;
   clock_.time_of_day = std::fmod(std::max(cmd.seconds, 0.0f), 86400.0f);
 }
 
-void Game::apply(Client &, const Save &) { save(); }
+void Game::apply(Client &client, const Save &) {
+  if (hostOnly(client, "save")) save();
+}
 
 void Game::apply(Client &client, const GiveItem &cmd) {
   PlayerState *ps = playerFor(client);
-  if (!ps) return;
+  if (!ps || !hostOnly(client, "give")) return;
   if (!isValidItem(cmd.id) || cmd.count == 0)
     return reject(client, "give: unknown item");
   // Same as collecting a drop: whatever doesn't fit lands at your feet.
@@ -516,7 +557,7 @@ void Game::apply(Client &client, const AttackEntity &cmd) {
 
 void Game::apply(Client &client, const SpawnDebugEntity &cmd) {
   PlayerState *ps = playerFor(client);
-  if (!ps || ps->vitals.dead()) return;
+  if (!ps || ps->vitals.dead() || !hostOnly(client, "spawn")) return;
   if (!isValidEntityKind(cmd.kind)) return reject(client, "spawn: unknown kind");
   float yaw = glm::radians(ps->yaw);
   glm::vec3 ahead{std::cos(yaw), 0.0f, std::sin(yaw)};

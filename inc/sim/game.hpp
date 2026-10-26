@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -22,6 +23,8 @@ public:
   static constexpr int kTickMs = 50;
   static constexpr int kRespawnDelayMs = 3000;
   static constexpr float kEntityViewRange = 96.0f;
+  static constexpr size_t kMaxPlayers = 8; // host included
+  static constexpr size_t kMaxNameLength = 16;
   // Dropped items
   static constexpr int kBreakDropDelayMs = 500;
   static constexpr int kThrowDropDelayMs = 1500;
@@ -60,7 +63,16 @@ public:
                std::optional<WorldSave::PlayerData> player,
                std::optional<std::vector<ItemStack>> inventory = std::nullopt);
 
-  void addClient(ClientLink &link);
+  // The host plays in-process and may use the debug-panel cheats; guests
+  // arrive over the network.
+  enum class Role { Host, Guest };
+  void addClient(ClientLink &link, Role role = Role::Host);
+  // The link is going away (disconnect or quit): its player leaves the game.
+  void removeClient(ClientLink &link);
+  size_t playerCount() const { return players.size(); }
+
+  // 1-16 letters, digits, '_' or '-'.
+  static bool validName(std::string_view name);
 
   // Apply every pending command. Called once per frame, so edits land with no
   // added latency; only time-based state waits for tick().
@@ -87,6 +99,7 @@ private:
   struct Client {
     ClientLink *link = nullptr;
     std::optional<PlayerId> player;
+    Role role = Role::Host;
   };
 
   void apply(Client &client, const Command &cmd);
@@ -119,6 +132,7 @@ private:
 
   PlayerState *playerFor(const Client &client);
   void reject(Client &client, std::string reason);
+  bool hostOnly(Client &client, std::string_view what);
   void broadcast(const Event &ev);
   void sendInventory(Client &client, const PlayerState &ps);
   bool inReach(const PlayerState &ps, const glm::ivec3 &block) const;

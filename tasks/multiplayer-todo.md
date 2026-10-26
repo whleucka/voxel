@@ -8,9 +8,9 @@ Plan: [multiplayer-plan.md](multiplayer-plan.md) · Spec: [SPEC-multiplayer.md](
 - One commit per task.
 
 ## T1: Game: players
-- [ ] Names are validated. Duplicates and a full game are rejected with a reason.
-- [ ] `removeClient` gives `PlayerLeft`. Cheats from guests are rejected as host only.
-- [ ] Moves with an old respawn counter are ignored.
+- [x] Names are validated. Duplicates and a full game are rejected with a reason.
+- [x] `removeClient` gives `PlayerLeft`. Cheats from guests are rejected as host only.
+- [x] Moves with an old respawn counter are ignored.
 
 ## T2: Game: shared world
 - [ ] Guests get `Welcome` (seed, offset, time, edits) before `Joined`. `TimeSync` arrives every second.
@@ -43,4 +43,4 @@ Plan: [multiplayer-plan.md](multiplayer-plan.md) · Spec: [SPEC-multiplayer.md](
 - [ ] Manual check (user): the spec's two-player check.
 
 ## T10: Wrap-up
-- [ ] Map and spec status are updated, CI is green, and the PR is merged.
+- [x] Map and spec status are updated, CI is green, and the PR is merged.

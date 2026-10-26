@@ -31,6 +31,7 @@ private:
   Game game;
   LocalConnection connection;
   PlayerId player_id = 0;
+  uint32_t respawn_count = 0;     // echoed in MovePlayer; see Respawned
   std::unique_ptr<Player> player; // the local player; created on Joined
   std::string last_rejection;     // latest CommandRejected, for the debug panel
   Inventory::Slots inventory_view{}; // the Game's latest InventoryContents

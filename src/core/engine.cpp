@@ -204,6 +204,7 @@ void Engine::update() {
   move.sprinting = player->isSprinting();
   move.in_water = player->isInWater();
   move.eyes_underwater = player->isUnderwater();
+  move.respawn = respawn_count;
   connection.send(move);
 
   game.pump();
@@ -251,6 +252,7 @@ void Engine::handleEvents() {
     }
     else if (const auto *respawned = std::get_if<Respawned>(&ev)) {
       player->respawnAt(respawned->position);
+      respawn_count = respawned->respawn;
     }
     else if (const auto *knocked = std::get_if<KnockedBack>(&ev)) {
       player->knock(knocked->velocity);
