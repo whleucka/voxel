@@ -163,8 +163,8 @@ void Engine::run() {
 // ─── Input Processing (polled every frame) ─────────────────────────────
 
 void Engine::processInput(GLFWwindow *window) {
-  // Don't process movement when inventory is open
-  if (player->isInventoryOpen()) return;
+  // Don't process movement when inventory is open or while dead
+  if (player->isInventoryOpen() || vitals_view.dead) return;
 
   PlayerInput input;
   input.forward  = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
@@ -191,8 +191,17 @@ void Engine::update() {
   // chunks around every player's reported position when it pumps.
   player->update(delta_time, &game.world());
   const Camera &cam = player->getCamera();
-  connection.send(MovePlayer{player->getPosition(), cam.yaw, cam.pitch,
-                             player->isFlyMode(), player->isCrouching()});
+  MovePlayer move;
+  move.position = player->getPosition();
+  move.yaw = cam.yaw;
+  move.pitch = cam.pitch;
+  move.fly = player->isFlyMode();
+  move.crouch = player->isCrouching();
+  move.on_ground = player->isOnGround();
+  move.sprinting = player->isSprinting();
+  move.in_water = player->isInWater();
+  move.eyes_underwater = player->isUnderwater();
+  connection.send(move);
 
   game.pump();
   game.advance(delta_time);
@@ -231,6 +240,14 @@ void Engine::handleEvents() {
     else if (const auto *contents = std::get_if<InventoryContents>(&ev)) {
       inventory_view = contents->slots;
       inventory_screen.sync(inventory_view);
+    }
+    else if (const auto *vitals = std::get_if<VitalsChanged>(&ev)) {
+      if (vitals->health < vitals_view.health) hud.flashDamage(glfwGetTime());
+      vitals_view = *vitals;
+      player->setSprintAllowed(vitals->can_sprint);
+    }
+    else if (const auto *respawned = std::get_if<Respawned>(&ev)) {
+      player->respawnAt(respawned->position);
     }
     // BlockChanged needs no handling yet: in single-player the client renders
     // the Game's own World, which is already up to date.
@@ -705,6 +722,8 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     if (move) engine->connection.send(*move);
     return;
   }
+
+  if (engine->vitals_view.dead) return;
 
   // The client only aims; the Game validates and applies the edit on the next
   // pump, which runs before the next frame renders.

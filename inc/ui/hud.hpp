@@ -29,6 +29,9 @@ public:
   void drawHotbar(const HudLayout &layout, const Inventory::Slots &inv,
                   int selected, double now);
 
+  // Start the red edge flash shown after taking damage.
+  void flashDamage(double now) { damage_since = now; }
+
   // The inventory screen, the stack being carried, and the hover tooltip.
   void drawInventoryScreen(const HudLayout &layout, const Inventory::Slots &inv,
                            const InventoryScreen &screen, glm::vec2 mouse);
@@ -44,6 +47,7 @@ private:
   int popup_slot = -1;
   ItemId popup_item = ItemId::NONE;
   double popup_since = -100.0;
+  double damage_since = -100.0;
 
   void drawSlot(ImDrawList *dl, const Rect &r, const ItemStack &s,
                 bool highlighted, float alpha, int number_label) const;
