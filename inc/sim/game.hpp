@@ -1,5 +1,6 @@
 #pragma once
 
+#include "entity/entity_store.hpp"
 #include "sim/connection.hpp"
 #include "sim/player_state.hpp"
 #include "world/game_clock.hpp"
@@ -48,6 +49,10 @@ public:
   World &world() { return world_; }
   const World &world() const { return world_; }
   const GameClock &clock() const { return clock_; }
+  EntityStore &entities() { return entities_; }
+  const EntityStore &entities() const { return entities_; }
+  // Drives spawning, wandering and hops; tests reseed it for determinism.
+  Rng &rng() { return rng_; }
   const PlayerState *findPlayer(PlayerId id) const;
 
   // What a player with no saved inventory starts with.
@@ -85,6 +90,8 @@ private:
 
   World world_;
   GameClock clock_;
+  EntityStore entities_;
+  Rng rng_{0x5eed};
   // Whole microseconds, so N ticks' worth of frame time runs exactly N ticks.
   int64_t tick_accumulator_us = 0;
 

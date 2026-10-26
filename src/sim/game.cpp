@@ -173,6 +173,11 @@ void Game::tick() {
       ps->vitals.tick(kTickMs, ps->activity);
     }
   }
+
+  std::vector<glm::vec3> positions;
+  for (const auto &[id, ps] : players) positions.push_back(ps.position);
+  entities_.tick(world_, rng_, positions);
+
   flushVitals();
 }
 
