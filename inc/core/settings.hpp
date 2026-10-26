@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/difficulty.hpp"
 #include <glm/vec2.hpp>
 #include <cstdint>
 #include <string>
@@ -10,6 +11,7 @@ struct Settings {
   uint32_t   world_seed;
   glm::vec2  noise_offset;  // added to all noise coordinates for seeding
   int        render_distance; // how far (in world units) chunks stay loaded
+  Difficulty difficulty;      // enemies; read by the Game every tick
 
   // UI
   bool show_debug;
@@ -47,6 +49,7 @@ struct Settings {
   Settings()
       : world_name("world"),
         world_seed(0), noise_offset(0.0f, 0.0f), render_distance(320),
+        difficulty(Difficulty::Easy),
         show_debug(false),
         window_width(1600), window_height(900),
         wireframe(false), vsync(false), fullscreen(true), show_cursor(false),

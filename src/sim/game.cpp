@@ -1,13 +1,17 @@
 #include "sim/game.hpp"
 #include "block/block_data.hpp"
 #include "entity/animals.hpp"
+#include "entity/enemies.hpp"
 #include "core/settings.hpp"
 #include <cmath>
 #include <iostream>
 
 // ─── Setup ─────────────────────────────────────────────────────────────
 
-Game::Game() { registerAnimalSpawns(spawner_); }
+Game::Game() {
+  registerAnimalSpawns(spawner_);
+  registerEnemySpawns(spawner_);
+}
 
 bool Game::load(const std::string &dir) {
   save_dir = dir;
@@ -178,10 +182,16 @@ void Game::tick() {
     }
   }
 
-  std::vector<glm::vec3> positions;
-  for (const auto &[id, ps] : players) positions.push_back(ps.position);
-  entities_.tick(world_, rng_, positions);
-  spawner_.tick(entities_, world_, rng_, positions, clock_.fractionOfDay());
+  std::vector<glm::vec3> positions, living;
+  for (const auto &[id, ps] : players) {
+    positions.push_back(ps.position);
+    if (!ps.vitals.dead()) living.push_back(ps.position);
+  }
+  entities_.tick(world_, rng_, positions, living, speedScale(g_settings.difficulty));
+  removeEnemies();
+  enemyAttacks();
+  spawner_.tick(entities_, world_, rng_, positions, clock_.fractionOfDay(),
+                g_settings.difficulty);
   releaseAnimalProducts();
   mergeDroppedItems();
   pickUpDroppedItems();
@@ -494,8 +504,12 @@ void Game::apply(Client &client, const AttackEntity &cmd) {
   if (e->health <= 0) {
     std::uniform_real_distribution<float> side(-1.0f, 1.0f);
     glm::vec3 at = e->body.position + glm::vec3(0.0f, 0.3f, 0.0f);
+    std::uniform_real_distribution<float> roll(0.0f, 1.0f);
     for (const ItemStack &drop : def.drops)
       dropItem(drop, at, {side(rng_), 4.0f, side(rng_)}, kBreakDropDelayMs);
+    for (const ChanceDrop &drop : def.chance_drops)
+      if (roll(rng_) < drop.chance)
+        dropItem(drop.stack, at, {side(rng_), 4.0f, side(rng_)}, kBreakDropDelayMs);
     entities_.remove(cmd.id);
   }
 }
@@ -570,4 +584,67 @@ void Game::apply(Client &client, const EatItem &) {
   ps->inventory.take(ps->selected_slot, 1);
   sendInventory(client, *ps);
   ps->vitals.heal(heal);
+}
+
+// ─── Enemies ───────────────────────────────────────────────────────────
+
+void Game::removeEnemies() {
+  bool peaceful = g_settings.difficulty == Difficulty::Peaceful;
+  bool day = !isNight(clock_.fractionOfDay());
+  std::vector<EntityId> gone;
+  for (const auto &[id, e] : entities_.all()) {
+    if (!isEnemy(e.kind)) continue;
+    if (peaceful) {
+      gone.push_back(id);
+      continue;
+    }
+    // Sunrise: surface enemies out under the sky simply vanish (no drops).
+    const glm::vec3 &p = e.body.position;
+    glm::ivec3 feet(std::floor(p.x), std::floor(p.y + 0.01f), std::floor(p.z));
+    if (day && entityType(e.kind).enemy->vanish_at_dawn &&
+        world_.getSkyLightAt(feet) >= kSurfaceEnemyMinSkyLight)
+      gone.push_back(id);
+  }
+  for (EntityId id : gone) entities_.remove(id);
+}
+
+namespace {
+
+// Distance between two boxes (0 when they touch or overlap).
+float boxGap(glm::vec3 a_lo, glm::vec3 a_hi, glm::vec3 b_lo, glm::vec3 b_hi) {
+  glm::vec3 gap = glm::max(glm::vec3(0.0f), glm::max(a_lo - b_hi, b_lo - a_hi));
+  return glm::length(gap);
+}
+
+} // namespace
+
+// An enemy touching a living player hurts them and knocks them away, then
+// waits out its own cooldown.
+void Game::enemyAttacks() {
+  for (Client &client : clients) {
+    PlayerState *ps = playerFor(client);
+    if (!ps || ps->vitals.dead()) continue;
+    glm::vec3 p_lo = ps->position - glm::vec3(kPlayerHalfWidth, 0.0f, kPlayerHalfWidth);
+    glm::vec3 p_hi = ps->position + glm::vec3(kPlayerHalfWidth, ps->height(), kPlayerHalfWidth);
+
+    for (auto &[id, e] : entities_.all()) {
+      if (!isEnemy(e.kind) || e.attack_cooldown_ms > 0) continue;
+      glm::vec3 half(e.body.half_width, 0.0f, e.body.half_width);
+      glm::vec3 e_lo = e.body.position - half;
+      glm::vec3 e_hi = e.body.position + half + glm::vec3(0.0f, e.body.height, 0.0f);
+      if (boxGap(p_lo, p_hi, e_lo, e_hi) > kEnemyContactRange) continue;
+
+      ps->vitals.damage(scaledDamage(entityType(e.kind).enemy->damage, g_settings.difficulty));
+      e.attack_cooldown_ms = kEnemyAttackCooldownMs;
+
+      glm::vec2 away(ps->position.x - e.body.position.x, ps->position.z - e.body.position.z);
+      if (glm::length(away) < 1e-3f) {
+        float yaw = glm::radians(e.yaw); // straight ahead of the enemy
+        away = {std::sin(yaw), -std::cos(yaw)};
+      }
+      away = glm::normalize(away) * kEnemyKnockback;
+      client.link->deliver(KnockedBack{{away.x, kEnemyKnockUp, away.y}});
+      if (ps->vitals.dead()) break;
+    }
+  }
 }

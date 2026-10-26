@@ -86,6 +86,8 @@ std::string serializeSettings(const Settings &s, bool blank_seed) {
   o << "\n"
     << "# How far (in blocks) chunks stay loaded around the player.\n"
     << "view-distance=" << s.render_distance << "\n"
+    << "# Enemies: peaceful (none), easy (fewer, weaker, slower) or normal.\n"
+    << "difficulty=" << difficultyName(s.difficulty) << "\n"
     << "\n"
     << "# ─── Window ──────────────────────────────────────────────\n"
     << "fullscreen=" << (s.fullscreen ? "true" : "false") << "\n"
@@ -179,6 +181,11 @@ void loadServerProperties(const std::string &path) {
   for (const auto &[k, v] : kv) {
     if      (k == "world-name")        { if (!v.empty()) g_settings.world_name = v; }
     else if (k == "view-distance")     applyInt(k, v, g_settings.render_distance);
+    else if (k == "difficulty") {
+      if (auto d = parseDifficulty(v)) g_settings.difficulty = *d;
+      else std::cerr << "[config] 'difficulty': expected peaceful/easy/normal, got '"
+                     << v << "' — keeping default\n";
+    }
     else if (k == "fullscreen")        applyBool(k, v, g_settings.fullscreen);
     else if (k == "vsync")             applyBool(k, v, g_settings.vsync);
     else if (k == "window-width")      applyInt(k, v, g_settings.window_width);

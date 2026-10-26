@@ -21,6 +21,7 @@ uniform float uTileSpan;    // atlas UV size of one tile
 uniform float uSkyLight;    // 0..1 at the entity
 uniform float uBlockLight;  // 0..1 at the entity
 uniform float uHurt;        // 0..1 red tint
+uniform bool  uGlow;        // shine at full brightness, ignoring the light
 
 uniform vec3  uSunDir;
 uniform vec3  uSunColor;
@@ -62,6 +63,7 @@ void main() {
 
     vec3 color = base * lightLevel * faceShade;
     color = mix(color, vec3(0.75, 0.04, 0.04) * max(lightLevel, vec3(0.25)), uHurt);
+    if (uGlow) color = base; // glowing eyes: unlit, so they read in the dark
 
     float dist = length(vWorldPos - uCameraPos);
     if (uUnderwater) {

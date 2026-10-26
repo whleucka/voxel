@@ -2,6 +2,7 @@
 // without a window: World::init() (shaders) is never called.
 #include "doctest/doctest.h"
 #include "core/settings.hpp"
+#include "entity/enemies.hpp"
 #include "sim/game.hpp"
 #include "sim/local_connection.hpp"
 #include "test_util.hpp"
@@ -1052,6 +1053,37 @@ TEST_CASE_FIXTURE(FightGame, "killing a creature removes it and drops its loot")
   CHECK((loot || countOf(inventory(), ItemId::COAL) == 1));
 }
 
+TEST_CASE_FIXTURE(FightGame, "killing enemies drops glowstone, and coal about half the time") {
+  game.entities().remove(target);
+  int coal = 0, glowstone = 0;
+  const int kills = 20;
+  for (int i = 0; i < kills; ++i) {
+    auto e = game.entities().spawn(EntityKind::CaveGrumble, spot);
+    REQUIRE(e);
+    target = *e;
+    for (int hits = 0; creature() && hits < 20; ++hits) {
+      run(AttackEntity{target});
+      wait(0.4f);
+    }
+    REQUIRE_FALSE(creature());
+    // Count the loot wherever it went (the player stands close enough to
+    // pick it up), then clear it for the next kill.
+    for (const auto &[eid, d] : game.entities().all()) {
+      if (d.item.id == ItemId::COAL) coal += d.item.count;
+      if (d.item.id == itemForBlock(BlockType::GLOWSTONE)) glowstone += d.item.count;
+    }
+    std::vector<EntityId> items;
+    for (const auto &[eid, d] : game.entities().all()) items.push_back(eid);
+    for (EntityId eid : items) game.entities().remove(eid);
+  }
+  coal += countOf(inventory(), ItemId::COAL);
+  glowstone += countOf(inventory(), itemForBlock(BlockType::GLOWSTONE)) -
+               countOf(Game::starterKit(), itemForBlock(BlockType::GLOWSTONE));
+  CHECK(glowstone == 2 * kills);
+  CHECK(coal > 0);
+  CHECK(coal < kills);
+}
+
 TEST_CASE_FIXTURE(EditGame, "the debug panel can spawn a test creature in front of you") {
   conn.send(MovePlayer{game.findPlayer(id)->position, -90.0f, 0.0f}); // facing -Z
   game.pump();
@@ -1083,9 +1115,9 @@ struct FeedGame : FightGame {
 
 } // namespace
 
-TEST_CASE("the natural spawner has a rule per animal") {
+TEST_CASE("the natural spawner has a rule per animal and enemy") {
   Game g;
-  CHECK(g.spawner().rules().size() == std::size(kAnimalKinds));
+  CHECK(g.spawner().rules().size() == std::size(kAnimalKinds) + std::size(kEnemyKinds));
 }
 
 TEST_CASE_FIXTURE(FeedGame, "feeding an animal its favourite makes it happy and it gives back") {
@@ -1186,4 +1218,177 @@ TEST_CASE_FIXTURE(EditGame, "you can't eat at full health or eat non-food") {
 
   run(SelectSlot{0}); // glowstone
   CHECK(rejected(run(EatItem{})));
+}
+
+// ─── Enemies ───────────────────────────────────────────────────────────
+
+namespace {
+
+constexpr float kMidnightSeconds = 0.0f, kNoonSeconds = 43200.0f;
+
+// FightGame's strip opened up to the sky, at midnight, on Normal, with an
+// enemy kept pressed against the player.
+struct EnemyGame : FightGame {
+  ScopedDifficulty difficulty{Difficulty::Normal};
+  EntityId enemy = 0;
+  glm::vec3 me_pos;
+
+  EnemyGame() {
+    game.entities().remove(target);
+    fill(game.world(), {4, ground + 1, 1}, {7, kChunkHeight - 1, 10}, BlockType::AIR);
+    run(SetTimeOfDay{kMidnightSeconds});
+    me_pos = game.findPlayer(id)->position;
+    enemy = spawnEnemy(EntityKind::CaveGrumble);
+  }
+
+  EntityId spawnEnemy(EntityKind k, glm::vec3 offset = {0.0f, 0.0f, -0.8f}) {
+    auto e = game.entities().spawn(k, me_pos + offset);
+    REQUIRE(e);
+    return *e;
+  }
+  Entity *foe() { return game.entities().find(enemy); }
+  int health() const { return game.findPlayer(id)->vitals.health(); }
+
+  // One tick with everyone held in place (the client would be moving the
+  // player; here they stand still).
+  std::vector<Event> tick() {
+    conn.send(MovePlayer{me_pos, 0.0f, 0.0f, false, false, true});
+    game.pump();
+    if (Entity *e = foe()) {
+      e->body.position = me_pos + glm::vec3(0.0f, 0.0f, -0.8f);
+      e->body.velocity = glm::vec3(0.0f);
+    }
+    game.advance(Game::kTickSeconds);
+    return pollAll(conn);
+  }
+
+  static std::vector<KnockedBack> knocks(const std::vector<Event> &evs) {
+    std::vector<KnockedBack> out;
+    for (const Event &e : evs)
+      if (auto *k = std::get_if<KnockedBack>(&e)) out.push_back(*k);
+    return out;
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(EnemyGame, "an enemy touching you hurts and knocks you back") {
+  auto evs = tick();
+  CHECK(health() == Vitals::kMax - 2);
+  auto k = knocks(evs);
+  REQUIRE(k.size() == 1);
+  CHECK(k[0].velocity.z > 1.0f); // away from the enemy, which is at -Z
+  CHECK(k[0].velocity.y > 0.0f);
+  CHECK(knocks(pollAll(other)).empty()); // only the player who was hit
+}
+
+TEST_CASE_FIXTURE(EnemyGame, "each enemy hits at most once a second") {
+  tick();
+  int hits = 1;
+  for (int i = 0; i < 19; ++i) hits += static_cast<int>(knocks(tick()).size());
+  CHECK(hits == 1);
+  CHECK(health() == Vitals::kMax - 2);
+  hits += static_cast<int>(knocks(tick()).size()); // 1 s after the first
+  CHECK(hits == 2);
+  CHECK(health() == Vitals::kMax - 4);
+}
+
+TEST_CASE_FIXTURE(EnemyGame, "two enemies each hit") {
+  spawnEnemy(EntityKind::CaveGrumble, {0.8f, 0.0f, 0.0f});
+  // The second one isn't held in place, so hit on the very first tick.
+  tick();
+  CHECK(health() == Vitals::kMax - 4);
+}
+
+TEST_CASE_FIXTURE(EnemyGame, "enemies further than the contact range don't hit") {
+  game.entities().remove(enemy);
+  enemy = 0;
+  auto far = spawnEnemy(EntityKind::CaveGrumble, {0.0f, 0.0f, -3.0f});
+  game.entities().find(far)->brain.reset(); // stays put
+  for (int i = 0; i < 10; ++i) tick();
+  CHECK(health() == Vitals::kMax);
+}
+
+TEST_CASE_FIXTURE(EnemyGame, "easy halves the damage, but never below 1") {
+  g_settings.difficulty = Difficulty::Easy;
+  tick();
+  CHECK(health() == Vitals::kMax - 1); // a Grumble's 2 halved
+
+  game.entities().remove(enemy);
+  enemy = spawnEnemy(EntityKind::Gloomling);
+  for (int i = 0; i < 20; ++i) tick();
+  CHECK(health() == Vitals::kMax - 2); // a Gloomling's 1 stays 1
+}
+
+TEST_CASE_FIXTURE(EnemyGame, "peaceful removes enemies and spawns none") {
+  spawnEnemy(EntityKind::Gloomling, {3.0f, 0.0f, 0.0f});
+  g_settings.difficulty = Difficulty::Peaceful;
+  tick();
+  for (const auto &[eid, e] : game.entities().all()) CHECK_FALSE(isEnemy(e.kind));
+  CHECK(health() == Vitals::kMax);
+
+  registerEnemySpawns(game.spawner());
+  game.advance(30.0f);
+  for (const auto &[eid, e] : game.entities().all()) CHECK_FALSE(isEnemy(e.kind));
+}
+
+TEST_CASE_FIXTURE(EnemyGame, "at sunrise surface enemies under the sky vanish, grumbles stay") {
+  // Both inside the strip that's open to the sky (x 4..7).
+  EntityId gloom = spawnEnemy(EntityKind::Gloomling, {1.2f, 0.0f, -3.0f});
+  EntityId crawler = spawnEnemy(EntityKind::ThornCrawler, {-1.2f, 0.0f, -5.0f});
+  tick(); // still night
+  CHECK(game.entities().find(gloom));
+  CHECK(game.entities().find(crawler));
+
+  run(SetTimeOfDay{kNoonSeconds});
+  tick();
+  CHECK_FALSE(game.entities().find(gloom));
+  CHECK_FALSE(game.entities().find(crawler));
+  CHECK(foe());
+  for (const auto &[eid, e] : game.entities().all())
+    CHECK(e.kind != EntityKind::DroppedItem); // vanishing drops nothing
+}
+
+TEST_CASE_FIXTURE(EnemyGame, "a surface enemy under a roof survives the day") {
+  EntityId gloom = spawnEnemy(EntityKind::Gloomling, {2.0f, 0.0f, 0.0f});
+  glm::ivec3 above(game.entities().find(gloom)->body.position);
+  // A low roof over a sealed nook: no sky light reaches its feet.
+  fill(game.world(), {above.x - 1, above.y - 1, above.z - 1},
+       {above.x + 1, above.y + 1, above.z + 1}, BlockType::STONE);
+  fill(game.world(), above, above, BlockType::AIR);
+  REQUIRE(game.world().getSkyLightAt(above) < kSurfaceEnemyMinSkyLight);
+  game.entities().find(gloom)->brain.reset();
+  run(SetTimeOfDay{kNoonSeconds});
+  tick();
+  CHECK(game.entities().find(gloom));
+}
+
+TEST_CASE_FIXTURE(EnemyGame, "dying to an enemy respawns you with your items") {
+  auto before = inventory().slots();
+  bool died = false;
+  for (int i = 0; i < 20 * 15 && !died; ++i) {
+    tick();
+    died = game.findPlayer(id)->vitals.dead();
+  }
+  REQUIRE(died);
+  bool respawned = false;
+  for (int i = 0; i < 20 * 4 && !respawned; ++i) {
+    game.advance(Game::kTickSeconds);
+    for (const Event &e : pollAll(conn)) respawned |= std::holds_alternative<Respawned>(e);
+  }
+  CHECK(respawned);
+  CHECK(health() == Vitals::kMax);
+  CHECK(inventory().slots() == before);
+}
+
+TEST_CASE_FIXTURE(EnemyGame, "the dead aren't attacked") {
+  conn.send(::at(me_pos + glm::vec3(0, 40, 0), true));
+  conn.send(::at(me_pos + glm::vec3(0, 39, 0), false));
+  conn.send(::at(me_pos, true));
+  game.pump();
+  REQUIRE(game.findPlayer(id)->vitals.dead());
+  pollAll(conn);
+  if (Entity *e = foe()) e->body.position = me_pos + glm::vec3(0.0f, 0.0f, -0.8f);
+  game.advance(Game::kTickSeconds);
+  CHECK(knocks(pollAll(conn)).empty());
 }

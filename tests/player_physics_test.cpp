@@ -124,3 +124,29 @@ TEST_CASE("crouching lowers the player and slows walking") {
   expect(p, {8.5f, 201.0f, 9.852493f}, {0.0f, 0.0f, -1.10075f}, true);
   CHECK(p.getEyePosition().y == doctest::Approx(202.27f));
 }
+
+TEST_CASE("a knock pushes the player, and input waits a moment to steer") {
+  Rig r;
+  Player p({8.5f, kBase + 1.0f, 8.5f});
+  steps(p, r.world, 30); // settle on the floor
+  REQUIRE(p.isOnGround());
+
+  // Knocked toward +Z while walking forward (-Z).
+  p.knock({0.0f, 5.0f, 7.0f});
+  CHECK(p.getVelocity().y == doctest::Approx(5.0f));
+  steps(p, r.world, 3, forward());
+  CHECK(p.getVelocity().z > 0.0f); // still flying back, not steered
+  CHECK(p.getPosition().z > 8.5f);
+  CHECK(p.getPosition().y > kBase + 1.0f);
+
+  steps(p, r.world, 30, forward()); // well past the steer delay
+  CHECK(p.getVelocity().z < 0.0f);
+}
+
+TEST_CASE("fly mode ignores knocks") {
+  Rig r;
+  Player p({8.5f, kBase + 5.0f, 8.5f});
+  p.toggleFlyMode();
+  p.knock({0.0f, 5.0f, 7.0f});
+  CHECK(p.getVelocity() == glm::vec3(0.0f));
+}

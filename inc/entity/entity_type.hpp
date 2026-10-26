@@ -20,6 +20,9 @@ enum class EntityKind : uint16_t {
   Bunny = 4,
   ShellTurtle = 5,
   BlossomDeer = 6,
+  Gloomling = 7,    // enemies (see SPEC-enemies.md)
+  ThornCrawler = 8,
+  CaveGrumble = 9,
 };
 
 // One cuboid of a box model, in blocks, relative to the entity's feet
@@ -29,6 +32,7 @@ struct ModelBox {
   glm::vec3 size{1.0f};
   glm::vec3 color{1.0f};  // sRGB 0..1
   int swing = 0;          // legs: +1 / -1 swing in opposite phases while moving
+  bool glow = false;      // drawn at full brightness, unlit (glowing eyes)
 };
 
 // Friendly animals: fed, never hurt.
@@ -37,6 +41,20 @@ struct AnimalDef {
   ItemStack product;               // what it gives when fed
   std::vector<BiomeType> biomes;   // where it spawns
   std::vector<BlockType> ground;   // what it spawns standing on
+};
+
+// Night and cave creatures: they chase players and hurt them on contact.
+struct EnemyDef {
+  int damage = 1;                // per contact hit, on Normal
+  bool surface = true;           // false: spawns in caves
+  bool vanish_at_dawn = false;   // removed at sunrise when under open sky
+  std::vector<BiomeType> biomes; // where it spawns; empty = anywhere
+};
+
+// A death drop that only sometimes appears.
+struct ChanceDrop {
+  ItemStack stack;
+  float chance = 1.0f; // 0..1
 };
 
 using BrainFactory = std::unique_ptr<Brain> (*)();
@@ -52,6 +70,8 @@ struct EntityTypeDef {
   BrainFactory brain = nullptr;
   std::vector<ItemStack> drops;
   std::optional<AnimalDef> animal;
+  std::vector<ChanceDrop> chance_drops = {};
+  std::optional<EnemyDef> enemy = std::nullopt;
 };
 
 const EntityTypeDef &entityType(EntityKind kind);
@@ -60,5 +80,11 @@ inline bool isAnimal(EntityKind kind) {
   return isValidEntityKind(kind) && entityType(kind).animal.has_value();
 }
 
+inline bool isEnemy(EntityKind kind) {
+  return isValidEntityKind(kind) && entityType(kind).enemy.has_value();
+}
+
 constexpr EntityKind kAnimalKinds[] = {EntityKind::Woolly, EntityKind::Bunny,
                                        EntityKind::ShellTurtle, EntityKind::BlossomDeer};
+constexpr EntityKind kEnemyKinds[] = {EntityKind::Gloomling, EntityKind::ThornCrawler,
+                                      EntityKind::CaveGrumble};

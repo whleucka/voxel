@@ -101,6 +101,7 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities, const World &
   shader->setVec3("uCameraPos", camera_pos);
   shader->setBool("uUnderwater", underwater);
   shader->setInt("uAtlas", 0);
+  shader->setBool("uGlow", false);
 
   // Thin item cards are seen from both sides, so no culling for this pass.
   glDisable(GL_CULL_FACE);
@@ -154,8 +155,10 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities, const World &
                            : 0.0f;
     for (const ModelBox &box : def.model) {
       shader->setVec3("uColor", box.color);
+      if (box.glow) shader->setBool("uGlow", true);
       if (box.swing == 0 || swing == 0.0f) {
         drawBox(m, box.offset, box.size);
+        if (box.glow) shader->setBool("uGlow", false);
         continue;
       }
       // Legs swing forward and back about the top of the leg.
@@ -164,6 +167,7 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities, const World &
                         glm::rotate(glm::mat4(1.0f), swing * box.swing, glm::vec3(1, 0, 0)) *
                         glm::translate(glm::mat4(1.0f), -pivot);
       drawBox(m, box.offset, box.size, local);
+      if (box.glow) shader->setBool("uGlow", false);
     }
 
     // A fed animal shows a little bobbing heart above its head (not turned
