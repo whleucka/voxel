@@ -25,7 +25,7 @@ Plan: [vitals-plan.md](vitals-plan.md) · Spec: [SPEC-vitals.md](../SPEC-vitals.
 ## T4: HUD
 - [x] `breathStrip()` sits between the bar strip and the name area (tested).
 - [x] Draws hearts, bolts (with halves) and bubbles, plus the damage flash and the death overlay.
-- [ ] Manual check (user): fall, drown, sprint until exhausted, die and respawn, regen.
+- [x] Manual check (user): fall, drown, sprint until exhausted, die and respawn, regen.
 
 ## T5: Wrap-up
 - [x] Map and spec status are updated, CI is green, and the PR is merged.

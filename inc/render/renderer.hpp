@@ -15,6 +15,16 @@ struct RenderStats {
   int shadow_chunks_total = 0;  // chunks the shadow pass considered
 };
 
+// Sun, ambient and fog for a time of day; shared by every world-space pass
+// (blocks, entities) so they're lit the same way.
+struct SceneLighting {
+  glm::vec3 sun_dir{0.0f, 1.0f, 0.0f};
+  glm::vec3 sun_color{1.0f};
+  glm::vec3 ambient{0.3f};
+  glm::vec3 fog_color{0.5f};
+  glm::vec3 water_fog_color{0.1f, 0.3f, 0.5f};
+};
+
 class Renderer {
 public:
   Renderer();
@@ -37,6 +47,7 @@ public:
 
   // Compute sky/fog colour from time-of-day (used for glClearColor)
   static glm::vec3 skyColor(float timeOfDay);
+  static SceneLighting sceneLighting(float timeOfDay);
   TextureManager &getTextureManager() { return *texture_manager; }
 
 private:

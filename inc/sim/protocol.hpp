@@ -1,16 +1,19 @@
 #pragma once
 
 #include "block/block_type.hpp"
+#include "entity/entity_type.hpp"
 #include "inventory/inventory.hpp"
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <string>
 #include <variant>
+#include <vector>
 
 // Messages between a client (Engine) and the authoritative Game. Plain structs
 // for now; the multiplayer module adds a wire format.
 
 using PlayerId = uint32_t;
+using EntityId = uint32_t;
 
 // ─── Commands (client → sim) ───────────────────────────────────────────
 
@@ -39,13 +42,20 @@ struct SelectSlot { int slot = 0; };
 struct Save {};
 struct SetTimeOfDay { float seconds = 0.0f; }; // debug panel
 struct GiveItem { ItemId id = ItemId::NONE; uint16_t count = 0; }; // debug panel
+// Debug panel: put an entity a few blocks in front of the player.
+struct SpawnDebugEntity { EntityKind kind = EntityKind::TestCreature; };
+// Hit an entity the client is aiming at. The Game checks reach and cooldown.
+struct AttackEntity { EntityId id = 0; };
+// Throw the held item (one, or the whole stack) forward from the eyes.
+struct DropItem { bool whole_stack = false; };
 // Move count items (0 = the whole stack) between inventory slots; see
 // Inventory::move for the merge/swap rules.
 struct MoveItems { int from = 0; int to = 0; uint16_t count = 0; };
 
 using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SelectSlot, Save, SetTimeOfDay, GiveItem,
-                             MoveItems>;
+                             MoveItems, DropItem, AttackEntity,
+                             SpawnDebugEntity>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 
@@ -80,6 +90,23 @@ struct VitalsChanged {
 // The Game moved this player (respawn); the client must jump there and stop.
 struct Respawned { glm::vec3 position{0.0f}; };
 
+// What a client needs to draw one entity.
+struct EntityView {
+  EntityId id = 0;
+  EntityKind kind = EntityKind::TestCreature;
+  glm::vec3 position{0.0f}; // feet
+  float yaw = 0.0f;
+  ItemId item = ItemId::NONE; // dropped items: what to draw
+  bool hurt = false;          // flash red
+};
+
+// Every entity within range of this player, sent every tick. An entity that
+// isn't listed is gone (or out of range).
+struct EntitySnapshot {
+  uint32_t tick = 0;
+  std::vector<EntityView> entities;
+};
+
 using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            CommandRejected, InventoryContents, VitalsChanged,
-                           Respawned>;
+                           Respawned, EntitySnapshot>;

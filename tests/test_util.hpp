@@ -51,3 +51,23 @@ struct ScopedSeed {
     g_settings.noise_offset = offset;
   }
 };
+
+// Fills the box [lo, hi] (inclusive, world blocks) with one block type by
+// writing straight into the loaded chunks and relighting each chunk once.
+// Much faster than World::setBlockAt (which relights per block) for building
+// test rigs; edits aren't recorded for saving.
+inline void fill(World &world, glm::ivec3 lo, glm::ivec3 hi, BlockType type) {
+  auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+  for (int cx = floorDiv(lo.x, kChunkWidth); cx <= floorDiv(hi.x, kChunkWidth); ++cx)
+    for (int cz = floorDiv(lo.z, kChunkDepth); cz <= floorDiv(hi.z, kChunkDepth); ++cz) {
+      auto chunk = world.getChunk(cx, cz);
+      if (!chunk) continue;
+      std::lock_guard lock(chunk->data_mutex);
+      for (int x = std::max(lo.x, cx * kChunkWidth); x <= std::min(hi.x, cx * kChunkWidth + kChunkWidth - 1); ++x)
+        for (int z = std::max(lo.z, cz * kChunkDepth); z <= std::min(hi.z, cz * kChunkDepth + kChunkDepth - 1); ++z)
+          for (int y = std::max(lo.y, 0); y <= std::min(hi.y, kChunkHeight - 1); ++y)
+            chunk->at(x - cx * kChunkWidth, y, z - cz * kChunkDepth) = type;
+      chunk->computeSkyLight();
+      chunk->computeBlockLight();
+    }
+}

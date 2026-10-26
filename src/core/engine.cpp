@@ -8,6 +8,7 @@
 #include "imgui/backends/imgui_impl_glfw.h"
 #include "imgui/backends/imgui_impl_opengl3.h"
 #include "imgui/imgui.h"
+#include "physics/ray.hpp"
 #include "util/memory.hpp"
 #include <algorithm>
 #include <string>
@@ -117,6 +118,8 @@ bool Engine::init() {
 
   if (!hud.init("res/block_atlas.png", "res/item_atlas.png"))
     std::cerr << "HUD icons unavailable; drawing empty slots\n";
+  if (!entity_renderer.init())
+    std::cerr << "Entity textures unavailable\n";
 
   return true;
 }
@@ -249,6 +252,10 @@ void Engine::handleEvents() {
     else if (const auto *respawned = std::get_if<Respawned>(&ev)) {
       player->respawnAt(respawned->position);
     }
+    else if (const auto *snap = std::get_if<EntitySnapshot>(&ev)) {
+      entity_interp.push(*snap);
+      last_snapshot_time = glfwGetTime();
+    }
     // BlockChanged needs no handling yet: in single-player the client renders
     // the Game's own World, which is already up to date.
   }
@@ -271,6 +278,14 @@ void Engine::render() {
 
   game.world().render(view, proj, game.clock().fractionOfDay(), win_width,
                       win_height, player->getPosition(), player->isUnderwater());
+
+  // Entities are drawn between the last two snapshots (one tick behind).
+  double now = glfwGetTime();
+  float alpha = static_cast<float>((now - last_snapshot_time) / Game::kTickSeconds);
+  entity_views = entity_interp.views(alpha);
+  entity_renderer.draw(entity_views, game.world(), view, proj,
+                       player->getCamera().position, player->isUnderwater(),
+                       game.clock().fractionOfDay(), now);
 
   // ImGui frame must always be opened here so both renderCrosshair() and
   // debug() can safely submit widgets regardless of game state.
@@ -392,6 +407,12 @@ void Engine::debug() {
         }
 
         debugInventory();
+
+        if (ImGui::CollapsingHeader("Entities")) {
+          ImGui::Text("Visible    : %zu", entity_views.size());
+          if (ImGui::Button("Spawn test creature"))
+            connection.send(SpawnDebugEntity{EntityKind::TestCreature});
+        }
 
         // World / Raycast
         if (ImGui::CollapsingHeader("World")) {
@@ -592,7 +613,7 @@ void Engine::debugInventory() {
 
 // ─── Key Callback (event-based, for toggle actions) ────────────────────
 
-void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
+void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods) {
   Engine *engine =
       reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
@@ -630,6 +651,12 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
     // Inventory toggle
     case GLFW_KEY_E:
       engine->setInventoryOpen(!engine->player->isInventoryOpen());
+      break;
+
+    // Q drops one of the held item, Ctrl+Q the whole stack
+    case GLFW_KEY_Q:
+      if (!engine->player->isInventoryOpen() && !engine->vitals_view.dead)
+        engine->connection.send(DropItem{(mods & GLFW_MOD_CONTROL) != 0});
       break;
 
     // Esc closes the inventory screen first; otherwise it quits
@@ -733,11 +760,27 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
   auto& player = engine->player;
   const Camera& cam = player->getCamera();
   RaycastResult ray = engine->game.world().raycast(cam.position, cam.front, kPlayerReach);
-  if (!ray.hit) return;
 
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
-    engine->connection.send(BreakBlock{ray.block_pos});
-  } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+    // Whichever is nearer along the aim, a hittable entity or a block.
+    std::optional<EntityId> target;
+    float nearest = ray.hit ? ray.distance : kPlayerReach;
+    for (const EntityView &v : engine->entity_views) {
+      const EntityTypeDef &def = entityType(v.kind);
+      if (def.max_health <= 0) continue;
+      glm::vec3 lo = v.position - glm::vec3(def.half_width, 0.0f, def.half_width);
+      glm::vec3 hi = v.position + glm::vec3(def.half_width, def.height, def.half_width);
+      auto t = rayAabb(cam.position, cam.front, lo, hi);
+      if (t && *t <= nearest) {
+        nearest = *t;
+        target = v.id;
+      }
+    }
+    if (target)
+      engine->connection.send(AttackEntity{*target});
+    else if (ray.hit)
+      engine->connection.send(BreakBlock{ray.block_pos});
+  } else if (button == GLFW_MOUSE_BUTTON_RIGHT && ray.hit) {
     engine->connection.send(PlaceBlock{ray.block_pos + ray.normal});
   }
 }
@@ -789,6 +832,7 @@ void Engine::windowResize(GLFWwindow *window, int w, int h) {
 
 void Engine::cleanup() {
   hud.shutdown(); // GL textures; must go before the context does
+  entity_renderer.shutdown();
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();

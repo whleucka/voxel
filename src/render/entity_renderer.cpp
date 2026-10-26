@@ -1,0 +1,161 @@
+#include "render/entity_renderer.hpp"
+#include "block/block_data.hpp"
+#include "core/settings.hpp"
+#include "entity/entity_type.hpp"
+#include "render/texture_util.hpp"
+#include "ui/item_icon_geometry.hpp"
+#include "world/world.hpp"
+#include <cmath>
+#include <glm/gtc/matrix_transform.hpp>
+
+namespace {
+
+// A unit cube, 6 faces x 2 triangles. Each face lists its corners as seen
+// from outside (top-left, top-right, bottom-right, bottom-left) so its texture
+// reads upright and unmirrored. Layout: pos(3) normal(3) uv(2).
+std::vector<float> unitCube() {
+  struct Face { glm::vec3 n, tl, tr, br, bl; };
+  const Face faces[] = {
+      {{1, 0, 0}, {1, 1, 1}, {1, 1, 0}, {1, 0, 0}, {1, 0, 1}},
+      {{-1, 0, 0}, {0, 1, 0}, {0, 1, 1}, {0, 0, 1}, {0, 0, 0}},
+      {{0, 0, 1}, {0, 1, 1}, {1, 1, 1}, {1, 0, 1}, {0, 0, 1}},
+      {{0, 0, -1}, {1, 1, 0}, {0, 1, 0}, {0, 0, 0}, {1, 0, 0}},
+      {{0, 1, 0}, {0, 1, 0}, {1, 1, 0}, {1, 1, 1}, {0, 1, 1}},
+      {{0, -1, 0}, {0, 0, 1}, {1, 0, 1}, {1, 0, 0}, {0, 0, 0}},
+  };
+  std::vector<float> v;
+  auto put = [&](glm::vec3 p, glm::vec3 n, glm::vec2 uv) {
+    v.insert(v.end(), {p.x, p.y, p.z, n.x, n.y, n.z, uv.x, uv.y});
+  };
+  for (const Face &f : faces) {
+    put(f.tl, f.n, {0, 0}); put(f.bl, f.n, {0, 1}); put(f.br, f.n, {1, 1});
+    put(f.tl, f.n, {0, 0}); put(f.br, f.n, {1, 1}); put(f.tr, f.n, {1, 0});
+  }
+  return v;
+}
+
+} // namespace
+
+EntityRenderer::~EntityRenderer() { shutdown(); }
+
+bool EntityRenderer::init() {
+  shader = std::make_unique<Shader>("assets/shaders/entity.vert",
+                                    "assets/shaders/entity.frag");
+  std::vector<float> cube = unitCube();
+  glGenVertexArrays(1, &vao);
+  glGenBuffers(1, &vbo);
+  glBindVertexArray(vao);
+  glBindBuffer(GL_ARRAY_BUFFER, vbo);
+  glBufferData(GL_ARRAY_BUFFER, cube.size() * sizeof(float), cube.data(), GL_STATIC_DRAW);
+  const GLsizei stride = 8 * sizeof(float);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void *)0);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void *)(3 * sizeof(float)));
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void *)(6 * sizeof(float)));
+  glEnableVertexAttribArray(2);
+  glBindVertexArray(0);
+
+  block_tex = loadSrgbTexture("res/block_atlas.png");
+  item_tex = loadSrgbTexture("res/item_atlas.png");
+  return block_tex && item_tex;
+}
+
+void EntityRenderer::shutdown() {
+  if (vbo) glDeleteBuffers(1, &vbo);
+  if (vao) glDeleteVertexArrays(1, &vao);
+  if (block_tex) glDeleteTextures(1, &block_tex);
+  if (item_tex) glDeleteTextures(1, &item_tex);
+  vao = vbo = block_tex = item_tex = 0;
+  shader.reset();
+}
+
+void EntityRenderer::drawBox(const glm::mat4 &entity_model, glm::vec3 offset,
+                             glm::vec3 size) const {
+  glm::mat4 m = glm::scale(glm::translate(entity_model, offset), size);
+  shader->setMat4("uModel", m);
+  glm::mat3 normal_mat = glm::transpose(glm::inverse(glm::mat3(m)));
+  glUniformMatrix3fv(glGetUniformLocation(shader->ID, "uNormalMat"), 1, GL_FALSE,
+                     &normal_mat[0][0]);
+  glDrawArrays(GL_TRIANGLES, 0, 36);
+}
+
+void EntityRenderer::draw(const std::vector<EntityView> &entities, const World &world,
+                          const glm::mat4 &view, const glm::mat4 &projection,
+                          glm::vec3 camera_pos, bool underwater, float time_of_day,
+                          double now) {
+  if (!shader || entities.empty()) return;
+
+  SceneLighting light = Renderer::sceneLighting(time_of_day);
+  shader->use();
+  shader->setMat4("view", view);
+  shader->setMat4("projection", projection);
+  shader->setVec3("uSunDir", light.sun_dir);
+  shader->setVec3("uSunColor", light.sun_color);
+  shader->setVec3("uAmbientColor", light.ambient);
+  shader->setVec3("uFogColor", light.fog_color);
+  shader->setVec3("uWaterFogColor", light.water_fog_color);
+  shader->setFloat("uFogStart", g_settings.fog_start);
+  shader->setFloat("uFogEnd", g_settings.fog_end);
+  shader->setFloat("uWaterFogDensity", g_settings.water_fog_density);
+  shader->setVec3("uCameraPos", camera_pos);
+  shader->setBool("uUnderwater", underwater);
+  shader->setInt("uAtlas", 0);
+
+  // Thin item cards are seen from both sides, so no culling for this pass.
+  glDisable(GL_CULL_FACE);
+  glBindVertexArray(vao);
+  glActiveTexture(GL_TEXTURE0);
+
+  for (const EntityView &e : entities) {
+    glm::ivec3 cell = glm::ivec3(glm::floor(e.position + glm::vec3(0.0f, 0.5f, 0.0f)));
+    shader->setFloat("uSkyLight", world.getSkyLightAt(cell) / 15.0f);
+    shader->setFloat("uBlockLight", world.getBlockLightAt(cell) / 15.0f);
+    shader->setFloat("uHurt", e.hurt ? 0.55f : 0.0f);
+
+    if (e.kind == EntityKind::DroppedItem) {
+      if (!isValidItem(e.item)) continue;
+      // Client-side flourish: spin and bob, out of phase per entity.
+      float phase = static_cast<float>(e.id % 97);
+      float spin = static_cast<float>(now) * 70.0f + phase * 37.0f;
+      float bob = 0.06f + 0.05f * std::sin(static_cast<float>(now) * 2.5f + phase);
+      glm::mat4 m = glm::rotate(glm::translate(glm::mat4(1.0f), e.position),
+                                glm::radians(spin), glm::vec3(0, 1, 0));
+      const ItemDef &def = itemDef(e.item);
+      if (def.places) {
+        auto tex = block_data.find(*def.places);
+        if (tex == block_data.end()) continue;
+        glBindTexture(GL_TEXTURE_2D, block_tex);
+        shader->setInt("uMode", 1);
+        shader->setFloat("uTileSpan", 1.0f / kBlockAtlasTiles);
+        shader->setVec3("uColor", glm::vec3(1.0f));
+        auto tile = [](glm::ivec2 t) { return glm::vec2(t) / float(kBlockAtlasTiles); };
+        glUniform2fv(glGetUniformLocation(shader->ID, "uTileTop"), 1, &tile(tex->second.top)[0]);
+        glUniform2fv(glGetUniformLocation(shader->ID, "uTileSide"), 1, &tile(tex->second.side)[0]);
+        glUniform2fv(glGetUniformLocation(shader->ID, "uTileBottom"), 1, &tile(tex->second.bottom)[0]);
+        drawBox(m, {-0.125f, bob, -0.125f}, glm::vec3(0.25f));
+      } else {
+        glBindTexture(GL_TEXTURE_2D, item_tex);
+        shader->setInt("uMode", 2);
+        shader->setFloat("uTileSpan", 1.0f / kItemAtlasTiles);
+        glm::vec2 t = iconUv(def.icon).uv0;
+        glUniform2fv(glGetUniformLocation(shader->ID, "uTileSide"), 1, &t[0]);
+        drawBox(m, {-0.175f, bob, -0.015f}, {0.35f, 0.35f, 0.03f});
+      }
+      continue;
+    }
+
+    const EntityTypeDef &def = entityType(e.kind);
+    // Models face -Z at yaw 0; positive yaw turns toward +X.
+    glm::mat4 m = glm::rotate(glm::translate(glm::mat4(1.0f), e.position),
+                              -glm::radians(e.yaw), glm::vec3(0, 1, 0));
+    shader->setInt("uMode", 0);
+    for (const ModelBox &box : def.model) {
+      shader->setVec3("uColor", box.color);
+      drawBox(m, box.offset, box.size);
+    }
+  }
+
+  glBindVertexArray(0);
+  glEnable(GL_CULL_FACE);
+}

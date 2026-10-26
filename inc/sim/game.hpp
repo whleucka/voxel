@@ -1,5 +1,7 @@
 #pragma once
 
+#include "entity/entity_store.hpp"
+#include "entity/spawner.hpp"
 #include "sim/connection.hpp"
 #include "sim/player_state.hpp"
 #include "world/game_clock.hpp"
@@ -19,6 +21,18 @@ public:
   static constexpr float kTickSeconds = 0.05f; // 20 Hz
   static constexpr int kTickMs = 50;
   static constexpr int kRespawnDelayMs = 3000;
+  static constexpr float kEntityViewRange = 96.0f;
+  // Dropped items
+  static constexpr int kBreakDropDelayMs = 500;
+  static constexpr int kThrowDropDelayMs = 1500;
+  static constexpr float kPickupRange = 1.5f;
+  static constexpr float kMergeRange = 1.0f;
+  // Hitting entities
+  static constexpr int kAttackCooldownMs = 400;
+  static constexpr int kAttackDamage = 2; // bare hands
+  static constexpr int kHurtFlashMs = 300;
+  static constexpr float kKnockback = 6.0f;
+  static constexpr float kKnockUp = 4.0f;
 
   // Bind the game to a save directory and load it if a world exists there.
   // An existing world keeps its own seed (written to g_settings) and clock;
@@ -48,6 +62,11 @@ public:
   World &world() { return world_; }
   const World &world() const { return world_; }
   const GameClock &clock() const { return clock_; }
+  EntityStore &entities() { return entities_; }
+  Spawner &spawner() { return spawner_; }
+  const EntityStore &entities() const { return entities_; }
+  // Drives spawning, wandering and hops; tests reseed it for determinism.
+  Rng &rng() { return rng_; }
   const PlayerState *findPlayer(PlayerId id) const;
 
   // What a player with no saved inventory starts with.
@@ -69,6 +88,15 @@ private:
   void apply(Client &client, const Save &cmd);
   void apply(Client &client, const GiveItem &cmd);
   void apply(Client &client, const MoveItems &cmd);
+  void apply(Client &client, const DropItem &cmd);
+  void apply(Client &client, const AttackEntity &cmd);
+  void apply(Client &client, const SpawnDebugEntity &cmd);
+
+  // Puts a stack into the world as a dropped item. Returns false (the stack is
+  // lost) only if the entity cap is reached.
+  bool dropItem(ItemStack stack, glm::vec3 pos, glm::vec3 velocity, int pickup_delay_ms);
+  void mergeDroppedItems();
+  void pickUpDroppedItems();
 
   PlayerState *playerFor(const Client &client);
   void reject(Client &client, std::string reason);
@@ -80,11 +108,16 @@ private:
   void updateInterestPoints();
   // Send VitalsChanged to every owner whose shown vitals changed.
   void flushVitals();
+  void sendEntitySnapshots();
   void respawn(Client &client, PlayerState &ps);
   glm::vec3 respawnPoint();
 
   World world_;
   GameClock clock_;
+  EntityStore entities_;
+  Spawner spawner_;
+  Rng rng_{0x5eed};
+  uint32_t tick_count = 0;
   // Whole microseconds, so N ticks' worth of frame time runs exactly N ticks.
   int64_t tick_accumulator_us = 0;
 

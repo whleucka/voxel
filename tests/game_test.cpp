@@ -476,18 +476,29 @@ TEST_CASE_FIXTURE(EditGame, "breaking ore collects its material") {
   CHECK(countOf(inventory(), itemForBlock(BlockType::DIAMOND_ORE)) == 0);
 }
 
-TEST_CASE_FIXTURE(EditGame, "with a full inventory the block breaks and the drop is lost") {
+TEST_CASE_FIXTURE(EditGame, "with a full inventory the drop pops out of the block") {
   run(GiveItem{itemForBlock(BlockType::SAND), 64 * kInventorySlots});
   // Every slot but the kit's glowstone is now a full stack of sand.
   REQUIRE(countOf(inventory(), itemForBlock(BlockType::SAND)) ==
           64 * (kInventorySlots - 1));
   Inventory before = inventory();
+  size_t entities_before = game.entities().size();
 
   glm::ivec3 target{5, ground + 1, 5};
   game.world().setBlockAt(target, BlockType::COBBLESTONE);
   CHECK(changes(run(BreakBlock{target})) == 1);
   CHECK(at(target) == BlockType::AIR);
   CHECK(inventory().slots() == before.slots());
+
+  REQUIRE(game.entities().size() == entities_before + 1);
+  const Entity *drop = nullptr;
+  for (const auto &[id, e] : game.entities().all())
+    if (e.item.id == itemForBlock(BlockType::COBBLESTONE)) drop = &e;
+  REQUIRE(drop);
+  CHECK(drop->kind == EntityKind::DroppedItem);
+  CHECK(drop->item.count == 1);
+  CHECK(glm::distance(drop->body.position, glm::vec3(target) + 0.5f) < 1.0f);
+  CHECK(drop->pickup_delay_ms > 0);
 }
 
 TEST_CASE_FIXTURE(EditGame, "placing consumes one of the held block") {
@@ -762,4 +773,291 @@ TEST_CASE_FIXTURE(VitalsGame, "a fall in progress at respawn doesn't count") {
   glm::vec3 spawn = game.world().findSpawn();
   send(at(spawn, true));
   CHECK(me().vitals.health() == 20);
+}
+
+// ─── Entity snapshots ──────────────────────────────────────────────────
+
+namespace {
+
+std::optional<EntitySnapshot> lastSnapshot(const std::vector<Event> &evs) {
+  std::optional<EntitySnapshot> out;
+  for (const Event &e : evs)
+    if (const auto *s = std::get_if<EntitySnapshot>(&e)) out = *s;
+  return out;
+}
+
+} // namespace
+
+TEST_CASE_FIXTURE(VitalsGame, "every tick each player gets the entities near them") {
+  glm::vec3 me_at = me().position;
+  auto near = game.entities().spawn(EntityKind::TestCreature, me_at + glm::vec3(5, 0, 0));
+  auto far = game.entities().spawn(EntityKind::TestCreature, me_at + glm::vec3(0, 0, 90));
+  REQUIRE(near);
+  REQUIRE(far);
+  // The observer stands right next to the far creature.
+  other.send(at(me_at + glm::vec3(0, 0, 89), true));
+  game.pump();
+  pollAll(other);
+
+  auto evs = advance(0.05f);
+  auto snap = lastSnapshot(evs);
+  REQUIRE(snap);
+  bool saw_near = false, saw_far = false;
+  for (const EntityView &v : snap->entities) {
+    saw_near |= v.id == *near;
+    saw_far |= v.id == *far;
+  }
+  CHECK(saw_near);
+  CHECK(saw_far); // 90 blocks: inside the 96-block range
+
+  // Move the far one out of my range but keep it within the observer's.
+  game.entities().find(*far)->body.position = me_at + glm::vec3(0, 0, 100);
+  snap = lastSnapshot(advance(0.05f));
+  REQUIRE(snap);
+  for (const EntityView &v : snap->entities) CHECK(v.id != *far);
+  auto theirs = lastSnapshot(pollAll(other));
+  REQUIRE(theirs);
+  bool they_see_far = false;
+  for (const EntityView &v : theirs->entities) they_see_far |= v.id == *far;
+  CHECK(they_see_far);
+}
+
+TEST_CASE_FIXTURE(VitalsGame, "snapshots carry what the client needs to draw") {
+  auto id = game.entities().spawn(EntityKind::DroppedItem, me().position);
+  REQUIRE(id);
+  game.entities().find(*id)->item = {ItemId::RUBY, 3};
+  game.entities().find(*id)->pickup_delay_ms = 10000; // don't pick it up
+  auto snap = lastSnapshot(advance(0.05f));
+  REQUIRE(snap);
+  REQUIRE(snap->entities.size() == 1);
+  CHECK(snap->entities[0].kind == EntityKind::DroppedItem);
+  CHECK(snap->entities[0].item == ItemId::RUBY);
+  CHECK(snap->tick > 0);
+}
+
+// ─── Dropped items ─────────────────────────────────────────────────────
+
+namespace {
+
+std::vector<const Entity *> droppedItems(const Game &g) {
+  std::vector<const Entity *> out;
+  for (const auto &[id, e] : g.entities().all())
+    if (e.kind == EntityKind::DroppedItem) out.push_back(&e);
+  return out;
+}
+
+} // namespace
+
+TEST_CASE_FIXTURE(EditGame, "Q throws one of the held item; it can't be grabbed straight back") {
+  const ItemId glow = itemForBlock(BlockType::GLOWSTONE);
+  run(SelectSlot{0});
+  run(DropItem{false});
+  CHECK(inventory().slot(0) == ItemStack{glow, 7});
+  auto drops = droppedItems(game);
+  REQUIRE(drops.size() == 1);
+  EntityId id = drops[0]->id;
+  CHECK(drops[0]->item == ItemStack{glow, 1});
+
+  // Hold it right at the player for most of the delay: still on the ground.
+  glm::vec3 centre = game.findPlayer(this->id)->position + glm::vec3(0, 0.9f, 0);
+  for (int i = 0; i < 25; ++i) { // 1.25 s
+    game.entities().find(id)->body.position = centre;
+    game.advance(0.05f);
+  }
+  REQUIRE(game.entities().find(id));
+  CHECK(inventory().slot(0).count == 7);
+
+  for (int i = 0; i < 6; ++i) { // past 1.5 s
+    if (Entity *e = game.entities().find(id)) e->body.position = centre;
+    game.advance(0.05f);
+  }
+  CHECK_FALSE(game.entities().find(id));
+  CHECK(inventory().slot(0).count == 8);
+}
+
+TEST_CASE_FIXTURE(EditGame, "Ctrl+Q throws the whole stack; an empty hand throws nothing") {
+  run(SelectSlot{0});
+  run(DropItem{true});
+  CHECK(inventory().slot(0).empty());
+  auto drops = droppedItems(game);
+  REQUIRE(drops.size() == 1);
+  CHECK(drops[0]->item.count == 8);
+
+  CHECK(rejected(run(DropItem{false})));
+  CHECK(droppedItems(game).size() == 1);
+}
+
+TEST_CASE_FIXTURE(EditGame, "picking up takes what fits and leaves the rest") {
+  run(GiveItem{itemForBlock(BlockType::SAND), 64 * (kInventorySlots - 1)});
+  REQUIRE(inventory().slot(0).count == 8); // glowstone: room for 56 more
+  glm::vec3 centre = game.findPlayer(id)->position + glm::vec3(0, 0.9f, 0);
+  auto drop = game.entities().spawn(EntityKind::DroppedItem, centre);
+  REQUIRE(drop);
+  game.entities().find(*drop)->item = {itemForBlock(BlockType::GLOWSTONE), 60};
+  game.entities().find(*drop)->pickup_delay_ms = 0;
+
+  auto evs = [&] { game.advance(0.05f); return pollAll(conn); }();
+  CHECK(inventory().slot(0).count == 64);
+  REQUIRE(game.entities().find(*drop));
+  CHECK(game.entities().find(*drop)->item.count == 4);
+  CHECK(lastContents(evs));
+}
+
+TEST_CASE_FIXTURE(EditGame, "identical items lying together merge") {
+  glm::vec3 spot{10.5f, ground + 1.0f, 2.5f}; // well away from the player
+  auto a = game.entities().spawn(EntityKind::DroppedItem, spot);
+  auto b = game.entities().spawn(EntityKind::DroppedItem, spot + glm::vec3(0.5f, 0, 0));
+  auto c = game.entities().spawn(EntityKind::DroppedItem, spot + glm::vec3(0, 0, 0.4f));
+  game.entities().find(*a)->item = {ItemId::COAL, 3};
+  game.entities().find(*b)->item = {ItemId::COAL, 4};
+  game.entities().find(*c)->item = {ItemId::RUBY, 1}; // different item: stays
+  game.advance(0.05f);
+
+  CHECK(game.entities().find(*a)->item == ItemStack{ItemId::COAL, 7});
+  CHECK_FALSE(game.entities().find(*b));
+  CHECK(game.entities().find(*c));
+}
+
+TEST_CASE_FIXTURE(EditGame, "merging stops at the max stack") {
+  glm::vec3 spot{10.5f, ground + 1.0f, 2.5f};
+  auto a = game.entities().spawn(EntityKind::DroppedItem, spot);
+  auto b = game.entities().spawn(EntityKind::DroppedItem, spot + glm::vec3(0.3f, 0, 0));
+  game.entities().find(*a)->item = {ItemId::COAL, 60};
+  game.entities().find(*b)->item = {ItemId::COAL, 10};
+  game.advance(0.05f);
+  CHECK(game.entities().find(*a)->item.count == 64);
+  REQUIRE(game.entities().find(*b));
+  CHECK(game.entities().find(*b)->item.count == 6);
+}
+
+TEST_CASE_FIXTURE(EditGame, "give overflow lands at your feet") {
+  run(GiveItem{itemForBlock(BlockType::SAND), 64 * (kInventorySlots - 1)});
+  run(GiveItem{itemForBlock(BlockType::GLOWSTONE), 56}); // inventory now full
+  run(GiveItem{ItemId::DIAMOND, 5});
+  auto drops = droppedItems(game);
+  REQUIRE(drops.size() == 1);
+  CHECK(drops[0]->item == ItemStack{ItemId::DIAMOND, 5});
+  CHECK(glm::distance(drops[0]->body.position, game.findPlayer(id)->position) < 1.0f);
+}
+
+// ─── Hitting entities ──────────────────────────────────────────────────
+
+namespace {
+
+// EditGame plus a test creature two blocks in front (-Z) of the player.
+struct FightGame : EditGame {
+  EntityId target = 0;
+  glm::vec3 spot;
+
+  FightGame() {
+    // A flat stone strip with clear air above, under the player and the
+    // creature, so terrain can't get in the way. Only changed cells are
+    // written: every setBlockAt relights the chunk.
+    auto put = [&](int x, int y, int z, BlockType b) {
+      if (at({x, y, z}) != b) game.world().setBlockAt({x, y, z}, b);
+    };
+    for (int x = 4; x <= 7; ++x)
+      for (int z = 1; z <= 10; ++z) {
+        put(x, ground, z, BlockType::STONE);
+        for (int y = ground + 1; y <= ground + 3; ++y) put(x, y, z, BlockType::AIR);
+      }
+    spot = game.findPlayer(id)->position + glm::vec3(0, 0, -2);
+    auto t = game.entities().spawn(EntityKind::TestCreature, spot);
+    REQUIRE(t);
+    target = *t;
+  }
+
+  Entity *creature() { return game.entities().find(target); }
+
+  // Wait out the cooldown, putting the creature back in place.
+  void wait(float seconds) {
+    game.advance(seconds);
+    pollAll(conn);
+    if (Entity *e = creature()) {
+      e->body.position = spot;
+      e->body.velocity = glm::vec3(0.0f);
+    }
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(FightGame, "a hit hurts, flashes and knocks the creature away") {
+  int max = entityType(EntityKind::TestCreature).max_health;
+  CHECK(run(AttackEntity{target}).empty());
+  CHECK(creature()->health == max - Game::kAttackDamage);
+  CHECK(creature()->hurt_ms > 0);
+  CHECK(creature()->body.velocity.z < -1.0f); // away from the player (-Z)
+  CHECK(creature()->body.velocity.y > 0.0f);
+}
+
+TEST_CASE_FIXTURE(FightGame, "hits have a cooldown") {
+  int max = entityType(EntityKind::TestCreature).max_health;
+  run(AttackEntity{target});
+  CHECK(rejected(run(AttackEntity{target})));
+  CHECK(creature()->health == max - 2);
+  wait(0.4f);
+  run(AttackEntity{target});
+  CHECK(creature()->health == max - 4);
+}
+
+TEST_CASE_FIXTURE(FightGame, "creatures out of reach can't be hit") {
+  creature()->body.position = spot + glm::vec3(0, 0, -6);
+  CHECK(rejected(run(AttackEntity{target})));
+  CHECK(creature()->health == entityType(EntityKind::TestCreature).max_health);
+}
+
+TEST_CASE_FIXTURE(FightGame, "dropped items and unknown ids can't be hit") {
+  auto item = game.entities().spawn(EntityKind::DroppedItem, spot);
+  game.entities().find(*item)->item = {ItemId::COAL, 1};
+  CHECK(rejected(run(AttackEntity{*item})));
+  CHECK(rejected(run(AttackEntity{999999})));
+}
+
+TEST_CASE_FIXTURE(FightGame, "a knocked-back creature doesn't steer until the flash ends") {
+  run(AttackEntity{target});
+  game.advance(0.05f);
+  CHECK(creature()->body.velocity.z < -1.0f); // still flying back
+}
+
+TEST_CASE_FIXTURE(FightGame, "the dead can't attack") {
+  // Fall to death first.
+  // ::at is the MovePlayer helper (EditGame::at reads blocks).
+  glm::vec3 p = game.findPlayer(id)->position;
+  conn.send(::at(p + glm::vec3(0, 40, 0), true));
+  conn.send(::at(p + glm::vec3(0, 39, 0), false));
+  conn.send(::at(p, true));
+  game.pump();
+  REQUIRE(game.findPlayer(id)->vitals.dead());
+  pollAll(conn);
+  CHECK(run(AttackEntity{target}).empty());
+  CHECK(creature()->health == entityType(EntityKind::TestCreature).max_health);
+}
+
+TEST_CASE_FIXTURE(FightGame, "killing a creature removes it and drops its loot") {
+  int hits = 0;
+  while (creature() && hits < 20) {
+    run(AttackEntity{target});
+    ++hits;
+    wait(0.4f);
+  }
+  CHECK_FALSE(creature());
+  CHECK(hits == entityType(EntityKind::TestCreature).max_health / Game::kAttackDamage);
+  bool loot = false;
+  for (const auto &[eid, e] : game.entities().all())
+    loot |= e.kind == EntityKind::DroppedItem && e.item.id == ItemId::COAL;
+  // The coal may already have been picked up by the player standing nearby.
+  CHECK((loot || countOf(inventory(), ItemId::COAL) == 1));
+}
+
+TEST_CASE_FIXTURE(EditGame, "the debug panel can spawn a test creature in front of you") {
+  conn.send(MovePlayer{game.findPlayer(id)->position, -90.0f, 0.0f}); // facing -Z
+  game.pump();
+  CHECK(run(SpawnDebugEntity{EntityKind::TestCreature}).empty());
+  REQUIRE(game.entities().size() == 1);
+  const Entity &e = game.entities().all().begin()->second;
+  CHECK(e.kind == EntityKind::TestCreature);
+  glm::vec3 d = e.body.position - game.findPlayer(id)->position;
+  CHECK(d.z == doctest::Approx(-3.0f).epsilon(0.01));
+  CHECK(rejected(run(SpawnDebugEntity{static_cast<EntityKind>(999)})));
 }
