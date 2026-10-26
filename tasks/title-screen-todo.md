@@ -24,7 +24,7 @@ Plan: [title-screen-plan.md](title-screen-plan.md) · Spec: [SPEC-title-screen.m
 
 ## T5: Engine
 - [x] The scene shows on the menu and closes before a session. Play and Host start the chosen world and make it the last played. Rename follows `world-name`.
-- [ ] Manual check (user): the spec's manual check.
+- [x] Manual check (user): the spec's manual check.
 
 ## T6: Wrap-up
 - [x] Map and spec status are updated, CI is green, and the PR is merged.

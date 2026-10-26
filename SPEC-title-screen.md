@@ -2,7 +2,7 @@
 
 Module of [CAPABILITY_MAP.md](CAPABILITY_MAP.md). Depends on: `multiplayer` (title menu, `Session`).
 
-**Status:** implemented. Criteria 1 and 3 are met; criterion 2 (manual check) is up to you.
+**Status:** implemented. All success criteria are met; the manual check passed.
 
 ## Objective
 
