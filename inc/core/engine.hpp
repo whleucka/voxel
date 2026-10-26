@@ -5,6 +5,7 @@
 #include "render/camera.hpp"
 #include "sim/game.hpp"
 #include "sim/local_connection.hpp"
+#include "ui/hud.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <memory>
@@ -31,6 +32,8 @@ private:
   std::unique_ptr<Player> player; // the local player; created on Joined
   std::string last_rejection;     // latest CommandRejected, for the debug panel
   Inventory::Slots inventory_view{}; // the Game's latest InventoryContents
+  Hud hud;
+  InventoryScreen inventory_screen;
 
   bool first_mouse = true;
   float last_frame = 0.0f;
@@ -50,6 +53,7 @@ private:
   void update();
   void handleEvents();
   void selectSlot(int slot);
+  void setInventoryOpen(bool open);
   void render();
   void renderCrosshair();
   void debug();

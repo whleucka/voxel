@@ -115,6 +115,9 @@ bool Engine::init() {
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 330");
 
+  if (!hud.init("res/block_atlas.png", "res/item_atlas.png"))
+    std::cerr << "HUD icons unavailable; drawing empty slots\n";
+
   return true;
 }
 
@@ -160,10 +163,6 @@ void Engine::run() {
 // ─── Input Processing (polled every frame) ─────────────────────────────
 
 void Engine::processInput(GLFWwindow *window) {
-  // Close program
-  if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-    glfwSetWindowShouldClose(window, true);
-
   // Don't process movement when inventory is open
   if (player->isInventoryOpen()) return;
 
@@ -231,6 +230,7 @@ void Engine::handleEvents() {
     }
     else if (const auto *contents = std::get_if<InventoryContents>(&ev)) {
       inventory_view = contents->slots;
+      inventory_screen.sync(inventory_view);
     }
     // BlockChanged needs no handling yet: in single-player the client renders
     // the Game's own World, which is already up to date.
@@ -262,6 +262,16 @@ void Engine::render() {
   ImGui::NewFrame();
 
   renderCrosshair();
+
+  const ImGuiIO &io = ImGui::GetIO();
+  HudLayout layout(io.DisplaySize.x, io.DisplaySize.y);
+  if (player->isInventoryOpen())
+    hud.drawInventoryScreen(layout, inventory_view, inventory_screen,
+                            {io.MousePos.x, io.MousePos.y});
+  else
+    hud.drawHotbar(layout, inventory_view, player->getSelectedHotbarSlot(),
+                   glfwGetTime());
+
   debug();
 }
 
@@ -598,17 +608,17 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
       break;
 
     // Inventory toggle
-    case GLFW_KEY_E: {
-      auto& player = engine->player;
-      player->toggleInventory();
-      if (player->isInventoryOpen()) {
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-      } else {
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-        engine->first_mouse = true; // prevent mouse jump when closing inventory
-      }
+    case GLFW_KEY_E:
+      engine->setInventoryOpen(!engine->player->isInventoryOpen());
       break;
-    }
+
+    // Esc closes the inventory screen first; otherwise it quits
+    case GLFW_KEY_ESCAPE:
+      if (engine->player->isInventoryOpen())
+        engine->setInventoryOpen(false);
+      else
+        glfwSetWindowShouldClose(window, true);
+      break;
 
     // Hotbar slots: keys 1..9, then 0 for the tenth
     case GLFW_KEY_1: engine->selectSlot(0); break;
@@ -671,13 +681,30 @@ void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
 
 // ─── Mouse Button Callback ─────────────────────────────────────────────
 
-void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int) {
+void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int mods) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
-  // Don't process when inventory is open
-  if (engine->player->isInventoryOpen()) return;
-
   if (action != GLFW_PRESS) return;
+
+  // Inventory screen: clicks move items instead of breaking/placing. Clicks
+  // on an ImGui window (the F1 panel) belong to that window.
+  if (engine->player->isInventoryOpen()) {
+    const ImGuiIO &io = ImGui::GetIO();
+    if (io.WantCaptureMouse) return;
+    HudLayout layout(io.DisplaySize.x, io.DisplaySize.y);
+    std::optional<int> slot = layout.hitTestScreen(io.MousePos.x, io.MousePos.y);
+    const Inventory::Slots &inv = engine->inventory_view;
+    InventoryScreen &screen = engine->inventory_screen;
+
+    std::optional<MoveItems> move;
+    if (button == GLFW_MOUSE_BUTTON_LEFT)
+      move = (mods & GLFW_MOD_SHIFT) ? screen.shiftClick(slot, inv)
+                                     : screen.leftClick(slot, inv);
+    else if (button == GLFW_MOUSE_BUTTON_RIGHT)
+      move = screen.rightClick(slot, inv);
+    if (move) engine->connection.send(*move);
+    return;
+  }
 
   // The client only aims; the Game validates and applies the edit on the next
   // pump, which runs before the next frame renders.
@@ -708,6 +735,18 @@ void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
   engine->selectSlot(slot);
 }
 
+void Engine::setInventoryOpen(bool open) {
+  if (player->isInventoryOpen() == open) return;
+  player->toggleInventory();
+  if (open) {
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+  } else {
+    inventory_screen.close(); // drop any pick-up; nothing was moved yet
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    first_mouse = true; // prevent mouse jump when closing inventory
+  }
+}
+
 // The local Player mirrors the selection immediately (it picks the block to
 // place); the Game holds the authoritative copy.
 void Engine::selectSlot(int slot) {
@@ -727,6 +766,7 @@ void Engine::windowResize(GLFWwindow *window, int w, int h) {
 // ─── Cleanup ───────────────────────────────────────────────────────────
 
 void Engine::cleanup() {
+  hud.shutdown(); // GL textures; must go before the context does
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
