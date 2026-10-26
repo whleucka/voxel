@@ -16,8 +16,8 @@ Plan: [title-screen-plan.md](title-screen-plan.md) · Spec: [SPEC-title-screen.m
 - [x] `lastPlayedText` covers minutes, today, yesterday and days ago.
 
 ## T3: Menu scene
-- [ ] The orbit keeps its distance and height, looks at the centre, and repeats every period.
-- [ ] `MenuScene` loads the last world (or a scenic seed), orbits, and runs its clock. It never saves.
+- [x] The orbit keeps its distance and height, looks at the centre, and repeats every period.
+- [x] `MenuScene` loads the last world (or a scenic seed), orbits, and runs its clock. It never saves.
 
 ## T4: Menu pages
 - [ ] Main, Single player (world list and actions with a delete confirm) and Multiplayer pages.
