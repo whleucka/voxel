@@ -8,8 +8,8 @@ Plan: [enemies-plan.md](enemies-plan.md) · Spec: [SPEC-enemies.md](../SPEC-enem
 - One commit per task.
 
 ## T1: Difficulty
-- [ ] `difficulty = peaceful|easy|normal` parses, defaults to easy, and round-trips through `voxel.properties`.
-- [ ] Easy halves caps and damage (at least 1) and moves at 80% speed. Normal is unchanged.
+- [x] `difficulty = peaceful|easy|normal` parses, defaults to easy, and round-trips through `voxel.properties`.
+- [x] Easy halves caps and damage (at least 1) and moves at 80% speed. Normal is unchanged.
 
 ## T2: Pathfinding
 - [ ] Finds a straight line, a way around a wall, and a way up a 1-block step.

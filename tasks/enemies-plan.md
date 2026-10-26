@@ -29,7 +29,7 @@ Spec: [SPEC-enemies.md](../SPEC-enemies.md) · Tasks: [enemies-todo.md](enemies-
   lighting for that box.
 
 ## Tasks
-- [ ] T1: Difficulty setting (enum, scaling, properties key, tests)
+- [x] T1: Difficulty setting (enum, scaling, properties key, tests)
 - [ ] T2: Pathfinding (`findPath`, tests)
 - [ ] T3: `BrainContext` and `ChaseBrain` (tests)
 - [ ] T4: Enemy kinds, models with glow, chance drops on death
