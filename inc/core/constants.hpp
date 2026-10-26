@@ -50,7 +50,7 @@ constexpr float kWaterDrag = 0.8f;             // water velocity damping per fra
 
 // Interaction
 constexpr float kPlayerReach = 5.0f;           // block interaction reach distance
-constexpr int kHotbarSlots = 9;                // number of hotbar slots
+constexpr int kHotbarSlots = 10;               // hotbar slots, keys 1..9 and 0
 
 // Collision
 constexpr float kCollisionEpsilon = 0.001f;    // small offset to prevent z-fighting with block faces

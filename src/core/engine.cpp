@@ -9,6 +9,9 @@
 #include "imgui/backends/imgui_impl_opengl3.h"
 #include "imgui/imgui.h"
 #include "util/memory.hpp"
+#include <algorithm>
+#include <string>
+#include <vector>
 #include <GLFW/glfw3.h>
 #include <glm/ext/scalar_constants.hpp>
 #include <glm/ext/vector_float3.hpp>
@@ -226,6 +229,9 @@ void Engine::handleEvents() {
     else if (const auto *rejected = std::get_if<CommandRejected>(&ev)) {
       last_rejection = rejected->reason;
     }
+    else if (const auto *contents = std::get_if<InventoryContents>(&ev)) {
+      inventory_view = contents->slots;
+    }
     // BlockChanged needs no handling yet: in single-player the client renders
     // the Game's own World, which is already up to date.
   }
@@ -345,13 +351,17 @@ void Engine::debug() {
           flag("Water",     player->isUnderwater());
           flag("Sprint",    player->isSprinting());  ImGui::SameLine(0, 12);
           flag("Crouch",    player->isCrouching());
-          ImGui::Text("Hotbar slot : %d [%.*s]",
-                      player->getSelectedHotbarSlot() + 1,
-                      static_cast<int>(blockName(player->getHotbarBlock()).size()),
-                      blockName(player->getHotbarBlock()).data());
+          const ItemStack &held = inventory_view[player->getSelectedHotbarSlot()];
+          std::string_view held_name = held.empty() ? "empty" : itemDef(held.id).name;
+          ImGui::Text("Hotbar slot : %d [%.*s x%d]",
+                      (player->getSelectedHotbarSlot() + 1) % kHotbarSlots,
+                      static_cast<int>(held_name.size()), held_name.data(),
+                      held.count);
           if (!last_rejection.empty())
             ImGui::Text("Rejected   : %s", last_rejection.c_str());
         }
+
+        debugInventory();
 
         // World / Raycast
         if (ImGui::CollapsingHeader("World")) {
@@ -487,6 +497,69 @@ void Engine::debug() {
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
+// ─── Debug: Inventory ──────────────────────────────────────────────────
+// Until the hud module draws a hotbar and inventory screen, the inventory is
+// shown here, along with a "give item" control for testing and creative play.
+
+void Engine::debugInventory() {
+  if (!ImGui::CollapsingHeader("Inventory", ImGuiTreeNodeFlags_DefaultOpen))
+    return;
+
+  auto slotText = [](const ItemStack &s) {
+    if (s.empty()) return std::string("-");
+    return std::string(itemDef(s.id).name) + " x" + std::to_string(s.count);
+  };
+
+  ImGui::TextDisabled("Hotbar");
+  for (int i = 0; i < kHotbarSlots; ++i) {
+    bool selected = i == player->getSelectedHotbarSlot();
+    ImGui::TextColored(selected ? ImVec4(1.f, 0.9f, 0.3f, 1.f)
+                                : ImVec4(0.85f, 0.85f, 0.85f, 1.f),
+                       "%s%d  %s", selected ? ">" : " ", (i + 1) % kHotbarSlots,
+                       slotText(inventory_view[i]).c_str());
+  }
+
+  ImGui::TextDisabled("Storage");
+  bool any = false;
+  for (int i = kHotbarSlots; i < kInventorySlots; ++i) {
+    if (inventory_view[i].empty()) continue;
+    ImGui::Text("  %2d  %s", i, slotText(inventory_view[i]).c_str());
+    any = true;
+  }
+  if (!any) ImGui::TextDisabled("  (empty)");
+
+  // Every item this build knows, for the give combo.
+  static const std::vector<ItemId> all_items = [] {
+    std::vector<ItemId> out;
+    for (uint16_t v = 1; v <= static_cast<uint16_t>(kLastMaterialItem); ++v)
+      if (isValidItem(static_cast<ItemId>(v))) out.push_back(static_cast<ItemId>(v));
+    return out;
+  }();
+  static int give_index = 0;
+  static int give_count = 16;
+
+  ImGui::Separator();
+  ImGui::PushItemWidth(150);
+  std::string_view current = itemDef(all_items[give_index]).name;
+  if (ImGui::BeginCombo("##give_item", std::string(current).c_str())) {
+    for (int i = 0; i < static_cast<int>(all_items.size()); ++i) {
+      std::string name(itemDef(all_items[i]).name);
+      if (ImGui::Selectable(name.c_str(), i == give_index)) give_index = i;
+    }
+    ImGui::EndCombo();
+  }
+  ImGui::SameLine();
+  ImGui::PushItemWidth(80);
+  ImGui::InputInt("##give_count", &give_count);
+  give_count = std::clamp(give_count, 1, 64 * kInventorySlots);
+  ImGui::PopItemWidth();
+  ImGui::PopItemWidth();
+  ImGui::SameLine();
+  if (ImGui::Button("Give"))
+    connection.send(GiveItem{all_items[give_index],
+                             static_cast<uint16_t>(give_count)});
+}
+
 // ─── Key Callback (event-based, for toggle actions) ────────────────────
 
 void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
@@ -537,7 +610,7 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
       break;
     }
 
-    // Hotbar slots 1-9
+    // Hotbar slots: keys 1..9, then 0 for the tenth
     case GLFW_KEY_1: engine->selectSlot(0); break;
     case GLFW_KEY_2: engine->selectSlot(1); break;
     case GLFW_KEY_3: engine->selectSlot(2); break;
@@ -547,6 +620,7 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int) {
     case GLFW_KEY_7: engine->selectSlot(6); break;
     case GLFW_KEY_8: engine->selectSlot(7); break;
     case GLFW_KEY_9: engine->selectSlot(8); break;
+    case GLFW_KEY_0: engine->selectSlot(9); break;
 
     // Fullscreen toggle
     case GLFW_KEY_F11: {
@@ -615,8 +689,7 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
     engine->connection.send(BreakBlock{ray.block_pos});
   } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-    engine->connection.send(
-        PlaceBlock{ray.block_pos + ray.normal, player->getHotbarBlock()});
+    engine->connection.send(PlaceBlock{ray.block_pos + ray.normal});
   }
 }
 

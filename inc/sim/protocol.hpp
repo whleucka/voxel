@@ -1,6 +1,7 @@
 #pragma once
 
 #include "block/block_type.hpp"
+#include "inventory/inventory.hpp"
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <string>
@@ -26,13 +27,20 @@ struct MovePlayer {
 };
 
 struct BreakBlock { glm::ivec3 pos{0}; };
-struct PlaceBlock { glm::ivec3 pos{0}; BlockType type = BlockType::AIR; };
+// Places the block item held in the selected hotbar slot; the Game decides
+// what that is, not the client.
+struct PlaceBlock { glm::ivec3 pos{0}; };
 struct SelectSlot { int slot = 0; };
 struct Save {};
 struct SetTimeOfDay { float seconds = 0.0f; }; // debug panel
+struct GiveItem { ItemId id = ItemId::NONE; uint16_t count = 0; }; // debug panel
+// Move count items (0 = the whole stack) between inventory slots; see
+// Inventory::move for the merge/swap rules.
+struct MoveItems { int from = 0; int to = 0; uint16_t count = 0; };
 
 using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
-                             SelectSlot, Save, SetTimeOfDay>;
+                             SelectSlot, Save, SetTimeOfDay, GiveItem,
+                             MoveItems>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 
@@ -50,5 +58,9 @@ struct PlayerJoined { PlayerId id = 0; };
 struct PlayerLeft { PlayerId id = 0; };
 struct CommandRejected { std::string reason; };
 
+// The owner's full inventory, sent after joining and after every change.
+// 40 slots is small enough that a snapshot beats tracking deltas.
+struct InventoryContents { Inventory::Slots slots{}; };
+
 using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
-                           CommandRejected>;
+                           CommandRejected, InventoryContents>;

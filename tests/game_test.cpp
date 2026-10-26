@@ -29,8 +29,9 @@ Joined join(Game &game, LocalConnection &conn) {
   conn.send(Join{});
   game.pump();
   auto events = pollAll(conn);
-  REQUIRE(events.size() == 1);
+  REQUIRE(events.size() == 2);
   REQUIRE(std::holds_alternative<Joined>(events[0]));
+  REQUIRE(std::holds_alternative<InventoryContents>(events[1]));
   return std::get<Joined>(events[0]);
 }
 
@@ -223,6 +224,31 @@ struct EditGame : SmallGame {
   static bool rejected(const std::vector<Event> &evs) {
     return evs.size() == 1 && std::holds_alternative<CommandRejected>(evs[0]);
   }
+
+  static int changes(const std::vector<Event> &evs) {
+    int n = 0;
+    for (const Event &e : evs) n += std::holds_alternative<BlockChanged>(e);
+    return n;
+  }
+
+  const Inventory &inventory() const { return game.findPlayer(id)->inventory; }
+
+  // Gives one of a block's item and selects the hotbar slot holding it.
+  void hold(BlockType b) {
+    run(GiveItem{itemForBlock(b), 1});
+    for (int i = 0; i < kHotbarSlots; ++i)
+      if (inventory().slot(i).id == itemForBlock(b)) {
+        run(SelectSlot{i});
+        return;
+      }
+    FAIL("item didn't land in the hotbar");
+  }
+
+  // Places a block of the given type the way a player would: hold it, place.
+  std::vector<Event> place(glm::ivec3 pos, BlockType b) {
+    hold(b);
+    return run(PlaceBlock{pos});
+  }
 };
 
 } // namespace
@@ -232,7 +258,7 @@ TEST_CASE_FIXTURE(EditGame, "a valid break removes the block and broadcasts once
   auto evs = run(BreakBlock{target});
 
   CHECK(at(target) == BlockType::AIR);
-  REQUIRE(evs.size() == 1);
+  REQUIRE(changes(evs) == 1);
   REQUIRE(std::holds_alternative<BlockChanged>(evs[0]));
   CHECK(std::get<BlockChanged>(evs[0]).pos == target);
   CHECK(std::get<BlockChanged>(evs[0]).type == BlockType::AIR);
@@ -241,10 +267,10 @@ TEST_CASE_FIXTURE(EditGame, "a valid break removes the block and broadcasts once
 
 TEST_CASE_FIXTURE(EditGame, "a valid place sets the block and broadcasts once") {
   glm::ivec3 target{5, ground + 1, 5};
-  auto evs = run(PlaceBlock{target, BlockType::COBBLESTONE});
+  auto evs = place(target, BlockType::COBBLESTONE);
 
   CHECK(at(target) == BlockType::COBBLESTONE);
-  REQUIRE(evs.size() == 1);
+  REQUIRE(changes(evs) == 1);
   CHECK(std::get<BlockChanged>(evs[0]).type == BlockType::COBBLESTONE);
   CHECK(pollAll(other).size() == 1);
 }
@@ -269,36 +295,38 @@ TEST_CASE_FIXTURE(EditGame, "edits out of reach are rejected") {
   glm::ivec3 far{5, ground, 5};
   moveTo({5.5f, ground + 1.0f, 5.5f + 8.0f});
   CHECK(rejected(run(BreakBlock{far})));
-  CHECK(rejected(run(PlaceBlock{far + glm::ivec3(0, 1, 0), BlockType::STONE})));
+  CHECK(rejected(place(far + glm::ivec3(0, 1, 0), BlockType::STONE)));
   CHECK(at(far) != BlockType::AIR);
 }
 
 TEST_CASE_FIXTURE(EditGame, "placing outside the world height is rejected") {
   moveTo({5.5f, kChunkHeight - 1.0f, 8.5f});
-  CHECK(rejected(run(PlaceBlock{{5, kChunkHeight, 5}, BlockType::STONE})));
+  CHECK(rejected(place({5, kChunkHeight, 5}, BlockType::STONE)));
   moveTo({5.5f, 0.0f, 8.5f});
-  CHECK(rejected(run(PlaceBlock{{5, -1, 5}, BlockType::STONE})));
+  CHECK(rejected(place({5, -1, 5}, BlockType::STONE)));
 }
 
-TEST_CASE_FIXTURE(EditGame, "placing AIR or into an occupied cell is rejected") {
-  CHECK(rejected(run(PlaceBlock{{5, ground + 1, 5}, BlockType::AIR})));
-  CHECK(rejected(run(PlaceBlock{{5, ground, 5}, BlockType::STONE})));
+TEST_CASE_FIXTURE(EditGame, "placing with nothing held or into an occupied cell is rejected") {
+  run(SelectSlot{kHotbarSlots - 1}); // empty: the kit only fills slot 0
+  CHECK(rejected(run(PlaceBlock{{5, ground + 1, 5}})));
+  CHECK(at({5, ground + 1, 5}) == BlockType::AIR);
+  CHECK(rejected(place({5, ground, 5}, BlockType::STONE)));
 }
 
 TEST_CASE_FIXTURE(EditGame, "placing into water replaces it") {
   glm::ivec3 water{5, ground + 1, 5};
   game.world().setBlockAt(water, BlockType::WATER);
-  auto evs = run(PlaceBlock{water, BlockType::SAND});
+  auto evs = place(water, BlockType::SAND);
   CHECK(at(water) == BlockType::SAND);
-  CHECK(evs.size() == 1);
+  CHECK(changes(evs) == 1);
 }
 
 TEST_CASE_FIXTURE(EditGame, "placing inside your own box is rejected") {
   const glm::vec3 feet{5.5f, ground + 1.0f, 5.5f};
   moveTo(feet);
-  CHECK(rejected(run(PlaceBlock{{5, ground + 1, 5}, BlockType::STONE})));
-  CHECK(rejected(run(PlaceBlock{{5, ground + 2, 5}, BlockType::STONE})));
-  CHECK(run(PlaceBlock{{5, ground + 3, 5}, BlockType::STONE}).size() == 1);
+  CHECK(rejected(place({5, ground + 1, 5}, BlockType::STONE)));
+  CHECK(rejected(place({5, ground + 2, 5}, BlockType::STONE)));
+  CHECK(changes(place({5, ground + 3, 5}, BlockType::STONE)) == 1);
 }
 
 TEST_CASE_FIXTURE(EditGame, "crouching lowers the box used for placement") {
@@ -306,10 +334,10 @@ TEST_CASE_FIXTURE(EditGame, "crouching lowers the box used for placement") {
   // crouched (1.5) stops below it.
   glm::ivec3 cell{5, ground + 3, 5};
   moveTo({5.5f, ground + 1.4f, 5.5f});
-  CHECK(rejected(run(PlaceBlock{cell, BlockType::STONE})));
+  CHECK(rejected(place(cell, BlockType::STONE)));
 
   moveTo({5.5f, ground + 1.4f, 5.5f}, /*crouch=*/true);
-  CHECK(run(PlaceBlock{cell, BlockType::STONE}).size() == 1);
+  CHECK(changes(place(cell, BlockType::STONE)) == 1);
   CHECK(at(cell) == BlockType::STONE);
 }
 
@@ -317,7 +345,7 @@ TEST_CASE_FIXTURE(EditGame, "placing inside another player's box is rejected") {
   // Move the observer next to the target cell.
   other.send(MovePlayer{{5.5f, ground + 1.0f, 6.5f}, 0, 0, false, false});
   game.pump();
-  CHECK(rejected(run(PlaceBlock{{5, ground + 1, 6}, BlockType::STONE})));
+  CHECK(rejected(place({5, ground + 1, 6}, BlockType::STONE)));
 }
 
 TEST_CASE_FIXTURE(EditGame, "placing into an unloaded chunk is rejected") {
@@ -325,15 +353,15 @@ TEST_CASE_FIXTURE(EditGame, "placing into an unloaded chunk is rejected") {
   other.send(MovePlayer{{8.5f, ground + 1.0f, 8.5f}, 0, 0, false, false});
   moveTo({0.5f, ground + 1.0f, 5.5f});
   REQUIRE(game.world().getChunk(-1, 0) == nullptr);
-  CHECK(rejected(run(PlaceBlock{{-1, ground + 1, 5}, BlockType::STONE})));
+  CHECK(rejected(place({-1, ground + 1, 5}, BlockType::STONE)));
 }
 
 TEST_CASE_FIXTURE(EditGame, "glowstone placed through the Game lights and unlights") {
   glm::ivec3 lamp{5, ground + 2, 5};
-  REQUIRE(run(PlaceBlock{lamp, BlockType::GLOWSTONE}).size() == 1);
+  REQUIRE(changes(place(lamp, BlockType::GLOWSTONE)) == 1);
   CHECK(game.world().getBlockLightAt(lamp + glm::ivec3(1, 0, 0)) > 0);
 
-  REQUIRE(run(BreakBlock{lamp}).size() == 1);
+  REQUIRE(changes(run(BreakBlock{lamp})) == 1);
   CHECK(game.world().getBlockLightAt(lamp + glm::ivec3(1, 0, 0)) == 0);
 }
 
@@ -347,8 +375,11 @@ TEST_CASE_FIXTURE(EditGame, "a played game round-trips through save and load") {
   glm::ivec3 broken{5, ground, 5};
   glm::ivec3 placed{6, ground + 1, 5};
   REQUIRE(at(placed) == BlockType::AIR);
-  REQUIRE(run(BreakBlock{broken}).size() == 1);
-  REQUIRE(run(PlaceBlock{placed, BlockType::GLOWSTONE}).size() == 1);
+  REQUIRE(changes(run(BreakBlock{broken})) == 1);
+  REQUIRE(changes(place(placed, BlockType::GLOWSTONE)) == 1);
+  run(GiveItem{ItemId::DIAMOND, 3});
+  run(MoveItems{0, 25, 0}); // glowstone into storage
+  Inventory saved_inv = inventory();
   run(SelectSlot{7});
   conn.send(MovePlayer{{7.5f, ground + 1.0f, 9.5f}, 33.0f, -4.0f, true, false});
   conn.send(SetTimeOfDay{5000.0f});
@@ -376,8 +407,191 @@ TEST_CASE_FIXTURE(EditGame, "a played game round-trips through save and load") {
   CHECK(j.pitch == -4.0f);
   CHECK(j.slot == 7);
   CHECK(j.fly);
+  CHECK(loaded.findPlayer(j.id)->inventory.slots() == saved_inv.slots());
 }
 
 TEST_CASE_FIXTURE(SmallGame, "save without a bound directory fails") {
   CHECK_FALSE(game.save());
+}
+
+// ─── Survival inventory ────────────────────────────────────────────────
+
+namespace {
+
+// The latest inventory snapshot in a batch of events, if any.
+std::optional<Inventory::Slots> lastContents(const std::vector<Event> &evs) {
+  std::optional<Inventory::Slots> out;
+  for (const Event &e : evs)
+    if (const auto *c = std::get_if<InventoryContents>(&e)) out = c->slots;
+  return out;
+}
+
+int countOf(const Inventory &inv, ItemId id) {
+  int n = 0;
+  for (const ItemStack &s : inv.slots())
+    if (s.id == id) n += s.count;
+  return n;
+}
+
+} // namespace
+
+TEST_CASE_FIXTURE(SmallGame, "a new player starts with the kit and is told so") {
+  LocalConnection conn;
+  game.addClient(conn);
+  conn.send(Join{});
+  game.pump();
+  auto evs = pollAll(conn);
+
+  auto contents = lastContents(evs);
+  REQUIRE(contents);
+  CHECK((*contents)[0] == ItemStack{itemForBlock(BlockType::GLOWSTONE), 8});
+  for (int i = 1; i < kInventorySlots; ++i) CHECK((*contents)[i].empty());
+
+  PlayerId id = std::get<Joined>(evs[0]).id;
+  CHECK(game.findPlayer(id)->inventory.slots() == *contents);
+}
+
+TEST_CASE_FIXTURE(EditGame, "breaking collects the block's drop") {
+  glm::ivec3 target{5, ground, 5};
+  BlockType was = at(target);
+  REQUIRE(dropFor(was));
+  ItemId drop = *dropFor(was);
+
+  auto evs = run(BreakBlock{target});
+  CHECK(countOf(inventory(), drop) == 1);
+  auto contents = lastContents(evs);
+  REQUIRE(contents);
+  CHECK(*contents == inventory().slots());
+  // Only the breaker hears about their inventory.
+  auto seen = pollAll(other);
+  CHECK_FALSE(lastContents(seen));
+}
+
+TEST_CASE_FIXTURE(EditGame, "breaking ore collects its material") {
+  glm::ivec3 ore{5, ground + 1, 5};
+  game.world().setBlockAt(ore, BlockType::DIAMOND_ORE);
+  run(BreakBlock{ore});
+  CHECK(countOf(inventory(), ItemId::DIAMOND) == 1);
+  CHECK(countOf(inventory(), itemForBlock(BlockType::DIAMOND_ORE)) == 0);
+}
+
+TEST_CASE_FIXTURE(EditGame, "with a full inventory the block breaks and the drop is lost") {
+  run(GiveItem{itemForBlock(BlockType::SAND), 64 * kInventorySlots});
+  // Every slot but the kit's glowstone is now a full stack of sand.
+  REQUIRE(countOf(inventory(), itemForBlock(BlockType::SAND)) ==
+          64 * (kInventorySlots - 1));
+  Inventory before = inventory();
+
+  glm::ivec3 target{5, ground + 1, 5};
+  game.world().setBlockAt(target, BlockType::COBBLESTONE);
+  CHECK(changes(run(BreakBlock{target})) == 1);
+  CHECK(at(target) == BlockType::AIR);
+  CHECK(inventory().slots() == before.slots());
+}
+
+TEST_CASE_FIXTURE(EditGame, "placing consumes one of the held block") {
+  run(GiveItem{itemForBlock(BlockType::COBBLESTONE), 3});
+  int slot = -1;
+  for (int i = 0; i < kHotbarSlots; ++i)
+    if (inventory().slot(i).id == itemForBlock(BlockType::COBBLESTONE)) slot = i;
+  REQUIRE(slot >= 0);
+  run(SelectSlot{slot});
+
+  auto evs = run(PlaceBlock{{5, ground + 1, 5}});
+  CHECK(changes(evs) == 1);
+  CHECK(at({5, ground + 1, 5}) == BlockType::COBBLESTONE);
+  CHECK(inventory().slot(slot) == ItemStack{itemForBlock(BlockType::COBBLESTONE), 2});
+  REQUIRE(lastContents(evs));
+  CHECK(*lastContents(evs) == inventory().slots());
+
+  run(PlaceBlock{{6, ground + 1, 5}});
+  run(PlaceBlock{{7, ground + 1, 5}});
+  CHECK(inventory().slot(slot).empty());
+  CHECK(rejected(run(PlaceBlock{{8, ground + 1, 5}})));
+  CHECK(at({8, ground + 1, 5}) == BlockType::AIR);
+}
+
+TEST_CASE_FIXTURE(EditGame, "the starter glowstone can be placed") {
+  run(SelectSlot{0});
+  CHECK(changes(run(PlaceBlock{{5, ground + 2, 5}})) == 1);
+  CHECK(at({5, ground + 2, 5}) == BlockType::GLOWSTONE);
+  CHECK(inventory().slot(0).count == 7);
+}
+
+TEST_CASE_FIXTURE(EditGame, "a held non-block item can't be placed") {
+  run(GiveItem{ItemId::RUBY, 1});
+  int slot = -1;
+  for (int i = 0; i < kHotbarSlots; ++i)
+    if (inventory().slot(i).id == ItemId::RUBY) slot = i;
+  REQUIRE(slot >= 0);
+  run(SelectSlot{slot});
+
+  CHECK(rejected(run(PlaceBlock{{5, ground + 1, 5}})));
+  CHECK(at({5, ground + 1, 5}) == BlockType::AIR);
+  CHECK(countOf(inventory(), ItemId::RUBY) == 1);
+}
+
+TEST_CASE_FIXTURE(EditGame, "a rejected place keeps the item") {
+  run(SelectSlot{0});
+  CHECK(rejected(run(PlaceBlock{{5, ground, 5}}))); // occupied
+  CHECK(inventory().slot(0).count == 8);
+}
+
+TEST_CASE_FIXTURE(EditGame, "GiveItem adds valid items and rejects unknown ones") {
+  auto evs = run(GiveItem{ItemId::EMERALD, 5});
+  CHECK(countOf(inventory(), ItemId::EMERALD) == 5);
+  CHECK(lastContents(evs));
+
+  CHECK(rejected(run(GiveItem{static_cast<ItemId>(9999), 1})));
+  CHECK(rejected(run(GiveItem{ItemId::EMERALD, 0})));
+}
+
+TEST_CASE_FIXTURE(EditGame, "MoveItems rearranges the inventory") {
+  run(GiveItem{ItemId::COAL, 10});
+  REQUIRE(inventory().slot(1) == ItemStack{ItemId::COAL, 10});
+
+  auto evs = run(MoveItems{1, 30, 4});
+  CHECK(inventory().slot(1) == ItemStack{ItemId::COAL, 6});
+  CHECK(inventory().slot(30) == ItemStack{ItemId::COAL, 4});
+  CHECK(lastContents(evs));
+
+  run(MoveItems{0, 1, 0}); // whole glowstone stack onto coal: swap
+  CHECK(inventory().slot(0) == ItemStack{ItemId::COAL, 6});
+  CHECK(inventory().slot(1) == ItemStack{itemForBlock(BlockType::GLOWSTONE), 8});
+
+  CHECK(rejected(run(MoveItems{0, 1, 2})));  // partial onto a different item
+  CHECK(rejected(run(MoveItems{5, 6, 0})));  // empty source
+  CHECK(rejected(run(MoveItems{0, 99, 0}))); // out of range
+}
+
+TEST_CASE_FIXTURE(SmallGame, "an old save without inventory.dat gets the starter kit") {
+  ScopedSeed seed;
+  TempDir dir;
+  WorldSave::LevelData level;
+  WorldSave::PlayerData pd;
+  pd.position = {3.5f, 90.0f, 3.5f};
+  REQUIRE(WorldSave::save(dir.path.string(), level, pd, {}));
+
+  REQUIRE(game.load(dir.path.string()));
+  LocalConnection conn;
+  Joined j = join(game, conn);
+  CHECK(j.position == pd.position);
+  CHECK(game.findPlayer(j.id)->inventory.slots() == Game::starterKit().slots());
+
+  // Saving now writes inventory.dat, so the kit isn't handed out again.
+  REQUIRE(game.save());
+  std::vector<ItemStack> on_disk;
+  CHECK(WorldSave::loadInventory(dir.path.string(), on_disk));
+}
+
+TEST_CASE_FIXTURE(SmallGame, "only the first join takes the saved inventory") {
+  std::vector<ItemStack> saved(kInventorySlots);
+  saved[4] = {ItemId::RUBY, 2};
+  game.restore({}, {}, std::nullopt, saved);
+
+  LocalConnection a, b;
+  Joined ja = join(game, a);
+  Joined jb = join(game, b);
+  CHECK(game.findPlayer(ja.id)->inventory.slot(4) == ItemStack{ItemId::RUBY, 2});
+  CHECK(game.findPlayer(jb.id)->inventory.slots() == Game::starterKit().slots());
 }

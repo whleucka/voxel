@@ -30,6 +30,7 @@ private:
   PlayerId player_id = 0;
   std::unique_ptr<Player> player; // the local player; created on Joined
   std::string last_rejection;     // latest CommandRejected, for the debug panel
+  Inventory::Slots inventory_view{}; // the Game's latest InventoryContents
 
   bool first_mouse = true;
   float last_frame = 0.0f;
@@ -52,5 +53,6 @@ private:
   void render();
   void renderCrosshair();
   void debug();
+  void debugInventory();
   void cleanup();
 };

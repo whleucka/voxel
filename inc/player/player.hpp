@@ -1,6 +1,7 @@
 #pragma once
 
 #include "block/block_type.hpp"
+#include "core/constants.hpp"
 #include "render/camera.hpp"
 #include <array>
 #include <glm/fwd.hpp>
@@ -47,13 +48,12 @@ public:
   bool isCrouching() const { return crouching; }
   bool isSprinting() const { return sprinting; }
 
-  // Inventory / hotbar
+  // Inventory screen and hotbar selection. The inventory itself lives in the
+  // Game; the client keeps a view of it (Engine::inventory_view).
   bool isInventoryOpen() const { return inventory_open; }
   void toggleInventory() { inventory_open = !inventory_open; }
   int getSelectedHotbarSlot() const { return selected_hotbar_slot; }
   void setSelectedHotbarSlot(int slot);
-  BlockType getHotbarBlock() const;
-  BlockType getHotbarBlock(int slot) const;
 
 private:
   // Movement modes
@@ -73,8 +73,7 @@ private:
 
   // Inventory
   bool inventory_open = false;
-  int selected_hotbar_slot = 0; // 0-8
-  std::array<BlockType, 9> hotbar_blocks;
+  int selected_hotbar_slot = 0; // 0..kHotbarSlots-1
 
   // Internal methods
   void applyGravity(float dt);

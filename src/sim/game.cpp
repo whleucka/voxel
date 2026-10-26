@@ -19,8 +19,11 @@ bool Game::load(const std::string &dir) {
   WorldSave::loadEdits(dir, edits);
   std::optional<WorldSave::PlayerData> player;
   if (WorldSave::PlayerData pd; WorldSave::loadPlayer(dir, pd)) player = pd;
+  std::optional<std::vector<ItemStack>> inventory;
+  if (std::vector<ItemStack> inv; WorldSave::loadInventory(dir, inv))
+    inventory = std::move(inv);
 
-  restore(level, std::move(edits), player);
+  restore(level, std::move(edits), player, std::move(inventory));
   return true;
 }
 
@@ -46,7 +49,13 @@ bool Game::save() {
     pd.fly_mode      = host->fly ? 1 : 0;
   }
 
-  if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits())) {
+  // Same rule for the inventory; with neither a host nor a saved one there is
+  // nothing to write, and the next join gets the starter kit.
+  std::optional<std::vector<ItemStack>> inv = saved_inventory;
+  if (host) inv.emplace(host->inventory.slots().begin(), host->inventory.slots().end());
+
+  if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits()) ||
+      (inv && !WorldSave::saveInventory(save_dir, *inv))) {
     std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";
     return false;
   }
@@ -55,10 +64,12 @@ bool Game::save() {
 }
 
 void Game::restore(const WorldSave::LevelData &level, WorldEdits edits,
-                   std::optional<WorldSave::PlayerData> player) {
+                   std::optional<WorldSave::PlayerData> player,
+                   std::optional<std::vector<ItemStack>> inventory) {
   clock_.time_of_day = level.time_of_day;
   world_.setLoadedEdits(std::move(edits));
   saved_player = std::move(player);
+  saved_inventory = std::move(inventory);
 }
 
 void Game::addClient(ClientLink &link) { clients.push_back({&link, {}}); }
@@ -80,6 +91,17 @@ void Game::reject(Client &client, std::string reason) {
 
 void Game::broadcast(const Event &ev) {
   for (Client &client : clients) client.link->deliver(ev);
+}
+
+void Game::sendInventory(Client &client, const PlayerState &ps) {
+  client.link->deliver(InventoryContents{ps.inventory.slots()});
+}
+
+Inventory Game::starterKit() {
+  Inventory kit;
+  // Glowstone is the only light source and never generates naturally.
+  kit.set(0, {itemForBlock(BlockType::GLOWSTONE), 8});
+  return kit;
 }
 
 // The client's raycast measures reach to the face it hit; the block's centre
@@ -163,11 +185,21 @@ void Game::apply(Client &client, const Join &) {
   } else {
     ps.position = world_.findSpawn();
   }
+  // The first join takes over the saved inventory, like the saved player;
+  // anyone without one starts with the kit.
+  if (saved_inventory) {
+    for (int i = 0; i < kInventorySlots && i < static_cast<int>(saved_inventory->size()); ++i)
+      ps.inventory.set(i, (*saved_inventory)[i]);
+    saved_inventory.reset();
+  } else {
+    ps.inventory = starterKit();
+  }
 
   players[ps.id] = ps;
   client.player = ps.id;
   client.link->deliver(Joined{ps.id, ps.position, ps.yaw, ps.pitch,
                               ps.selected_slot, ps.fly});
+  sendInventory(client, ps);
 }
 
 void Game::apply(Client &client, const MovePlayer &cmd) {
@@ -203,12 +235,24 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
 
   world_.setBlockAt(cmd.pos, BlockType::AIR);
   broadcast(BlockChanged{cmd.pos, BlockType::AIR});
+
+  // Survival: collect the drop. With a full inventory the block still breaks
+  // and the item is lost (until dropped items exist in the world).
+  if (auto drop = dropFor(target)) {
+    ps->inventory.add({*drop, 1});
+    sendInventory(client, *ps);
+  }
 }
 
 void Game::apply(Client &client, const PlaceBlock &cmd) {
   PlayerState *ps = playerFor(client);
   if (!ps) return;
-  if (cmd.type == BlockType::AIR) return reject(client, "place: no block");
+
+  const ItemStack &held = ps->inventory.slot(ps->selected_slot);
+  if (held.empty()) return reject(client, "place: nothing held");
+  std::optional<BlockType> block = itemDef(held.id).places;
+  if (!block) return reject(client, "place: held item isn't a block");
+
   if (cmd.pos.y < 0 || cmd.pos.y >= kChunkHeight)
     return reject(client, "place: outside world height");
   if (!inReach(*ps, cmd.pos)) return reject(client, "place: out of reach");
@@ -225,8 +269,10 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
   if (overlapsAnyPlayer(cmd.pos))
     return reject(client, "place: inside a player");
 
-  world_.setBlockAt(cmd.pos, cmd.type);
-  broadcast(BlockChanged{cmd.pos, cmd.type});
+  world_.setBlockAt(cmd.pos, *block);
+  broadcast(BlockChanged{cmd.pos, *block});
+  ps->inventory.take(ps->selected_slot, 1);
+  sendInventory(client, *ps);
 }
 
 void Game::apply(Client &, const SetTimeOfDay &cmd) {
@@ -234,3 +280,21 @@ void Game::apply(Client &, const SetTimeOfDay &cmd) {
 }
 
 void Game::apply(Client &, const Save &) { save(); }
+
+void Game::apply(Client &client, const GiveItem &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps) return;
+  if (!isValidItem(cmd.id) || cmd.count == 0)
+    return reject(client, "give: unknown item");
+  // Same as collecting a drop: whatever doesn't fit is lost.
+  ps->inventory.add({cmd.id, cmd.count});
+  sendInventory(client, *ps);
+}
+
+void Game::apply(Client &client, const MoveItems &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps) return;
+  if (!ps->inventory.move(cmd.from, cmd.to, cmd.count))
+    return reject(client, "move: not allowed");
+  sendInventory(client, *ps);
+}
