@@ -178,9 +178,12 @@ void Game::tick() {
     }
   }
 
-  std::vector<glm::vec3> positions;
-  for (const auto &[id, ps] : players) positions.push_back(ps.position);
-  entities_.tick(world_, rng_, positions);
+  std::vector<glm::vec3> positions, living;
+  for (const auto &[id, ps] : players) {
+    positions.push_back(ps.position);
+    if (!ps.vitals.dead()) living.push_back(ps.position);
+  }
+  entities_.tick(world_, rng_, positions, living);
   spawner_.tick(entities_, world_, rng_, positions, clock_.fractionOfDay());
   releaseAnimalProducts();
   mergeDroppedItems();

@@ -1,7 +1,10 @@
 #pragma once
 
+#include "physics/path.hpp"
 #include <glm/glm.hpp>
 #include <random>
+#include <span>
+#include <vector>
 
 struct Entity;
 class World;
@@ -15,12 +18,20 @@ struct Intent {
   float yaw = 0.0f;         // degrees; 0 faces -Z
 };
 
+// What a brain can see: the world, the Game's RNG and where the living
+// players are (feet positions).
+struct BrainContext {
+  const World &world;
+  Rng &rng;
+  std::span<const glm::vec3> targets;
+};
+
 // Decides a creature's movement each tick. Pure decision-making: the store
 // applies the result through the entity's PhysicsBody.
 class Brain {
 public:
   virtual ~Brain() = default;
-  virtual Intent think(const Entity &self, const World &world, Rng &rng) = 0;
+  virtual Intent think(const Entity &self, const BrainContext &ctx) = 0;
 };
 
 struct WanderOptions {
@@ -38,7 +49,7 @@ public:
   static constexpr int kMaxSafeDrop = 2;
 
   explicit WanderBrain(WanderOptions options = {}) : opts(options) {}
-  Intent think(const Entity &self, const World &world, Rng &rng) override;
+  Intent think(const Entity &self, const BrainContext &ctx) override;
 
 private:
   WanderOptions opts;
@@ -48,4 +59,34 @@ private:
   bool walking = false;
   glm::vec2 dir{0.0f};
   float yaw = 0.0f;
+};
+
+struct ChaseOptions {
+  bool hop = false;  // bounce along while moving (Gloomlings)
+  PathParams path;   // height_cells is taken from the creature's own height
+};
+
+// Hunts the nearest living player within kSenseRange along an A* path,
+// re-planning every second or when the player moves away from the planned
+// goal. With no one in range, or no way there, it wanders cautiously.
+class ChaseBrain : public Brain {
+public:
+  static constexpr float kSenseRange = 24.0f;
+  static constexpr int kReplanMs = 1000;
+  static constexpr float kReplanMove = 2.0f;
+  static constexpr float kWaypointReached = 0.3f; // horizontal, from the cell centre
+
+  explicit ChaseBrain(ChaseOptions options = {});
+  Intent think(const Entity &self, const BrainContext &ctx) override;
+  bool chasing() const { return have_target; }
+
+private:
+  ChaseOptions opts;
+  WanderBrain wander;
+  std::vector<glm::ivec3> path;
+  size_t next = 0;
+  bool have_target = false;
+  bool have_path = false;
+  glm::vec3 planned_for{0.0f};
+  int replan_ms = 0;
 };

@@ -31,7 +31,7 @@ Spec: [SPEC-enemies.md](../SPEC-enemies.md) · Tasks: [enemies-todo.md](enemies-
 ## Tasks
 - [x] T1: Difficulty setting (enum, scaling, properties key, tests)
 - [x] T2: Pathfinding (`findPath`, tests)
-- [ ] T3: `BrainContext` and `ChaseBrain` (tests)
+- [x] T3: `BrainContext` and `ChaseBrain` (tests)
 - [ ] T4: Enemy kinds, models with glow, chance drops on death
 - [ ] T5: Spawning: cave placement, predicates, hostile rules, difficulty caps
 - [ ] T6: Game: contact attacks, `KnockedBack`, sunrise, Peaceful, speed scaling

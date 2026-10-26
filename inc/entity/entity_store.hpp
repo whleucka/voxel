@@ -27,8 +27,10 @@ public:
   size_t size() const { return entities.size(); }
 
   // One tick: brains, physics, ageing and despawning. `players` are the
-  // positions that keep entities alive; entities in unloaded chunks freeze.
-  void tick(const World &world, Rng &rng, std::span<const glm::vec3> players);
+  // positions that keep entities alive; `targets` are the living players that
+  // brains may chase. Entities in unloaded chunks freeze.
+  void tick(const World &world, Rng &rng, std::span<const glm::vec3> players,
+            std::span<const glm::vec3> targets = {});
 
 private:
   std::map<EntityId, Entity> entities;

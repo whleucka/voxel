@@ -46,9 +46,10 @@ const Entity *EntityStore::find(EntityId id) const {
   return it == entities.end() ? nullptr : &it->second;
 }
 
-void EntityStore::tick(const World &world, Rng &rng,
-                       std::span<const glm::vec3> players) {
+void EntityStore::tick(const World &world, Rng &rng, std::span<const glm::vec3> players,
+                       std::span<const glm::vec3> targets) {
   constexpr float dt = kTickMs / 1000.0f;
+  const BrainContext ctx{world, rng, targets};
   std::vector<EntityId> gone;
 
   for (auto &[id, e] : entities) {
@@ -78,7 +79,7 @@ void EntityStore::tick(const World &world, Rng &rng,
 
     // A freshly hit creature is knocked back, not steering.
     if (e.brain && e.hurt_ms == 0) {
-      Intent in = e.brain->think(e, world, rng);
+      Intent in = e.brain->think(e, ctx);
       e.yaw = in.yaw;
       if (glm::length(in.move_dir) > 0.0f) {
         e.body.velocity.x = in.move_dir.x * def.walk_speed;

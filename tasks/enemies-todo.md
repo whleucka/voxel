@@ -17,9 +17,9 @@ Plan: [enemies-plan.md](enemies-plan.md) · Spec: [SPEC-enemies.md](../SPEC-enem
 - [x] No path, the node limit and the range limit each return nothing.
 
 ## T3: Brains
-- [ ] `BrainContext` replaces the brain arguments, and the animal brain tests pass unchanged.
-- [ ] `ChaseBrain` reaches a player 10 blocks away on flat ground, and one behind a wall through a gap.
-- [ ] With no player in range it wanders.
+- [x] `BrainContext` replaces the brain arguments, and the animal brain tests pass unchanged.
+- [x] `ChaseBrain` reaches a player 10 blocks away on flat ground, and one behind a wall through a gap.
+- [x] With no player in range it wanders.
 
 ## T4: Enemy kinds
 - [ ] Gloomling, Thorn Crawler and Cave Grumble have the spec's sizes, speeds, health, damage and models with glowing eyes.
