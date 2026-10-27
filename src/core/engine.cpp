@@ -519,19 +519,20 @@ void Engine::renderNameTags(const glm::mat4 &view_projection) {
 // ─── Crosshair ─────────────────────────────────────────────────────────
 
 void Engine::renderCrosshair() {
-  // Don't show crosshair when inventory is open
-  if (player->isInventoryOpen()) return;
-
-  // Dark overlay when the camera eye is inside a solid block (e.g. clipping into a wall)
+  // Dark overlay when the camera eye is inside a solid block (e.g. clipping
+  // into a wall). Behind the HUD and menus, so the pause menu stays readable.
   {
     glm::vec3 eyePos = player->getEyePosition();
     BlockType eyeBlock = world().getBlockAt(eyePos);
     if (eyeBlock != BlockType::AIR && !isLiquid(eyeBlock)) {
-      ImDrawList* overlay = ImGui::GetForegroundDrawList();
+      ImDrawList* overlay = ImGui::GetBackgroundDrawList();
       overlay->AddRectFilled(ImVec2(0, 0), ImVec2((float)win_width, (float)win_height),
                              IM_COL32(0, 0, 0, 200));
     }
   }
+
+  // No crosshair over the inventory screen or the pause menu.
+  if (player->isInventoryOpen() || paused()) return;
 
   // Draw crosshair at screen center using ImGui overlay
   ImDrawList* draw = ImGui::GetForegroundDrawList();
