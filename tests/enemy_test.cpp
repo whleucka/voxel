@@ -1,4 +1,5 @@
 #include "doctest/doctest.h"
+#include "core/constants.hpp"
 #include "block/block_type.hpp"
 #include "item/item.hpp"
 #include "entity/brain.hpp"
@@ -327,9 +328,13 @@ TEST_CASE("cave rules spawn below the surface, closer in") {
   for (const auto &[id, e] : r.store.all()) {
     glm::vec3 p = e.body.position;
     int cx = static_cast<int>(std::floor(p.x)), cz = static_cast<int>(std::floor(p.z));
-    auto surface = Spawner::groundAt(r.world, cx, cz);
-    REQUIRE(surface);
-    CHECK(p.y < surface->y);
+    // Under the column's topmost block (natural caves run under lakes too,
+    // where groundAt refuses the water on top).
+    int top = kChunkHeight - 1;
+    while (top > 0 && r.world.getBlockAt(glm::vec3(cx + 0.5f, top + 0.5f, cz + 0.5f)) ==
+                          BlockType::AIR)
+      --top;
+    CHECK(p.y < top);
     float d = glm::length(glm::vec2(p.x - 8.0f, p.z - 8.0f));
     CHECK(d >= Spawner::kCaveMinDistance - 1.5f);
     CHECK(d <= Spawner::kCaveMaxDistance + 1.5f);
