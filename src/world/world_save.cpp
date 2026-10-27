@@ -87,6 +87,23 @@ bool readSlots(std::istream &in, std::vector<ItemStack> &out) {
   return true;
 }
 
+// Tool wear, slot by slot: a trailing section, so files from before tools
+// load (as unworn) and older builds stop reading before it.
+void writeWear(std::ostream &o, std::span<const ItemStack> slots) {
+  wr(o, static_cast<uint16_t>(slots.size()));
+  for (const ItemStack &s : slots) wr(o, static_cast<uint16_t>(s.empty() ? 0 : s.wear));
+}
+
+void readWear(std::istream &in, std::vector<ItemStack> &slots) {
+  uint16_t n = 0;
+  if (!rd(in, n)) return;
+  for (uint16_t i = 0; i < n; ++i) {
+    uint16_t wear = 0;
+    if (!rd(in, wear)) return;
+    if (i < slots.size() && !slots[i].empty()) slots[i].wear = wear;
+  }
+}
+
 void writeIds(std::ostream &o, std::span<const ItemId> ids) {
   wr(o, static_cast<uint32_t>(ids.size()));
   for (ItemId id : ids) wr(o, static_cast<uint16_t>(id));
@@ -228,7 +245,9 @@ bool save(const std::string &dir, const LevelData &level,
 bool loadInventory(const std::string &dir, std::vector<ItemStack> &out) {
   std::ifstream in(dir + "/inventory.dat", std::ios::binary);
   if (!in || !checkHeader(in, kInvMagic)) return false;
-  return readSlots(in, out);
+  if (!readSlots(in, out)) return false;
+  readWear(in, out);
+  return true;
 }
 
 bool saveInventory(const std::string &dir, std::span<const ItemStack> slots) {
@@ -240,6 +259,7 @@ bool saveInventory(const std::string &dir, std::span<const ItemStack> slots) {
   if (!o) return false;
   writeHeader(o, kInvMagic);
   writeSlots(o, slots);
+  writeWear(o, slots);
   return static_cast<bool>(o);
 }
 
@@ -318,6 +338,7 @@ bool saveGuest(const std::string &dir, const std::string &name, const GuestRecor
   writePlayer(o, rec.player);
   writeSlots(o, rec.inventory);
   writeIds(o, rec.discovered);
+  writeWear(o, rec.inventory);
   return static_cast<bool>(o);
 }
 
@@ -337,6 +358,7 @@ bool loadGuests(const std::string &dir, std::map<std::string, GuestRecord> &out)
       continue;
     }
     if (!readIds(in, rec.discovered)) rec.discovered.clear(); // from before crafting
+    else readWear(in, rec.inventory);                          // from before tools: unworn
     out[name] = std::move(rec);
   }
   return !ec;

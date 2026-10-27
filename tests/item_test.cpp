@@ -212,3 +212,18 @@ TEST_CASE("berries and sweet petals are the only food") {
     CHECK(itemDef(id).food_heal == 0);
   }
 }
+
+TEST_CASE("stacks keep their wear, and only merge at equal wear") {
+  ItemStack worn{ItemId::COAL, 3, 7};
+  ItemStack dst{};
+  CHECK(mergeInto(dst, worn) == 3);
+  CHECK(dst == ItemStack{ItemId::COAL, 3, 7});
+  ItemStack fresh{ItemId::COAL, 2, 0};
+  CHECK(mergeInto(dst, fresh) == 0);
+  ItemStack part = split(dst, 1);
+  CHECK(part.wear == 7);
+  ItemStack a{ItemId::COAL, 1, 1}, b{ItemId::COAL, 1, 2};
+  CHECK(moveStack(a, b, 0)); // swapped, not merged
+  CHECK(a.wear == 2);
+  CHECK(b.wear == 1);
+}

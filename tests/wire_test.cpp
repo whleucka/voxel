@@ -227,3 +227,10 @@ TEST_CASE("container messages round-trip") {
   CHECK(back.burn == 200);
   CHECK(back.cook == 17);
 }
+
+TEST_CASE("wear travels with stacks") {
+  Inventory inv;
+  inv.set(4, {ItemId::DIAMOND, 1, 321});
+  auto back = std::get<InventoryContents>(*wire::decodeEvent(enc(Event{InventoryContents{inv.slots()}})));
+  CHECK(back.slots[4] == ItemStack{ItemId::DIAMOND, 1, 321});
+}

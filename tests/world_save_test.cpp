@@ -231,3 +231,23 @@ TEST_CASE("furnaces.dat round-trips slots and timers; no file, no furnaces") {
   CHECK(out[0].furnace == a.furnace);
   CHECK(out[1].furnace == Furnace{});
 }
+
+TEST_CASE("wear is saved with inventories and guests; older files load unworn") {
+  TempDir dir;
+  std::vector<ItemStack> slots = {{ItemId::COAL, 1, 42}, {}, {ItemId::RUBY, 2, 0}};
+  REQUIRE(WorldSave::saveInventory(dir.path.string(), slots));
+  std::vector<ItemStack> back;
+  REQUIRE(WorldSave::loadInventory(dir.path.string(), back));
+  CHECK(back == slots);
+  auto file = dir.path / "inventory.dat";
+  std::filesystem::resize_file(file, std::filesystem::file_size(file) - (2 + 2 * 3));
+  REQUIRE(WorldSave::loadInventory(dir.path.string(), back));
+  CHECK(back[0] == ItemStack{ItemId::COAL, 1, 0});
+
+  WorldSave::GuestRecord bea;
+  bea.inventory = slots;
+  REQUIRE(WorldSave::saveGuest(dir.path.string(), "Bea", bea));
+  std::map<std::string, WorldSave::GuestRecord> loaded;
+  REQUIRE(WorldSave::loadGuests(dir.path.string(), loaded));
+  CHECK(loaded.at("Bea").inventory == slots);
+}

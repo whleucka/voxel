@@ -18,14 +18,14 @@ uint16_t ItemStack::space() const {
 
 uint16_t mergeInto(ItemStack &dst, ItemStack &src) {
   if (src.empty()) return 0;
-  if (!dst.empty() && dst.id != src.id) return 0;
+  if (!dst.empty() && (dst.id != src.id || dst.wear != src.wear)) return 0;
 
   uint16_t max = itemDef(src.id).max_stack;
   uint16_t have = dst.empty() ? 0 : dst.count;
   uint16_t moved = std::min<uint16_t>(src.count, have >= max ? 0 : max - have);
   if (moved == 0) return 0;
 
-  dst = {src.id, static_cast<uint16_t>(have + moved)};
+  dst = {src.id, static_cast<uint16_t>(have + moved), src.wear};
   src.count -= moved;
   normalize(src);
   return moved;
@@ -34,7 +34,7 @@ uint16_t mergeInto(ItemStack &dst, ItemStack &src) {
 ItemStack split(ItemStack &s, uint16_t n) {
   if (s.empty() || n == 0) return {};
   uint16_t taken = std::min(n, s.count);
-  ItemStack out{s.id, taken};
+  ItemStack out{s.id, taken, s.wear};
   s.count -= taken;
   normalize(s);
   return out;
@@ -44,7 +44,7 @@ bool moveStack(ItemStack &src, ItemStack &dst, uint16_t count) {
   if (src.empty()) return false;
   uint16_t n = (count == 0 || count > src.count) ? src.count : count;
 
-  if (dst.empty() || dst.id == src.id) {
+  if (dst.empty() || (dst.id == src.id && dst.wear == src.wear)) {
     ItemStack moving = split(src, n);
     uint16_t moved = mergeInto(dst, moving);
     mergeInto(src, moving); // anything that didn't fit goes back

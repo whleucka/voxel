@@ -8,6 +8,7 @@
 struct ItemStack {
   ItemId id = ItemId::NONE;
   uint16_t count = 0;
+  uint16_t wear = 0; // uses a tool has spent; stacks only merge at equal wear
 
   bool empty() const { return id == ItemId::NONE || count == 0; }
   // Room left before max_stack (an empty stack has room for a full stack of
@@ -18,7 +19,7 @@ struct ItemStack {
 };
 
 // Move as much of src into dst as fits and return how many moved. An empty
-// dst adopts src's id; different ids don't merge.
+// dst adopts src's id and wear; different ids or wear don't merge.
 uint16_t mergeInto(ItemStack &dst, ItemStack &src);
 
 // Remove up to n from s and return them as a new stack.

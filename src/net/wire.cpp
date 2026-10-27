@@ -132,7 +132,7 @@ struct Reader {
 // ─── Message fields, in wire order ─────────────────────────────────────
 // A Command or Event alternative without a fields() overload doesn't compile.
 
-template <class IO> void fields(IO &io, ItemStack &m) { io(m.id, m.count); }
+template <class IO> void fields(IO &io, ItemStack &m) { io(m.id, m.count, m.wear); }
 template <class IO> void fields(IO &io, BlockEdit &m) { io(m.pos, m.type); }
 template <class IO> void fields(IO &io, EntityView &m) {
   io(m.id, m.kind, m.position, m.yaw, m.item, m.hurt, m.happy);
