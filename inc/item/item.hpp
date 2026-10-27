@@ -65,11 +65,12 @@ enum class ItemId : uint16_t {
   RAW_GLOWFIN,
   COOKED_GLOWFIN,
   SOGGY_BOOT,
+  TREASURE_KEY,
   // Append only: the numeric value is persisted in inventory saves.
 };
 
 constexpr ItemId kFirstMaterialItem = ItemId::COAL;
-constexpr ItemId kLastMaterialItem = ItemId::SOGGY_BOOT;
+constexpr ItemId kLastMaterialItem = ItemId::TREASURE_KEY;
 
 struct ItemIcon {
   enum class Atlas : uint8_t { Block, Item };

@@ -238,6 +238,21 @@ def soggy_boot():
     return img
 
 
+def treasure_key():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    gold, dark, light = (232, 186, 56, 255), (140, 100, 20, 255), (255, 236, 150, 255)
+    d.ellipse([3, 3, 15, 15], fill=gold, outline=dark)        # the bow
+    d.ellipse([7, 7, 11, 11], fill=(0, 0, 0, 0), outline=dark)
+    d.line([(13, 13), (27, 27)], fill=dark, width=5)          # the shaft
+    d.line([(13, 13), (27, 27)], fill=gold, width=3)
+    d.line([(22, 22), (19, 25)], fill=dark, width=4)          # teeth
+    d.line([(25, 25), (22, 28)], fill=dark, width=4)
+    d.point((6, 6), fill=light)
+    d.point((7, 5), fill=light)
+    return img
+
+
 FISHING = [fishing_rod] + [fish(*c, cooked=cooked) for c in FISH for cooked in (False, True)] + [soggy_boot]
 
 # Animal products, crafted and smelted items, after the shape-based
@@ -246,7 +261,7 @@ DRAWN = [wool, berries, shell, petals, sticks,
          ingot((200, 200, 206), (110, 110, 118), (236, 236, 242)),   # iron
          ingot((214, 120, 64), (120, 60, 28), (246, 170, 120)),     # copper
          ingot((240, 200, 60), (150, 110, 20), (255, 236, 140)),    # gold
-         charcoal] + TOOLS + FISHING
+         charcoal] + TOOLS + FISHING + [treasure_key]
 
 
 def main():

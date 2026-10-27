@@ -692,7 +692,7 @@ std::optional<ContainerView> lastView(const std::vector<Event> &evs) {
 
 TEST_CASE_FIXTURE(EditGame, "opening a furnace shows it; only furnaces in reach open") {
   glm::ivec3 at_{5, ground + 1, 5};
-  CHECK(reason(run(OpenContainer{at_})) == "open: that isn't a furnace");
+  CHECK(reason(run(OpenContainer{at_})) == "open: that isn't a furnace or a chest");
   place(at_, BlockType::FURNACE);
   game.furnaceAt(at_)->output = {ItemId::IRON_INGOT, 3};
   std::optional<ContainerView> v = lastView(run(OpenContainer{at_}));
@@ -742,7 +742,7 @@ TEST_CASE_FIXTURE(EditGame, "moves need an open furnace, and walking away or bre
   place(at_, BlockType::FURNACE);
   PlayerState &me = *game.findPlayer(id);
   me.inventory.set(20, {ItemId::RAW_IRON, 1});
-  CHECK(reason(run(MoveItems{20, kFurnaceInput, 0})) == "move: no furnace open");
+  CHECK(reason(run(MoveItems{20, kFurnaceInput, 0})) == "move: nothing open");
 
   run(OpenContainer{at_});
   moveTo({5.5f, ground + 1.0f, 15.5f}); // out of reach
@@ -2579,4 +2579,137 @@ TEST_CASE_FIXTURE(FishingGame, "bobbers in snapshots carry their owner and bite"
       for (const EntityView &v : s->entities)
         if (v.kind == EntityKind::Bobber) seen = v.owner == id && v.biting;
   CHECK(seen);
+}
+
+// ─── Chests ────────────────────────────────────────────────────────────
+
+TEST_CASE_FIXTURE(EditGame, "a chest takes anything, and shows every viewer") {
+  glm::ivec3 at_{5, ground + 1, 5};
+  place(at_, BlockType::CHEST);
+  REQUIRE(game.chestAt(at_));
+  PlayerState &me = *game.findPlayer(id);
+  me.inventory.set(20, {itemForBlock(BlockType::DIRT), 30});
+  me.inventory.set(21, {ItemId::WOOD_SWORD, 1, 5});
+  CHECK(reason(run(MoveItems{20, kContainerSlot0, 0})) == "move: nothing open");
+
+  std::optional<ContainerView> v = lastView(run(OpenContainer{at_}));
+  REQUIRE(v);
+  CHECK(v->kind == ContainerKind::Chest);
+  CHECK(v->slots.size() == static_cast<size_t>(kChestSlots));
+
+  run(MoveItems{20, kContainerSlot0 + 19, 10});
+  auto evs = run(MoveItems{21, kContainerSlot0 + 3, 0});
+  Chest &c = *game.chestAt(at_);
+  CHECK(c[19] == ItemStack{itemForBlock(BlockType::DIRT), 10});
+  CHECK(c[3] == ItemStack{ItemId::WOOD_SWORD, 1, 5});
+  CHECK(me.inventory.slot(20) == ItemStack{itemForBlock(BlockType::DIRT), 20});
+  REQUIRE(lastView(evs));
+  CHECK(lastView(evs)->slots[3] == c[3]);
+  // Out again, and nothing past the chest's last slot.
+  run(MoveItems{kContainerSlot0 + 3, 30, 0});
+  CHECK(me.inventory.slot(30) == ItemStack{ItemId::WOOD_SWORD, 1, 5});
+  CHECK(reason(run(MoveItems{20, kContainerSlot0 + kChestSlots, 0})) == "move: not allowed");
+  // Furnace slot rules don't apply: dirt goes in slot 2 (a furnace's output).
+  CHECK(run(MoveItems{20, kContainerSlot0 + 2, 1}).size() >= 1);
+  CHECK(c[2] == ItemStack{itemForBlock(BlockType::DIRT), 1});
+}
+
+TEST_CASE_FIXTURE(EditGame, "breaking a chest spills it; walking away closes it") {
+  glm::ivec3 at_{5, ground + 1, 5};
+  place(at_, BlockType::CHEST);
+  (*game.chestAt(at_))[0] = {ItemId::DIAMOND, 3};
+  run(OpenContainer{at_});
+  moveTo({5.5f, ground + 1.0f, 15.5f});
+  game.tick();
+  std::optional<ContainerView> v = lastView(pollAll(conn));
+  REQUIRE(v);
+  CHECK_FALSE(v->open);
+
+  moveTo({5.5f, ground + 1.0f, 8.5f});
+  wield(ItemId::WOOD_AXE);
+  mine(at_);
+  CHECK_FALSE(game.chestAt(at_));
+  CHECK(heldCount(inventory(), itemForBlock(BlockType::CHEST)) == 1);
+  bool spilled = false;
+  for (const auto &[eid, e] : game.entities().all())
+    spilled |= e.kind == EntityKind::DroppedItem && e.item == ItemStack{ItemId::DIAMOND, 3};
+  CHECK(spilled);
+}
+
+TEST_CASE_FIXTURE(EditGame, "chests are saved with the world") {
+  ScopedSeed seed;
+  TempDir dir;
+  CHECK_FALSE(game.load(dir.path.string()));
+  glm::ivec3 at_{5, ground + 1, 5};
+  place(at_, BlockType::CHEST);
+  (*game.chestAt(at_))[7] = {ItemId::RUBY, 2};
+  run(Save{});
+
+  ScopedRenderDistance rd2{0};
+  Game loaded;
+  REQUIRE(loaded.load(dir.path.string()));
+  REQUIRE(loaded.chestAt(at_));
+  CHECK((*loaded.chestAt(at_))[7] == ItemStack{ItemId::RUBY, 2});
+}
+
+TEST_CASE_FIXTURE(EditGame, "a treasure chest needs a key, then fills with loot") {
+  glm::ivec3 at_{5, ground + 1, 5};
+  game.world().setBlockAt(at_, BlockType::TREASURE_CHEST);
+  PlayerState &me = *game.findPlayer(id);
+
+  // No key: refused, and nothing changes.
+  CHECK(reason(run(OpenContainer{at_})) == "open: locked (needs a Treasure Key)");
+  CHECK(at(at_) == BlockType::TREASURE_CHEST);
+  CHECK_FALSE(game.chestAt(at_));
+
+  // Can't be broken open, in survival or creative.
+  wield(ItemId::DIAMOND_PICKAXE);
+  CHECK(reason(run(BreakBlock{at_})) == "break: unbreakable block");
+  game.setMode(GameMode::Creative);
+  CHECK(reason(run(BreakBlock{at_})) == "break: unbreakable block");
+  game.setMode(GameMode::Survival);
+  CHECK(at(at_) == BlockType::TREASURE_CHEST);
+
+  me.inventory.set(me.selected_slot, {ItemId::TREASURE_KEY, 2});
+  auto evs = run(OpenContainer{at_});
+  CHECK(me.inventory.slot(me.selected_slot) == ItemStack{ItemId::TREASURE_KEY, 1});
+  CHECK(at(at_) == BlockType::CHEST);
+  REQUIRE(game.chestAt(at_));
+  int stacks = 0;
+  for (const ItemStack &s : *game.chestAt(at_)) stacks += !s.empty();
+  CHECK(stacks >= kTreasureMinStacks);
+  CHECK(stacks <= kTreasureMaxStacks);
+  std::optional<ContainerView> v = lastView(evs);
+  REQUIRE(v);
+  CHECK(v->open);
+  CHECK(v->kind == ContainerKind::Chest);
+  CHECK(me.open_container == at_);
+  // Everyone hears the block change.
+  bool told = false;
+  for (const Event &e : pollAll(other))
+    if (const auto *b = std::get_if<BlockChanged>(&e))
+      told |= b->pos == at_ && b->type == BlockType::CHEST;
+  CHECK(told);
+
+  // From now on it's an ordinary chest: opening again costs no key.
+  run(CloseContainer{});
+  run(OpenContainer{at_});
+  CHECK(me.inventory.slot(me.selected_slot) == ItemStack{ItemId::TREASURE_KEY, 1});
+}
+
+TEST_CASE_FIXTURE(EditGame, "two players see the same chest") {
+  glm::ivec3 at_{5, ground + 1, 5};
+  place(at_, BlockType::CHEST);
+  // The observer walks over and looks in too.
+  other.send(MovePlayer{{6.5f, ground + 1.0f, 8.5f}, 0.0f, 0.0f, false, false});
+  game.pump();
+  other.send(OpenContainer{at_});
+  game.pump();
+  pollAll(other);
+  run(OpenContainer{at_});
+  game.findPlayer(id)->inventory.set(20, {ItemId::COAL, 9});
+  run(MoveItems{20, kContainerSlot0, 0});
+  std::optional<ContainerView> v = lastView(pollAll(other));
+  REQUIRE(v);
+  CHECK(v->slots[0] == ItemStack{ItemId::COAL, 9});
 }

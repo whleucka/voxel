@@ -53,8 +53,10 @@ enum class BlockType : uint8_t {
   CRAFTING_TABLE,
   FURNACE,
   FURNACE_LIT,  // a furnace while it burns: glows, and isn't an item
+  CHEST,
+  TREASURE_CHEST, // locked, in deep caves (worldgen v3): not an item, unbreakable
 };
 
 // The highest BlockType value. Update it when appending a type; a test in
 // tests/item_test.cpp fails if a named type exists past it.
-constexpr BlockType kLastBlockType = BlockType::FURNACE_LIT;
+constexpr BlockType kLastBlockType = BlockType::TREASURE_CHEST;

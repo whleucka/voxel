@@ -4,6 +4,7 @@
 #include "doctest/doctest.h"
 #include "biome/biome.hpp"
 #include "biome/caves.hpp"
+#include "block/block_data.hpp"
 #include "chunk/chunk.hpp"
 #include "core/constants.hpp"
 #include "core/seed.hpp"
@@ -276,4 +277,66 @@ TEST_CASE("caves hold glow crystals, shallow pools and extra gems") {
   CHECK(crystals > 0);
   CHECK(pools > 0);
   CHECK(gems_v2 > gems_v1);
+}
+
+// ─── Treasure (version 3) ──────────────────────────────────────────────
+
+TEST_CASE("version 3 is version 2 plus treasure chests, and nothing else") {
+  int chests = 0;
+  for (const glm::ivec2 &c : kSample) {
+    CAPTURE(c.x);
+    CAPTURE(c.y);
+    std::vector<BlockType> v2, v3;
+    {
+      SeededWorld world(12345, worldgen::kCaves);
+      v2 = generate(c.x, c.y);
+    }
+    {
+      SeededWorld world(12345, worldgen::kChests);
+      v3 = generate(c.x, c.y);
+    }
+    for (BlockType &b : v3)
+      if (b == BlockType::TREASURE_CHEST) {
+        b = BlockType::AIR; // a chest only ever fills cave air
+        ++chests;
+      }
+    CHECK(v3 == v2);
+  }
+  CHECK(chests <= 2); // rare
+}
+
+TEST_CASE("treasure chests are rare, deep, and tucked into cave nooks") {
+  SeededWorld world(12345, worldgen::kChests);
+  int chests = 0, chunks = 0;
+  for (int cx = -12; cx < 12; ++cx)
+    for (int cz = -12; cz < 12; ++cz) {
+      Chunk c(cx, cz);
+      c.init();
+      ++chunks;
+      for (int y = 0; y < kChunkHeight; ++y)
+        for (int z = 0; z < kChunkDepth; ++z)
+          for (int x = 0; x < kChunkWidth; ++x) {
+            if (c.at(x, y, z) != BlockType::TREASURE_CHEST) continue;
+            ++chests;
+            CAPTURE(cx);
+            CAPTURE(cz);
+            CHECK(y < kSeaLevel - caves::kTreasureDepth);
+            CHECK(y >= caves::kFloor);
+            auto rock = [&](int dx, int dy, int dz) {
+              BlockType b = c.at(x + dx, y + dy, z + dz);
+              return b != BlockType::AIR && !isLiquid(b) && b != BlockType::GLOW_CRYSTAL;
+            };
+            CHECK(rock(0, -1, 0)); // on the floor
+            CHECK(rock(1, 0, 0) + rock(-1, 0, 0) + rock(0, 0, 1) + rock(0, 0, -1) >= 3);
+            // Never in sight of the sky: under the ground.
+            CHECK(y < surfaceOf(cx * kChunkWidth + x, cz * kChunkDepth + z));
+          }
+    }
+  CHECK(chests > 0);                                 // they exist...
+  CHECK(chests <= chunks / static_cast<int>(caves::kTreasureOdds) * 2 + 2); // ...but rarely
+  // And the same again: generation is a pure function of seed and position.
+  Chunk again(-12, -12), first(-12, -12);
+  again.init();
+  first.init();
+  CHECK(blocksOf(again) == blocksOf(first));
 }

@@ -41,6 +41,7 @@ constexpr char kInvMagic[4]    = {'V', 'X', 'I', 'N'};
 constexpr char kGuestMagic[4]  = {'V', 'X', 'G', 'P'};
 constexpr char kKnownMagic[4]  = {'V', 'X', 'D', 'I'};
 constexpr char kFurnaceMagic[4] = {'V', 'X', 'F', 'U'};
+constexpr char kChestMagic[4]   = {'V', 'X', 'C', 'H'};
 
 bool safeName(const std::string &name) {
   if (name.empty() || name.size() > 16) return false;
@@ -321,6 +322,48 @@ bool saveFurnaces(const std::string &dir, std::span<const FurnaceRecord> furnace
     wr(o, f.burn_ms);
     wr(o, f.burn_total_ms);
     wr(o, f.cook_ms);
+  }
+  return static_cast<bool>(o);
+}
+
+// ─── chests.dat ─────────────────────────────────────────────────────────────
+
+bool loadChests(const std::string &dir, std::vector<ChestRecord> &out) {
+  std::ifstream in(dir + "/chests.dat", std::ios::binary);
+  if (!in || !checkHeader(in, kChestMagic)) return false;
+  uint32_t n = 0;
+  if (!rd(in, n) || n > 1'000'000) return false;
+  out.clear();
+  for (uint32_t i = 0; i < n; ++i) {
+    ChestRecord r;
+    if (!rd(in, r.pos.x) || !rd(in, r.pos.y) || !rd(in, r.pos.z)) return false;
+    // Each stack with its wear: chests hold tools.
+    for (ItemStack &s : r.chest) {
+      uint16_t wear = 0;
+      if (!readStack(in, s) || !rd(in, wear)) return false;
+      if (!s.empty()) s.wear = wear;
+    }
+    out.push_back(r);
+  }
+  return true;
+}
+
+bool saveChests(const std::string &dir, std::span<const ChestRecord> chests) {
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+  if (ec) return false;
+  std::ofstream o(dir + "/chests.dat", std::ios::binary | std::ios::trunc);
+  if (!o) return false;
+  writeHeader(o, kChestMagic);
+  wr(o, static_cast<uint32_t>(chests.size()));
+  for (const ChestRecord &r : chests) {
+    wr(o, r.pos.x);
+    wr(o, r.pos.y);
+    wr(o, r.pos.z);
+    for (const ItemStack &s : r.chest) {
+      writeStack(o, s);
+      wr(o, s.wear);
+    }
   }
   return static_cast<bool>(o);
 }

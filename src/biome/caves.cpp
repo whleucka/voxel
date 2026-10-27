@@ -256,4 +256,32 @@ void decorate(Chunk &chunk, const Surfaces &surface) {
       }
 }
 
+void placeTreasure(Chunk &chunk, const Surfaces &surface) {
+  uint64_t h = worldgen::mix(g_settings.world_seed ^ 0x7EA5u);
+  h = worldgen::mix(h ^ static_cast<uint32_t>(chunk.getPos().x));
+  h = worldgen::mix(h ^ static_cast<uint32_t>(chunk.getPos().y));
+  std::mt19937 rng(static_cast<uint32_t>(h ^ (h >> 32)));
+  if (rng() % kTreasureOdds != 0) return;
+
+  auto rock = [&](int x, int y, int z) {
+    BlockType b = chunk.at(x, y, z);
+    return b != BlockType::AIR && !isLiquid(b) && b != BlockType::GLOW_CRYSTAL;
+  };
+  // A nook: cave air on a rock floor, under the ground, with rock on at
+  // least three sides. Inside the chunk, so it never depends on a neighbour.
+  std::vector<glm::ivec3> nooks;
+  for (int z = 1; z < kChunkDepth - 1; ++z)
+    for (int x = 1; x < kChunkWidth - 1; ++x) {
+      const int ground = surface[x + kChunkWidth * z];
+      for (int y = kFloor; y < std::min(ground, kSeaLevel - kTreasureDepth); ++y) {
+        if (chunk.at(x, y, z) != BlockType::AIR || !rock(x, y - 1, z)) continue;
+        int sides = rock(x + 1, y, z) + rock(x - 1, y, z) + rock(x, y, z + 1) + rock(x, y, z - 1);
+        if (sides >= 3) nooks.push_back({x, y, z});
+      }
+    }
+  if (nooks.empty()) return;
+  glm::ivec3 at = nooks[rng() % nooks.size()];
+  chunk.at(at.x, at.y, at.z) = BlockType::TREASURE_CHEST;
+}
+
 } // namespace caves

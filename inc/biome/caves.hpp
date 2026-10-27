@@ -26,6 +26,12 @@ void carve(Chunk &chunk, Surfaces &surfaces);
 // Wall ores, glow crystals and pools, once the chunk is otherwise complete.
 void decorate(Chunk &chunk, const Surfaces &surfaces);
 
+// Treasure (worldgen v3): now and then a locked chest in a nook of a deep
+// cave floor. Its own random stream, so the rest of the chunk is exactly v2.
+constexpr int kTreasureDepth = 20;   // below sea level
+constexpr unsigned kTreasureOdds = 40; // one chunk in this many gets one
+void placeTreasure(Chunk &chunk, const Surfaces &surfaces);
+
 // Whether carve() makes (x, y, z) in world space a cave. Slow: for tests.
 bool isTunnel(glm::ivec3 world);
 

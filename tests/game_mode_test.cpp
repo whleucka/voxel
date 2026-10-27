@@ -149,7 +149,7 @@ TEST_CASE("new worlds get caves; an old world keeps its generator through a save
   REQUIRE_FALSE(createWorld(saves.path, "fresh", "3", GameMode::Survival));
   WorldSave::LevelData level;
   REQUIRE(WorldSave::loadLevel((saves.path / "fresh").string(), level));
-  CHECK(level.worldgen == worldgen::kCaves);
+  CHECK(level.worldgen == worldgen::kLatest);
 
   std::string dir = (saves.path / "old").string();
   level.worldgen = worldgen::kOriginal;

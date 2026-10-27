@@ -6,6 +6,7 @@ Toughness toughness(BlockType b) {
     case AIR:
     case WATER:
     case BEDROCK:
+    case TREASURE_CHEST: // only a key opens it
       return {false};
 
     case OAK_LEAF: case PINE_LEAF: case PALM_LEAF: case CHERRY_LEAF:
@@ -25,7 +26,7 @@ Toughness toughness(BlockType b) {
 
     case OAK_LOG: case PINE_LOG: case PALM_LOG: case CHERRY_LOG:
     case OAK_PLANKS: case PINE_PLANKS: case PALM_PLANKS: case CHERRY_PLANKS:
-    case CRAFTING_TABLE:
+    case CRAFTING_TABLE: case CHEST:
       return {true, 3000, ToolKind::Axe};
 
     case STONE: case COBBLESTONE: case SANDSTONE: case SNOW_STONE:
