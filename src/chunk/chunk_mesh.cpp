@@ -312,7 +312,8 @@ ChunkMesh::~ChunkMesh() {
   if (transparentEBO) glDeleteBuffers(1, &transparentEBO);
 }
 
-BlockType ChunkMesh::getBlock(World *world, const Chunk &chunk, int x, int y, int z) {
+BlockType ChunkMesh::getBlock(World *world, const Chunk &chunk, int x, int y, int z,
+                              BlockType unloaded) {
   if (y < 0 || y >= kChunkHeight) {
     return BlockType::AIR;
   }
@@ -330,7 +331,7 @@ BlockType ChunkMesh::getBlock(World *world, const Chunk &chunk, int x, int y, in
     auto n = world->getChunk(target_chunk_x, target_chunk_z);
     const int local_x = world_x - target_chunk_x * kChunkWidth;
     const int local_z = world_z - target_chunk_z * kChunkDepth;
-    return n ? n->at(local_x, y, local_z) : BlockType::AIR;
+    return n ? n->at(local_x, y, local_z) : unloaded;
   }
 
   return chunk.at(x, y, z);
@@ -401,6 +402,14 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
   MeshBuffers buffers{vertices, indices, transparentVertices, transparentIndices};
 
+  // Side faces. Water shows one only toward open air (a cave pool's rim):
+  // never toward land or more water, nor toward a chunk that hasn't loaded
+  // (it would wall off the sea at the edge of view until it did).
+  auto sideShows = [&](BlockType type, int nx, int ny, int nz) {
+    if (!isLiquid(type)) return shouldRenderFace(type, getBlock(world, chunk, nx, ny, nz));
+    return getBlock(world, chunk, nx, ny, nz, BlockType::WATER) == BlockType::AIR;
+  };
+
   // Front face (+Z)
   for (int z = 0; z < kChunkDepth; ++z) {
     bool mask[kChunkWidth][kChunkHeight] = {false};
@@ -410,10 +419,8 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
         BlockType type = chunk.at(x, y, z);
         if (type == BlockType::AIR) continue;
-        if (isLiquid(type)) continue;
 
-        BlockType neighbor = getBlock(world, chunk, x, y, z + 1);
-        if (shouldRenderFace(type, neighbor)) {
+        if (sideShows(type, x, y, z + 1)) {
           const auto &tex = block_data.at(type);
           AO4 ao = computeFaceAO(world, chunk, x, y, z, Face::Front);
           uint8_t skyLight = getSkyLight(world, chunk, x, y, z + 1);
@@ -422,7 +429,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           int width = 1;
           while (x + width < kChunkWidth && !mask[x + width][y] &&
                  chunk.safeAt(x + width, y, z) == type &&
-                 shouldRenderFace(type, getBlock(world, chunk, x + width, y, z + 1)) &&
+                 sideShows(type, x + width, y, z + 1) &&
                  getSkyLight(world, chunk, x + width, y, z + 1) == skyLight &&
                  getBlockLight(world, chunk, x + width, y, z + 1) == blockLight &&
                  computeFaceAO(world, chunk, x + width, y, z, Face::Front) == ao) {
@@ -435,7 +442,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int i = 0; i < width; ++i) {
               if (mask[x + i][y + height] ||
                   chunk.safeAt(x + i, y + height, z) != type ||
-                  !shouldRenderFace(type, getBlock(world, chunk, x + i, y + height, z + 1)) ||
+                  !sideShows(type, x + i, y + height, z + 1) ||
                   getSkyLight(world, chunk, x + i, y + height, z + 1) != skyLight ||
                   getBlockLight(world, chunk, x + i, y + height, z + 1) != blockLight ||
                   computeFaceAO(world, chunk, x + i, y + height, z, Face::Front) != ao) {
@@ -467,10 +474,8 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
         BlockType type = chunk.at(x, y, z);
         if (type == BlockType::AIR) continue;
-        if (isLiquid(type)) continue;
 
-        BlockType neighbor = getBlock(world, chunk, x, y, z - 1);
-        if (shouldRenderFace(type, neighbor)) {
+        if (sideShows(type, x, y, z - 1)) {
           const auto &tex = block_data.at(type);
           AO4 ao = computeFaceAO(world, chunk, x, y, z, Face::Back);
           uint8_t skyLight = getSkyLight(world, chunk, x, y, z - 1);
@@ -479,7 +484,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           int width = 1;
           while (x + width < kChunkWidth && !mask[x + width][y] &&
                  chunk.safeAt(x + width, y, z) == type &&
-                 shouldRenderFace(type, getBlock(world, chunk, x + width, y, z - 1)) &&
+                 sideShows(type, x + width, y, z - 1) &&
                  getSkyLight(world, chunk, x + width, y, z - 1) == skyLight &&
                  getBlockLight(world, chunk, x + width, y, z - 1) == blockLight &&
                  computeFaceAO(world, chunk, x + width, y, z, Face::Back) == ao) {
@@ -492,7 +497,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int i = 0; i < width; ++i) {
               if (mask[x + i][y + height] ||
                   chunk.safeAt(x + i, y + height, z) != type ||
-                  !shouldRenderFace(type, getBlock(world, chunk, x + i, y + height, z - 1)) ||
+                  !sideShows(type, x + i, y + height, z - 1) ||
                   getSkyLight(world, chunk, x + i, y + height, z - 1) != skyLight ||
                   getBlockLight(world, chunk, x + i, y + height, z - 1) != blockLight ||
                   computeFaceAO(world, chunk, x + i, y + height, z, Face::Back) != ao) {
@@ -646,10 +651,8 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
         BlockType type = chunk.at(x, y, z);
         if (type == BlockType::AIR) continue;
-        if (isLiquid(type)) continue;
 
-        BlockType neighbor = getBlock(world, chunk, x + 1, y, z);
-        if (shouldRenderFace(type, neighbor)) {
+        if (sideShows(type, x + 1, y, z)) {
           const auto &tex = block_data.at(type);
           AO4 ao = computeFaceAO(world, chunk, x, y, z, Face::Right);
           uint8_t skyLight = getSkyLight(world, chunk, x + 1, y, z);
@@ -658,7 +661,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           int depth = 1;
           while (z + depth < kChunkDepth && !mask[y][z + depth] &&
                  chunk.safeAt(x, y, z + depth) == type &&
-                 shouldRenderFace(type, getBlock(world, chunk, x + 1, y, z + depth)) &&
+                 sideShows(type, x + 1, y, z + depth) &&
                  getSkyLight(world, chunk, x + 1, y, z + depth) == skyLight &&
                  getBlockLight(world, chunk, x + 1, y, z + depth) == blockLight &&
                  computeFaceAO(world, chunk, x, y, z + depth, Face::Right) == ao) {
@@ -671,7 +674,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int i = 0; i < depth; ++i) {
               if (mask[y + height][z + i] ||
                   chunk.safeAt(x, y + height, z + i) != type ||
-                  !shouldRenderFace(type, getBlock(world, chunk, x + 1, y + height, z + i)) ||
+                  !sideShows(type, x + 1, y + height, z + i) ||
                   getSkyLight(world, chunk, x + 1, y + height, z + i) != skyLight ||
                   getBlockLight(world, chunk, x + 1, y + height, z + i) != blockLight ||
                   computeFaceAO(world, chunk, x, y + height, z + i, Face::Right) != ao) {
@@ -703,10 +706,8 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
         BlockType type = chunk.at(x, y, z);
         if (type == BlockType::AIR) continue;
-        if (isLiquid(type)) continue;
 
-        BlockType neighbor = getBlock(world, chunk, x - 1, y, z);
-        if (shouldRenderFace(type, neighbor)) {
+        if (sideShows(type, x - 1, y, z)) {
           const auto &tex = block_data.at(type);
           AO4 ao = computeFaceAO(world, chunk, x, y, z, Face::Left);
           uint8_t skyLight = getSkyLight(world, chunk, x - 1, y, z);
@@ -715,7 +716,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           int depth = 1;
           while (z + depth < kChunkDepth && !mask[y][z + depth] &&
                  chunk.safeAt(x, y, z + depth) == type &&
-                 shouldRenderFace(type, getBlock(world, chunk, x - 1, y, z + depth)) &&
+                 sideShows(type, x - 1, y, z + depth) &&
                  getSkyLight(world, chunk, x - 1, y, z + depth) == skyLight &&
                  getBlockLight(world, chunk, x - 1, y, z + depth) == blockLight &&
                  computeFaceAO(world, chunk, x, y, z + depth, Face::Left) == ao) {
@@ -728,7 +729,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int i = 0; i < depth; ++i) {
               if (mask[y + height][z + i] ||
                   chunk.safeAt(x, y + height, z + i) != type ||
-                  !shouldRenderFace(type, getBlock(world, chunk, x - 1, y + height, z + i)) ||
+                  !sideShows(type, x - 1, y + height, z + i) ||
                   getSkyLight(world, chunk, x - 1, y + height, z + i) != skyLight ||
                   getBlockLight(world, chunk, x - 1, y + height, z + i) != blockLight ||
                   computeFaceAO(world, chunk, x, y + height, z + i, Face::Left) != ao) {

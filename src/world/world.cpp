@@ -570,7 +570,15 @@ void World::render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay,
 
     // Sky must be drawn before world geometry (it uses GL_LEQUAL depth and writes
     // no depth values, so any chunk fragment will correctly overwrite it).
-    renderer->drawSky(view, projection, timeOfDay);
+    // Underwater there's no sky to see: the background is the water fog's
+    // colour, so the terrain fading into that fog never meets a bright edge.
+    if (viewer_underwater) {
+      glm::vec3 murk = Renderer::sceneLighting(timeOfDay).water_fog_color;
+      glClearColor(murk.r, murk.g, murk.b, 1.0f);
+      glClear(GL_COLOR_BUFFER_BIT);
+    } else {
+      renderer->drawSky(view, projection, timeOfDay);
+    }
 
     renderer->drawOpaqueChunks(visible(), view, projection,
                                viewer_pos, viewer_underwater, timeOfDay);
@@ -584,8 +592,8 @@ void World::render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay,
 
   // Clouds drawn after opaque & transparent terrain so they blend correctly
   // with the sky behind them while terrain in front occludes them via depth.
-  renderer->drawClouds(view, projection, viewer_pos, timeOfDay,
-                       cloud_time);
+  if (!viewer_underwater)
+    renderer->drawClouds(view, projection, viewer_pos, timeOfDay, cloud_time);
 }
 
 std::shared_ptr<Chunk> World::getChunk(int x, int z) {
