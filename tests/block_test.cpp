@@ -80,3 +80,21 @@ TEST_CASE("building blocks are in the creative palette and drop themselves") {
     CHECK(dropFor(b) == id);
   }
 }
+
+TEST_CASE("glass is a see-through cutout that lets sky light through") {
+  CHECK(isCutout(BlockType::GLASS));
+  CHECK(skyLightOpacity(BlockType::GLASS) == 0);
+}
+
+TEST_CASE("glass beside glass hides the face between them; leaves don't") {
+  CHECK_FALSE(shouldRenderFace(BlockType::GLASS, BlockType::GLASS));
+  CHECK(shouldRenderFace(BlockType::OAK_LEAF, BlockType::OAK_LEAF));
+}
+
+TEST_CASE("the faces behind glass are still drawn") {
+  CHECK(shouldRenderFace(BlockType::STONE, BlockType::GLASS));
+  CHECK(shouldRenderFace(BlockType::GLASS, BlockType::AIR));
+  CHECK(shouldRenderFace(BlockType::GLASS, BlockType::OAK_LEAF));
+  CHECK_FALSE(shouldRenderFace(BlockType::GLASS, BlockType::STONE));
+  CHECK_FALSE(shouldRenderFace(BlockType::BRICKS, BlockType::RED_BLOCK));
+}

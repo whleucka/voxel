@@ -19,22 +19,6 @@ struct MeshBuffers {
   std::vector<unsigned int>& transparentIndices;
 };
 
-// Determine if a face should be rendered between current block and neighbor
-inline bool shouldRenderFace(BlockType current, BlockType neighbor) {
-  if (neighbor == BlockType::AIR) return true;
-  // Cutout neighbours (leaves) have see-through holes, so the face behind them
-  // is visible and must be emitted.  This includes leaf-against-leaf, which is
-  // what gives the canopy interior depth instead of looking hollow through the
-  // holes.
-  if (isCutout(neighbor)) return true;
-  if (isTransparent(current)) {
-    // Transparent blocks: only render if neighbor is different type
-    return neighbor != current;
-  }
-  // Opaque blocks: render if neighbor is transparent (visible through it)
-  return isTransparent(neighbor);
-}
-
 // ─── Ambient Occlusion ─────────────────────────────────────────────────
 
 // Returns true if the block at (x,y,z) should occlude for AO purposes.

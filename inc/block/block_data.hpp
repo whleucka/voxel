@@ -40,14 +40,15 @@ inline bool isLiquid(BlockType type) {
 // and must stay in the same order.
 enum CutoutClass : uint8_t {
   kCutoutNone = 0,  // no alpha test
-  kCutoutLow  = 1,  // 0.67 — oak
+  kCutoutLow  = 1,  // 0.67 — oak, glass
   kCutoutMid  = 2,  // 0.80 — palm, cherry
   kCutoutHigh = 3,  // 0.92 — pine
 };
 
 inline uint8_t cutoutClass(BlockType type) {
   switch (type) {
-    case BlockType::OAK_LEAF:    return kCutoutLow;
+    case BlockType::OAK_LEAF:
+    case BlockType::GLASS:       return kCutoutLow;  // frame 255, pane 0
     case BlockType::PALM_LEAF:
     case BlockType::CHERRY_LEAF: return kCutoutMid;
     case BlockType::PINE_LEAF:   return kCutoutHigh;
@@ -59,11 +60,31 @@ inline bool isCutout(BlockType type) {
   return cutoutClass(type) != kCutoutNone;
 }
 
+// Determine if a face should be rendered between current block and neighbor
+inline bool shouldRenderFace(BlockType current, BlockType neighbor) {
+  if (neighbor == BlockType::AIR) return true;
+  // Panes of glass side by side read as one window, so the face between them
+  // is hidden.  Leaves keep their inner faces (below).
+  if (current == BlockType::GLASS && neighbor == BlockType::GLASS) return false;
+  // Cutout neighbours (leaves) have see-through holes, so the face behind them
+  // is visible and must be emitted.  This includes leaf-against-leaf, which is
+  // what gives the canopy interior depth instead of looking hollow through the
+  // holes.
+  if (isCutout(neighbor)) return true;
+  if (isTransparent(current)) {
+    // Transparent blocks: only render if neighbor is different type
+    return neighbor != current;
+  }
+  // Opaque blocks: render if neighbor is transparent (visible through it)
+  return isTransparent(neighbor);
+}
+
 // Returns the number of sky-light levels absorbed when light passes through
 // a block.  0 = fully transparent (air), 15 = fully opaque (stone, dirt…).
 inline uint8_t skyLightOpacity(BlockType type) {
   switch (type) {
-    case BlockType::AIR:       return 0;
+    case BlockType::AIR:
+    case BlockType::GLASS:     return 0;
     case BlockType::WATER:     return 2;
     case BlockType::OAK_LEAF:
     case BlockType::PINE_LEAF:
