@@ -94,3 +94,18 @@ std::optional<ItemId> dropFor(BlockType b) {
     default:                     return itemForBlock(b);
   }
 }
+
+const std::vector<ItemId> &paletteItems() {
+  static const std::vector<ItemId> items = [] {
+    std::vector<ItemId> out;
+    for (uint16_t v = 1; v <= static_cast<uint16_t>(kLastMaterialItem); ++v) {
+      ItemId id = static_cast<ItemId>(v);
+      if (!isValidItem(id) || id == itemForBlock(BlockType::BEDROCK) ||
+          id == itemForBlock(BlockType::WATER))
+        continue;
+      out.push_back(id);
+    }
+    return out;
+  }();
+  return items;
+}

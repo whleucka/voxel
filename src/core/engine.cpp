@@ -334,7 +334,9 @@ void Engine::handleEvents() {
       cam.pitch = joined->pitch;
       cam.processMouseMovement(0.0f, 0.0f); // refresh direction vectors
       player->setSelectedHotbarSlot(joined->slot);
+      game_mode = joined->mode;
       *player->getFlyModePtr() = joined->fly;
+      player->setFlyAllowed(rulesFor(game_mode).fly);
       menu.close();
       setCursorCaptured(true);
     }
@@ -413,6 +415,8 @@ void Engine::render() {
   if (player->isInventoryOpen()) {
     hud.drawInventoryScreen(layout, inventory_view, inventory_screen,
                             {io.MousePos.x, io.MousePos.y});
+    if (rulesFor(game_mode).palette)
+      hud.drawPalette(layout, paletteItems(), {io.MousePos.x, io.MousePos.y});
   } else {
     hud.drawHotbar(layout, inventory_view, player->getSelectedHotbarSlot(),
                    glfwGetTime());
@@ -598,7 +602,9 @@ void Engine::debug() {
 
         // Controls
         if (ImGui::CollapsingHeader("Controls", ImGuiTreeNodeFlags_DefaultOpen)) {
-          ImGui::Checkbox("Fly mode", player->getFlyModePtr());
+          ImGui::BeginDisabled(!player->isFlyAllowed());
+          ImGui::Checkbox("Fly mode (creative)", player->getFlyModePtr());
+          ImGui::EndDisabled();
           ImGui::PushItemWidth(180);
           ImGui::SliderFloat("Sensitivity", &g_settings.mouse_sensitivity,
                              0.01f, 0.30f, "%.3f");
@@ -934,6 +940,18 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     std::optional<int> slot = layout.hitTestScreen(io.MousePos.x, io.MousePos.y);
     const Inventory::Slots &inv = engine->inventory_view;
     InventoryScreen &screen = engine->inventory_screen;
+
+    // Creative palette: a click gives a full stack of that item.
+    if (rulesFor(engine->game_mode).palette && !slot) {
+      const std::vector<ItemId> &items = paletteItems();
+      int count = static_cast<int>(items.size());
+      if (auto pick = layout.hitTestPalette(io.MousePos.x, io.MousePos.y, count)) {
+        screen.close(); // drop any pick-up; nothing was moved yet
+        ItemId id = items[*pick];
+        engine->connection().send(GiveItem{id, itemDef(id).max_stack});
+        return;
+      }
+    }
 
     std::optional<MoveItems> move;
     if (button == GLFW_MOUSE_BUTTON_LEFT)

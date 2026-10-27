@@ -1,5 +1,7 @@
 #include "doctest/doctest.h"
+#include "item/item.hpp"
 #include "ui/hud_layout.hpp"
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
@@ -100,4 +102,34 @@ TEST_CASE("hit-testing finds the slot under the cursor and nothing in gaps") {
   Rect a = l.screenSlot(10), b = l.screenSlot(11);
   CHECK_FALSE(l.hitTestScreen((a.right() + b.x) * 0.5f, a.center().y)); // gap
   CHECK_FALSE(l.hitTestScreen(5, 5));                                    // outside
+}
+
+TEST_CASE("the creative palette sits beside the inventory screen, on screen") {
+  int count = static_cast<int>(paletteItems().size());
+  for (auto [w, h] : kSizes) {
+    CAPTURE(w);
+    HudLayout l(w, h);
+    Rect panel = l.palettePanel(count);
+    CHECK(inside(panel, w, h));
+    CHECK_FALSE(overlaps(panel, l.screenPanel()));
+    for (int i = 0; i < count; ++i) {
+      Rect r = l.paletteSlot(i, count);
+      CHECK(r.x >= panel.x);
+      CHECK(r.right() <= panel.right());
+      CHECK(r.bottom() <= panel.bottom());
+      CHECK(l.hitTestPalette(r.center().x, r.center().y, count) == i);
+      CHECK_FALSE(l.hitTestScreen(r.center().x, r.center().y));
+    }
+    CHECK_FALSE(l.hitTestPalette(panel.x - 1, panel.y - 1, count));
+  }
+}
+
+TEST_CASE("the palette offers every item but unbreakable blocks") {
+  const auto &items = paletteItems();
+  CHECK(items.size() > 30);
+  for (ItemId id : items) CHECK(isValidItem(id));
+  CHECK(std::find(items.begin(), items.end(), itemForBlock(BlockType::BEDROCK)) == items.end());
+  CHECK(std::find(items.begin(), items.end(), itemForBlock(BlockType::WATER)) == items.end());
+  CHECK(std::find(items.begin(), items.end(), ItemId::DIAMOND) != items.end());
+  CHECK(std::find(items.begin(), items.end(), itemForBlock(BlockType::STONE)) != items.end());
 }

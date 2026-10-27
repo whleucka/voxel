@@ -77,3 +77,27 @@ std::optional<int> HudLayout::hitTestScreen(float px, float py) const {
     if (screenSlot(i).contains(px, py)) return i;
   return std::nullopt;
 }
+
+// ─── Creative palette ──────────────────────────────────────────────────
+
+Rect HudLayout::palettePanel(int count) const {
+  Rect inv = screenPanel();
+  float pad = padding(slot);
+  int rows = (count + kPaletteCols - 1) / kPaletteCols;
+  float pw = kPaletteCols * slot + (kPaletteCols - 1) * gap_ + 2 * pad;
+  float ph = rows * slot + std::max(0, rows - 1) * gap_ + 2 * pad;
+  return {inv.right() + pad, std::round((h - ph) * 0.5f), pw, ph};
+}
+
+Rect HudLayout::paletteSlot(int i, int count) const {
+  Rect panel = palettePanel(count);
+  float pad = padding(slot);
+  int row = i / kPaletteCols, col = i % kPaletteCols;
+  return {panel.x + pad + col * (slot + gap_), panel.y + pad + row * (slot + gap_), slot, slot};
+}
+
+std::optional<int> HudLayout::hitTestPalette(float px, float py, int count) const {
+  for (int i = 0; i < count; ++i)
+    if (paletteSlot(i, count).contains(px, py)) return i;
+  return std::nullopt;
+}

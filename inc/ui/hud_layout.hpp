@@ -43,6 +43,12 @@ public:
   Rect screenSlot(int i) const;
   std::optional<int> hitTestScreen(float px, float py) const;
 
+  // ─── Creative palette (right of the inventory screen) ───────────────
+  static constexpr int kPaletteCols = 5;
+  Rect palettePanel(int count) const;
+  Rect paletteSlot(int i, int count) const; // 0..count-1, row by row
+  std::optional<int> hitTestPalette(float px, float py, int count) const;
+
 private:
   float w, h;
   float slot, gap_;

@@ -36,6 +36,7 @@ private:
   std::unique_ptr<Player> player; // the local player; created on Joined
   std::string last_rejection;     // latest CommandRejected, for the debug panel
   Inventory::Slots inventory_view{}; // the Game's latest InventoryContents
+  GameMode game_mode = GameMode::Survival;   // the world's, from Joined
   VitalsChanged vitals_view{Vitals::kMax, Vitals::kMax, Vitals::kMax, true, false};
   Hud hud;
   EntityRenderer entity_renderer;

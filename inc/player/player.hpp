@@ -43,7 +43,13 @@ public:
   // State queries
   bool isFlyMode() const { return fly_mode; }
   bool *getFlyModePtr() { return &fly_mode; }
-  void toggleFlyMode() { fly_mode = !fly_mode; }
+  // Flying is only for worlds whose mode allows it (the Game says in Joined).
+  void toggleFlyMode() { fly_mode = fly_allowed && !fly_mode; }
+  void setFlyAllowed(bool allowed) {
+    fly_allowed = allowed;
+    fly_mode = fly_mode && allowed;
+  }
+  bool isFlyAllowed() const { return fly_allowed; }
   bool isUnderwater() const { return body.underwater; }  // eyes in water
   bool isInWater() const { return body.underwater || body.at_water_surface; }
   bool isOnGround() const { return body.on_ground; }
@@ -67,6 +73,7 @@ public:
 private:
   // Movement modes
   bool fly_mode = false;
+  bool fly_allowed = true; // tests and the default world; Joined sets it
   bool sprinting = false;
   bool sprint_allowed = true;
   bool crouching = false;

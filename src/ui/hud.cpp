@@ -171,6 +171,28 @@ void Hud::drawInventoryScreen(const HudLayout &layout, const Inventory::Slots &i
   }
 }
 
+void Hud::drawPalette(const HudLayout &layout, const std::vector<ItemId> &items,
+                      glm::vec2 mouse) {
+  ImDrawList *dl = ImGui::GetBackgroundDrawList();
+  int count = static_cast<int>(items.size());
+  Rect panel = layout.palettePanel(count);
+  dl->AddRectFilled(ImVec2(panel.x, panel.y), ImVec2(panel.right(), panel.bottom()),
+                    rgba(30, 30, 36, 0.92f), layout.slotSize() * 0.12f);
+  std::optional<int> hover = layout.hitTestPalette(mouse.x, mouse.y, count);
+  for (int i = 0; i < count; ++i)
+    drawSlot(dl, layout.paletteSlot(i, count), {items[i], 1}, hover && *hover == i, 1.0f, -1);
+
+  if (!hover) return;
+  std::string name(itemDef(items[*hover]).name);
+  float size = std::round(layout.slotSize() * 0.3f);
+  ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, name.c_str());
+  ImVec2 pos(mouse.x - ext.x - 14, mouse.y - ext.y - 6); // left: the panel is at the edge
+  ImDrawList *fg = ImGui::GetForegroundDrawList();
+  fg->AddRectFilled(ImVec2(pos.x - 5, pos.y - 3), ImVec2(pos.x + ext.x + 5, pos.y + ext.y + 3),
+                    rgba(15, 15, 20, 0.92f), 3.0f);
+  fg->AddText(nullptr, size, pos, rgba(255, 255, 255, 1.0f), name.c_str());
+}
+
 // ─── Vitals ────────────────────────────────────────────────────────────
 
 namespace {
