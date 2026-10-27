@@ -104,6 +104,17 @@ changeable from the world list.
 *   **Creative:** fly, place without running out, pick any item from the
     palette beside the inventory, and nothing can hurt you.
 
+### Building blocks
+
+Creative worlds also have blocks made for building: oak, pine, palm and
+cherry **planks**, **bricks**, **stone bricks**, see-through **glass**, eight
+bright **colored blocks** and a **lamp** that lights up a room. They're in
+the palette beside the inventory.
+
+The tiles are original pixel art drawn by `tools/gen_building_tiles.py`.
+Each has a GIMP source in `assets/blocks/` (and a layer in
+`assets/atlas/block_atlas.xcf`) for anyone who'd like to repaint it.
+
 ## Playing together (home network)
 
 The game opens on a title menu, with your last world slowly circling behind

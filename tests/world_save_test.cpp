@@ -1,4 +1,5 @@
 #include "doctest/doctest.h"
+#include "block/block_type.hpp"
 #include "test_util.hpp"
 #include "world/world_save.hpp"
 #include <fstream>
@@ -22,6 +23,7 @@ TEST_CASE("level, player and edits round-trip through save/load") {
   edits[{0, 0}][17] = 3;
   edits[{-2, 5}][4096] = 0;
   edits[{-2, 5}][4097] = 7;
+  edits[{-2, 5}][4098] = static_cast<uint8_t>(kLastBlockType);
 
   REQUIRE(WorldSave::save(dir.path.string(), level, player, edits));
 
