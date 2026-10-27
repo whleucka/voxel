@@ -480,9 +480,6 @@ void Engine::render() {
       1000.0f                                         // far plane
   );
 
-  world().render(view, proj, session->clock().fractionOfDay(), win_width,
-                 win_height, player->getPosition(), player->isUnderwater());
-
   // Entities are drawn between the last two snapshots (one tick behind).
   double now = glfwGetTime();
   float alpha = static_cast<float>((now - last_snapshot_time) / Game::kTickSeconds);
@@ -491,9 +488,15 @@ void Engine::render() {
   // The rod's tip, just below and right of the view, starts our own line.
   const Camera &eye = player->getCamera();
   glm::vec3 hand = eye.position + eye.front * 0.6f + eye.right * 0.3f - eye.up * 0.25f;
-  entity_renderer.draw(entity_views, player_views, world(), view, proj,
-                       player->getCamera().position, player->isUnderwater(),
-                       session->clock().fractionOfDay(), now, player_id, hand);
+
+  // Entities go in before the water, so fish swim under it rather than
+  // showing on top.
+  world().render(view, proj, session->clock().fractionOfDay(), win_width,
+                 win_height, player->getPosition(), player->isUnderwater(), [&] {
+                   entity_renderer.draw(entity_views, player_views, world(), view, proj,
+                                        player->getCamera().position, player->isUnderwater(),
+                                        session->clock().fractionOfDay(), now, player_id, hand);
+                 });
 
   // Frame the block under the crosshair, while there's a crosshair to aim.
   if (!player->isInventoryOpen() && !vitals_view.dead)
