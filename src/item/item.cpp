@@ -59,14 +59,17 @@ constexpr std::array<Material, kMaterialCount> kMaterials = {{
     {"Raw Glowfin", 2},
     {"Cooked Glowfin", 8},
     {"Soggy Boot", 0, 1},
+    {"Treasure Key", 0, 16}, // opens a treasure chest
 }};
 constexpr int kItemAtlasCols = 8;
 
 bool isPlaceableBlock(uint16_t v) {
   if (v == 0 || v > static_cast<uint16_t>(kLastBlockType)) return false;
-  // Water is never held, and a lit furnace is a furnace that's burning.
+  // Water is never held, a lit furnace is a furnace that's burning, and a
+  // treasure chest is only ever found.
   BlockType b = static_cast<BlockType>(v);
-  return b != BlockType::WATER && b != BlockType::FURNACE_LIT;
+  return b != BlockType::WATER && b != BlockType::FURNACE_LIT &&
+         b != BlockType::TREASURE_CHEST;
 }
 
 bool isMaterial(uint16_t v) {
@@ -123,7 +126,8 @@ std::optional<ItemId> dropFor(BlockType b) {
   switch (b) {
     case BlockType::AIR:
     case BlockType::WATER:
-    case BlockType::BEDROCK:     return std::nullopt;
+    case BlockType::BEDROCK:
+    case BlockType::TREASURE_CHEST: return std::nullopt;
     case BlockType::GRASS:
     case BlockType::SNOW_DIRT:   return itemForBlock(BlockType::DIRT);
     case BlockType::STONE:       return itemForBlock(BlockType::COBBLESTONE);

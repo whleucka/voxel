@@ -75,6 +75,10 @@ const std::vector<Recipe> &recipes() {
                                {{material, shape.head}, {{ItemId::STICKS}, shape.sticks}}));
     list.push_back(atTable({ItemId::FISHING_ROD, 1},
                            {{{ItemId::STICKS}, 3}, {{ItemId::WOOL}, 2}}));
+    list.push_back(atTable({block(BlockType::CHEST), 1}, {{anyPlanks(), 8}}));
+    list.push_back(atTable({ItemId::TREASURE_KEY, 1},
+                           {{{ItemId::GOLD_INGOT}, 2},
+                            {{ItemId::RUBY, ItemId::EMERALD, ItemId::DIAMOND}, 1}}));
     return list;
   }();
   return all;

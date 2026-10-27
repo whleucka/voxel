@@ -583,7 +583,8 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
 
   BlockType target = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
   if (target == BlockType::AIR) return reject(client, "break: nothing there");
-  if (target == BlockType::BEDROCK || target == BlockType::WATER)
+  if (target == BlockType::BEDROCK || target == BlockType::WATER ||
+      target == BlockType::TREASURE_CHEST)
     return reject(client, "break: unbreakable block");
 
   // Survival: it takes as long as the block and the tool in hand say, from

@@ -6,7 +6,7 @@ T will be used for chat later on
 
 feat: treasure chests (hard to find)
 - a rare occurrence
-- requires 
+- requires gold key
 
 
 [DONE] [DONE] feat: draw overly on current block (black border like minecraft)

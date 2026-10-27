@@ -237,6 +237,62 @@ def furnace_side(rng, lit):
     return img
 
 
+def chest_wood(base, frame, rng):
+    """Boards inside a darker frame: the body of a chest."""
+    img = planks(base, rng)
+    px = pixels(img)
+    for y in range(TILE):
+        for x in range(TILE):
+            if x < 2 or y < 2 or x > TILE - 3 or y > TILE - 3:
+                px[x, y] = shade(frame, rng.randint(-6, 6) + (12 if x == 0 or y == 0 else 0)) + (255,)
+    return img
+
+
+def chest_top(rng):
+    return chest_wood((150, 112, 66), (86, 58, 30), rng)
+
+
+def chest_side(rng):
+    img = chest_wood((150, 112, 66), (86, 58, 30), rng)
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([2, 11, 29, 12], fill=(70, 46, 22, 255))       # the lid's edge
+    draw.rectangle([13, 9, 18, 16], fill=(168, 168, 176, 255))    # latch
+    draw.rectangle([13, 9, 18, 9], fill=(214, 214, 222, 255))
+    draw.rectangle([15, 13, 16, 14], fill=(60, 60, 66, 255))
+    return img
+
+
+GOLD, GOLD_DARK, GOLD_LIGHT = (222, 176, 52), (140, 100, 20), (255, 228, 120)
+
+
+def gold_bands(img, horizontal):
+    """Gold straps across a treasure chest."""
+    px = pixels(img)
+    for i in range(TILE):
+        for b in (5, 26):
+            for w in range(3):
+                x, y = (i, b + w) if horizontal else (b + w, i)
+                px[x, y] = (GOLD_LIGHT if w == 0 else GOLD if w == 1 else GOLD_DARK) + (255,)
+
+
+def treasure_top(rng):
+    img = chest_wood((84, 50, 30), (44, 26, 14), rng)
+    gold_bands(img, horizontal=False)
+    return img
+
+
+def treasure_side(rng):
+    img = chest_wood((84, 50, 30), (44, 26, 14), rng)
+    gold_bands(img, horizontal=False)
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([2, 11, 29, 12], fill=(36, 20, 10, 255))       # the lid's edge
+    draw.rectangle([11, 9, 20, 19], fill=GOLD + (255,), outline=GOLD_DARK + (255,))  # lock plate
+    draw.rectangle([12, 10, 19, 10], fill=GOLD_LIGHT + (255,))
+    draw.ellipse([14, 12, 17, 15], fill=(30, 18, 8, 255))         # keyhole
+    draw.rectangle([15, 15, 16, 17], fill=(30, 18, 8, 255))
+    return img
+
+
 def lamp(rng):
     """Four glowing panes in a dark iron frame, brightest in the middle."""
     img = new_tile()
@@ -285,6 +341,10 @@ TILES = [
     ("furnace_top",         furnace_top),
     ("furnace_side",        lambda r: furnace_side(r, False)),
     ("furnace_lit_side",    lambda r: furnace_side(r, True)),
+    ("chest_top",           chest_top),
+    ("chest_side",          chest_side),
+    ("treasure_chest_top",  treasure_top),
+    ("treasure_chest_side", treasure_side),
 ]
 
 

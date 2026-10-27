@@ -154,6 +154,8 @@ inline std::string_view blockName(BlockType type) {
     case BlockType::CRAFTING_TABLE: return "Crafting Table";
     case BlockType::FURNACE:       return "Furnace";
     case BlockType::FURNACE_LIT:   return "Lit Furnace";
+    case BlockType::CHEST:         return "Chest";
+    case BlockType::TREASURE_CHEST: return "Treasure Chest";
     default:                      return "Unknown";
   }
 }
@@ -208,4 +210,8 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = {
     // A stone top and a mouth on every side; flames in it while lit.
     {BlockType::FURNACE, {glm::ivec2{3, 3}, glm::ivec2{3, 3}, glm::ivec2{4, 3}}},
     {BlockType::FURNACE_LIT, {glm::ivec2{3, 3}, glm::ivec2{3, 3}, glm::ivec2{5, 3}}},
+    // A lid on top and a latch on every side; the treasure chest in dark
+    // wood with gold bands and a lock.
+    {BlockType::CHEST, {glm::ivec2{6, 3}, glm::ivec2{6, 3}, glm::ivec2{7, 3}}},
+    {BlockType::TREASURE_CHEST, {glm::ivec2{8, 3}, glm::ivec2{8, 3}, glm::ivec2{9, 3}}},
 };

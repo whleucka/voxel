@@ -30,7 +30,9 @@ TEST_CASE("kLastBlockType is the last named block type") {
 TEST_CASE("every placeable block has an item that places it") {
   for (uint16_t v = 1; v <= kLastBlock; ++v) {
     BlockType b = static_cast<BlockType>(v);
-    if (b == BlockType::WATER || b == BlockType::FURNACE_LIT) continue;
+    if (b == BlockType::WATER || b == BlockType::FURNACE_LIT ||
+        b == BlockType::TREASURE_CHEST)
+      continue;
     ItemId id = itemForBlock(b);
     CAPTURE(blockName(b));
     REQUIRE(isValidItem(id));
@@ -45,7 +47,7 @@ TEST_CASE("every placeable block has an item that places it") {
 
 TEST_CASE("the material items are defined with unique item-atlas tiles") {
   auto mats = materials();
-  CHECK(mats.size() == 52);
+  CHECK(mats.size() == 53);
 
   std::set<std::pair<int, int>> tiles;
   for (ItemId id : mats) {
@@ -55,7 +57,7 @@ TEST_CASE("the material items are defined with unique item-atlas tiles") {
     CHECK(!def.name.empty());
     CHECK(def.name != "Unknown");
     bool single = usesOf(id) > 0 || id == ItemId::SOGGY_BOOT;
-    CHECK(def.max_stack == (single ? 1 : 64));
+    CHECK(def.max_stack == (single ? 1 : id == ItemId::TREASURE_KEY ? 16 : 64));
     CHECK_FALSE(def.places.has_value());
     CHECK(def.icon.atlas == ItemIcon::Atlas::Item);
     CHECK(def.icon.tile.x >= 0);
@@ -82,6 +84,7 @@ TEST_CASE("material item ids are stable") {
   CHECK(static_cast<uint16_t>(ItemId::FISHING_ROD) == 300);
   CHECK(static_cast<uint16_t>(ItemId::COOKED_GLOWFIN) == 306);
   CHECK(static_cast<uint16_t>(ItemId::SOGGY_BOOT) == 307);
+  CHECK(static_cast<uint16_t>(ItemId::TREASURE_KEY) == 308);
 }
 
 TEST_CASE("isValidItem rejects the empty item, water and unknown ids") {
@@ -124,7 +127,7 @@ TEST_CASE("every other block drops itself, and every drop is a valid item") {
       BlockType::GRASS,       BlockType::SNOW_DIRT,   BlockType::STONE,
       BlockType::COAL_ORE,    BlockType::DIAMOND_ORE, BlockType::EMERALD_ORE,
       BlockType::RUBY_ORE,    BlockType::IRON_ORE,    BlockType::GOLD_ORE,
-      BlockType::COPPER_ORE,  BlockType::FURNACE_LIT,
+      BlockType::COPPER_ORE,  BlockType::FURNACE_LIT, BlockType::TREASURE_CHEST,
   };
   for (uint16_t v = 0; v <= kLastBlock; ++v) {
     BlockType b = static_cast<BlockType>(v);
