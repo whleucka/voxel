@@ -14,8 +14,10 @@
 - **Creatures:**
   - Friendly Woollies, Bunnies, Shell Turtles and Blossom Deer. Feed them and they give you something back.
   - At night, Gloomlings and Thorn Crawlers come out, and Cave Grumbles lurk in the dark underground.
+  - Pebblefish, Sunfin and glowing Glowfin swim in lakes, the sea and cave pools.
 - **Crafting:** discover recipes as you collect things, and build a Crafting Table for the bigger ones ([more below](#crafting)).
 - **Smelting:** a furnace that cooks raw ore into ingots, and sand into glass, while you're off exploring ([more below](#smelting)).
+- **Fishing:** make a rod, cast it, and reel in when the bobber dips. Cook your catch, or find treasure ([more below](#fishing)).
 - **Tools and weapons:** pickaxes, axes, shovels and swords from wood to diamond; mining takes time and the best ore needs the best picks ([more below](#tools-and-weapons)).
 - **Creative mode:** fly, build without running out, and pick from every block, including planks, bricks, glass, eight bright colors and lamps.
 - **Play together:** host a world on your home network, and up to 8 players can join from the title screen.
@@ -96,7 +98,7 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **W, A, S, D:** Move. **Space:** Jump. **Mouse:** Look around.
 *   **Left Ctrl:** Sprint (uses stamina). **Left Shift:** Crouch.
 *   **Left click:** Hit a creature, or break a block (hold it in survival).
-*   **Right click:** Place a block, feed an animal, or eat the food you're holding.
+*   **Right click:** Place a block, feed an animal, eat the food you're holding, or cast and reel in a fishing rod.
 *   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
 *   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
 *   **ESC:** Close the inventory, or open the pause menu (Resume, Settings,
@@ -177,6 +179,24 @@ copper one, and gems an iron one. Tools wear out (watch the bar under the
 icon). Gem tools have a trick each: a ruby sword sets enemies alight, an
 emerald pickaxe sometimes doubles ore, and diamond is the fastest and
 toughest. Creative breaks everything in one hit, as before.
+
+## Fishing
+
+Fish swim in the world's water: **Pebblefish** in lakes, **Sunfin** in the
+sea and round tropical islands, and **Glowfin**, with glowing spots, in dark
+cave pools. They can't be hurt, and they never leave the water.
+
+Make a **Fishing Rod** at a Crafting Table from 3 sticks and 2 wool (a
+Woolly gives you wool). Right-click to cast, and watch the bobber. After a
+while it dips under and **"Bite! Right-click!"** appears: right-click quickly
+to reel in. Too early and the hook comes back empty; miss it and just wait
+for the next bite. Cast where you can see fish swimming and they bite twice
+as fast.
+
+You'll mostly catch the fish that lives in that water, but now and then
+something else: a shell, some sticks, a soggy boot, or, if you're lucky,
+gold, an emerald or a diamond. Raw fish heal a little. Cook them in a
+furnace and they heal a lot more. A rod lasts 64 catches.
 
 ## Caves
 
