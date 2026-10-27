@@ -1,6 +1,7 @@
 #pragma once
 
 #include "net/discovery.hpp"
+#include "ui/settings_page.hpp"
 #include "world/world_list.hpp"
 #include <cstdint>
 #include <filesystem>
@@ -19,11 +20,20 @@ std::optional<HostAddress> parseAddress(std::string_view text, uint16_t default_
 // "512 B", "48 KB", "3.4 MB": a world's size in the list.
 std::string sizeText(uintmax_t bytes);
 
+// A game in the join list: "castle  -  Bea's game, creative  (2/8)".
+std::string gameLine(const discovery::Beacon &b);
+
+// "Survival" / "Creative", for the menus.
+const char *modeLabel(GameMode mode);
+
 // The screen shown at launch and after leaving a game, over the live scene.
-//   Main:          your name; Single player, Multiplayer, Quit.
-//   Single player: the world list; Play, Host on network, Create, Rename,
-//                  Delete (with a confirm step), Back.
+//   Main:          your name; Single player, Multiplayer, Settings, Quit.
+//   Single player: the world list; Play, Host on network, Create (with a
+//                  mode), Rename, Change mode, Delete (with a confirm step),
+//                  Back.
 //   Multiplayer:   games found on the network, an address box, Back.
+//   Settings:      the shared settings page.
+// Esc goes back (closing an open form first); it never quits.
 // Drawn with ImGui; the Engine acts on what was chosen. World files are
 // managed here directly (they're only folders under the saves root).
 class TitleMenu {
@@ -47,13 +57,15 @@ public:
   void setStatus(std::string status) { status_ = std::move(status); }
 
 private:
-  enum class Page { Main, Worlds, Multiplayer };
+  enum class Page { Main, Worlds, Multiplayer, Settings };
   enum class Form { None, Create, Rename, Delete };
 
   void drawTitle();
   void drawMain(Choice &choice, std::string &name);
   void drawWorlds(Choice &choice, std::string &last_world);
   void drawMultiplayer(Choice &choice, uint16_t default_port);
+  void drawVersion();
+  void goBack();
   void refreshWorlds(const std::string &select);
 
   std::filesystem::path root;
@@ -70,4 +82,6 @@ private:
   char world_buf[40] = {};
   char seed_buf[64] = {};
   bool synced_name = false;
+  GameMode create_mode = GameMode::Survival;
+  SettingsPage settings;
 };

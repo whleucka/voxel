@@ -22,6 +22,10 @@ else
   CFLAGS    := -std=c++20 -Wall -Wextra -O2
 endif
 
+# Shown on the title screen: the git tag/commit, or "dev" outside a checkout.
+VERSION     := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+CFLAGS      += -DVOXEL_VERSION='"$(VERSION)"'
+
 # Auto-generated header dependency files (-MMD produces .d alongside .o)
 DEPFLAGS    := -MMD -MP
 
