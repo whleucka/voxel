@@ -4,6 +4,7 @@
 #include "item/tools.hpp"
 #include "entity/animals.hpp"
 #include "entity/enemies.hpp"
+#include "entity/fish.hpp"
 #include "core/settings.hpp"
 #include <algorithm>
 #include <cctype>
@@ -28,6 +29,7 @@ Game::Game()
       worldgen_(g_settings.worldgen) {
   registerAnimalSpawns(spawner_);
   registerEnemySpawns(spawner_);
+  registerFishSpawns(spawner_);
 }
 
 bool Game::load(const std::string &dir) {
@@ -136,6 +138,7 @@ void Game::removeClient(ClientLink &link) {
   bool guest = it->role == Role::Guest;
   clients.erase(it);
   if (!gone) return;
+  endLine(players.at(*gone));
   // A guest's stuff is written straight away, so a host crash can't lose it.
   if (guest) {
     const PlayerState &ps = players.at(*gone);
@@ -312,6 +315,7 @@ void Game::tick() {
     if (!ps.vitals.dead() && rules().enemies_target) living.push_back(ps.position);
   }
   entities_.tick(world_, rng_, positions, living, speedScale(g_settings.difficulty));
+  tickFishing();
   removeEnemies();
   enemyAttacks();
   spawner_.tick(entities_, world_, rng_, positions, clock_.fractionOfDay(),
@@ -340,7 +344,8 @@ void Game::sendEntitySnapshots() {
     for (const auto &[id, e] : entities_.all()) {
       if (glm::distance(e.body.position, ps->position) > kEntityViewRange) continue;
       snap.entities.push_back({id, e.kind, e.body.position, e.yaw, e.item.id,
-                               e.hurt_ms > 0, e.happy_ms > 0, e.burning_ms > 0, false});
+                               e.hurt_ms > 0, e.happy_ms > 0, e.burning_ms > 0, e.owner,
+                               e.biting, false});
     }
     for (const auto &[pid, other] : players) {
       if (pid == ps->id || other.vitals.dead()) continue;
@@ -623,10 +628,15 @@ void Game::apply(Client &client, const StartBreak &cmd) {
 }
 
 bool Game::wearHeldTool(Client &client, PlayerState &ps) {
+  if (toolOf(ps.inventory.slot(ps.selected_slot).id).kind == ToolKind::None) return false;
+  return spendUse(client, ps);
+}
+
+bool Game::spendUse(Client &client, PlayerState &ps) {
   ItemStack held = ps.inventory.slot(ps.selected_slot);
-  Tool tool = toolOf(held.id);
-  if (tool.kind == ToolKind::None) return false;
-  if (++held.wear >= maxUses(tool.tier)) {
+  int uses = usesOf(held.id);
+  if (uses <= 0) return false;
+  if (++held.wear >= uses) {
     ps.inventory.set(ps.selected_slot, {});
     client.link->deliver(ToolBroke{held.id});
   } else {
@@ -1002,6 +1012,107 @@ void Game::apply(Client &client, const EatItem &) {
   ps->inventory.take(ps->selected_slot, 1);
   sendInventory(client, *ps);
   ps->vitals.heal(heal);
+}
+
+// ─── Fishing ───────────────────────────────────────────────────────────
+
+namespace {
+
+bool inWaterAt(const World &world, glm::vec3 p) { return isLiquid(world.getBlockAt(p)); }
+
+} // namespace
+
+void Game::apply(Client &client, const CastLine &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead()) return;
+  if (ps->inventory.slot(ps->selected_slot).id != ItemId::FISHING_ROD)
+    return reject(client, "cast: no fishing rod held");
+  glm::vec3 dir = cmd.dir;
+  if (!std::isfinite(dir.x) || !std::isfinite(dir.y) || !std::isfinite(dir.z) ||
+      glm::length(dir) < 0.1f)
+    return reject(client, "cast: bad direction");
+  dir = glm::normalize(dir);
+
+  endLine(*ps); // one line each: a new cast replaces the old
+  auto id = entities_.spawn(EntityKind::Bobber, ps->eyePosition() + dir * 0.6f);
+  if (!id) return reject(client, "cast: entity cap reached");
+  Entity &bobber = *entities_.find(*id);
+  bobber.owner = ps->id;
+  bobber.body.swims = true; // no sinking: it floats
+  bobber.body.glides = true;
+  bobber.body.velocity = dir * kCastSpeed + glm::vec3(0.0f, kCastLift, 0.0f);
+  ps->fishing = PlayerState::Fishing{*id};
+}
+
+void Game::apply(Client &client, const ReelIn &) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead()) return;
+  if (!ps->fishing) return reject(client, "reel: no line out");
+  const Entity *bobber = entities_.find(ps->fishing->bobber);
+  bool bite = bobber && ps->fishing->window_end_ms != 0;
+  glm::vec3 at = bobber ? bobber->body.position : glm::vec3(0.0f);
+  endLine(*ps);
+  if (!bite) return; // too early, or on land: nothing on the hook
+
+  glm::ivec3 cell(std::floor(at.x), std::floor(at.y + 0.1f), std::floor(at.z));
+  ItemStack got = rollCatch(world_, cell, rng_);
+  ItemStack left = ps->inventory.add(got);
+  if (!left.empty())
+    dropItem(left, ps->position + glm::vec3(0.0f, 0.5f, 0.0f), glm::vec3(0.0f),
+             kBreakDropDelayMs);
+  client.link->deliver(Caught{got.id});
+  if (rules().timed_mining) spendUse(client, *ps);
+  sendInventory(client, *ps);
+}
+
+void Game::endLine(PlayerState &ps) {
+  if (!ps.fishing) return;
+  entities_.remove(ps.fishing->bobber);
+  ps.fishing.reset();
+}
+
+void Game::tickFishing() {
+  const uint64_t now = nowMs();
+  for (auto &[pid, ps] : players) {
+    if (!ps.fishing) continue;
+    PlayerState::Fishing &line = *ps.fishing;
+    Entity *bobber = entities_.find(line.bobber);
+    // The line breaks: switching away from the rod, walking off, dying.
+    if (!bobber || ps.vitals.dead() ||
+        ps.inventory.slot(ps.selected_slot).id != ItemId::FISHING_ROD ||
+        glm::distance(ps.position, bobber->body.position) > kLineBreakDistance) {
+      endLine(ps);
+      continue;
+    }
+
+    PhysicsBody &body = bobber->body;
+    if (!inWaterAt(world_, body.position + glm::vec3(0.0f, 0.1f, 0.0f))) {
+      // On land or still flying: nothing will bite.
+      line.bite_at_ms = line.window_end_ms = 0;
+      bobber->biting = false;
+      continue;
+    }
+    // Float at the top of the water, a little sunk.
+    glm::vec3 top = body.position + glm::vec3(0.0f, 0.1f, 0.0f);
+    while (inWaterAt(world_, top + glm::vec3(0.0f, 1.0f, 0.0f))) top.y += 1.0f;
+    body.position.y = std::floor(top.y) + 1.0f - 0.12f;
+    body.velocity = glm::vec3(0.0f);
+
+    auto rollWait = [&] {
+      bool near = false;
+      for (const auto &[id, e] : entities_.all())
+        near |= isFish(e.kind) && glm::distance(e.body.position, body.position) <= kFishNearBobber;
+      line.bite_at_ms = now + biteWaitMs(rng_, near);
+    };
+    if (line.bite_at_ms == 0) rollWait();
+    if (line.window_end_ms == 0 && now >= line.bite_at_ms) {
+      line.window_end_ms = now + kBiteWindowMs;
+    } else if (line.window_end_ms != 0 && now > line.window_end_ms + kBreakSlackMs) {
+      line.window_end_ms = 0; // missed it: the fish swims off
+      rollWait();
+    }
+    bobber->biting = line.window_end_ms != 0;
+  }
 }
 
 // ─── Enemies ───────────────────────────────────────────────────────────

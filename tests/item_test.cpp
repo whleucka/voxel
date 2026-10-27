@@ -45,7 +45,7 @@ TEST_CASE("every placeable block has an item that places it") {
 
 TEST_CASE("the material items are defined with unique item-atlas tiles") {
   auto mats = materials();
-  CHECK(mats.size() == 44);
+  CHECK(mats.size() == 52);
 
   std::set<std::pair<int, int>> tiles;
   for (ItemId id : mats) {
@@ -54,7 +54,8 @@ TEST_CASE("the material items are defined with unique item-atlas tiles") {
     CAPTURE(def.name);
     CHECK(!def.name.empty());
     CHECK(def.name != "Unknown");
-    CHECK(def.max_stack == (toolOf(id).kind == ToolKind::None ? 64 : 1));
+    bool single = usesOf(id) > 0 || id == ItemId::SOGGY_BOOT;
+    CHECK(def.max_stack == (single ? 1 : 64));
     CHECK_FALSE(def.places.has_value());
     CHECK(def.icon.atlas == ItemIcon::Atlas::Item);
     CHECK(def.icon.tile.x >= 0);
@@ -77,6 +78,10 @@ TEST_CASE("material item ids are stable") {
   CHECK(static_cast<uint16_t>(ItemId::STICKS) == 267);
   CHECK(static_cast<uint16_t>(ItemId::IRON_INGOT) == 268);
   CHECK(static_cast<uint16_t>(ItemId::CHARCOAL) == 271);
+  CHECK(static_cast<uint16_t>(ItemId::DIAMOND_SWORD) == 299);
+  CHECK(static_cast<uint16_t>(ItemId::FISHING_ROD) == 300);
+  CHECK(static_cast<uint16_t>(ItemId::COOKED_GLOWFIN) == 306);
+  CHECK(static_cast<uint16_t>(ItemId::SOGGY_BOOT) == 307);
 }
 
 TEST_CASE("isValidItem rejects the empty item, water and unknown ids") {
@@ -203,12 +208,13 @@ TEST_CASE("split takes up to n") {
   CHECK(split(empty, 5) == ItemStack{});
 }
 
-TEST_CASE("berries and sweet petals are the only food") {
+TEST_CASE("berries, sweet petals and fish are the only food") {
   CHECK(itemDef(ItemId::BERRIES).food_heal == 4);
   CHECK(itemDef(ItemId::SWEET_PETALS).food_heal == 6);
   for (uint16_t v = 1; v <= static_cast<uint16_t>(kLastMaterialItem); ++v) {
     ItemId id = static_cast<ItemId>(v);
     if (!isValidItem(id) || id == ItemId::BERRIES || id == ItemId::SWEET_PETALS) continue;
+    if (id >= ItemId::RAW_PEBBLEFISH && id <= ItemId::COOKED_GLOWFIN) continue;
     CAPTURE(itemDef(id).name);
     CHECK(itemDef(id).food_heal == 0);
   }

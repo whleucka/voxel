@@ -8,9 +8,10 @@
 
 class World;
 
-// Where a rule looks for a spot: the top of a column, or an air pocket below
-// it (a dug tunnel; the world has no natural caves yet).
-enum class Placement { Surface, Cave };
+// Where a rule looks for a spot: the top of a column, an air pocket below it
+// (a cave), or a water cell in it (fish). Cave spots are looked for closer to
+// players. For water, `ground` in can_spawn is the water cell itself.
+enum class Placement { Surface, Cave, Water, CaveWater };
 
 // When and where one kind of creature appears near players. Rules are added
 // by the modules that own creatures (animals, enemies).
@@ -50,6 +51,9 @@ public:
   // with two air blocks above, under the column's highest block. In a loaded
   // chunk; nothing if the column has no such pocket.
   static std::optional<glm::ivec3> caveAt(const World &world, int x, int z, Rng &rng);
+  // A random water cell in column (x, z) with water directly above or below
+  // it (water at least 2 deep). In a loaded chunk; nothing if there is none.
+  static std::optional<glm::ivec3> waterAt(const World &world, int x, int z, Rng &rng);
 
 private:
   std::vector<SpawnRule> rules_;

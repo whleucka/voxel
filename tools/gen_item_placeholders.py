@@ -185,13 +185,68 @@ def sword(fill, dark):
 
 TOOLS = [make(*t) for make in (pickaxe, axe, shovel, sword) for t in TIERS]
 
+
+def fishing_rod():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    handle(d, (4, 28), (24, 5))
+    d.line([(4, 28), (8, 24)], fill=(60, 60, 64, 255), width=4)  # grip
+    d.line([(24, 5), (27, 20)], fill=(230, 230, 236, 255))      # the line
+    d.ellipse([24, 19, 30, 25], fill=(220, 40, 40, 255))        # bobber
+    d.rectangle([24, 22, 30, 25], fill=(245, 245, 245, 255))
+    return img
+
+
+# Fish: a body, a tail and an eye, in the species' colours (body, dark, fin).
+# Cooked fish are the same shape, browned, with grill marks.
+FISH = [
+    ((126, 150, 120), (64, 80, 62), (170, 186, 150)),  # Pebblefish
+    ((244, 140, 40), (150, 70, 10), (255, 214, 60)),   # Sunfin
+    ((36, 60, 130), (14, 24, 64), (90, 240, 240)),     # Glowfin
+]
+COOKED = ((176, 112, 58), (96, 56, 24), (214, 160, 96))
+
+
+def fish(body, dark, fin, cooked=False):
+    def draw():
+        img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        b, k, f = COOKED if cooked else (body, dark, fin)
+        d.polygon([(22, 16), (30, 9), (30, 23)], fill=f + (255,), outline=k + (255,))  # tail
+        d.ellipse([3, 9, 25, 23], fill=b + (255,), outline=k + (255,))
+        d.polygon([(11, 10), (16, 5), (19, 10)], fill=f + (255,))  # top fin
+        if cooked:
+            for x in (10, 15, 20):
+                d.line([(x, 11), (x - 3, 21)], fill=k + (255,), width=2)
+        else:
+            for x, y in [(13, 18), (17, 14), (20, 18)]:  # spots
+                d.point((x, y), fill=f + (255,))
+        d.rectangle([7, 14, 8, 15], fill=(10, 10, 10, 255))
+        return img
+    return draw
+
+
+def soggy_boot():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    boot = [(9, 4), (19, 4), (19, 18), (28, 21), (28, 27), (6, 27), (7, 18)]
+    d.polygon(boot, fill=(104, 84, 56, 255), outline=(52, 40, 24, 255))
+    d.line([(6, 25), (28, 25)], fill=(52, 40, 24, 255), width=2)  # sole
+    d.rectangle([9, 4, 19, 7], fill=(80, 62, 40, 255))
+    for x, y in [(23, 10), (26, 6), (24, 3)]:  # drips
+        d.ellipse([x - 1, y - 1, x + 1, y + 2], fill=(90, 160, 230, 255))
+    return img
+
+
+FISHING = [fishing_rod] + [fish(*c, cooked=cooked) for c in FISH for cooked in (False, True)] + [soggy_boot]
+
 # Animal products, crafted and smelted items, after the shape-based
 # materials, in ItemId order.
 DRAWN = [wool, berries, shell, petals, sticks,
          ingot((200, 200, 206), (110, 110, 118), (236, 236, 242)),   # iron
          ingot((214, 120, 64), (120, 60, 28), (246, 170, 120)),     # copper
          ingot((240, 200, 60), (150, 110, 20), (255, 236, 140)),    # gold
-         charcoal] + TOOLS
+         charcoal] + TOOLS + FISHING
 
 
 def main():

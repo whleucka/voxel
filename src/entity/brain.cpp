@@ -72,6 +72,85 @@ bool WanderBrain::safeAhead(const Entity &self, const World &world) const {
   return false; // a drop of more than kMaxSafeDrop
 }
 
+// ─── Swimming ──────────────────────────────────────────────────────────
+
+bool SwimBrain::inWater(const Entity &self, const World &world) {
+  glm::vec3 mid = self.body.position + glm::vec3(0.0f, self.body.height * 0.5f, 0.0f);
+  return isLiquid(world.getBlockAt(mid));
+}
+
+bool SwimBrain::waterAhead(const Entity &self, const World &world, glm::vec3 dir, float dist) {
+  const PhysicsBody &b = self.body;
+  glm::vec3 base = b.position + dir * dist;
+  // The corners of the body's box there, nudged inward so a body flush with
+  // a block face doesn't count as touching it.
+  const float w = b.half_width - 0.01f;
+  for (float y : {0.01f, b.height - 0.01f})
+    for (float x : {-w, w})
+      for (float z : {-w, w})
+        if (!isLiquid(world.getBlockAt(base + glm::vec3(x, y, z)))) return false;
+  return true;
+}
+
+Intent SwimBrain::think(const Entity &self, const BrainContext &ctx) {
+  constexpr float kLook = 0.4f; // blocks ahead it checks before swimming on
+  Intent in;
+
+  if (!inWater(self, ctx.world)) {
+    // Stranded: flop about in a random direction.
+    std::uniform_real_distribution<float> angle(0.0f, 2.0f * 3.14159265f);
+    float a = angle(ctx.rng);
+    in.move_dir = {std::sin(a), -std::cos(a)};
+    in.jump = self.body.on_ground;
+    in.yaw = glm::degrees(a);
+    swimming = false;
+    return in;
+  }
+
+  timer_ms -= EntityStore::kTickMs;
+  if (timer_ms <= 0) {
+    std::uniform_int_distribution<int> percent(0, 99);
+    swimming = percent(ctx.rng) < 70;
+    if (swimming) {
+      std::uniform_real_distribution<float> angle(0.0f, 2.0f * 3.14159265f);
+      std::uniform_real_distribution<float> tilt(-0.4f, 0.4f);
+      float a = angle(ctx.rng);
+      dir = glm::normalize(glm::vec3(std::sin(a), tilt(ctx.rng), -std::cos(a)));
+      yaw = glm::degrees(a);
+      timer_ms = std::uniform_int_distribution<int>(1500, 4000)(ctx.rng);
+    } else {
+      timer_ms = std::uniform_int_distribution<int>(800, 2500)(ctx.rng);
+    }
+  }
+
+  in.yaw = yaw;
+  if (!swimming) return in;
+
+  if (!waterAhead(self, ctx.world, dir, kLook)) {
+    // Try level, then turning round, before giving up until the next choice.
+    glm::vec3 level = glm::vec3(dir.x, 0.0f, dir.z);
+    glm::vec3 tries[] = {glm::normalize(level), -glm::normalize(level),
+                         glm::vec3(-dir.z, 0.0f, dir.x), glm::vec3(dir.z, 0.0f, -dir.x)};
+    bool found = false;
+    for (glm::vec3 t : tries) {
+      if (waterAhead(self, ctx.world, t, kLook)) {
+        dir = t;
+        yaw = glm::degrees(std::atan2(dir.x, -dir.z));
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      swimming = false;
+      return in;
+    }
+  }
+  in.yaw = yaw;
+  in.move_dir = {dir.x, dir.z};
+  in.rise = dir.y;
+  return in;
+}
+
 // ─── Chasing ───────────────────────────────────────────────────────────
 
 namespace {

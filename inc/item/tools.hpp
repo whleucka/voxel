@@ -22,6 +22,9 @@ ItemId toolItem(ToolKind kind, Tier tier);
 
 int miningSpeed(Tier tier); // how many times faster than a bare hand
 int maxUses(Tier tier);     // before it breaks
+// Uses before this item breaks: a tool's tier uses, the fishing rod's, or 0
+// for anything that doesn't wear.
+int usesOf(ItemId id);
 int swordDamage(Tier tier); // hand: 1
 
 // Damage a hit does with this held (or NONE): swords their tier's damage,

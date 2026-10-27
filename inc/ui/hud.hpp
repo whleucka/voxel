@@ -14,6 +14,9 @@ struct ImDrawList;
 // Draws the hotbar and the inventory screen with ImGui draw lists. Owns its own
 // copies of the block and item atlases (sRGB, nearest filtering, matching the
 // world's colours). All geometry comes from HudLayout / item_icon_geometry.
+// The popup for a catch: "Caught a Sunfin!" (raw fish are named by kind).
+std::string caughtMessage(ItemId item);
+
 class Hud {
 public:
   Hud() = default;
@@ -66,6 +69,8 @@ public:
     notice_since = now;
   }
   void drawNotice(const HudLayout &layout, double now);
+  // While the local player's bobber is biting: a pulsing prompt to reel in.
+  void drawBitePrompt(const HudLayout &layout, double now);
 
   // How far the block being mined has got, 0..1, as a ring round the crosshair.
   void drawMiningRing(float progress);

@@ -133,3 +133,11 @@ TEST_CASE("the palette offers every item but unbreakable blocks") {
   CHECK(std::find(items.begin(), items.end(), ItemId::DIAMOND) != items.end());
   CHECK(std::find(items.begin(), items.end(), itemForBlock(BlockType::STONE)) != items.end());
 }
+
+TEST_CASE("the bite prompt sits above the notice, clear of it") {
+  HudLayout l(1920.0f, 1080.0f);
+  Rect bite = l.bitePromptArea(), notice = l.noticeArea();
+  CHECK(bite.bottom() <= notice.y);
+  CHECK(bite.h == notice.h);
+  CHECK(bite.y > 0.0f);
+}

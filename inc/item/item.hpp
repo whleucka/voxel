@@ -57,11 +57,19 @@ enum class ItemId : uint16_t {
   RUBY_SWORD,
   EMERALD_SWORD,
   DIAMOND_SWORD,
+  FISHING_ROD,       // fishing
+  RAW_PEBBLEFISH,
+  COOKED_PEBBLEFISH,
+  RAW_SUNFIN,
+  COOKED_SUNFIN,
+  RAW_GLOWFIN,
+  COOKED_GLOWFIN,
+  SOGGY_BOOT,
   // Append only: the numeric value is persisted in inventory saves.
 };
 
 constexpr ItemId kFirstMaterialItem = ItemId::COAL;
-constexpr ItemId kLastMaterialItem = ItemId::DIAMOND_SWORD;
+constexpr ItemId kLastMaterialItem = ItemId::SOGGY_BOOT;
 
 struct ItemIcon {
   enum class Atlas : uint8_t { Block, Item };

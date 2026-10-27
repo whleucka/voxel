@@ -407,6 +407,9 @@ void Engine::handleEvents() {
       inventory_view = contents->slots;
       inventory_screen.sync(inventory_view);
     }
+    else if (const auto *caught = std::get_if<Caught>(&ev)) {
+      hud.notice(caughtMessage(caught->item), glfwGetTime());
+    }
     else if (const auto *broke = std::get_if<ToolBroke>(&ev)) {
       hud.notice("Your " + std::string(itemDef(broke->item).name) + " broke!", glfwGetTime());
     }
@@ -481,9 +484,12 @@ void Engine::render() {
   float alpha = static_cast<float>((now - last_snapshot_time) / Game::kTickSeconds);
   entity_views = entity_interp.views(alpha);
   player_views = entity_interp.players(alpha);
+  // The rod's tip, just below and right of the view, starts our own line.
+  const Camera &eye = player->getCamera();
+  glm::vec3 hand = eye.position + eye.front * 0.6f + eye.right * 0.3f - eye.up * 0.25f;
   entity_renderer.draw(entity_views, player_views, world(), view, proj,
                        player->getCamera().position, player->isUnderwater(),
-                       session->clock().fractionOfDay(), now);
+                       session->clock().fractionOfDay(), now, player_id, hand);
 
   // ImGui frame must always be opened here so both renderCrosshair() and
   // debug() can safely submit widgets regardless of game state.
@@ -517,6 +523,8 @@ void Engine::render() {
     hud.drawVitals(layout, vitals_view, glfwGetTime());
   }
   hud.drawNotice(layout, glfwGetTime());
+  if (!player->isInventoryOpen() && myBobber() && myBobber()->biting)
+    hud.drawBitePrompt(layout, glfwGetTime());
   if (mining && !player->isInventoryOpen()) hud.drawMiningRing(mining->progress);
   if (vitals_view.dead) hud.drawDeathScreen();
   PauseMenu::Action action = pause.draw(session->mode() == Session::Mode::Single,
@@ -678,6 +686,12 @@ void Engine::debug() {
           // Surface enemies vanish in daylight: set the time to night first.
           for (EntityKind k : kEnemyKinds) {
             ImGui::SameLine();
+            std::string label = std::string(entityType(k).name);
+            if (ImGui::Button(label.c_str())) connection().send(SpawnDebugEntity{k});
+          }
+          // Fish spawn in front of you; stand in water first or they flop.
+          for (EntityKind k : kFishKinds) {
+            if (k != kFishKinds[0]) ImGui::SameLine();
             std::string label = std::string(entityType(k).name);
             if (ImGui::Button(label.c_str())) connection().send(SpawnDebugEntity{k});
           }
@@ -1111,10 +1125,17 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     else if (ray.hit && !rulesFor(engine->game_mode).timed_mining)
       engine->connection().send(BreakBlock{ray.block_pos});
   } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-    // Feed an animal, else eat held food, else place a block.
+    // Feed an animal, else fish with a rod, else eat held food, else place
+    // a block.
     const ItemStack &held = engine->inventory_view[player->getSelectedHotbarSlot()];
     if (auto animal = aimedEntity(isAnimal))
       engine->connection().send(InteractEntity{*animal});
+    else if (held.id == ItemId::FISHING_ROD) {
+      if (engine->myBobber())
+        engine->connection().send(ReelIn{});
+      else
+        engine->connection().send(CastLine{cam.front});
+    }
     // Use a Crafting Table or a furnace (crouch to place against it instead).
     else if (ray.hit && ray.block_type == BlockType::CRAFTING_TABLE && !player->isCrouching())
       engine->setInventoryOpen(true);

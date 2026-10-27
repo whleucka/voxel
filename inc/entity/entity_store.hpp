@@ -13,6 +13,7 @@ public:
   static constexpr int kTickMs = 50;
   static constexpr size_t kMaxEntities = 256;
   static constexpr float kDespawnDistance = 96.0f;
+  static constexpr int kStrandedMs = 3000; // a fish out of water vanishes
 
   // Returns nothing when the cap is reached or the kind is unknown.
   std::optional<EntityId> spawn(EntityKind kind, glm::vec3 pos);

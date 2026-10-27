@@ -135,7 +135,7 @@ struct Reader {
 template <class IO> void fields(IO &io, ItemStack &m) { io(m.id, m.count, m.wear); }
 template <class IO> void fields(IO &io, BlockEdit &m) { io(m.pos, m.type); }
 template <class IO> void fields(IO &io, EntityView &m) {
-  io(m.id, m.kind, m.position, m.yaw, m.item, m.hurt, m.happy, m.burning);
+  io(m.id, m.kind, m.position, m.yaw, m.item, m.hurt, m.happy, m.burning, m.owner, m.biting);
 }
 template <class IO> void fields(IO &io, PlayerView &m) {
   io(m.id, m.name, m.position, m.yaw, m.pitch, m.crouch);
@@ -171,6 +171,8 @@ template <class IO> void fields(IO &io, Craft &m) { io(m.recipe, m.all); }
 template <class IO> void fields(IO &io, OpenContainer &m) { io(m.pos); }
 template <class IO> void fields(IO &, CloseContainer &) {}
 template <class IO> void fields(IO &io, StartBreak &m) { io(m.pos); }
+template <class IO> void fields(IO &io, CastLine &m) { io(m.dir); }
+template <class IO> void fields(IO &, ReelIn &) {}
 
 // Events
 template <class IO> void fields(IO &io, Joined &m) {
@@ -188,6 +190,7 @@ template <class IO> void fields(IO &io, CommandRejected &m) { io(m.reason); }
 template <class IO> void fields(IO &io, InventoryContents &m) { io(m.slots); }
 template <class IO> void fields(IO &io, KnownItems &m) { io(m.ids); }
 template <class IO> void fields(IO &io, ToolBroke &m) { io(m.item); }
+template <class IO> void fields(IO &io, Caught &m) { io(m.item); }
 template <class IO> void fields(IO &io, ContainerView &m) {
   io(m.pos, m.open, m.input, m.fuel, m.output, m.burn, m.cook);
 }

@@ -100,9 +100,9 @@ void Hud::drawSlot(ImDrawList *dl, const Rect &r, const ItemStack &s,
     drawIcon(dl, r, s.id, alpha);
     drawCount(dl, r, s.count, alpha);
     // A worn tool: a bar along the bottom, shrinking from green to red.
-    Tool tool = toolOf(s.id);
-    if (tool.kind != ToolKind::None && s.wear > 0) {
-      float left = 1.0f - static_cast<float>(s.wear) / maxUses(tool.tier);
+    int uses = usesOf(s.id);
+    if (uses > 0 && s.wear > 0) {
+      float left = 1.0f - static_cast<float>(s.wear) / uses;
       float h = std::max(2.0f, std::round(r.h * 0.07f));
       ImVec2 a0(r.x + r.w * 0.12f, r.bottom() - h - r.h * 0.06f);
       float full = r.w * 0.76f;
@@ -405,6 +405,24 @@ void Hud::drawNotice(const HudLayout &layout, double now) {
   shadowText(ImGui::GetForegroundDrawList(), size,
              ImVec2(area.center().x - ext.x * 0.5f, area.y), rgba(255, 225, 120, alpha), alpha,
              notice_text.c_str());
+}
+
+void Hud::drawBitePrompt(const HudLayout &layout, double now) {
+  constexpr const char *kText = "Bite! Right-click!";
+  float pulse = 0.75f + 0.25f * static_cast<float>(std::sin(now * 12.0));
+  Rect area = layout.bitePromptArea();
+  float size = area.h * 1.15f;
+  ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, kText);
+  shadowText(ImGui::GetForegroundDrawList(), size,
+             ImVec2(area.center().x - ext.x * 0.5f, area.y - (size - area.h)),
+             rgba(140, 235, 255, pulse), pulse, kText);
+}
+
+std::string caughtMessage(ItemId item) {
+  std::string name(itemDef(item).name);
+  if (name.rfind("Raw ", 0) == 0) name = name.substr(4);
+  bool vowel = !name.empty() && std::string_view("AEIOU").find(name[0]) != std::string_view::npos;
+  return std::string("Caught ") + (vowel ? "an " : "a ") + name + "!";
 }
 
 // ─── Title logo ────────────────────────────────────────────────────────

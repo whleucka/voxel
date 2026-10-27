@@ -50,6 +50,15 @@ constexpr std::array<Material, kMaterialCount> kMaterials = {{
     {"Ruby Sword", 0, 1},
     {"Emerald Sword", 0, 1},
     {"Diamond Sword", 0, 1},
+    // Fishing: the rod wears like a tool; the boot is a joke catch.
+    {"Fishing Rod", 0, 1},
+    {"Raw Pebblefish", 2},
+    {"Cooked Pebblefish", 6},
+    {"Raw Sunfin", 2},
+    {"Cooked Sunfin", 6},
+    {"Raw Glowfin", 2},
+    {"Cooked Glowfin", 8},
+    {"Soggy Boot", 0, 1},
 }};
 constexpr int kItemAtlasCols = 8;
 

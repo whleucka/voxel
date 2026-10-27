@@ -16,7 +16,7 @@
 //          values; strings are u16 length + bytes.
 namespace wire {
 
-constexpr uint16_t kProtocolVersion = 6; // 6: tools (wear on stacks, StartBreak)
+constexpr uint16_t kProtocolVersion = 7; // 7: fishing (CastLine, ReelIn, Caught, bobbers)
 constexpr uint32_t kMaxFrame = 4 * 1024 * 1024;
 
 std::vector<uint8_t> encode(const Command &cmd);

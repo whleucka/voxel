@@ -23,6 +23,10 @@ enum class EntityKind : uint16_t {
   Gloomling = 7,    // enemies
   ThornCrawler = 8,
   CaveGrumble = 9,
+  Pebblefish = 10,  // fish
+  Sunfin = 11,
+  Glowfin = 12,
+  Bobber = 13,      // a fishing line's float
 };
 
 // One cuboid of a box model, in blocks, relative to the entity's feet
@@ -33,6 +37,7 @@ struct ModelBox {
   glm::vec3 color{1.0f};  // sRGB 0..1
   int swing = 0;          // legs: +1 / -1 swing in opposite phases while moving
   bool glow = false;      // drawn at full brightness, unlit (glowing eyes)
+  bool wag = false;       // tails: swing side to side about the box's front edge
 };
 
 // Friendly animals: fed, never hurt.
@@ -49,6 +54,13 @@ struct EnemyDef {
   bool surface = true;           // false: spawns in caves
   bool vanish_at_dawn = false;   // removed at sunrise when under open sky
   std::vector<BiomeType> biomes; // where it spawns; empty = anywhere
+};
+
+// Fish: swim in water, never leave it alive, can't be hurt.
+struct FishDef {
+  std::vector<BiomeType> biomes; // open water in these biomes (unused for cave fish)
+  bool cave = false;             // true: water with a roof over it, any biome
+  ItemId raw = ItemId::NONE;     // what a rod brings up
 };
 
 // A death drop that only sometimes appears.
@@ -72,6 +84,7 @@ struct EntityTypeDef {
   std::optional<AnimalDef> animal;
   std::vector<ChanceDrop> chance_drops = {};
   std::optional<EnemyDef> enemy = std::nullopt;
+  std::optional<FishDef> fish = std::nullopt;
 };
 
 const EntityTypeDef &entityType(EntityKind kind);
@@ -84,7 +97,13 @@ inline bool isEnemy(EntityKind kind) {
   return isValidEntityKind(kind) && entityType(kind).enemy.has_value();
 }
 
+inline bool isFish(EntityKind kind) {
+  return isValidEntityKind(kind) && entityType(kind).fish.has_value();
+}
+
 constexpr EntityKind kAnimalKinds[] = {EntityKind::Woolly, EntityKind::Bunny,
                                        EntityKind::ShellTurtle, EntityKind::BlossomDeer};
 constexpr EntityKind kEnemyKinds[] = {EntityKind::Gloomling, EntityKind::ThornCrawler,
                                       EntityKind::CaveGrumble};
+constexpr EntityKind kFishKinds[] = {EntityKind::Pebblefish, EntityKind::Sunfin,
+                                     EntityKind::Glowfin};
