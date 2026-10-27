@@ -217,7 +217,7 @@ void Renderer::shadowPass(
 
   if (!g_settings.shadows_enabled) return;
 
-  // Compute sun direction (same formula as drawChunks)
+  // Compute sun direction (same formula as useBlockShader)
   float angle = (timeOfDay - 0.25f) * 2.0f * glm::pi<float>();
   float sinA  = std::sin(angle);
   float cosA  = std::cos(angle);
@@ -691,11 +691,8 @@ SceneLighting Renderer::sceneLighting(float timeOfDay) {
   return {sunDir, sunColor, ambientColor, fogColor, waterFogColor};
 }
 
-void Renderer::drawChunks(
-    const std::vector<Chunk *> &chunks,
-    const glm::mat4 &view, const glm::mat4 &projection,
-    const glm::vec3 &cameraPos, bool underwater, float timeOfDay)
-{
+void Renderer::useBlockShader(const glm::mat4 &view, const glm::mat4 &projection,
+                              const glm::vec3 &cameraPos, bool underwater, float timeOfDay) {
   SceneLighting light = sceneLighting(timeOfDay);
   const glm::vec3 &sunDir = light.sun_dir;
   const glm::vec3 &sunColor = light.sun_color;
@@ -733,15 +730,25 @@ void Renderer::drawChunks(
   block_shader->setFloat("uWaterFogDensity",  g_settings.water_fog_density);
   block_shader->setVec3("uWaterFogColor", light.water_fog_color);
 
-  // ── Pass 1: Opaque geometry ───────────────────────────────────────────────
+}
+
+void Renderer::drawOpaqueChunks(const std::vector<Chunk *> &chunks, const glm::mat4 &view,
+                                const glm::mat4 &projection, const glm::vec3 &cameraPos,
+                                bool underwater, float timeOfDay) {
+  useBlockShader(view, projection, cameraPos, underwater, timeOfDay);
   stats.chunks_drawn = static_cast<int>(chunks.size());
   block_shader->setFloat("uAlpha", 1.0f);
   for (Chunk *chunk : chunks) {
     if (!chunk) continue;
     chunk->getMesh().renderOpaque();
   }
+}
 
-  // ── Pass 2: Transparent geometry (blended) ────────────────────────────────
+void Renderer::drawTransparentChunks(const std::vector<Chunk *> &chunks, const glm::mat4 &view,
+                                     const glm::mat4 &projection, const glm::vec3 &cameraPos,
+                                     bool underwater, float timeOfDay) {
+  // Set up again: whatever drew in between used its own shader and textures.
+  useBlockShader(view, projection, cameraPos, underwater, timeOfDay);
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glDepthMask(GL_FALSE);

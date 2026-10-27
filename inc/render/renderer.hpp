@@ -36,9 +36,14 @@ public:
   void drawSky(const glm::mat4 &view, const glm::mat4 &projection, float timeOfDay);
   void drawClouds(const glm::mat4 &view, const glm::mat4 &projection,
                   const glm::vec3 &cameraPos, float timeOfDay, float cloudTime);
-  void drawChunks(const std::vector<Chunk *> &chunks,
-                  const glm::mat4 &view, const glm::mat4 &projection,
-                  const glm::vec3 &cameraPos, bool underwater, float timeOfDay);
+  // Solid blocks, then (after anything else that belongs under the water,
+  // like entities) the blended water and glass.
+  void drawOpaqueChunks(const std::vector<Chunk *> &chunks,
+                        const glm::mat4 &view, const glm::mat4 &projection,
+                        const glm::vec3 &cameraPos, bool underwater, float timeOfDay);
+  void drawTransparentChunks(const std::vector<Chunk *> &chunks,
+                             const glm::mat4 &view, const glm::mat4 &projection,
+                             const glm::vec3 &cameraPos, bool underwater, float timeOfDay);
 
   // Shadow map pass: render depth from the sun's POV
   void shadowPass(const robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash> &chunks,
@@ -51,6 +56,8 @@ public:
   TextureManager &getTextureManager() { return *texture_manager; }
 
 private:
+  void useBlockShader(const glm::mat4 &view, const glm::mat4 &projection,
+                      const glm::vec3 &cameraPos, bool underwater, float timeOfDay);
   void initSkybox();
   void initCloudBuffers();
   void initShadowMap();

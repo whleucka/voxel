@@ -539,40 +539,48 @@ bool World::isChunkInFrustum(const glm::vec4 planes[6], const glm::vec3 &min,
 
 void World::render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay,
                    int viewportWidth, int viewportHeight,
-                   const glm::vec3 &viewer_pos, bool viewer_underwater) {
-  ReadLock lock(chunks_mutex);
-
+                   const glm::vec3 &viewer_pos, bool viewer_underwater,
+                   const std::function<void()> &under_water) {
   glm::mat4 viewProj = projection * view;
-
   glm::vec4 planes[6];
   Camera::getFrustumPlanes(planes, viewProj);
 
-  std::vector<Chunk *> visibleChunks;
-  visibleChunks.reserve(chunks.size());
-
-  for (const auto &[key, chunk] : chunks) {
-    if (!chunk) continue;
-    glm::vec3 min = {key.x * kChunkWidth, 0.0f, key.z * kChunkDepth};
-    glm::vec3 max = {(key.x + 1) * kChunkWidth,
-                     static_cast<float>(kChunkHeight),
-                     (key.z + 1) * kChunkDepth};
-
-    if (isChunkInFrustum(planes, min, max)) {
-      visibleChunks.push_back(chunk.get());
+  // Chunks can come and go while the lock is let go for under_water, so the
+  // visible list is gathered afresh under each hold.
+  auto visible = [&] {
+    std::vector<Chunk *> out;
+    out.reserve(chunks.size());
+    for (const auto &[key, chunk] : chunks) {
+      if (!chunk) continue;
+      glm::vec3 min = {key.x * kChunkWidth, 0.0f, key.z * kChunkDepth};
+      glm::vec3 max = {(key.x + 1) * kChunkWidth,
+                       static_cast<float>(kChunkHeight),
+                       (key.z + 1) * kChunkDepth};
+      if (isChunkInFrustum(planes, min, max)) out.push_back(chunk.get());
     }
+    return out;
+  };
+
+  {
+    ReadLock lock(chunks_mutex);
+    // Shadow pass: render depth from sun's perspective (uses all loaded chunks
+    // so that off-screen geometry can still cast shadows into view)
+    renderer->shadowPass(chunks, viewer_pos, timeOfDay,
+                         viewportWidth, viewportHeight);
+
+    // Sky must be drawn before world geometry (it uses GL_LEQUAL depth and writes
+    // no depth values, so any chunk fragment will correctly overwrite it).
+    renderer->drawSky(view, projection, timeOfDay);
+
+    renderer->drawOpaqueChunks(visible(), view, projection,
+                               viewer_pos, viewer_underwater, timeOfDay);
   }
 
-  // Shadow pass: render depth from sun's perspective (uses all loaded chunks
-  // so that off-screen geometry can still cast shadows into view)
-  renderer->shadowPass(chunks, viewer_pos, timeOfDay,
-                       viewportWidth, viewportHeight);
+  if (under_water) under_water();
 
-  // Sky must be drawn before world geometry (it uses GL_LEQUAL depth and writes
-  // no depth values, so any chunk fragment will correctly overwrite it).
-  renderer->drawSky(view, projection, timeOfDay);
-
-  renderer->drawChunks(visibleChunks, view, projection,
-                       viewer_pos, viewer_underwater, timeOfDay);
+  ReadLock lock(chunks_mutex);
+  renderer->drawTransparentChunks(visible(), view, projection,
+                                  viewer_pos, viewer_underwater, timeOfDay);
 
   // Clouds drawn after opaque & transparent terrain so they blend correctly
   // with the sky behind them while terrain in front occludes them via depth.

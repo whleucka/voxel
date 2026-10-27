@@ -14,6 +14,7 @@
 #include <memory>
 #include <mutex>
 #include <span>
+#include <functional>
 #include <vector>
 
 // Result of a DDA raycast into the voxel world
@@ -34,9 +35,13 @@ public:
   void update(float delta_time);
   // viewer_pos drives shadow/cloud placement and fog; it is the local
   // player's feet position.
+  // `under_water` runs between the solid blocks and the blended water and
+  // glass, so what it draws (entities) shows through the water, tinted. It
+  // runs without the chunk lock held, so it may read the world.
   void render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay,
               int viewportWidth, int viewportHeight,
-              const glm::vec3 &viewer_pos, bool viewer_underwater);
+              const glm::vec3 &viewer_pos, bool viewer_underwater,
+              const std::function<void()> &under_water = {});
 
   // Chunks stream in around each point (one per player). Loading only reacts
   // when a point crosses a chunk boundary; the first call also preloads.
