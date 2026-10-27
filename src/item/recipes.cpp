@@ -73,6 +73,8 @@ const std::vector<Recipe> &recipes() {
       for (const auto &[tier, material] : materials)
         list.push_back(atTable({toolItem(shape.kind, tier), 1},
                                {{material, shape.head}, {{ItemId::STICKS}, shape.sticks}}));
+    list.push_back(atTable({ItemId::FISHING_ROD, 1},
+                           {{{ItemId::STICKS}, 3}, {{ItemId::WOOL}, 2}}));
     return list;
   }();
   return all;

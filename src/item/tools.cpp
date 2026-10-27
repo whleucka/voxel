@@ -35,6 +35,12 @@ int maxUses(Tier tier) {
   return uses[static_cast<int>(tier)];
 }
 
+int usesOf(ItemId id) {
+  if (id == ItemId::FISHING_ROD) return 64;
+  Tool t = toolOf(id);
+  return t.kind == ToolKind::None ? 0 : maxUses(t.tier);
+}
+
 int swordDamage(Tier tier) {
   constexpr std::array<int, 8> damage = {1, 3, 4, 5, 6, 7, 7, 8};
   return damage[static_cast<int>(tier)];

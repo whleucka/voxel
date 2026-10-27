@@ -100,9 +100,9 @@ void Hud::drawSlot(ImDrawList *dl, const Rect &r, const ItemStack &s,
     drawIcon(dl, r, s.id, alpha);
     drawCount(dl, r, s.count, alpha);
     // A worn tool: a bar along the bottom, shrinking from green to red.
-    Tool tool = toolOf(s.id);
-    if (tool.kind != ToolKind::None && s.wear > 0) {
-      float left = 1.0f - static_cast<float>(s.wear) / maxUses(tool.tier);
+    int uses = usesOf(s.id);
+    if (uses > 0 && s.wear > 0) {
+      float left = 1.0f - static_cast<float>(s.wear) / uses;
       float h = std::max(2.0f, std::round(r.h * 0.07f));
       ImVec2 a0(r.x + r.w * 0.12f, r.bottom() - h - r.h * 0.06f);
       float full = r.w * 0.76f;

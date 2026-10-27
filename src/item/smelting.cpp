@@ -32,6 +32,9 @@ std::optional<ItemId> smeltResult(ItemId in) {
     case ItemId::RAW_IRON:   return ItemId::IRON_INGOT;
     case ItemId::RAW_COPPER: return ItemId::COPPER_INGOT;
     case ItemId::RAW_GOLD:   return ItemId::GOLD_INGOT;
+    case ItemId::RAW_PEBBLEFISH: return ItemId::COOKED_PEBBLEFISH;
+    case ItemId::RAW_SUNFIN:     return ItemId::COOKED_SUNFIN;
+    case ItemId::RAW_GLOWFIN:    return ItemId::COOKED_GLOWFIN;
     default: break;
   }
   if (in == block(BlockType::SAND)) return block(BlockType::GLASS);
