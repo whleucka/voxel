@@ -161,12 +161,10 @@ uint8_t Chunk::safeBlockLight(int x, int y, int z) const {
 void Chunk::computeBlockLight() {
   std::fill(blocklight.begin(), blocklight.end(), 0);
 
-  using Queue = std::queue<std::tuple<int, int, int>>;
-  Queue queue;
-
   // Seed the BFS with every emissive block at its emission level. This is the
-  // intra-chunk pass; the World runs a cross-chunk relight over the surrounding
-  // chunks when emitters are present (see World::relightBlockRegion).
+  // intra-chunk pass; light crossing into neighbours is the World's job (see
+  // World::spreadBorderLight and World::relightBlockRegion).
+  LightQueue queue;
   emitter_count = 0;
   for (int y = 0; y < kChunkHeight; ++y)
     for (int z = 0; z < kChunkDepth; ++z)
@@ -178,7 +176,10 @@ void Chunk::computeBlockLight() {
           queue.push({x, y, z});
         }
       }
+  floodBlockLight(queue);
+}
 
+void Chunk::floodBlockLight(LightQueue &queue) {
   static constexpr int DX[6] = {-1, 1, 0, 0, 0, 0};
   static constexpr int DY[6] = {0, 0, -1, 1, 0, 0};
   static constexpr int DZ[6] = {0, 0, 0, 0, -1, 1};
@@ -209,4 +210,46 @@ void Chunk::computeBlockLight() {
       }
     }
   }
+}
+
+glm::ivec2 Chunk::faceCell(int face, int i) {
+  switch (face) {
+    case 0:  return {0, i};
+    case 1:  return {kChunkWidth - 1, i};
+    case 2:  return {i, 0};
+    default: return {i, kChunkDepth - 1};
+  }
+}
+
+Chunk::BorderLight Chunk::borderLight(int face) const {
+  BorderLight out;
+  for (int y = 0; y < kChunkHeight; ++y)
+    for (int i = 0; i < kChunkWidth; ++i) {
+      glm::ivec2 c = faceCell(face, i);
+      out[i + kChunkWidth * y] = getBlockLight(c.x, y, c.y);
+    }
+  return out;
+}
+
+bool Chunk::acceptBorderLight(int face, const BorderLight &incoming) {
+  LightQueue queue;
+  for (int y = 0; y < kChunkHeight; ++y)
+    for (int i = 0; i < kChunkWidth; ++i) {
+      uint8_t from = incoming[i + kChunkWidth * y];
+      if (from <= 1) continue;
+      glm::ivec2 c = faceCell(face, i);
+      uint8_t opacity = skyLightOpacity(at(c.x, y, c.y));
+      if (opacity >= 15) continue;
+      uint8_t cost = 1 + opacity;
+      if (from <= cost) continue;
+      uint8_t light = static_cast<uint8_t>(from - cost);
+      uint8_t &here = blocklight[c.x + kChunkWidth * (c.y + kChunkDepth * y)];
+      if (light > here) {
+        here = light;
+        queue.push({c.x, y, c.y});
+      }
+    }
+  if (queue.empty()) return false;
+  floodBlockLight(queue);
+  return true;
 }
