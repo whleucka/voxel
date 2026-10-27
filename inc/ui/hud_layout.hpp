@@ -62,6 +62,15 @@ public:
   // Which visible row is under the point.
   std::optional<int> hitTestCrafting(float px, float py) const;
 
+  // ─── Furnace (in the crafting panel's place while one is open) ──────
+  Rect furnacePanel() const;
+  Rect furnaceTitle() const;
+  // 0 = input, 1 = fuel, 2 = output.
+  Rect furnaceSlot(int i) const;
+  Rect furnaceArrow() const; // cooking progress, input -> output
+  Rect furnaceFlame() const; // fuel left, beside the fuel slot
+  std::optional<int> hitTestFurnace(float px, float py) const;
+
 private:
   float w, h;
   float slot, gap_;

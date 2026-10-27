@@ -131,3 +131,53 @@ TEST_CASE("shift-click cancels a pick-up") {
   s.shiftClick(1, inv);
   CHECK_FALSE(s.held());
 }
+
+// ─── With a furnace open ───────────────────────────────────────────────
+
+namespace {
+InventoryScreen withFurnace(ItemStack input = {}, ItemStack fuel = {}, ItemStack output = {}) {
+  InventoryScreen s;
+  s.setContainer(InventoryScreen::Container{input, fuel, output});
+  return s;
+}
+} // namespace
+
+TEST_CASE("shift-click sends smeltables to the input and fuel to the fuel slot") {
+  Inventory::Slots inv{};
+  inv[12] = {ItemId::RAW_IRON, 5};
+  inv[13] = {ItemId::COAL, 3};
+  inv[14] = {kDirt, 8};
+  InventoryScreen s = withFurnace();
+  CHECK(same(s.shiftClick(12, inv), 12, kFurnaceInput, 0));
+  CHECK(same(s.shiftClick(13, inv), 13, kFurnaceFuel, 0));
+  CHECK(same(s.shiftClick(14, inv), 14, 0, 0)); // neither: storage -> hotbar as usual
+
+  // A full input sends it the usual way instead.
+  InventoryScreen busy = withFurnace({ItemId::RAW_GOLD, 1});
+  CHECK(same(busy.shiftClick(12, inv), 12, 0, 0));
+}
+
+TEST_CASE("furnace slots pick up and shift-click into the inventory") {
+  Inventory::Slots inv{};
+  inv[0] = {ItemId::IRON_INGOT, 60};
+  InventoryScreen s = withFurnace({}, {}, {ItemId::IRON_INGOT, 10});
+  CHECK(same(s.shiftClick(kFurnaceOutput, inv), kFurnaceOutput, 0, 0)); // tops up first
+  CHECK_FALSE(s.leftClick(kFurnaceOutput, inv));
+  CHECK(s.held() == kFurnaceOutput);
+  CHECK(same(s.leftClick(25, inv), kFurnaceOutput, 25, 0));
+}
+
+TEST_CASE("nothing is dropped into a furnace's output, and closing it lets go") {
+  Inventory::Slots inv{};
+  inv[3] = {ItemId::RAW_IRON, 2};
+  InventoryScreen s = withFurnace({}, {}, {ItemId::IRON_INGOT, 1});
+  s.leftClick(3, inv);
+  CHECK_FALSE(s.leftClick(kFurnaceOutput, inv));
+  CHECK_FALSE(s.held());
+
+  s.leftClick(kFurnaceOutput, inv);
+  REQUIRE(s.held() == kFurnaceOutput);
+  s.setContainer(std::nullopt);
+  CHECK_FALSE(s.held());
+  CHECK_FALSE(s.leftClick(kFurnaceInput, inv)); // no furnace: not a slot
+}

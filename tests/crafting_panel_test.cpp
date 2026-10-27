@@ -63,3 +63,30 @@ TEST_CASE("the crafting panel sits left of the inventory, on screen, clear of th
     CHECK_FALSE(l.hitTestCrafting(inv.center().x, inv.center().y));
   }
 }
+
+TEST_CASE("the furnace panel sits in the crafting panel's place, its pieces inside it") {
+  for (glm::vec2 size : {glm::vec2{1920, 1080}, glm::vec2{1280, 720}, glm::vec2{800, 600}}) {
+    CAPTURE(size.x);
+    HudLayout l(size.x, size.y);
+    Rect panel = l.furnacePanel();
+    Rect inv = l.screenPanel();
+    CHECK(panel.x >= 0.0f);
+    CHECK(panel.right() <= inv.x);
+    CHECK(panel.y >= 0.0f);
+    CHECK(panel.bottom() <= size.y);
+    auto inside = [&](const Rect &r) {
+      return r.x >= panel.x && r.right() <= panel.right() && r.y >= panel.y &&
+             r.bottom() <= panel.bottom();
+    };
+    for (int i = 0; i < 3; ++i) {
+      CHECK(inside(l.furnaceSlot(i)));
+      CHECK(l.hitTestFurnace(l.furnaceSlot(i).center().x, l.furnaceSlot(i).center().y) == i);
+    }
+    CHECK(inside(l.furnaceArrow()));
+    CHECK(inside(l.furnaceFlame()));
+    CHECK(l.furnaceArrow().w > 0.0f);
+    CHECK(l.furnaceSlot(0).right() < l.furnaceSlot(2).x); // input left of output
+    Rect arrow = l.furnaceArrow();                           // arrowhead clear of the output
+    CHECK(arrow.right() + arrow.h * 0.8f <= l.furnaceSlot(2).x);
+  }
+}

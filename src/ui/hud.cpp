@@ -146,6 +146,8 @@ void Hud::drawInventoryScreen(const HudLayout &layout, const Inventory::Slots &i
   std::optional<int> held = screen.held();
   std::optional<int> hover = layout.hitTestScreen(mouse.x, mouse.y);
 
+  // A stack held from a furnace slot is drawn by drawFurnace.
+  if (held && !Inventory::validSlot(*held)) held.reset();
   for (int i = 0; i < kInventorySlots; ++i) {
     bool is_held = held && *held == i;
     drawSlot(dl, layout.screenSlot(i), inv[i], hover && *hover == i,
@@ -192,6 +194,74 @@ void Hud::drawPalette(const HudLayout &layout, const std::vector<ItemId> &items,
   fg->AddRectFilled(ImVec2(pos.x - 5, pos.y - 3), ImVec2(pos.x + ext.x + 5, pos.y + ext.y + 3),
                     rgba(15, 15, 20, 0.92f), 3.0f);
   fg->AddText(nullptr, size, pos, rgba(255, 255, 255, 1.0f), name.c_str());
+}
+
+// ─── Furnace ───────────────────────────────────────────────────────────
+
+void Hud::drawFurnace(const HudLayout &layout, const ContainerView &view,
+                      const InventoryScreen &screen, glm::vec2 mouse) {
+  ImDrawList *dl = ImGui::GetBackgroundDrawList();
+  Rect panel = layout.furnacePanel();
+  if (panel.w <= 0) return;
+  dl->AddRectFilled(ImVec2(panel.x, panel.y), ImVec2(panel.right(), panel.bottom()),
+                    rgba(30, 30, 36, 0.92f), layout.slotSize() * 0.12f);
+  Rect title = layout.furnaceTitle();
+  shadowText(dl, title.h, ImVec2(title.x, title.y), rgba(255, 255, 255, 1.0f), 1.0f, "Furnace");
+
+  const ItemStack stacks[3] = {view.input, view.fuel, view.output};
+  std::optional<int> held = screen.held();
+  std::optional<int> hover = layout.hitTestFurnace(mouse.x, mouse.y);
+  for (int i = 0; i < 3; ++i) {
+    bool is_held = held && *held == kFurnaceInput + i;
+    drawSlot(dl, layout.furnaceSlot(i), stacks[i], hover && *hover == i, is_held ? 0.35f : 1.0f, -1);
+  }
+
+  // Cooking: an arrow track filling left to right.
+  Rect arrow = layout.furnaceArrow();
+  dl->AddRectFilled(ImVec2(arrow.x, arrow.y), ImVec2(arrow.right(), arrow.bottom()),
+                    rgba(0, 0, 0, 0.45f), 2.0f);
+  float done = arrow.w * view.cook / 255.0f;
+  if (done > 0)
+    dl->AddRectFilled(ImVec2(arrow.x, arrow.y), ImVec2(arrow.x + done, arrow.bottom()),
+                      rgba(240, 240, 245, 0.95f), 2.0f);
+  ImVec2 point(arrow.right() + arrow.h * 0.8f, arrow.center().y);
+  dl->AddTriangleFilled(ImVec2(arrow.right(), arrow.y - arrow.h * 0.5f), point,
+                        ImVec2(arrow.right(), arrow.bottom() + arrow.h * 0.5f),
+                        view.cook == 255 ? rgba(240, 240, 245, 0.95f) : rgba(0, 0, 0, 0.45f));
+
+  // Fuel left: a flame that shrinks from the top as the burn runs down.
+  Rect flame = layout.furnaceFlame();
+  dl->AddRectFilled(ImVec2(flame.x, flame.y), ImVec2(flame.right(), flame.bottom()),
+                    rgba(0, 0, 0, 0.45f), 3.0f);
+  float lit = flame.h * view.burn / 255.0f;
+  if (lit > 0) {
+    float top = flame.bottom() - lit;
+    dl->AddRectFilledMultiColor(ImVec2(flame.x + 2, top), ImVec2(flame.right() - 2, flame.bottom() - 2),
+                                rgba(255, 220, 90, 1.0f), rgba(255, 220, 90, 1.0f),
+                                rgba(230, 80, 20, 1.0f), rgba(230, 80, 20, 1.0f));
+  }
+
+  ImDrawList *fg = ImGui::GetForegroundDrawList();
+  if (held && *held >= kFurnaceInput && *held <= kFurnaceOutput) {
+    const ItemStack &carried = stacks[*held - kFurnaceInput];
+    if (!carried.empty()) {
+      float s = layout.slotSize();
+      Rect r{mouse.x - s * 0.5f, mouse.y - s * 0.5f, s, s};
+      drawIcon(fg, r, carried.id, 1.0f);
+      drawCount(fg, r, carried.count, 1.0f);
+    }
+    return;
+  }
+  if (!hover) return;
+  static const char *const kEmpty[3] = {"Something to smelt", "Fuel: coal, charcoal or wood",
+                                        "What comes out"};
+  std::string tip = stacks[*hover].empty() ? kEmpty[*hover] : std::string(itemDef(stacks[*hover].id).name);
+  float size = std::round(layout.slotSize() * 0.3f);
+  ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, tip.c_str());
+  ImVec2 pos(mouse.x + 14, mouse.y - ext.y - 6);
+  fg->AddRectFilled(ImVec2(pos.x - 5, pos.y - 3), ImVec2(pos.x + ext.x + 5, pos.y + ext.y + 3),
+                    rgba(15, 15, 20, 0.92f), 3.0f);
+  fg->AddText(nullptr, size, pos, rgba(255, 255, 255, 1.0f), tip.c_str());
 }
 
 // ─── Crafting ──────────────────────────────────────────────────────────

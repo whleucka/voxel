@@ -51,6 +51,7 @@ private:
   SeenItems known_items;       // from KnownItems: what unlocks recipes
   bool known_baseline = true;  // the first KnownItems after joining: no popup
   int crafting_scroll = 0;     // first crafting row shown
+  std::optional<ContainerView> container_view; // the furnace being looked into
   // The crafting panel's rows right now (inventory, discoveries, a table near).
   std::vector<CraftRow> craftingRowsNow();
   TitleMenu menu;

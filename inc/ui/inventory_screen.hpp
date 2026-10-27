@@ -2,6 +2,7 @@
 
 #include "inventory/inventory.hpp"
 #include "sim/protocol.hpp"
+#include <array>
 #include <optional>
 
 // Click handling for the inventory screen. The inventory itself belongs to the
@@ -9,10 +10,16 @@
 // slot; the actual change is a single MoveItems when it is dropped. Nothing is
 // in flight while a stack is held, so cancelling can never lose items.
 //
-// Slots are indices into Inventory::Slots; std::nullopt means "not on a slot".
+// Slots are indices into Inventory::Slots, or kFurnaceInput.. for an open
+// furnace's slots; std::nullopt means "not on a slot".
 class InventoryScreen {
 public:
   using MaybeSlot = std::optional<int>;
+  using Container = std::array<ItemStack, 3>; // input, fuel, output
+
+  // The furnace being looked into (from ContainerView), or none.
+  void setContainer(std::optional<Container> c);
+  const std::optional<Container> &container() const { return container_; }
 
   std::optional<int> held() const { return held_; }
 
@@ -22,7 +29,9 @@ public:
   // Holding: drop one item on another slot and keep holding the rest.
   std::optional<MoveItems> rightClick(MaybeSlot slot, const Inventory::Slots &inv);
   // Send a whole stack to the other section (hotbar <-> storage): first stack
-  // of the same item with room, else first empty slot. Cancels any pick-up.
+  // of the same item with room, else first empty slot. With a furnace open,
+  // things that smelt go to its input and fuel to its fuel slot, and its
+  // slots empty into the inventory. Cancels any pick-up.
   std::optional<MoveItems> shiftClick(MaybeSlot slot, const Inventory::Slots &inv);
 
   // Call when a new inventory snapshot arrives: drops the pick-up if its
@@ -32,4 +41,8 @@ public:
 
 private:
   std::optional<int> held_;
+  std::optional<Container> container_;
+
+  bool usable(MaybeSlot slot) const;
+  const ItemStack &at(int slot, const Inventory::Slots &inv) const;
 };
