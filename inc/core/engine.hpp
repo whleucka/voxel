@@ -5,6 +5,7 @@
 #include "render/camera.hpp"
 #include "core/session.hpp"
 #include "ui/hud.hpp"
+#include "ui/pause_menu.hpp"
 #include "ui/title_menu.hpp"
 #include "render/menu_scene.hpp"
 #include "entity/entity_interp.hpp"
@@ -38,6 +39,7 @@ private:
   std::string last_rejection;     // latest CommandRejected, for the debug panel
   Inventory::Slots inventory_view{}; // the Game's latest InventoryContents
   GameMode game_mode = GameMode::Survival;   // the world's, from Joined
+  PauseMenu pause;
   VitalsChanged vitals_view{Vitals::kMax, Vitals::kMax, Vitals::kMax, true, false};
   Hud hud;
   EntityRenderer entity_renderer;
@@ -72,6 +74,8 @@ private:
   void endSession(std::string message = {});
   bool playing() const { return session && player; }
   void menuFrame();
+  bool paused() const { return pause.isOpen(); }
+  void pauseAction(PauseMenu::Action action);
   void applyDisplaySettings();
   void startFromMenu(const TitleMenu::Choice &choice);
   void setCursorCaptured(bool captured);
