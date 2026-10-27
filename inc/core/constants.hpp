@@ -56,4 +56,4 @@ constexpr int kHotbarSlots = 10;               // hotbar slots, keys 1..9 and 0
 constexpr float kCollisionEpsilon = 0.001f;    // small offset to prevent z-fighting with block faces
 constexpr float kPlayerStepHeight = 0.6f;      // max height player can auto-step up (Minecraft-style)
 
-inline const std::string kAppTitle = "3D Voxel Engine";
+inline const std::string kAppTitle = "Grumblegrove";
