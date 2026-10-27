@@ -21,7 +21,7 @@
 - **Engine:**
   - Greedy meshing with frustum culling, multi-threaded chunk generation and deterministic, seeded worldgen.
   - Sky and block lighting, shadow mapping, and transparent and cut-out blocks.
-  - A Dear ImGui debug panel (F1).
+  - A Dear ImGui debug panel (F12).
 - **Original art:** block textures hand-made in GIMP, plus generator scripts in `tools/` for the newer tiles.
 
 ## Ideas for next time
@@ -97,11 +97,11 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **Left click:** Break a block, or hit a creature.
 *   **Right click:** Place a block, feed an animal, or eat the food you're holding.
 *   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
-*   **T:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
+*   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
 *   **ESC:** Close the inventory, or open the pause menu (Resume, Settings,
     Save game, Return to title screen, Exit game). Single player pauses.
 *   **F5:** Save the world. **F11:** Toggle fullscreen.
-*   **F1:** Debug info and stats. **F2:** Wireframe. **F3:** V-sync.
+*   **F12:** Debug panel (info, stats, wireframe, V-sync and host cheats).
 
 ## Game modes
 
@@ -157,7 +157,7 @@ it. Type your name, then:
 
 *   **Single player:** pick a world from your list (or create, rename,
     change the mode of, or delete one), then **Play**, or **Host on network** to let others on your
-    network join. F1 shows the address and port guests can use.
+    network join. F12 shows the address and port guests can use.
 *   **Multiplayer:** games on your network are listed automatically; if yours
     isn't, type the host's address (e.g. `192.168.1.20`).
 *   **Settings:** difficulty, render distance, field of view, mouse
@@ -165,7 +165,7 @@ it. Type your name, then:
 
 Up to 8 players. Guests keep their inventory in the host's world under their
 name. The host needs TCP port 47800 and UDP port 47801 open. Only the host
-can use the F1 cheats. Guests play in the host's world mode.
+can use the F12 cheats. Guests play in the host's world mode.
 
 
 ## Contributing

@@ -6,7 +6,7 @@
 struct CursorState {
   bool playing = false;   // in a world (not the title screen)
   bool paused = false;    // pause menu open
-  bool debug = false;     // F1 panel open
+  bool debug = false;     // F12 panel open
   bool inventory = false; // inventory screen open (items are clicked)
 };
 
