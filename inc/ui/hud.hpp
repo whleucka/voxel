@@ -58,6 +58,11 @@ public:
   void drawFurnace(const HudLayout &layout, const ContainerView &view,
                    const InventoryScreen &screen, glm::vec2 mouse);
 
+  // An open chest, in the crafting panel's place, plus the stack carried
+  // from one of its slots.
+  void drawChest(const HudLayout &layout, const ContainerView &view,
+                 const InventoryScreen &screen, glm::vec2 mouse);
+
   // The crafting panel left of it, from row `first` down.
   void drawCrafting(const HudLayout &layout, const std::vector<CraftRow> &rows, int first,
                     const Inventory &inventory, glm::vec2 mouse);

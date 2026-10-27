@@ -141,3 +141,31 @@ TEST_CASE("the bite prompt sits above the notice, clear of it") {
   CHECK(bite.h == notice.h);
   CHECK(bite.y > 0.0f);
 }
+
+TEST_CASE("the chest panel's 20 slots fit beside the inventory without overlapping") {
+  for (auto [w, h] : {std::pair{1920.0f, 1080.0f}, std::pair{1280.0f, 720.0f},
+                      std::pair{3840.0f, 2160.0f}, std::pair{1024.0f, 768.0f}}) {
+    CAPTURE(w);
+    HudLayout l(w, h);
+    Rect panel = l.chestPanel(), inv = l.screenPanel();
+    REQUIRE(l.chestCell() > 0.0f);
+    CHECK(panel.right() <= inv.x);
+    CHECK(panel.x >= 0.0f);
+    CHECK(panel.y >= 0.0f);
+    CHECK(panel.bottom() <= h);
+    for (int i = 0; i < kChestSlots; ++i) {
+      Rect s = l.chestSlot(i);
+      CHECK(s.x >= panel.x);
+      CHECK(s.right() <= panel.right());
+      CHECK(s.y >= l.chestTitle().bottom());
+      CHECK(s.bottom() <= panel.bottom());
+      CHECK(l.hitTestChest(s.center().x, s.center().y) == i);
+      for (int j = 0; j < i; ++j) {
+        Rect o = l.chestSlot(j);
+        bool apart = s.right() <= o.x || o.right() <= s.x || s.bottom() <= o.y || o.bottom() <= s.y;
+        CHECK(apart);
+      }
+    }
+    CHECK_FALSE(l.hitTestChest(inv.center().x, inv.center().y));
+  }
+}

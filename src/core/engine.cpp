@@ -417,8 +417,11 @@ void Engine::handleEvents() {
     else if (const auto *view = std::get_if<ContainerView>(&ev)) {
       if (view->open) {
         container_view = *view;
-        inventory_screen.setContainer(
-            InventoryScreen::Container{view->input, view->fuel, view->output});
+        if (view->kind == ContainerKind::Chest)
+          inventory_screen.setContainer(InventoryScreen::Container{ContainerKind::Chest, view->slots});
+        else
+          inventory_screen.setContainer(
+              InventoryScreen::Container{view->input, view->fuel, view->output});
         inventory_screen.sync(inventory_view);
       } else if (container_view && container_view->pos == view->pos) {
         container_view.reset(); // walked away, or it's gone: back to crafting
@@ -513,7 +516,9 @@ void Engine::render() {
                             {io.MousePos.x, io.MousePos.y});
     if (rulesFor(game_mode).palette)
       hud.drawPalette(layout, paletteItems(), {io.MousePos.x, io.MousePos.y});
-    if (container_view) {
+    if (container_view && container_view->kind == ContainerKind::Chest) {
+      hud.drawChest(layout, *container_view, inventory_screen, {io.MousePos.x, io.MousePos.y});
+    } else if (container_view) {
       hud.drawFurnace(layout, *container_view, inventory_screen, {io.MousePos.x, io.MousePos.y});
     } else {
       std::vector<CraftRow> rows = craftingRowsNow();
@@ -1054,8 +1059,13 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     std::optional<int> slot = layout.hitTestScreen(io.MousePos.x, io.MousePos.y);
     const Inventory::Slots &inv = engine->inventory_view;
     InventoryScreen &screen = engine->inventory_screen;
-    if (engine->container_view && !slot)
-      if (auto f = layout.hitTestFurnace(io.MousePos.x, io.MousePos.y)) slot = kFurnaceInput + *f;
+    if (engine->container_view && !slot) {
+      if (engine->container_view->kind == ContainerKind::Chest) {
+        if (auto c = layout.hitTestChest(io.MousePos.x, io.MousePos.y)) slot = kContainerSlot0 + *c;
+      } else if (auto f = layout.hitTestFurnace(io.MousePos.x, io.MousePos.y)) {
+        slot = kFurnaceInput + *f;
+      }
+    }
 
     // Crafting: a click makes one, shift-click as many as fit. Rows the Game
     // would refuse do nothing. (Not while a furnace takes its place.)
@@ -1142,13 +1152,23 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
       else
         engine->connection().send(CastLine{cam.front});
     }
-    // Use a Crafting Table or a furnace (crouch to place against it instead).
+    // Use a Crafting Table, furnace or chest (crouch to place against it instead).
     else if (ray.hit && ray.block_type == BlockType::CRAFTING_TABLE && !player->isCrouching())
       engine->setInventoryOpen(true);
     else if (ray.hit && !player->isCrouching() &&
-             (ray.block_type == BlockType::FURNACE || ray.block_type == BlockType::FURNACE_LIT)) {
+             (ray.block_type == BlockType::FURNACE || ray.block_type == BlockType::FURNACE_LIT ||
+              ray.block_type == BlockType::CHEST)) {
       engine->connection().send(OpenContainer{ray.block_pos});
       engine->setInventoryOpen(true);
+    }
+    // A treasure chest opens with a key in hand; the Game checks it too.
+    else if (ray.hit && !player->isCrouching() && ray.block_type == BlockType::TREASURE_CHEST) {
+      if (held.id == ItemId::TREASURE_KEY) {
+        engine->connection().send(OpenContainer{ray.block_pos});
+        engine->setInventoryOpen(true);
+      } else {
+        engine->hud.notice("Locked! You need a Treasure Key.", glfwGetTime());
+      }
     }
     else if (!held.empty() && itemDef(held.id).food_heal > 0)
       engine->connection().send(EatItem{});

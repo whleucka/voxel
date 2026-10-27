@@ -181,3 +181,54 @@ TEST_CASE("nothing is dropped into a furnace's output, and closing it lets go") 
   CHECK_FALSE(s.held());
   CHECK_FALSE(s.leftClick(kFurnaceInput, inv)); // no furnace: not a slot
 }
+
+// ─── With a chest open ─────────────────────────────────────────────────
+
+namespace {
+InventoryScreen withChest(std::vector<ItemStack> slots = std::vector<ItemStack>(kChestSlots)) {
+  InventoryScreen s;
+  s.setContainer(InventoryScreen::Container{ContainerKind::Chest, std::move(slots)});
+  return s;
+}
+} // namespace
+
+TEST_CASE("shift-click fills a chest: same item first, then the first gap") {
+  Inventory::Slots inv{};
+  inv[12] = {ItemId::RAW_IRON, 5};
+  inv[2] = {kDirt, 8};
+  std::vector<ItemStack> chest(kChestSlots);
+  chest[0] = {ItemId::COAL, 1};
+  chest[6] = {ItemId::RAW_IRON, 60};
+  InventoryScreen s = withChest(chest);
+  CHECK(same(s.shiftClick(12, inv), 12, kContainerSlot0 + 6, 0)); // tops up the iron
+  CHECK(same(s.shiftClick(2, inv), 2, kContainerSlot0 + 1, 0));   // dirt: first gap
+
+  // A full chest takes nothing; the stack stays put.
+  std::vector<ItemStack> full(kChestSlots, ItemStack{ItemId::COAL, 64});
+  InventoryScreen packed = withChest(full);
+  CHECK_FALSE(packed.shiftClick(2, inv));
+}
+
+TEST_CASE("chest slots take anything and empty into the inventory") {
+  Inventory::Slots inv{};
+  inv[3] = {kDirt, 4};
+  std::vector<ItemStack> chest(kChestSlots);
+  chest[2] = {ItemId::DIAMOND, 2};
+  chest[19] = {ItemId::RUBY, 1};
+  InventoryScreen s = withChest(chest);
+  // Slot 2 is a furnace's output, but a chest's slot 2 takes things.
+  s.leftClick(3, inv);
+  CHECK(same(s.rightClick(kContainerSlot0 + 2, inv), 3, kContainerSlot0 + 2, 1));
+  s.close();
+  CHECK(same(s.shiftClick(kContainerSlot0 + 19, inv), kContainerSlot0 + 19, 0, 0));
+  CHECK_FALSE(s.leftClick(kContainerSlot0 + kChestSlots, inv)); // past the last slot
+  CHECK_FALSE(s.held());
+
+  // A pick-up from the chest survives an update, and goes when it closes.
+  s.leftClick(kContainerSlot0 + 2, inv);
+  REQUIRE(s.held() == kContainerSlot0 + 2);
+  s.setContainer(InventoryScreen::Container{ContainerKind::Chest, chest});
+  CHECK(s.held() == kContainerSlot0 + 2);
+  s.setContainer(std::nullopt);
+  CHECK_FALSE(s.held());
+}

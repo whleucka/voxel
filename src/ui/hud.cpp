@@ -276,6 +276,49 @@ void Hud::drawFurnace(const HudLayout &layout, const ContainerView &view,
   fg->AddText(nullptr, size, pos, rgba(255, 255, 255, 1.0f), tip.c_str());
 }
 
+// ─── Chest ─────────────────────────────────────────────────────────────
+
+void Hud::drawChest(const HudLayout &layout, const ContainerView &view,
+                    const InventoryScreen &screen, glm::vec2 mouse) {
+  ImDrawList *dl = ImGui::GetBackgroundDrawList();
+  Rect panel = layout.chestPanel();
+  if (panel.w <= 0 || layout.chestCell() <= 0) return;
+  dl->AddRectFilled(ImVec2(panel.x, panel.y), ImVec2(panel.right(), panel.bottom()),
+                    rgba(30, 30, 36, 0.92f), layout.slotSize() * 0.12f);
+  Rect title = layout.chestTitle();
+  shadowText(dl, title.h, ImVec2(title.x, title.y), rgba(255, 255, 255, 1.0f), 1.0f, "Chest");
+
+  auto stack = [&](int i) -> ItemStack {
+    return i < static_cast<int>(view.slots.size()) ? view.slots[i] : ItemStack{};
+  };
+  std::optional<int> held = screen.held();
+  std::optional<int> hover = layout.hitTestChest(mouse.x, mouse.y);
+  for (int i = 0; i < kChestSlots; ++i) {
+    bool is_held = held && *held == kContainerSlot0 + i;
+    drawSlot(dl, layout.chestSlot(i), stack(i), hover && *hover == i, is_held ? 0.35f : 1.0f, -1);
+  }
+
+  ImDrawList *fg = ImGui::GetForegroundDrawList();
+  if (held && *held >= kContainerSlot0 && *held < kContainerSlot0 + kChestSlots) {
+    ItemStack carried = stack(*held - kContainerSlot0);
+    if (!carried.empty()) {
+      float s = layout.slotSize();
+      Rect r{mouse.x - s * 0.5f, mouse.y - s * 0.5f, s, s};
+      drawIcon(fg, r, carried.id, 1.0f);
+      drawCount(fg, r, carried.count, 1.0f);
+    }
+    return;
+  }
+  if (!hover || stack(*hover).empty()) return;
+  std::string tip(itemDef(stack(*hover).id).name);
+  float size = std::round(layout.slotSize() * 0.3f);
+  ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, tip.c_str());
+  ImVec2 pos(mouse.x + 14, mouse.y - ext.y - 6);
+  fg->AddRectFilled(ImVec2(pos.x - 5, pos.y - 3), ImVec2(pos.x + ext.x + 5, pos.y + ext.y + 3),
+                    rgba(15, 15, 20, 0.92f), 3.0f);
+  fg->AddText(nullptr, size, pos, rgba(255, 255, 255, 1.0f), tip.c_str());
+}
+
 // ─── Crafting ──────────────────────────────────────────────────────────
 
 void Hud::drawCrafting(const HudLayout &layout, const std::vector<CraftRow> &rows, int first,

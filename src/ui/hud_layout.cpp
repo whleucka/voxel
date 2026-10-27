@@ -219,3 +219,43 @@ std::optional<int> HudLayout::hitTestFurnace(float px, float py) const {
     if (furnaceSlot(i).contains(px, py)) return i;
   return std::nullopt;
 }
+
+// ─── Chest ─────────────────────────────────────────────────────────────
+
+float HudLayout::chestCell() const {
+  float pad = padding(slot);
+  float room = craftingPanel().w - 2 * pad - (kChestCols - 1) * gap_;
+  return std::max(0.0f, std::min(slot, std::floor(room / kChestCols)));
+}
+
+Rect HudLayout::chestPanel() const {
+  Rect left = craftingPanel();
+  Rect inv = screenPanel();
+  float pad = padding(slot);
+  int rows = (kChestSlots + kChestCols - 1) / kChestCols;
+  float ph = std::round(slot * 0.45f + gap_ * 2 + rows * chestCell() + (rows - 1) * gap_ + 2 * pad);
+  return {left.x, std::round(inv.center().y - ph * 0.5f), left.w, ph};
+}
+
+Rect HudLayout::chestTitle() const {
+  Rect panel = chestPanel();
+  float pad = padding(slot);
+  return {panel.x + pad, panel.y + pad, panel.w - 2 * pad, std::round(slot * 0.45f)};
+}
+
+Rect HudLayout::chestSlot(int i) const {
+  Rect panel = chestPanel();
+  Rect title = chestTitle();
+  float cell = chestCell();
+  float grid_w = kChestCols * cell + (kChestCols - 1) * gap_;
+  float x0 = std::round(panel.center().x - grid_w * 0.5f);
+  float y0 = title.bottom() + gap_ * 2;
+  int col = i % kChestCols, row = i / kChestCols;
+  return {x0 + col * (cell + gap_), y0 + row * (cell + gap_), cell, cell};
+}
+
+std::optional<int> HudLayout::hitTestChest(float px, float py) const {
+  for (int i = 0; i < kChestSlots; ++i)
+    if (chestSlot(i).contains(px, py)) return i;
+  return std::nullopt;
+}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "inventory/inventory.hpp"
+#include "item/chest.hpp"
 #include <glm/glm.hpp>
 #include <optional>
 
@@ -73,6 +74,14 @@ public:
   Rect furnaceArrow() const; // cooking progress, input -> output
   Rect furnaceFlame() const; // fuel left, beside the fuel slot
   std::optional<int> hitTestFurnace(float px, float py) const;
+
+  // ─── Chest (in the crafting panel's place while one is open) ────────
+  static constexpr int kChestCols = 5; // kChestSlots in rows of this many
+  Rect chestPanel() const;
+  Rect chestTitle() const;
+  float chestCell() const; // a slot, shrunk if the panel is narrow
+  Rect chestSlot(int i) const;
+  std::optional<int> hitTestChest(float px, float py) const;
 
 private:
   float w, h;
