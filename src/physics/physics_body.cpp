@@ -32,6 +32,7 @@ void PhysicsBody::updateWater(const World *world) {
 // ─── Movement ──────────────────────────────────────────────────────────
 
 void PhysicsBody::applyGravity(float dt) {
+  if (swims && inWater()) return; // it holds its depth by swimming
   float gravity = kGravityForce;
 
   if (underwater) {

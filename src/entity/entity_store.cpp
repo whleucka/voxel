@@ -26,6 +26,7 @@ std::optional<EntityId> EntityStore::spawn(EntityKind kind, glm::vec3 pos) {
   e.body.half_width = def.half_width;
   e.body.height = def.height;
   e.body.eye_height = def.height * 0.85f;
+  e.body.swims = def.fish.has_value();
   e.health = def.max_health;
   if (def.brain) e.brain = def.brain();
 
@@ -78,6 +79,14 @@ void EntityStore::tick(const World &world, Rng &rng, std::span<const glm::vec3> 
     // Unloaded ground: freeze rather than fall out of the world.
     if (!chunkLoaded(world, e.body.position)) continue;
 
+    if (def.fish) {
+      e.stranded_ms = SwimBrain::inWater(e, world) ? 0 : e.stranded_ms + kTickMs;
+      if (e.stranded_ms >= kStrandedMs) {
+        gone.push_back(id);
+        continue;
+      }
+    }
+
     // A freshly hit creature is knocked back, not steering.
     if (e.brain && e.hurt_ms == 0) {
       Intent in = e.brain->think(e, ctx);
@@ -87,8 +96,10 @@ void EntityStore::tick(const World &world, Rng &rng, std::span<const glm::vec3> 
         e.body.velocity.x = in.move_dir.x * speed;
         e.body.velocity.z = in.move_dir.y * speed;
       }
+      if (e.body.swims && e.body.inWater()) e.body.velocity.y = in.rise * speed;
       if (in.jump && e.body.on_ground) {
-        e.body.velocity.y = kPlayerJumpStrength;
+        // A stranded fish flops: a small hop.
+        e.body.velocity.y = kPlayerJumpStrength * (def.fish ? 0.5f : 1.0f);
         e.body.on_ground = false;
       }
     }

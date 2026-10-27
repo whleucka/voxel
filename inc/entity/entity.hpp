@@ -30,6 +30,9 @@ struct Entity {
   int product_delay_ms = 0; // until the product pops out
   bool product_pending = false;
 
+  // Fish only
+  int stranded_ms = 0; // out of water this long; it vanishes at kStrandedMs
+
   // Dropped items only
   ItemStack item;
   int pickup_delay_ms = 0;

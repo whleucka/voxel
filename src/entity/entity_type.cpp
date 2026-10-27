@@ -23,6 +23,7 @@ std::unique_ptr<Brain> makeSwimmer() {
   return std::make_unique<WanderBrain>(o);
 }
 
+std::unique_ptr<Brain> makeSwimBrain() { return std::make_unique<SwimBrain>(); }
 std::unique_ptr<Brain> makeChaser() { return std::make_unique<ChaseBrain>(); }
 std::unique_ptr<Brain> makeHoppingChaser() {
   ChaseOptions o;
@@ -228,6 +229,55 @@ EntityTypeDef makeCaveGrumble() {
   return d;
 }
 
+// ─── Fish ──────────────────────────────────────────────────────────────
+// Small, facing -Z, with a tail that wags while swimming. Spots are on both
+// flanks; glowing ones are drawn unlit.
+
+struct FishLook {
+  glm::vec3 body, dark, fin, spot;
+  bool glowing_spots = false;
+};
+
+EntityTypeDef makeFish(std::string_view name, float half_width, float height,
+                       const FishLook &look, FishDef fish) {
+  EntityTypeDef d{name, half_width, height, 0, 0, 1.5f, {}, makeSwimBrain, {}, {}};
+  const float w = half_width * 2.0f * 0.6f, len = half_width * 2.0f * 1.4f;
+  const float x0 = -w / 2, z0 = -len / 2, h = height * 0.8f, y0 = height * 0.1f;
+  d.model = {
+      {{x0, y0, z0}, {w, h, len}, look.body},                                      // body
+      {{x0 + w * 0.1f, y0 + h, z0 + len * 0.3f}, {w * 0.8f, height * 0.12f, len * 0.35f},
+       look.fin},                                                                  // top fin
+      {{x0 * 0.4f, y0 + h * 0.15f, z0 + len}, {w * 0.4f, h * 0.7f, len * 0.35f}, look.fin,
+       0, false, true},                                                            // tail (wags)
+      {{x0 - 0.005f, y0 + h * 0.55f, z0 + len * 0.1f}, {0.03f, 0.05f, 0.05f}, kEyeBlack},
+      {{-x0 - 0.025f, y0 + h * 0.55f, z0 + len * 0.1f}, {0.03f, 0.05f, 0.05f}, kEyeBlack},
+  };
+  // Spots on each flank.
+  for (float z : {0.35f, 0.6f})
+    for (float side : {-1.0f, 1.0f}) {
+      float x = side < 0 ? x0 - 0.005f : -x0 - 0.025f;
+      d.model.push_back({{x, y0 + h * 0.3f, z0 + len * z}, {0.03f, h * 0.25f, len * 0.1f},
+                         look.spot, 0, look.glowing_spots});
+    }
+  d.fish = std::move(fish);
+  return d;
+}
+
+const EntityTypeDef kPebblefish = makeFish(
+    "Pebblefish", 0.2f, 0.3f,
+    {{0.49f, 0.59f, 0.47f}, {0.25f, 0.31f, 0.24f}, {0.67f, 0.73f, 0.59f}, {0.36f, 0.42f, 0.34f}},
+    {{BiomeType::PLAINS, BiomeType::MOUNTAIN, BiomeType::CHERRY, BiomeType::DESERT}, false,
+     ItemId::RAW_PEBBLEFISH});
+const EntityTypeDef kSunfin = makeFish(
+    "Sunfin", 0.25f, 0.4f,
+    {{0.96f, 0.55f, 0.16f}, {0.59f, 0.27f, 0.04f}, {1.0f, 0.84f, 0.24f}, {1.0f, 0.84f, 0.24f}},
+    {{BiomeType::OCEAN, BiomeType::TROPICAL}, false, ItemId::RAW_SUNFIN});
+const EntityTypeDef kGlowfin = makeFish(
+    "Glowfin", 0.2f, 0.3f,
+    {{0.14f, 0.24f, 0.51f}, {0.05f, 0.09f, 0.25f}, {0.20f, 0.34f, 0.62f}, {0.35f, 0.94f, 0.94f},
+     true},
+    {{}, true, ItemId::RAW_GLOWFIN});
+
 const EntityTypeDef kGloomling = makeGloomling();
 const EntityTypeDef kThornCrawler = makeThornCrawler();
 const EntityTypeDef kCaveGrumble = makeCaveGrumble();
@@ -249,7 +299,10 @@ bool isValidEntityKind(EntityKind kind) {
     case EntityKind::BlossomDeer:
     case EntityKind::Gloomling:
     case EntityKind::ThornCrawler:
-    case EntityKind::CaveGrumble:  return true;
+    case EntityKind::CaveGrumble:
+    case EntityKind::Pebblefish:
+    case EntityKind::Sunfin:
+    case EntityKind::Glowfin:      return true;
   }
   return false;
 }
@@ -265,6 +318,9 @@ const EntityTypeDef &entityType(EntityKind kind) {
     case EntityKind::Gloomling:    return kGloomling;
     case EntityKind::ThornCrawler: return kThornCrawler;
     case EntityKind::CaveGrumble:  return kCaveGrumble;
+    case EntityKind::Pebblefish:   return kPebblefish;
+    case EntityKind::Sunfin:       return kSunfin;
+    case EntityKind::Glowfin:      return kGlowfin;
   }
   return kTestCreature;
 }

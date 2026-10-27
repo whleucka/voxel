@@ -98,7 +98,14 @@ void EntityRenderer::drawModel(const std::vector<ModelBox> &model, glm::vec3 pos
   for (const ModelBox &box : model) {
     shader->setVec3("uColor", box.color);
     if (box.glow) shader->setBool("uGlow", true);
-    if (box.swing == 0 || swing == 0.0f) {
+    if (box.wag && swing != 0.0f) {
+      // Tails wag side to side about their front edge.
+      glm::vec3 pivot = box.offset + glm::vec3(box.size.x * 0.5f, box.size.y * 0.5f, 0.0f);
+      glm::mat4 local = glm::translate(glm::mat4(1.0f), pivot) *
+                        glm::rotate(glm::mat4(1.0f), swing, glm::vec3(0, 1, 0)) *
+                        glm::translate(glm::mat4(1.0f), -pivot);
+      drawBox(m, box.offset, box.size, local);
+    } else if (box.swing == 0 || swing == 0.0f) {
       drawBox(m, box.offset, box.size);
     } else {
       // Legs (and arms) swing forward and back about the top of the box.

@@ -16,6 +16,8 @@ struct PhysicsBody {
   float eye_height = kPlayerEyeHeight;
   float step_height = kPlayerStepHeight;
 
+  bool swims = false; // fish: no gravity in water; brains steer velocity.y
+
   bool on_ground = false;
   bool underwater = false;       // eyes in liquid
   bool at_water_surface = false; // feet in liquid, eyes above it

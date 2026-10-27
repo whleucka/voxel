@@ -15,6 +15,7 @@ using Rng = std::mt19937;
 struct Intent {
   glm::vec2 move_dir{0.0f}; // horizontal, normalised or zero
   bool jump = false;
+  float rise = 0.0f;        // swimmers: vertical, -1..1
   float yaw = 0.0f;         // degrees; 0 faces -Z
 };
 
@@ -58,6 +59,25 @@ private:
   int timer_ms = 0;
   bool walking = false;
   glm::vec2 dir{0.0f};
+  float yaw = 0.0f;
+};
+
+// Drifts through water in random 3D directions with pauses, and turns away
+// from anything that isn't water so it never leaves it. Out of water it
+// flops about until the store removes it.
+class SwimBrain : public Brain {
+public:
+  Intent think(const Entity &self, const BrainContext &ctx) override;
+  // Whether the whole body would still be in water after moving `dist`
+  // along `dir` (normalised, x y z).
+  static bool waterAhead(const Entity &self, const World &world, glm::vec3 dir, float dist);
+  // Whether the body's middle is in water.
+  static bool inWater(const Entity &self, const World &world);
+
+private:
+  int timer_ms = 0;
+  bool swimming = false;
+  glm::vec3 dir{0.0f};
   float yaw = 0.0f;
 };
 
