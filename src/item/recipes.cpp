@@ -1,5 +1,6 @@
 #include "item/recipes.hpp"
 #include "block/block_type.hpp"
+#include "item/tools.hpp"
 #include <algorithm>
 #include <limits>
 
@@ -33,7 +34,8 @@ Recipe dyed(BlockType colour, ItemId dye) {
 
 const std::vector<Recipe> &recipes() {
   // Append only: the index is the recipe's id on the wire.
-  static const std::vector<Recipe> all = {
+  static const std::vector<Recipe> all = [] {
+    std::vector<Recipe> list = {
       planks(BlockType::OAK_LOG, BlockType::OAK_PLANKS),
       planks(BlockType::PINE_LOG, BlockType::PINE_PLANKS),
       planks(BlockType::PALM_LOG, BlockType::PALM_PLANKS),
@@ -53,7 +55,26 @@ const std::vector<Recipe> &recipes() {
       atTable({block(BlockType::GLOWSTONE), 1},
               {{{block(BlockType::GLOW_CRYSTAL)}, 1}, {{ItemId::COPPER_INGOT}, 1}}),
       atTable({block(BlockType::FURNACE), 1}, {{{block(BlockType::COBBLESTONE)}, 8}}),
-  };
+    };
+    // Tools, kind by kind and tier by tier, at a table: a head of the
+    // material and a handle of sticks.
+    struct Shape { ToolKind kind; uint16_t head, sticks; };
+    const Shape shapes[] = {{ToolKind::Pickaxe, 3, 2}, {ToolKind::Axe, 3, 2},
+                            {ToolKind::Shovel, 1, 2}, {ToolKind::Sword, 2, 1}};
+    const std::pair<Tier, std::vector<ItemId>> materials[] = {
+        {Tier::Wood, anyPlanks()},
+        {Tier::Stone, {block(BlockType::COBBLESTONE)}},
+        {Tier::Copper, {ItemId::COPPER_INGOT}},
+        {Tier::Iron, {ItemId::IRON_INGOT}},
+        {Tier::Ruby, {ItemId::RUBY}},
+        {Tier::Emerald, {ItemId::EMERALD}},
+        {Tier::Diamond, {ItemId::DIAMOND}}};
+    for (const Shape &shape : shapes)
+      for (const auto &[tier, material] : materials)
+        list.push_back(atTable({toolItem(shape.kind, tier), 1},
+                               {{material, shape.head}, {{ItemId::STICKS}, shape.sticks}}));
+    return list;
+  }();
   return all;
 }
 

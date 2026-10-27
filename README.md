@@ -16,6 +16,7 @@
   - At night, Gloomlings and Thorn Crawlers come out, and Cave Grumbles lurk in the dark underground.
 - **Crafting:** discover recipes as you collect things, and build a Crafting Table for the bigger ones ([more below](#crafting)).
 - **Smelting:** a furnace that cooks raw ore into ingots, and sand into glass, while you're off exploring ([more below](#smelting)).
+- **Tools and weapons:** pickaxes, axes, shovels and swords from wood to diamond; mining takes time and the best ore needs the best picks ([more below](#tools-and-weapons)).
 - **Creative mode:** fly, build without running out, and pick from every block, including planks, bricks, glass, eight bright colors and lamps.
 - **Play together:** host a world on your home network, and up to 8 players can join from the title screen.
 - **Your own worlds:** create, rename and delete worlds. Each one saves its edits, inventories and mode.
@@ -28,7 +29,6 @@
 ## Ideas for next time
 
 - **Pets:** tame an animal by feeding it, and it follows you around.
-- **Tools:** pickaxes and swords from wood to gems *(in progress)*
 - **Doors, slabs and stairs**
 - **Treasure chests** hidden around the world
 - **Your own look:** pick a color and a hat, so players can tell each other apart on the network
@@ -95,7 +95,7 @@ Drawing blocks couldn't be *that* hard... *Right?*
 
 *   **W, A, S, D:** Move. **Space:** Jump. **Mouse:** Look around.
 *   **Left Ctrl:** Sprint (uses stamina). **Left Shift:** Crouch.
-*   **Left click:** Break a block, or hit a creature.
+*   **Left click:** Hit a creature, or break a block (hold it in survival).
 *   **Right click:** Place a block, feed an animal, or eat the food you're holding.
 *   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
 *   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
@@ -154,6 +154,29 @@ you're away, and glows while it burns.
 Fuel: coal or charcoal smelts 8 items, a log 2, planks 1½, sticks ½.
 Shift-click sends things to the right slot. Breaking a furnace drops
 everything in it.
+
+## Tools and weapons
+
+In survival, blocks take time to break: **hold** the left button and a ring
+round the crosshair fills up. Bare hands are slow, and stone and ore give
+nothing without a pickaxe, so start by punching a tree.
+
+Make tools at a Crafting Table from sticks and a material:
+
+| Tool | Head | Speeds up |
+|---|---|---|
+| Pickaxe | 3 | stone, ore, bricks, glass, furnaces |
+| Axe | 3 | logs, planks, crafting tables, leaves |
+| Shovel | 1 | dirt, grass, sand, snow |
+| Sword | 2 | fighting |
+
+Materials, worst to best: **wood** (planks), **stone** (cobblestone),
+**copper** and **iron** (ingots from a furnace), then **ruby**, **emerald**
+and **diamond**. Coal and copper ore need a stone pickaxe, iron and gold a
+copper one, and gems an iron one. Tools wear out (watch the bar under the
+icon). Gem tools have a trick each: a ruby sword sets enemies alight, an
+emerald pickaxe sometimes doubles ore, and diamond is the fastest and
+toughest. Creative breaks everything in one hit, as before.
 
 ## Caves
 

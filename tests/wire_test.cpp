@@ -227,3 +227,27 @@ TEST_CASE("container messages round-trip") {
   CHECK(back.burn == 200);
   CHECK(back.cook == 17);
 }
+
+TEST_CASE("wear travels with stacks") {
+  Inventory inv;
+  inv.set(4, {ItemId::DIAMOND, 1, 321});
+  auto back = std::get<InventoryContents>(*wire::decodeEvent(enc(Event{InventoryContents{inv.slots()}})));
+  CHECK(back.slots[4] == ItemStack{ItemId::DIAMOND, 1, 321});
+}
+
+TEST_CASE("mining messages round-trip") {
+  roundTrip(StartBreak{{7, 64, -3}});
+  CHECK(std::get<ToolBroke>(*wire::decodeEvent(enc(Event{ToolBroke{ItemId::IRON_AXE}}))).item ==
+        ItemId::IRON_AXE);
+}
+
+TEST_CASE("burning travels in entity snapshots") {
+  EntitySnapshot snap;
+  EntityView v;
+  v.id = 3;
+  v.burning = true;
+  snap.entities.push_back(v);
+  auto back = std::get<EntitySnapshot>(*wire::decodeEvent(enc(Event{snap})));
+  REQUIRE(back.entities.size() == 1);
+  CHECK(back.entities[0].burning);
+}

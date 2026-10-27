@@ -85,20 +85,39 @@ std::optional<int> HudLayout::hitTestScreen(float px, float py) const {
 
 // ─── Creative palette ──────────────────────────────────────────────────
 
+HudLayout::PaletteGrid HudLayout::paletteGrid(int count) const {
+  Rect inv = screenPanel();
+  float pad = padding(slot);
+  float room_w = w - inv.right() - 3 * pad; // a pad each side of the panel, one inside
+  float room_h = h - 4 * pad;
+  // Full-size cells in as few columns as fit; failing that, shrink them.
+  for (float cell = slot; cell >= slot * 0.5f; cell -= 1.0f) {
+    int max_cols = static_cast<int>((room_w + gap_) / (cell + gap_));
+    int max_rows = static_cast<int>((room_h + gap_) / (cell + gap_));
+    if (max_rows < 1) continue;
+    int cols = std::max(kPaletteCols, (count + max_rows - 1) / max_rows);
+    if (cols <= max_cols) return {cols, cell};
+  }
+  return {kPaletteCols, std::round(slot * 0.5f)};
+}
+
 Rect HudLayout::palettePanel(int count) const {
   Rect inv = screenPanel();
   float pad = padding(slot);
-  int rows = (count + kPaletteCols - 1) / kPaletteCols;
-  float pw = kPaletteCols * slot + (kPaletteCols - 1) * gap_ + 2 * pad;
-  float ph = rows * slot + std::max(0, rows - 1) * gap_ + 2 * pad;
+  PaletteGrid g = paletteGrid(count);
+  int rows = (count + g.cols - 1) / g.cols;
+  float pw = g.cols * g.cell + (g.cols - 1) * gap_ + 2 * pad;
+  float ph = rows * g.cell + std::max(0, rows - 1) * gap_ + 2 * pad;
   return {inv.right() + pad, std::round((h - ph) * 0.5f), pw, ph};
 }
 
 Rect HudLayout::paletteSlot(int i, int count) const {
   Rect panel = palettePanel(count);
   float pad = padding(slot);
-  int row = i / kPaletteCols, col = i % kPaletteCols;
-  return {panel.x + pad + col * (slot + gap_), panel.y + pad + row * (slot + gap_), slot, slot};
+  PaletteGrid g = paletteGrid(count);
+  int row = i / g.cols, col = i % g.cols;
+  return {panel.x + pad + col * (g.cell + gap_), panel.y + pad + row * (g.cell + gap_), g.cell,
+          g.cell};
 }
 
 std::optional<int> HudLayout::hitTestPalette(float px, float py, int count) const {

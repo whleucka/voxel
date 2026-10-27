@@ -45,6 +45,8 @@ public:
   std::optional<int> hitTestScreen(float px, float py) const;
 
   // ─── Creative palette (right of the inventory screen) ───────────────
+  // At least this many columns; more, and then smaller cells, when the items
+  // wouldn't otherwise fit between the inventory and the screen's edges.
   static constexpr int kPaletteCols = 5;
   Rect palettePanel(int count) const;
   Rect paletteSlot(int i, int count) const; // 0..count-1, row by row
@@ -73,6 +75,8 @@ public:
 
 private:
   float w, h;
+  struct PaletteGrid { int cols; float cell; };
+  PaletteGrid paletteGrid(int count) const;
   float slot, gap_;
   float rowWidth() const;
 };

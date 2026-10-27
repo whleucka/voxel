@@ -23,6 +23,7 @@ TEST_CASE("survival and creative rules") {
   CHECK(s.drain);
   CHECK(s.enemies_target);
   CHECK_FALSE(s.palette);
+  CHECK(s.timed_mining);
 
   ModeRules c = rulesFor(GameMode::Creative);
   CHECK(c.fly);
@@ -32,6 +33,7 @@ TEST_CASE("survival and creative rules") {
   CHECK_FALSE(c.drain);
   CHECK_FALSE(c.enemies_target);
   CHECK(c.palette);
+  CHECK_FALSE(c.timed_mining);
 }
 
 TEST_CASE("level.dat round-trips the mode") {

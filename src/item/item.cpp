@@ -13,6 +13,7 @@ constexpr uint16_t kMaterialCount = static_cast<uint16_t>(kLastMaterialItem) -
 struct Material {
   std::string_view name;
   int food_heal;
+  uint16_t max_stack = kDefaultMaxStack;
 };
 constexpr std::array<Material, kMaterialCount> kMaterials = {{
     {"Coal", 0},     {"Diamond", 0},  {"Emerald", 0},   {"Ruby", 0},
@@ -20,6 +21,35 @@ constexpr std::array<Material, kMaterialCount> kMaterials = {{
     {"Wool", 0},     {"Berries", 4},  {"Sea Shell", 0}, {"Sweet Petals", 6},
     {"Sticks", 0},
     {"Iron Ingot", 0}, {"Copper Ingot", 0}, {"Gold Ingot", 0}, {"Charcoal", 0},
+    // Tools: one to a stack.
+    {"Wooden Pickaxe", 0, 1},
+    {"Stone Pickaxe", 0, 1},
+    {"Copper Pickaxe", 0, 1},
+    {"Iron Pickaxe", 0, 1},
+    {"Ruby Pickaxe", 0, 1},
+    {"Emerald Pickaxe", 0, 1},
+    {"Diamond Pickaxe", 0, 1},
+    {"Wooden Axe", 0, 1},
+    {"Stone Axe", 0, 1},
+    {"Copper Axe", 0, 1},
+    {"Iron Axe", 0, 1},
+    {"Ruby Axe", 0, 1},
+    {"Emerald Axe", 0, 1},
+    {"Diamond Axe", 0, 1},
+    {"Wooden Shovel", 0, 1},
+    {"Stone Shovel", 0, 1},
+    {"Copper Shovel", 0, 1},
+    {"Iron Shovel", 0, 1},
+    {"Ruby Shovel", 0, 1},
+    {"Emerald Shovel", 0, 1},
+    {"Diamond Shovel", 0, 1},
+    {"Wooden Sword", 0, 1},
+    {"Stone Sword", 0, 1},
+    {"Copper Sword", 0, 1},
+    {"Iron Sword", 0, 1},
+    {"Ruby Sword", 0, 1},
+    {"Emerald Sword", 0, 1},
+    {"Diamond Sword", 0, 1},
 }};
 constexpr int kItemAtlasCols = 8;
 
@@ -56,7 +86,7 @@ const std::array<ItemDef, kMaterialCount> &materialDefs() {
   static const std::array<ItemDef, kMaterialCount> defs = [] {
     std::array<ItemDef, kMaterialCount> d{};
     for (uint16_t i = 0; i < kMaterialCount; ++i)
-      d[i] = {kMaterials[i].name, kDefaultMaxStack,
+      d[i] = {kMaterials[i].name, kMaterials[i].max_stack,
               {ItemIcon::Atlas::Item, {i % kItemAtlasCols, i / kItemAtlasCols}},
               std::nullopt, kMaterials[i].food_heal};
     return d;

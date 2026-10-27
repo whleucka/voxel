@@ -105,6 +105,10 @@ TEST_CASE_FIXTURE(Sessions, "edits made after joining reach the guest's world") 
   for (int y = kChunkHeight - 1; y >= 0 && !ground; --y)
     if (host->game()->world().isSolidBlock(5, y, 5)) ground = y;
   host->connection().send(MovePlayer{{5.5f, ground + 1.0f, 8.5f}});
+  // Survival breaking takes time: start, then give it long enough.
+  host->connection().send(StartBreak{{5, ground, 5}});
+  host->game()->pump();
+  for (int i = 0; i < 12000 / Game::kTickMs; ++i) host->game()->tick();
   host->connection().send(BreakBlock{{5, ground, 5}});
   got.clear();
   REQUIRE(until(*guest, got, has<BlockChanged>));

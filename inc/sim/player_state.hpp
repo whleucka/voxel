@@ -24,6 +24,8 @@ struct PlayerState {
   SeenItems seen;          // every item they've ever had: unlocks recipes
   SeenItems seen_sent;     // the part of `seen` their client has been told
   std::optional<glm::ivec3> open_container; // the furnace they're looking in
+  struct Breaking { glm::ivec3 pos{0}; uint64_t since_ms = 0; };
+  std::optional<Breaking> breaking;         // from StartBreak (survival)
 
   Vitals vitals;
   FallTracker fall;

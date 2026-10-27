@@ -28,11 +28,40 @@ enum class ItemId : uint16_t {
   COPPER_INGOT,
   GOLD_INGOT,
   CHARCOAL,
+  // Tools (equipment), kind by kind, each in tier order: see item/tools.hpp.
+  WOOD_PICKAXE,
+  STONE_PICKAXE,
+  COPPER_PICKAXE,
+  IRON_PICKAXE,
+  RUBY_PICKAXE,
+  EMERALD_PICKAXE,
+  DIAMOND_PICKAXE,
+  WOOD_AXE,
+  STONE_AXE,
+  COPPER_AXE,
+  IRON_AXE,
+  RUBY_AXE,
+  EMERALD_AXE,
+  DIAMOND_AXE,
+  WOOD_SHOVEL,
+  STONE_SHOVEL,
+  COPPER_SHOVEL,
+  IRON_SHOVEL,
+  RUBY_SHOVEL,
+  EMERALD_SHOVEL,
+  DIAMOND_SHOVEL,
+  WOOD_SWORD,
+  STONE_SWORD,
+  COPPER_SWORD,
+  IRON_SWORD,
+  RUBY_SWORD,
+  EMERALD_SWORD,
+  DIAMOND_SWORD,
   // Append only: the numeric value is persisted in inventory saves.
 };
 
 constexpr ItemId kFirstMaterialItem = ItemId::COAL;
-constexpr ItemId kLastMaterialItem = ItemId::CHARCOAL;
+constexpr ItemId kLastMaterialItem = ItemId::DIAMOND_SWORD;
 
 struct ItemIcon {
   enum class Atlas : uint8_t { Block, Item };

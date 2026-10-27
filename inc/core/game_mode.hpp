@@ -19,16 +19,17 @@ constexpr std::optional<GameMode> parseGameMode(std::string_view s) {
 }
 
 struct ModeRules {
-  bool fly;            // T and the debug checkbox may turn flying on
+  bool fly;            // F and the debug checkbox may turn flying on
   bool consume_blocks; // placing uses one from the held stack
   bool block_drops;    // breaking collects the block
   bool damage;         // enemies, falls and drowning hurt
   bool drain;          // stamina and breath run down
   bool enemies_target; // enemies chase and hit the player
   bool palette;        // the inventory offers every item (anyone may GiveItem)
+  bool timed_mining;   // blocks take time to break, by tool; tools wear out
 };
 
 constexpr ModeRules rulesFor(GameMode m) {
-  if (m == GameMode::Creative) return {true, false, false, false, false, false, true};
-  return {false, true, true, true, true, true, false};
+  if (m == GameMode::Creative) return {true, false, false, false, false, false, true, false};
+  return {false, true, true, true, true, true, false, true};
 }

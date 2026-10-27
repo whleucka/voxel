@@ -2,6 +2,7 @@
 #include "block/block_data.hpp"
 #include "item/item.hpp"
 #include "item/item_stack.hpp"
+#include "item/tools.hpp"
 #include <set>
 #include <utility>
 
@@ -44,7 +45,7 @@ TEST_CASE("every placeable block has an item that places it") {
 
 TEST_CASE("the material items are defined with unique item-atlas tiles") {
   auto mats = materials();
-  CHECK(mats.size() == 16);
+  CHECK(mats.size() == 44);
 
   std::set<std::pair<int, int>> tiles;
   for (ItemId id : mats) {
@@ -53,7 +54,7 @@ TEST_CASE("the material items are defined with unique item-atlas tiles") {
     CAPTURE(def.name);
     CHECK(!def.name.empty());
     CHECK(def.name != "Unknown");
-    CHECK(def.max_stack == 64);
+    CHECK(def.max_stack == (toolOf(id).kind == ToolKind::None ? 64 : 1));
     CHECK_FALSE(def.places.has_value());
     CHECK(def.icon.atlas == ItemIcon::Atlas::Item);
     CHECK(def.icon.tile.x >= 0);
@@ -211,4 +212,19 @@ TEST_CASE("berries and sweet petals are the only food") {
     CAPTURE(itemDef(id).name);
     CHECK(itemDef(id).food_heal == 0);
   }
+}
+
+TEST_CASE("stacks keep their wear, and only merge at equal wear") {
+  ItemStack worn{ItemId::COAL, 3, 7};
+  ItemStack dst{};
+  CHECK(mergeInto(dst, worn) == 3);
+  CHECK(dst == ItemStack{ItemId::COAL, 3, 7});
+  ItemStack fresh{ItemId::COAL, 2, 0};
+  CHECK(mergeInto(dst, fresh) == 0);
+  ItemStack part = split(dst, 1);
+  CHECK(part.wear == 7);
+  ItemStack a{ItemId::COAL, 1, 1}, b{ItemId::COAL, 1, 2};
+  CHECK(moveStack(a, b, 0)); // swapped, not merged
+  CHECK(a.wear == 2);
+  CHECK(b.wear == 1);
 }

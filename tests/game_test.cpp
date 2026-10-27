@@ -1,6 +1,8 @@
 // Game is exercised through a LocalConnection exactly as Engine drives it,
 // without a window: World::init() (shaders) is never called.
 #include "doctest/doctest.h"
+#include "item/mining.hpp"
+#include "item/tools.hpp"
 #include "core/settings.hpp"
 #include "entity/enemies.hpp"
 #include "sim/game.hpp"
@@ -251,6 +253,24 @@ struct EditGame : SmallGame {
     FAIL("item didn't land in the hotbar");
   }
 
+  // Breaks a block the way a survival player does: start, keep at it for as
+  // long as the block and the held tool take, then break. (Creative breaks
+  // at once; the wait does no harm.)
+  std::vector<Event> mine(glm::ivec3 pos) {
+    run(StartBreak{pos});
+    int ms = breakMs(at(pos), inventory().slot(game.findPlayer(id)->selected_slot).id);
+    for (int t = 0; t < ms; t += Game::kTickMs) game.tick();
+    pollAll(conn);
+    pollAll(other); // snapshots and the like from the wait
+    return run(BreakBlock{pos});
+  }
+
+  // Puts a tool in the hand (the selected slot), as if picked up.
+  void wield(ItemId tool) {
+    PlayerState &me = *game.findPlayer(id);
+    me.inventory.set(me.selected_slot, {tool, 1});
+  }
+
   // Places a block of the given type the way a player would: hold it, place.
   std::vector<Event> place(glm::ivec3 pos, BlockType b) {
     hold(b);
@@ -262,7 +282,7 @@ struct EditGame : SmallGame {
 
 TEST_CASE_FIXTURE(EditGame, "a valid break removes the block and broadcasts once") {
   glm::ivec3 target{5, ground, 5};
-  auto evs = run(BreakBlock{target});
+  auto evs = mine(target);
 
   CHECK(at(target) == BlockType::AIR);
   REQUIRE(changes(evs) == 1);
@@ -286,22 +306,22 @@ TEST_CASE_FIXTURE(EditGame, "bedrock, water and air cannot be broken") {
   // Placed directly: generated bedrock isn't guaranteed at any one cell.
   glm::ivec3 bedrock{5, ground + 1, 5};
   game.world().setBlockAt(bedrock, BlockType::BEDROCK);
-  CHECK(rejected(run(BreakBlock{bedrock})));
+  CHECK(rejected(mine(bedrock)));
   CHECK(at(bedrock) == BlockType::BEDROCK);
 
   glm::ivec3 water{5, ground + 2, 5};
   game.world().setBlockAt(water, BlockType::WATER);
-  CHECK(rejected(run(BreakBlock{water})));
+  CHECK(rejected(mine(water)));
   CHECK(at(water) == BlockType::WATER);
 
-  CHECK(rejected(run(BreakBlock{{5, ground + 3, 5}})));
+  CHECK(rejected(mine({5, ground + 3, 5})));
   CHECK(pollAll(other).empty());
 }
 
 TEST_CASE_FIXTURE(EditGame, "edits out of reach are rejected") {
   glm::ivec3 far{5, ground, 5};
   moveTo({5.5f, ground + 1.0f, 5.5f + 8.0f});
-  CHECK(rejected(run(BreakBlock{far})));
+  CHECK(rejected(mine(far)));
   CHECK(rejected(place(far + glm::ivec3(0, 1, 0), BlockType::STONE)));
   CHECK(at(far) != BlockType::AIR);
 }
@@ -368,7 +388,7 @@ TEST_CASE_FIXTURE(EditGame, "glowstone placed through the Game lights and unligh
   REQUIRE(changes(place(lamp, BlockType::GLOWSTONE)) == 1);
   CHECK(game.world().getBlockLightAt(lamp + glm::ivec3(1, 0, 0)) > 0);
 
-  REQUIRE(changes(run(BreakBlock{lamp})) == 1);
+  REQUIRE(changes(mine(lamp)) == 1);
   CHECK(game.world().getBlockLightAt(lamp + glm::ivec3(1, 0, 0)) == 0);
 }
 
@@ -383,7 +403,7 @@ TEST_CASE_FIXTURE(EditGame, "a played game round-trips through save and load") {
   glm::ivec3 broken{5, ground, 5};
   glm::ivec3 placed{6, ground + 1, 5};
   REQUIRE(at(placed) == BlockType::AIR);
-  REQUIRE(changes(run(BreakBlock{broken})) == 1);
+  REQUIRE(changes(mine(broken)) == 1);
   REQUIRE(changes(place(placed, BlockType::GLOWSTONE)) == 1);
   run(GiveItem{ItemId::DIAMOND, 3});
   run(MoveItems{0, 25, 0}); // glowstone into storage
@@ -440,7 +460,7 @@ TEST_CASE_FIXTURE(EditGame, "items count as seen once they've been in the invent
 
   glm::ivec3 target{5, ground, 5};
   ItemId drop = *dropFor(at(target));
-  run(BreakBlock{target});
+  mine(target);
   CHECK(seen(game, id, drop));
 
   // Still seen after it's gone.
@@ -597,7 +617,7 @@ TEST_CASE_FIXTURE(EditGame, "placing a furnace makes one; breaking it spills wha
   REQUIRE(f);
   f->input = {ItemId::RAW_IRON, 3};
   f->output = {ItemId::IRON_INGOT, 2};
-  run(BreakBlock{at_});
+  mine(at_);
   CHECK_FALSE(game.furnaceAt(at_));
   CHECK(dropped(game, ItemId::RAW_IRON) == 3);
   CHECK(dropped(game, ItemId::IRON_INGOT) == 2);
@@ -627,7 +647,8 @@ TEST_CASE_FIXTURE(EditGame, "a burning furnace glows, and goes dark when the fue
   game.furnaceAt(at_)->fuel = {ItemId::COAL, 1};
   runTicks(game, 1);
   REQUIRE(at(at_) == BlockType::FURNACE_LIT);
-  run(BreakBlock{at_});
+  wield(ItemId::WOOD_PICKAXE);
+  mine(at_);
   CHECK(heldCount(inventory(), itemForBlock(BlockType::FURNACE)) == 1);
 }
 
@@ -732,7 +753,7 @@ TEST_CASE_FIXTURE(EditGame, "moves need an open furnace, and walking away or bre
 
   moveTo({5.5f, ground + 1.0f, 8.5f});
   run(OpenContainer{at_});
-  run(BreakBlock{at_});
+  mine(at_);
   game.tick();
   v = lastView(pollAll(conn));
   REQUIRE(v);
@@ -751,6 +772,96 @@ TEST_CASE_FIXTURE(EditGame, "a viewer sees the furnace cook") {
   REQUIRE(v);
   CHECK(v->output == ItemStack{itemForBlock(BlockType::GLASS), 1});
   CHECK(v->burn > 0);
+}
+
+// ─── Mining with tools (survival) ──────────────────────────────────────
+
+TEST_CASE_FIXTURE(EditGame, "a break before its time is refused, and the block stays") {
+  glm::ivec3 rock{5, ground + 1, 5};
+  game.world().setBlockAt(rock, BlockType::STONE);
+  CHECK(reason(run(BreakBlock{rock})) == "break: not yet"); // never started
+  run(StartBreak{rock});
+  CHECK(reason(run(BreakBlock{rock})) == "break: not yet"); // started, but just now
+  CHECK(at(rock) == BlockType::STONE);
+
+  // Starting on another block starts over.
+  run(StartBreak{rock});
+  for (int t = 0; t < 7500; t += Game::kTickMs) game.tick();
+  run(StartBreak{{6, ground + 1, 5}});
+  pollAll(conn);
+  CHECK(reason(run(BreakBlock{rock})) == "break: not yet");
+}
+
+TEST_CASE_FIXTURE(EditGame, "the time is judged by what's held when it breaks") {
+  glm::ivec3 rock{5, ground + 1, 5};
+  game.world().setBlockAt(rock, BlockType::STONE);
+  wield(ItemId::DIAMOND_PICKAXE);
+  run(StartBreak{rock});
+  for (int t = 0; t < breakMs(BlockType::STONE, ItemId::DIAMOND_PICKAXE); t += Game::kTickMs)
+    game.tick();
+  wield(itemForBlock(BlockType::DIRT)); // swapped to something slow at the last moment
+  pollAll(conn);
+  CHECK(reason(run(BreakBlock{rock})) == "break: not yet");
+  wield(ItemId::DIAMOND_PICKAXE);
+  CHECK(changes(run(BreakBlock{rock})) == 1);
+}
+
+TEST_CASE_FIXTURE(EditGame, "creative breaks anything at once") {
+  game.setMode(GameMode::Creative);
+  glm::ivec3 ore{5, ground + 1, 5};
+  game.world().setBlockAt(ore, BlockType::DIAMOND_ORE);
+  CHECK(changes(run(BreakBlock{ore})) == 1);
+}
+
+TEST_CASE_FIXTURE(EditGame, "ore broken without a good enough pickaxe gives nothing") {
+  glm::ivec3 ore{5, ground + 1, 5};
+  game.world().setBlockAt(ore, BlockType::IRON_ORE);
+  wield(ItemId::STONE_PICKAXE);
+  CHECK(changes(mine(ore)) == 1);
+  CHECK(heldCount(inventory(), ItemId::RAW_IRON) == 0);
+  game.world().setBlockAt(ore, BlockType::IRON_ORE);
+  wield(ItemId::COPPER_PICKAXE);
+  mine(ore);
+  CHECK(heldCount(inventory(), ItemId::RAW_IRON) == 1);
+}
+
+TEST_CASE_FIXTURE(EditGame, "tools wear with each block and break when used up") {
+  PlayerState &me = *game.findPlayer(id);
+  glm::ivec3 rock{5, ground + 1, 5};
+  game.world().setBlockAt(rock, BlockType::STONE);
+  wield(ItemId::WOOD_PICKAXE);
+  mine(rock);
+  CHECK(me.inventory.slot(me.selected_slot) == ItemStack{ItemId::WOOD_PICKAXE, 1, 1});
+
+  me.inventory.set(me.selected_slot, {ItemId::WOOD_PICKAXE, 1, 59}); // one use left
+  game.world().setBlockAt(rock, BlockType::STONE);
+  auto evs = mine(rock);
+  CHECK(me.inventory.slot(me.selected_slot).empty());
+  bool told = false;
+  for (const Event &e : evs)
+    if (const auto *b = std::get_if<ToolBroke>(&e)) told = b->item == ItemId::WOOD_PICKAXE;
+  CHECK(told);
+  CHECK(heldCount(inventory(), itemForBlock(BlockType::COBBLESTONE)) == 2); // the last one counted
+}
+
+TEST_CASE_FIXTURE(EditGame, "an emerald pickaxe sometimes doubles ore") {
+  glm::ivec3 ore{5, ground + 1, 5};
+  wield(ItemId::EMERALD_PICKAXE);
+  constexpr int kOres = 60;
+  for (int i = 0; i < kOres; ++i) {
+    game.world().setBlockAt(ore, BlockType::COAL_ORE);
+    mine(ore);
+  }
+  int coal = heldCount(inventory(), ItemId::COAL);
+  CHECK(coal > kOres + kOres / 6);  // about a third more...
+  CHECK(coal < kOres + kOres / 2);  // ...not half or more
+  // Not for blocks that drop themselves.
+  wield(ItemId::EMERALD_PICKAXE);
+  for (int i = 0; i < 20; ++i) {
+    game.world().setBlockAt(ore, BlockType::STONE);
+    mine(ore);
+  }
+  CHECK(heldCount(inventory(), itemForBlock(BlockType::COBBLESTONE)) == 20);
 }
 
 TEST_CASE_FIXTURE(SmallGame, "save without a bound directory fails") {
@@ -800,7 +911,7 @@ TEST_CASE_FIXTURE(EditGame, "breaking collects the block's drop") {
   REQUIRE(dropFor(was));
   ItemId drop = *dropFor(was);
 
-  auto evs = run(BreakBlock{target});
+  auto evs = mine(target);
   CHECK(countOf(inventory(), drop) == 1);
   auto contents = lastContents(evs);
   REQUIRE(contents);
@@ -813,14 +924,16 @@ TEST_CASE_FIXTURE(EditGame, "breaking collects the block's drop") {
 TEST_CASE_FIXTURE(EditGame, "breaking ore collects its material") {
   glm::ivec3 ore{5, ground + 1, 5};
   game.world().setBlockAt(ore, BlockType::DIAMOND_ORE);
-  run(BreakBlock{ore});
+  wield(ItemId::IRON_PICKAXE);
+  mine(ore);
   CHECK(countOf(inventory(), ItemId::DIAMOND) == 1);
   CHECK(countOf(inventory(), itemForBlock(BlockType::DIAMOND_ORE)) == 0);
 }
 
 TEST_CASE_FIXTURE(EditGame, "with a full inventory the drop pops out of the block") {
+  wield(ItemId::WOOD_PICKAXE); // in place of the kit's glowstone
   run(GiveItem{itemForBlock(BlockType::SAND), 64 * kInventorySlots});
-  // Every slot but the kit's glowstone is now a full stack of sand.
+  // Every slot but the pickaxe's is now a full stack of sand.
   REQUIRE(countOf(inventory(), itemForBlock(BlockType::SAND)) ==
           64 * (kInventorySlots - 1));
   Inventory before = inventory();
@@ -828,8 +941,10 @@ TEST_CASE_FIXTURE(EditGame, "with a full inventory the drop pops out of the bloc
 
   glm::ivec3 target{5, ground + 1, 5};
   game.world().setBlockAt(target, BlockType::COBBLESTONE);
-  CHECK(changes(run(BreakBlock{target})) == 1);
+  CHECK(changes(mine(target)) == 1);
   CHECK(at(target) == BlockType::AIR);
+  int held = game.findPlayer(id)->selected_slot;
+  before.set(held, {ItemId::WOOD_PICKAXE, 1, 1}); // one use spent, nothing else changed
   CHECK(inventory().slots() == before.slots());
 
   REQUIRE(game.entities().size() == entities_before + 1);
@@ -1327,20 +1442,62 @@ struct FightGame : EditGame {
 TEST_CASE_FIXTURE(FightGame, "a hit hurts, flashes and knocks the creature away") {
   int max = entityType(EntityKind::TestCreature).max_health;
   CHECK(run(AttackEntity{target}).empty());
-  CHECK(creature()->health == max - Game::kAttackDamage);
+  CHECK(creature()->health == max - attackDamage(ItemId::NONE));
   CHECK(creature()->hurt_ms > 0);
   CHECK(creature()->body.velocity.z < -1.0f); // away from the player (-Z)
   CHECK(creature()->body.velocity.y > 0.0f);
+}
+
+TEST_CASE_FIXTURE(FightGame, "a sword hits harder than a fist, and wears with each hit") {
+  int max = entityType(EntityKind::TestCreature).max_health;
+  wield(ItemId::IRON_SWORD);
+  run(AttackEntity{target});
+  CHECK(creature()->health == max - 6);
+  PlayerState &me = *game.findPlayer(id);
+  CHECK(me.inventory.slot(me.selected_slot).wear == 1);
+}
+
+TEST_CASE_FIXTURE(FightGame, "a ruby sword sets the enemy alight") {
+  const int max = 30; // tougher than usual, to watch it burn
+  creature()->health = max;
+  wield(ItemId::RUBY_SWORD);
+  run(AttackEntity{target});
+  CHECK(creature()->health == max - 7);
+  CHECK(creature()->burning_ms > 0);
+  for (int i = 0; i < 3000 / Game::kTickMs; ++i) game.tick();
+  REQUIRE(creature());
+  CHECK(creature()->health == max - 7 - 3); // a point a second for three seconds
+  CHECK(creature()->burning_ms <= 0);
+  for (int i = 0; i < 2000 / Game::kTickMs; ++i) game.tick();
+  CHECK(creature()->health == max - 10); // and then it's out
+}
+
+TEST_CASE_FIXTURE(FightGame, "fire can finish an enemy off") {
+  wield(ItemId::RUBY_SWORD);
+  creature()->health = 8;
+  run(AttackEntity{target}); // 7: one left
+  REQUIRE(creature());
+  for (int i = 0; i < 1000 / Game::kTickMs; ++i) game.tick();
+  CHECK_FALSE(creature());
+}
+
+TEST_CASE_FIXTURE(FightGame, "creative hits don't wear the sword") {
+  game.setMode(GameMode::Creative);
+  wield(ItemId::WOOD_SWORD);
+  run(AttackEntity{target});
+  PlayerState &me = *game.findPlayer(id);
+  CHECK(me.inventory.slot(me.selected_slot).wear == 0);
 }
 
 TEST_CASE_FIXTURE(FightGame, "hits have a cooldown") {
   int max = entityType(EntityKind::TestCreature).max_health;
   run(AttackEntity{target});
   CHECK(rejected(run(AttackEntity{target})));
-  CHECK(creature()->health == max - 2);
+  int hit = attackDamage(ItemId::NONE);
+  CHECK(creature()->health == max - hit);
   wait(0.4f);
   run(AttackEntity{target});
-  CHECK(creature()->health == max - 4);
+  CHECK(creature()->health == max - 2 * hit);
 }
 
 TEST_CASE_FIXTURE(FightGame, "creatures out of reach can't be hit") {
@@ -1384,7 +1541,7 @@ TEST_CASE_FIXTURE(FightGame, "killing a creature removes it and drops its loot")
     wait(0.4f);
   }
   CHECK_FALSE(creature());
-  CHECK(hits == entityType(EntityKind::TestCreature).max_health / Game::kAttackDamage);
+  CHECK(hits == entityType(EntityKind::TestCreature).max_health / attackDamage(ItemId::NONE));
   bool loot = false;
   for (const auto &[eid, e] : game.entities().all())
     loot |= e.kind == EntityKind::DroppedItem && e.item.id == ItemId::COAL;
@@ -2053,7 +2210,7 @@ TEST_CASE_FIXTURE(EditGame, "creative: placing uses nothing up and breaking drop
 
   size_t entities_before = game.entities().size();
   Inventory before = inventory();
-  CHECK(changes(run(BreakBlock{{5, ground + 1, 5}})) == 1);
+  CHECK(changes(mine({5, ground + 1, 5})) == 1);
   CHECK(at({5, ground + 1, 5}) == BlockType::AIR);
   CHECK(inventory().slots() == before.slots());
   CHECK(game.entities().size() == entities_before);
@@ -2068,7 +2225,7 @@ TEST_CASE_FIXTURE(EditGame, "creative: every building block can be placed") {
     CAPTURE(v);
     CHECK(changes(place(spot, b)) == 1);
     CHECK(at(spot) == b);
-    run(BreakBlock{spot});
+    mine(spot);
     run(DropItem{true}); // free the slot: there are more blocks than hotbar slots
   }
 }
@@ -2078,8 +2235,10 @@ TEST_CASE_FIXTURE(EditGame, "survival: a placed brick breaks into one brick") {
   REQUIRE(changes(place({5, ground + 1, 5}, BlockType::BRICKS)) == 1);
 
   game.setMode(GameMode::Survival);
+  run(SelectSlot{9});
+  wield(ItemId::STONE_PICKAXE);
   int before = countOf(inventory(), itemForBlock(BlockType::BRICKS));
-  CHECK(changes(run(BreakBlock{{5, ground + 1, 5}})) == 1);
+  CHECK(changes(mine({5, ground + 1, 5})) == 1);
   CHECK(countOf(inventory(), itemForBlock(BlockType::BRICKS)) == before + 1);
 }
 

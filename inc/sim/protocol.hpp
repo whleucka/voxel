@@ -67,6 +67,10 @@ constexpr int kFurnaceInput = kContainerSlot0, kFurnaceFuel = kContainerSlot0 + 
               kFurnaceOutput = kContainerSlot0 + 2;
 struct MoveItems { int from = 0; int to = 0; uint16_t count = 0; };
 
+// Survival: the left button went down on a block (or the aim moved to a new
+// one). The BreakBlock that follows is checked against the time since.
+struct StartBreak { glm::ivec3 pos{0}; };
+
 // Look inside a furnace (in reach) until CloseContainer or walking away.
 struct OpenContainer { glm::ivec3 pos{0}; };
 struct CloseContainer {};
@@ -80,7 +84,7 @@ using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SelectSlot, Save, SetTimeOfDay, GiveItem,
                              MoveItems, DropItem, AttackEntity,
                              SpawnDebugEntity, InteractEntity, EatItem, Craft,
-                             OpenContainer, CloseContainer>;
+                             OpenContainer, CloseContainer, StartBreak>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 
@@ -150,6 +154,7 @@ struct EntityView {
   ItemId item = ItemId::NONE; // dropped items: what to draw
   bool hurt = false;          // flash red
   bool happy = false;         // fed animal: show a heart
+  bool burning = false;       // set alight: glow orange
   bool moving = false;        // set client-side by the interpolator
 };
 
@@ -176,6 +181,9 @@ struct EntitySnapshot {
 // they unlock recipes. The client keeps the running set.
 struct KnownItems { std::vector<ItemId> ids; };
 
+// The owner's tool wore out and is gone.
+struct ToolBroke { ItemId item = ItemId::NONE; };
+
 // The open furnace, to everyone looking in: when they open it, when its
 // slots change, and a few times a second while it burns. `open` false: it's
 // closed for them (out of reach, or the furnace is gone).
@@ -191,4 +199,4 @@ using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            CommandRejected, InventoryContents, VitalsChanged,
                            Respawned, EntitySnapshot, KnockedBack, JoinRefused,
                            Welcome, TimeSync, Disconnected, KnownItems,
-                           ContainerView>;
+                           ContainerView, ToolBroke>;

@@ -144,6 +144,7 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities,
   for (const EntityView &e : entities) {
     setLight(world, e.position);
     shader->setFloat("uHurt", e.hurt ? 0.55f : 0.0f);
+    shader->setFloat("uBurn", e.burning ? 0.45f : 0.0f);
 
     if (e.kind == EntityKind::DroppedItem) {
       if (!isValidItem(e.item)) continue;
@@ -187,6 +188,7 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities,
       glm::mat4 h = glm::translate(glm::mat4(1.0f),
                                    e.position + glm::vec3(0.0f, def.height + 0.35f + bob, 0.0f));
       shader->setFloat("uHurt", 0.0f);
+      shader->setFloat("uBurn", 0.0f);
       shader->setVec3("uColor", {0.92f, 0.15f, 0.25f});
       drawBox(h, {-0.12f, 0.05f, -0.03f}, {0.10f, 0.10f, 0.06f}); // lobes
       drawBox(h, {0.02f, 0.05f, -0.03f}, {0.10f, 0.10f, 0.06f});
@@ -197,6 +199,7 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities,
 
   // Other players: blocky figures in their name's colour.
   shader->setFloat("uHurt", 0.0f);
+  shader->setFloat("uBurn", 0.0f);
   for (const PlayerView &p : players)
     drawModel(playerModel(playerColor(p.name)), p.position, playerModelYaw(p.yaw), p.moving,
               world, now);
