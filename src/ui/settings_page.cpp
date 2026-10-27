@@ -39,7 +39,7 @@ bool SettingsPage::draw(Settings &s, bool difficulty_locked) {
 
   ImGui::Spacing();
   ImGui::Separator();
-  // Also resets what only the F1 panel shows (time speed, fog, cloud and
+  // Also resets what only the F12 panel shows (time speed, fog, cloud and
   // shadow details), so a stray change there is easy to undo.
   if (!confirm_reset) {
     if (ImGui::Button("Reset to defaults", ImVec2(-1, 0))) confirm_reset = true;

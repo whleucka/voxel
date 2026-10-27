@@ -149,7 +149,7 @@ void Engine::run() {
 }
 
 // ─── Display settings ──────────────────────────────────────────────────
-// F3, F11 and the settings page only change g_settings; the window follows
+// F11 and the settings page only change g_settings; the window follows
 // here, once per frame.
 
 void Engine::applyDisplaySettings() {
@@ -912,19 +912,14 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
   if (engine->paused() && key != GLFW_KEY_ESCAPE) return;
 
   switch (key) {
-    // Debug panel toggle (the cursor follows in updateCursor)
-    case GLFW_KEY_F1:
+    // Debug panel toggle (the cursor follows in updateCursor). Wireframe and
+    // V-sync are checkboxes in it; V-sync is on the settings page too.
+    case GLFW_KEY_F12:
       g_settings.show_debug = !g_settings.show_debug;
       break;
-    case GLFW_KEY_F2:
-      g_settings.wireframe = !g_settings.wireframe;
-      break;
-    case GLFW_KEY_F3:
-      g_settings.vsync = !g_settings.vsync; // applied next frame
-      break;
 
-    // Fly mode toggle
-    case GLFW_KEY_T:
+    // Fly mode toggle (T is kept free for chat)
+    case GLFW_KEY_F:
       engine->player->toggleFlyMode();
       break;
 
@@ -1008,7 +1003,7 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
   if (action != GLFW_PRESS || !engine->playing() || engine->paused()) return;
 
   // Inventory screen: clicks move items instead of breaking/placing. Clicks
-  // on an ImGui window (the F1 panel) belong to that window.
+  // on an ImGui window (the F12 panel) belong to that window.
   if (engine->player->isInventoryOpen()) {
     const ImGuiIO &io = ImGui::GetIO();
     if (io.WantCaptureMouse) return;
