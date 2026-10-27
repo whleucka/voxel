@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <optional>
+#include <vector>
 #include <string_view>
 
 // Item ids 1..255 are block items: ItemId(n) places BlockType(n), so they are
@@ -52,6 +53,10 @@ inline ItemId itemForBlock(BlockType b) {
 bool isValidItem(ItemId id);
 // Precondition: isValidItem(id). Unknown ids get a placeholder "Unknown" def.
 const ItemDef &itemDef(ItemId id);
+
+// What the creative palette offers: every item except blocks that can't be
+// broken again (bedrock, water), in id order.
+const std::vector<ItemId> &paletteItems();
 
 // What breaking a block yields (always a single item), or nothing.
 std::optional<ItemId> dropFor(BlockType b);

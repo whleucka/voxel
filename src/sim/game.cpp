@@ -48,6 +48,7 @@ bool Game::save() {
   level.seed         = g_settings.world_seed;
   level.noise_offset = g_settings.noise_offset;
   level.time_of_day  = clock_.time_of_day;
+  level.mode         = mode_;
 
   // The save format holds one player: the host, who joined first. A saved
   // player that never rejoined is written back unchanged.
@@ -88,6 +89,7 @@ void Game::restore(const WorldSave::LevelData &level, WorldEdits edits,
                    std::optional<WorldSave::PlayerData> player,
                    std::optional<std::vector<ItemStack>> inventory) {
   clock_.time_of_day = level.time_of_day;
+  mode_ = level.mode;
   world_.setLoadedEdits(std::move(edits));
   saved_player = std::move(player);
   saved_inventory = std::move(inventory);
@@ -238,15 +240,17 @@ void Game::tick() {
     if (ps->vitals.dead()) {
       ps->dead_ms += kTickMs;
       if (ps->dead_ms >= kRespawnDelayMs) respawn(client, *ps);
-    } else {
+    } else if (rules().drain) {
       ps->vitals.tick(kTickMs, ps->activity);
+    } else {
+      ps->vitals.reset(); // creative: always full
     }
   }
 
   std::vector<glm::vec3> positions, living;
   for (const auto &[id, ps] : players) {
     positions.push_back(ps.position);
-    if (!ps.vitals.dead()) living.push_back(ps.position);
+    if (!ps.vitals.dead() && rules().enemies_target) living.push_back(ps.position);
   }
   entities_.tick(world_, rng_, positions, living, speedScale(g_settings.difficulty));
   removeEnemies();
@@ -376,8 +380,10 @@ void Game::apply(Client &client, const Join &cmd) {
     if (other.player) other.link->deliver(PlayerJoined{ps.id, ps.name});
   players[ps.id] = ps;
   client.player = ps.id;
+  // Flying from a creative visit doesn't carry into survival.
+  if (!rules().fly) ps.fly = false;
   client.link->deliver(Joined{ps.id, ps.position, ps.yaw, ps.pitch,
-                              ps.selected_slot, ps.fly});
+                              ps.selected_slot, ps.fly, mode_});
   sendInventory(client, ps);
 }
 
@@ -394,7 +400,7 @@ void Game::apply(Client &client, const MovePlayer &cmd) {
   ps->activity = {cmd.sprinting, cmd.eyes_underwater, cmd.fly};
 
   int fall = ps->fall.update(cmd.position.y, cmd.on_ground, cmd.in_water, cmd.fly);
-  if (fall > 0) ps->vitals.damage(fall);
+  if (fall > 0 && rules().damage) ps->vitals.damage(fall);
 }
 
 void Game::apply(Client &client, const SelectSlot &cmd) {
@@ -422,6 +428,7 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
   broadcast(BlockChanged{cmd.pos, BlockType::AIR});
 
   // Survival: collect the drop.
+  if (!rules().block_drops) return;
   if (auto drop = dropFor(target)) {
     ItemStack left = ps->inventory.add({*drop, 1});
     sendInventory(client, *ps);
@@ -461,8 +468,10 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
 
   world_.setBlockAt(cmd.pos, *block);
   broadcast(BlockChanged{cmd.pos, *block});
-  ps->inventory.take(ps->selected_slot, 1);
-  sendInventory(client, *ps);
+  if (rules().consume_blocks) {
+    ps->inventory.take(ps->selected_slot, 1);
+    sendInventory(client, *ps);
+  }
 }
 
 void Game::apply(Client &client, const SetTimeOfDay &cmd) {
@@ -476,7 +485,8 @@ void Game::apply(Client &client, const Save &) {
 
 void Game::apply(Client &client, const GiveItem &cmd) {
   PlayerState *ps = playerFor(client);
-  if (!ps || !hostOnly(client, "give")) return;
+  // The creative palette is for everyone; otherwise it's a host cheat.
+  if (!ps || (!rules().palette && !hostOnly(client, "give"))) return;
   if (!isValidItem(cmd.id) || cmd.count == 0)
     return reject(client, "give: unknown item");
   // Same as collecting a drop: whatever doesn't fit lands at your feet.
@@ -722,6 +732,7 @@ float boxGap(glm::vec3 a_lo, glm::vec3 a_hi, glm::vec3 b_lo, glm::vec3 b_hi) {
 // An enemy touching a living player hurts them and knocks them away, then
 // waits out its own cooldown.
 void Game::enemyAttacks() {
+  if (!rules().enemies_target) return;
   for (Client &client : clients) {
     PlayerState *ps = playerFor(client);
     if (!ps || ps->vitals.dead()) continue;

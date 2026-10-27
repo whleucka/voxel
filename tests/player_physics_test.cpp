@@ -220,3 +220,16 @@ TEST_CASE("stuck in a block, flying sideways doesn't pass through") {
   steps(p, r.world, 30, forward());
   CHECK(p.getPosition().z == doctest::Approx(8.5f));
 }
+
+TEST_CASE("flying is only possible where the world allows it") {
+  Player p({8.5f, kBase + 5.0f, 8.5f});
+  p.toggleFlyMode();
+  REQUIRE(p.isFlyMode());
+  p.setFlyAllowed(false); // told the world is survival
+  CHECK_FALSE(p.isFlyMode());
+  p.toggleFlyMode();      // T
+  CHECK_FALSE(p.isFlyMode());
+  p.setFlyAllowed(true);
+  p.toggleFlyMode();
+  CHECK(p.isFlyMode());
+}

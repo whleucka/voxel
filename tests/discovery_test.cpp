@@ -14,7 +14,8 @@ Beacon sample() {
 
 bool sameBeacon(const Beacon &a, const Beacon &b) {
   return a.version == b.version && a.world == b.world && a.host == b.host &&
-         a.players == b.players && a.max_players == b.max_players && a.port == b.port;
+         a.players == b.players && a.max_players == b.max_players && a.port == b.port &&
+         a.mode == b.mode;
 }
 
 } // namespace
@@ -23,6 +24,23 @@ TEST_CASE("beacons round-trip") {
   auto back = decode(encode(sample()));
   REQUIRE(back);
   CHECK(sameBeacon(*back, sample()));
+}
+
+TEST_CASE("beacons carry the game mode, and version 1 beacons still decode") {
+  Beacon creative = sample();
+  creative.mode = GameMode::Creative;
+  auto back = decode(encode(creative));
+  REQUIRE(back);
+  CHECK(back->mode == GameMode::Creative);
+
+  Beacon old = sample();
+  old.version = 1;
+  auto bytes = encode(old);
+  bytes.pop_back(); // version 1 had no mode byte
+  auto old_back = decode(bytes);
+  REQUIRE(old_back);
+  CHECK(old_back->version == 1);
+  CHECK(old_back->mode == GameMode::Survival);
 }
 
 TEST_CASE("bad beacons are ignored") {

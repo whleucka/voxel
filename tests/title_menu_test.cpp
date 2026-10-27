@@ -1,4 +1,5 @@
 #include "doctest/doctest.h"
+#include "net/wire.hpp"
 #include "ui/title_menu.hpp"
 
 TEST_CASE("typed addresses: host, or host:port") {
@@ -27,4 +28,12 @@ TEST_CASE("world sizes read nicely") {
   CHECK(sizeText(1023) == "1023 B");
   CHECK(sizeText(48 * 1024) == "48 KB");
   CHECK(sizeText(3565158) == "3.4 MB");
+}
+
+TEST_CASE("the join list shows each game's mode") {
+  discovery::Beacon b{wire::kProtocolVersion, "castle", "Bea", 2, 8, 47800, GameMode::Creative};
+  CHECK(gameLine(b) == "castle  -  Bea's game, creative  (2/8)");
+  b.mode = GameMode::Survival;
+  CHECK(gameLine(b) == "castle  -  Bea's game, survival  (2/8)");
+  CHECK(std::string(modeLabel(GameMode::Creative)) == "Creative");
 }

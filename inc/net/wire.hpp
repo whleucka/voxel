@@ -16,7 +16,7 @@
 //          values; strings are u16 length + bytes.
 namespace wire {
 
-constexpr uint16_t kProtocolVersion = 1;
+constexpr uint16_t kProtocolVersion = 2; // 2: Joined and beacons carry the game mode
 constexpr uint32_t kMaxFrame = 4 * 1024 * 1024;
 
 std::vector<uint8_t> encode(const Command &cmd);

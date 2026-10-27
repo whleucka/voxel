@@ -61,7 +61,7 @@ void Player::update(float dt, World* world) {
 
 // ─── Keyboard Processing ───────────────────────────────────────────────
 
-void Player::processKeyboard(float dt, const PlayerInput& input) {
+void Player::processKeyboard(float /*dt*/, const PlayerInput& input) {
   if (fly_mode) {
     // Fly mode: full 3D movement along camera direction. update() moves the
     // body, stopping at blocks.

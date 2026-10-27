@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chunk/chunk.hpp" // ChunkKey, ChunkKeyHash
+#include "core/game_mode.hpp"
 #include "item/item_stack.hpp"
 #include "robin_hood/robin_hood.h"
 #include <cstdint>
@@ -25,6 +26,9 @@ struct LevelData {
   uint32_t  seed = 0;
   glm::vec2 noise_offset{0.0f};
   float     time_of_day = 12 * 3600.0f;
+  // A trailing byte: files written before modes existed load as Survival,
+  // and older builds stop reading before it.
+  GameMode  mode = GameMode::Survival;
 };
 
 // player.dat — player state restored after the world is generated.

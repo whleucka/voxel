@@ -97,8 +97,14 @@ std::string worldDir(const std::string &name) {
 bool loadLevel(const std::string &dir, LevelData &out) {
   std::ifstream in(dir + "/level.dat", std::ios::binary);
   if (!in || !checkHeader(in, kLevelMagic)) return false;
-  return rd(in, out.seed) && rd(in, out.noise_offset.x) &&
-         rd(in, out.noise_offset.y) && rd(in, out.time_of_day);
+  if (!(rd(in, out.seed) && rd(in, out.noise_offset.x) && rd(in, out.noise_offset.y) &&
+        rd(in, out.time_of_day)))
+    return false;
+  uint8_t mode = 0;
+  out.mode = rd(in, mode) && mode == static_cast<uint8_t>(GameMode::Creative)
+                 ? GameMode::Creative
+                 : GameMode::Survival;
+  return true;
 }
 
 bool loadPlayer(const std::string &dir, PlayerData &out) {
@@ -142,6 +148,7 @@ bool saveLevel(const std::string &dir, const LevelData &level) {
   wr(o, level.noise_offset.x);
   wr(o, level.noise_offset.y);
   wr(o, level.time_of_day);
+  wr(o, static_cast<uint8_t>(level.mode));
   return static_cast<bool>(o);
 }
 

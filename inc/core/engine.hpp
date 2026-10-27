@@ -5,6 +5,7 @@
 #include "render/camera.hpp"
 #include "core/session.hpp"
 #include "ui/hud.hpp"
+#include "ui/pause_menu.hpp"
 #include "ui/title_menu.hpp"
 #include "render/menu_scene.hpp"
 #include "entity/entity_interp.hpp"
@@ -27,7 +28,8 @@ private:
   GLFWwindow *window = nullptr;
   std::string win_title;
   int win_width, win_height;
-  int win_pos_x, win_pos_y;
+  int win_pos_x = 0, win_pos_y = 0;
+  bool shown_vsync = false, shown_fullscreen = false; // what the window has now
 
   // The game being played (single player, hosted or joined); null in the menu.
   std::unique_ptr<Session> session;
@@ -36,6 +38,8 @@ private:
   std::unique_ptr<Player> player; // the local player; created on Joined
   std::string last_rejection;     // latest CommandRejected, for the debug panel
   Inventory::Slots inventory_view{}; // the Game's latest InventoryContents
+  GameMode game_mode = GameMode::Survival;   // the world's, from Joined
+  PauseMenu pause;
   VitalsChanged vitals_view{Vitals::kMax, Vitals::kMax, Vitals::kMax, true, false};
   Hud hud;
   EntityRenderer entity_renderer;
@@ -70,6 +74,9 @@ private:
   void endSession(std::string message = {});
   bool playing() const { return session && player; }
   void menuFrame();
+  bool paused() const { return pause.isOpen(); }
+  void pauseAction(PauseMenu::Action action);
+  void applyDisplaySettings();
   void startFromMenu(const TitleMenu::Choice &choice);
   void setCursorCaptured(bool captured);
   void debugMultiplayer();

@@ -68,7 +68,8 @@ void Session::frame(float dt, double now) {
     server_->flush();
     beacon.tick(now, {wire::kProtocolVersion, opts.world_name, opts.name,
                       static_cast<uint8_t>(game_->playerCount()),
-                      static_cast<uint8_t>(Game::kMaxPlayers), server_->port()});
+                      static_cast<uint8_t>(Game::kMaxPlayers), server_->port(),
+                      game_->mode()});
   }
 }
 

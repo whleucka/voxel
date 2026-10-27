@@ -1,7 +1,10 @@
 #include "ui/title_menu.hpp"
 #include "net/wire.hpp"
 #include "sim/game.hpp"
+#include "core/settings.hpp"
 #include "imgui/imgui.h"
+#include "ui/menu_style.hpp"
+#include <cctype>
 #include <charconv>
 #include <cstdio>
 #include <cstring>
@@ -33,23 +36,29 @@ std::string sizeText(uintmax_t bytes) {
   return buf;
 }
 
+const char *modeLabel(GameMode mode) {
+  return mode == GameMode::Creative ? "Creative" : "Survival";
+}
+
+std::string gameLine(const discovery::Beacon &b) {
+  std::string mode = modeLabel(b.mode);
+  for (char &c : mode) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return b.world + "  -  " + b.host + "'s game, " + mode + "  (" + std::to_string(b.players) +
+         "/" + std::to_string(b.max_players) + ")";
+}
+
 namespace {
 
 const ImVec4 kWarn(1.f, 0.6f, 0.3f, 1.f);
 const ImVec4 kError(1.f, 0.45f, 0.4f, 1.f);
-constexpr float kPanelAlpha = 0.78f;
 
-// A panel centred on screen (a little below the title).
-bool beginPanel(const char *id, float width) {
-  const ImGuiIO &io = ImGui::GetIO();
-  ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.58f),
-                          ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-  ImGui::SetNextWindowSize(ImVec2(width, 0), ImGuiCond_Always);
-  ImGui::SetNextWindowBgAlpha(kPanelAlpha);
-  return ImGui::Begin(id, nullptr,
-                      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                          ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
-                          ImGuiWindowFlags_NoTitleBar);
+#ifndef VOXEL_VERSION
+#define VOXEL_VERSION "dev"
+#endif
+
+// Esc, unless a text box has it (Esc there just leaves the box).
+bool escPressed() {
+  return ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsAnyItemActive();
 }
 
 } // namespace
@@ -85,12 +94,17 @@ TitleMenu::Choice TitleMenu::draw(double now, std::string &name, std::string &la
   if (browsing) browser.poll(now);
 
   drawTitle();
+  drawVersion();
   Choice choice;
   switch (page) {
     case Page::Main: drawMain(choice, name); break;
     case Page::Worlds: drawWorlds(choice, last_world); break;
     case Page::Multiplayer: drawMultiplayer(choice, default_port); break;
+    case Page::Settings:
+      if (settings.draw(g_settings, false)) page = Page::Main;
+      break;
   }
+  if (page != Page::Main && escPressed()) goBack();
   if (choice.kind == Choice::Play || choice.kind == Choice::Host) last_world = choice.world;
   return choice;
 }
@@ -104,53 +118,88 @@ void TitleMenu::drawTitle() {
   ImVec2 at(io.DisplaySize.x * 0.5f - extent.x * 0.5f, io.DisplaySize.y * 0.12f);
   draw->AddText(ImGui::GetFont(), size, ImVec2(at.x + 4, at.y + 4), IM_COL32(0, 0, 0, 150), title);
   draw->AddText(ImGui::GetFont(), size, at, IM_COL32(250, 245, 225, 255), title);
+
+  const char *subtitle = "build  -  explore  -  survive";
+  float sub_size = std::max(16.0f, size * 0.22f);
+  ImVec2 sub_ext = ImGui::GetFont()->CalcTextSizeA(sub_size, FLT_MAX, 0.0f, subtitle);
+  ImVec2 sub_at(io.DisplaySize.x * 0.5f - sub_ext.x * 0.5f, at.y + extent.y + sub_size * 0.2f);
+  draw->AddText(ImGui::GetFont(), sub_size, ImVec2(sub_at.x + 2, sub_at.y + 2),
+                IM_COL32(0, 0, 0, 140), subtitle);
+  draw->AddText(ImGui::GetFont(), sub_size, sub_at, IM_COL32(240, 190, 120, 255), subtitle);
+}
+
+void TitleMenu::drawVersion() {
+  const ImGuiIO &io = ImGui::GetIO();
+  const char *text = "voxel " VOXEL_VERSION;
+  float size = 15.0f;
+  ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
+  ImGui::GetForegroundDrawList()->AddText(
+      ImGui::GetFont(), size, ImVec2(io.DisplaySize.x - ext.x - 12, io.DisplaySize.y - ext.y - 8),
+      IM_COL32(255, 255, 255, 120), text);
+}
+
+// Esc and Back: close an open form first, then return to the main page.
+void TitleMenu::goBack() {
+  if (page == Page::Worlds && form != Form::None) {
+    form = Form::None;
+    return;
+  }
+  if (page == Page::Settings) settings.close();
+  if (page == Page::Worlds) selected = -1;
+  page = Page::Main;
+  form = Form::None;
 }
 
 void TitleMenu::drawMain(Choice &choice, std::string &name) {
-  beginPanel("##main", 360);
+  beginMenuPanel("##main", 400);
   ImGui::InputText("Your name", name_buf, sizeof name_buf);
   name = name_buf;
   bool name_ok = Game::validName(name);
   if (!name_ok) ImGui::TextColored(kWarn, "1-16 letters, digits, _ or -");
 
   ImGui::Spacing();
-  ImVec2 wide(-1, 36);
   ImGui::BeginDisabled(!name_ok);
-  if (ImGui::Button("Single player", wide)) {
+  if (menuButton("Single player")) {
     page = Page::Worlds;
     form = Form::None;
     message_.clear();
   }
-  if (ImGui::Button("Multiplayer", wide)) {
+  if (ImGui::IsWindowAppearing()) ImGui::SetItemDefaultFocus();
+  if (menuButton("Multiplayer")) {
     page = Page::Multiplayer;
     message_.clear();
   }
   ImGui::EndDisabled();
+  if (menuButton("Settings")) {
+    page = Page::Settings;
+    message_.clear();
+  }
   ImGui::Spacing();
-  if (ImGui::Button("Quit", wide)) choice.kind = Choice::Quit;
+  if (menuButton("Quit")) choice.kind = Choice::Quit;
 
   if (!status_.empty()) ImGui::TextUnformatted(status_.c_str());
   if (!message_.empty()) ImGui::TextColored(kError, "%s", message_.c_str());
-  ImGui::End();
+  endMenuPanel();
 }
 
 void TitleMenu::drawWorlds(Choice &choice, std::string &last_world) {
   // Refresh on arrival (and keep the last played one selected).
   if (selected < 0 || selected >= static_cast<int>(worlds.size())) refreshWorlds(last_world);
 
-  beginPanel("##worlds", 620);
+  beginMenuPanel("##worlds", 780);
   ImGui::TextUnformatted("Your worlds");
   ImGui::Separator();
 
   auto now = std::chrono::system_clock::now();
-  if (ImGui::BeginTable("##list", 4,
+  if (ImGui::BeginTable("##list", 5,
                         ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY |
                             ImGuiTableFlags_BordersInnerV,
                         ImVec2(0, 220))) {
     ImGui::TableSetupColumn("World", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("Seed", ImGuiTableColumnFlags_WidthFixed, 100);
-    ImGui::TableSetupColumn("Last played", ImGuiTableColumnFlags_WidthFixed, 130);
-    ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 70);
+    ImGui::TableSetupColumn("Mode", ImGuiTableColumnFlags_WidthFixed, 90);
+    ImGui::TableSetupColumn("Seed", ImGuiTableColumnFlags_WidthFixed, 110);
+    ImGui::TableSetupColumn("Last played", ImGuiTableColumnFlags_WidthFixed, 150);
+    ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 80);
     ImGui::TableHeadersRow();
     for (int i = 0; i < static_cast<int>(worlds.size()); ++i) {
       const WorldInfo &w = worlds[i];
@@ -166,6 +215,8 @@ void TitleMenu::drawWorlds(Choice &choice, std::string &last_world) {
       }
       ImGui::PopID();
       ImGui::TableNextColumn();
+      ImGui::TextUnformatted(modeLabel(w.mode));
+      ImGui::TableNextColumn();
       ImGui::Text("%u", w.seed);
       ImGui::TableNextColumn();
       ImGui::TextUnformatted(lastPlayedText(toSystemTime(w.last_played), now).c_str());
@@ -178,26 +229,40 @@ void TitleMenu::drawWorlds(Choice &choice, std::string &last_world) {
 
   bool has = selected >= 0 && selected < static_cast<int>(worlds.size());
   std::string sel = has ? worlds[selected].name : std::string();
-  float third = (ImGui::GetContentRegionAvail().x - 2 * ImGui::GetStyle().ItemSpacing.x) / 3;
+  float spacing = ImGui::GetStyle().ItemSpacing.x;
+  float half = (ImGui::GetContentRegionAvail().x - spacing) / 2;
+  float quarter = (ImGui::GetContentRegionAvail().x - 3 * spacing) / 4;
 
   ImGui::Spacing();
   ImGui::BeginDisabled(!has);
-  if (ImGui::Button("Play", ImVec2(third * 1.5f, 34))) choice = {Choice::Play, sel, {}};
+  if (ImGui::Button("Play", ImVec2(half, 38))) choice = {Choice::Play, sel, {}};
+  if (ImGui::IsWindowAppearing()) ImGui::SetItemDefaultFocus();
   ImGui::SameLine();
-  if (ImGui::Button("Host on network", ImVec2(-1, 34))) choice = {Choice::Host, sel, {}};
+  if (ImGui::Button("Host on network", ImVec2(-1, 38))) choice = {Choice::Host, sel, {}};
   ImGui::EndDisabled();
 
-  if (ImGui::Button("Create new world", ImVec2(third, 0))) {
+  if (ImGui::Button("Create new world", ImVec2(quarter, 0))) {
     form = Form::Create;
     world_buf[0] = seed_buf[0] = '\0';
+    create_mode = GameMode::Survival;
     message_.clear();
   }
   ImGui::SameLine();
   ImGui::BeginDisabled(!has);
-  if (ImGui::Button("Rename", ImVec2(third, 0))) {
+  if (ImGui::Button("Rename", ImVec2(quarter, 0))) {
     form = Form::Rename;
     std::snprintf(world_buf, sizeof world_buf, "%s", sel.c_str());
     message_.clear();
+  }
+  ImGui::SameLine();
+  GameMode sel_mode = has ? worlds[selected].mode : GameMode::Survival;
+  GameMode other = sel_mode == GameMode::Creative ? GameMode::Survival : GameMode::Creative;
+  std::string change = std::string("Make ") + modeLabel(other);
+  if (ImGui::Button(change.c_str(), ImVec2(quarter, 0))) {
+    form = Form::None;
+    if (auto err = setWorldMode(root, sel, other)) message_ = *err;
+    else message_.clear();
+    refreshWorlds(sel);
   }
   ImGui::SameLine();
   if (ImGui::Button("Delete", ImVec2(-1, 0))) {
@@ -211,11 +276,19 @@ void TitleMenu::drawWorlds(Choice &choice, std::string &last_world) {
   if (form == Form::Create) {
     ImGui::InputText("World name", world_buf, sizeof world_buf);
     ImGui::InputTextWithHint("Seed", "blank = random", seed_buf, sizeof seed_buf);
+    if (ImGui::RadioButton("Survival", create_mode == GameMode::Survival))
+      create_mode = GameMode::Survival;
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Creative", create_mode == GameMode::Creative))
+      create_mode = GameMode::Creative;
+    ImGui::SameLine();
+    ImGui::TextDisabled(create_mode == GameMode::Creative ? "fly, unlimited blocks, no harm"
+                                                          : "collect, build, stay alive");
     bool ok = validWorldName(world_buf);
     if (!ok && world_buf[0]) ImGui::TextColored(kWarn, "1-32 letters, digits, spaces, _ or -");
     ImGui::BeginDisabled(!ok);
     if (ImGui::Button("Create")) {
-      if (auto err = createWorld(root, world_buf, seed_buf)) {
+      if (auto err = createWorld(root, world_buf, seed_buf, create_mode)) {
         message_ = *err;
       } else {
         refreshWorlds(world_buf);
@@ -256,17 +329,16 @@ void TitleMenu::drawWorlds(Choice &choice, std::string &last_world) {
   ImGui::Spacing();
   ImGui::Separator();
   if (ImGui::Button("Back", ImVec2(-1, 0))) {
-    page = Page::Main;
     form = Form::None;
-    selected = -1;
+    goBack();
   }
   if (!status_.empty()) ImGui::TextUnformatted(status_.c_str());
   if (!message_.empty()) ImGui::TextColored(kError, "%s", message_.c_str());
-  ImGui::End();
+  endMenuPanel();
 }
 
 void TitleMenu::drawMultiplayer(Choice &choice, uint16_t default_port) {
-  beginPanel("##multiplayer", 520);
+  beginMenuPanel("##multiplayer", 640);
   ImGui::TextUnformatted("Join a game");
   ImGui::Separator();
   if (!browsing) {
@@ -283,13 +355,13 @@ void TitleMenu::drawMultiplayer(Choice &choice, uint16_t default_port) {
     if (ImGui::Button("Join")) choice = {Choice::Join, {}, {g.address, b.port}};
     ImGui::EndDisabled();
     ImGui::SameLine();
-    ImGui::Text("%s  -  %s's game  (%d/%d)%s", b.world.c_str(), b.host.c_str(), b.players,
-                b.max_players, !same ? "  different version" : full ? "  full" : "");
+    ImGui::Text("%s%s", gameLine(b).c_str(),
+                !same ? "  different version" : full ? "  full" : "");
     ImGui::PopID();
   }
 
   ImGui::Spacing();
-  ImGui::PushItemWidth(280);
+  ImGui::PushItemWidth(340);
   bool enter = ImGui::InputTextWithHint("##address", "address, e.g. 192.168.1.20", address_buf,
                                         sizeof address_buf, ImGuiInputTextFlags_EnterReturnsTrue);
   ImGui::PopItemWidth();
@@ -301,8 +373,9 @@ void TitleMenu::drawMultiplayer(Choice &choice, uint16_t default_port) {
 
   ImGui::Spacing();
   ImGui::Separator();
-  if (ImGui::Button("Back", ImVec2(-1, 0))) page = Page::Main;
+  if (ImGui::Button("Back", ImVec2(-1, 0))) goBack();
+  if (ImGui::IsWindowAppearing()) ImGui::SetItemDefaultFocus();
   if (!status_.empty()) ImGui::TextUnformatted(status_.c_str());
   if (!message_.empty()) ImGui::TextColored(kError, "%s", message_.c_str());
-  ImGui::End();
+  endMenuPanel();
 }

@@ -1,4 +1,5 @@
 #include "core/engine.hpp"
+#include "ui/menu_style.hpp"
 #include "block/block_data.hpp"
 #include "core/config.hpp"
 #include "core/constants.hpp"
@@ -99,6 +100,8 @@ bool Engine::init() {
   glViewport(0, 0, win_width, win_height);
 
   glfwSwapInterval(g_settings.vsync ? 1 : 0);
+  shown_vsync = g_settings.vsync;
+  shown_fullscreen = g_settings.fullscreen;
 
   // ImGui
   IMGUI_CHECKVERSION();
@@ -107,6 +110,7 @@ bool Engine::init() {
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
   ImGui::StyleColorsDark();
+  applyMenuStyle();
 
   // Platform/Renderer bindings
   ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -127,6 +131,7 @@ void Engine::run() {
     float currentFrame = glfwGetTime();
     delta_time = currentFrame - last_frame;
     last_frame = currentFrame;
+    applyDisplaySettings();
 
     if (playing()) {
       processInput(window);
@@ -142,6 +147,28 @@ void Engine::run() {
 
   endSession(); // persist on quit
   scene.close(); // while the GL context is still alive
+}
+
+// ─── Display settings ──────────────────────────────────────────────────
+// F3, F11 and the settings page only change g_settings; the window follows
+// here, once per frame.
+
+void Engine::applyDisplaySettings() {
+  if (g_settings.vsync != shown_vsync) {
+    shown_vsync = g_settings.vsync;
+    glfwSwapInterval(shown_vsync ? 1 : 0);
+  }
+  if (g_settings.fullscreen == shown_fullscreen) return;
+  shown_fullscreen = g_settings.fullscreen;
+  if (shown_fullscreen) {
+    glfwGetWindowPos(window, &win_pos_x, &win_pos_y);
+    glfwGetWindowSize(window, &win_width, &win_height);
+    GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+    glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+  } else {
+    glfwSetWindowMonitor(window, nullptr, win_pos_x, win_pos_y, win_width, win_height, 0);
+  }
 }
 
 // ─── Title menu ────────────────────────────────────────────────────────
@@ -255,6 +282,7 @@ void Engine::endSession(std::string message) {
   session->end();
   session.reset();
   player.reset();
+  pause.close();
   g_settings.show_debug = false;
   setCursorCaptured(false);
   menu.open(std::move(message));
@@ -264,7 +292,7 @@ void Engine::endSession(std::string message) {
 
 void Engine::processInput(GLFWwindow *window) {
   // Don't process movement when inventory is open or while dead
-  if (player->isInventoryOpen() || vitals_view.dead) return;
+  if (player->isInventoryOpen() || vitals_view.dead || paused()) return;
 
   PlayerInput input;
   input.forward  = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
@@ -287,6 +315,7 @@ void Engine::processInput(GLFWwindow *window) {
 // ─── Update ────────────────────────────────────────────────────────────
 
 void Engine::update() {
+  if (!PauseMenu::worldRuns(session->mode() == Session::Mode::Single, paused())) return;
   // Physics runs locally; the Game is told where we ended up, and streams
   // chunks around every player's reported position when it pumps.
   player->update(delta_time, &world());
@@ -334,7 +363,9 @@ void Engine::handleEvents() {
       cam.pitch = joined->pitch;
       cam.processMouseMovement(0.0f, 0.0f); // refresh direction vectors
       player->setSelectedHotbarSlot(joined->slot);
+      game_mode = joined->mode;
       *player->getFlyModePtr() = joined->fly;
+      player->setFlyAllowed(rulesFor(game_mode).fly);
       menu.close();
       setCursorCaptured(true);
     }
@@ -413,14 +444,37 @@ void Engine::render() {
   if (player->isInventoryOpen()) {
     hud.drawInventoryScreen(layout, inventory_view, inventory_screen,
                             {io.MousePos.x, io.MousePos.y});
+    if (rulesFor(game_mode).palette)
+      hud.drawPalette(layout, paletteItems(), {io.MousePos.x, io.MousePos.y});
   } else {
     hud.drawHotbar(layout, inventory_view, player->getSelectedHotbarSlot(),
                    glfwGetTime());
     hud.drawVitals(layout, vitals_view, glfwGetTime());
   }
   if (vitals_view.dead) hud.drawDeathScreen();
+  bool was_paused = paused();
+  PauseMenu::Action action = pause.draw(session->mode() == Session::Mode::Single,
+                                        session->isGuest(), glfwGetTime());
+  if (was_paused && !paused()) setCursorCaptured(true); // Resume
 
   debug();
+  pauseAction(action); // after the frame: it may end the game
+}
+
+void Engine::pauseAction(PauseMenu::Action action) {
+  switch (action) {
+    case PauseMenu::Action::None: break;
+    case PauseMenu::Action::Save:
+      connection().send(Save{});
+      session->frame(0.0f, glfwGetTime()); // a paused game still takes the save
+      pause.saved(glfwGetTime());
+      break;
+    case PauseMenu::Action::ReturnToTitle: endSession(); break;
+    case PauseMenu::Action::Exit:
+      endSession();
+      glfwSetWindowShouldClose(window, true);
+      break;
+  }
 }
 
 // ─── Name tags ─────────────────────────────────────────────────────────
@@ -598,7 +652,9 @@ void Engine::debug() {
 
         // Controls
         if (ImGui::CollapsingHeader("Controls", ImGuiTreeNodeFlags_DefaultOpen)) {
-          ImGui::Checkbox("Fly mode", player->getFlyModePtr());
+          ImGui::BeginDisabled(!player->isFlyAllowed());
+          ImGui::Checkbox("Fly mode (creative)", player->getFlyModePtr());
+          ImGui::EndDisabled();
           ImGui::PushItemWidth(180);
           ImGui::SliderFloat("Sensitivity", &g_settings.mouse_sensitivity,
                              0.01f, 0.30f, "%.3f");
@@ -809,6 +865,8 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
   if (action != GLFW_PRESS) return;
   // In the menu, keys belong to ImGui (typing a name or an address).
   if (!engine->playing()) return;
+  // Paused, only Esc counts; ImGui has the rest for moving around the menu.
+  if (engine->paused() && key != GLFW_KEY_ESCAPE) return;
 
   switch (key) {
     // Debug panel toggle – release/recapture cursor so ImGui is usable
@@ -825,8 +883,7 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
       g_settings.wireframe = !g_settings.wireframe;
       break;
     case GLFW_KEY_F3:
-      g_settings.vsync = !g_settings.vsync;
-      glfwSwapInterval(g_settings.vsync ? 1 : 0);
+      g_settings.vsync = !g_settings.vsync; // applied next frame
       break;
 
     // Fly mode toggle
@@ -850,13 +907,15 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
         engine->connection().send(DropItem{(mods & GLFW_MOD_CONTROL) != 0});
       break;
 
-    // Esc closes the inventory screen first; otherwise it leaves the game
-    // (saving it) for the title menu
+    // Esc closes the inventory screen first; otherwise it opens the pause
+    // menu, backs out of its settings, or resumes. It never leaves the game.
     case GLFW_KEY_ESCAPE:
-      if (engine->player->isInventoryOpen())
+      if (engine->player->isInventoryOpen()) {
         engine->setInventoryOpen(false);
-      else
-        engine->endSession();
+      } else {
+        engine->pause.escape();
+        engine->setCursorCaptured(!engine->paused());
+      }
       break;
 
     // Hotbar slots: keys 1..9, then 0 for the tenth
@@ -872,22 +931,9 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
     case GLFW_KEY_0: engine->selectSlot(9); break;
 
     // Fullscreen toggle
-    case GLFW_KEY_F11: {
-      g_settings.fullscreen = !g_settings.fullscreen;
-      if (g_settings.fullscreen) {
-        glfwGetWindowPos(window, &engine->win_pos_x, &engine->win_pos_y);
-        glfwGetWindowSize(window, &engine->win_width, &engine->win_height);
-        GLFWmonitor *primaryMonitor = glfwGetPrimaryMonitor();
-        const GLFWvidmode *mode = glfwGetVideoMode(primaryMonitor);
-        glfwSetWindowMonitor(window, primaryMonitor, 0, 0, mode->width,
-                             mode->height, mode->refreshRate);
-      } else {
-        glfwSetWindowMonitor(window, nullptr, engine->win_pos_x,
-                             engine->win_pos_y, engine->win_width,
-                             engine->win_height, 0);
-      }
+    case GLFW_KEY_F11:
+      g_settings.fullscreen = !g_settings.fullscreen; // applied next frame
       break;
-    }
 
     default:
       break;
@@ -900,7 +946,7 @@ void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
   // Don't process mouse look in the menu, or when inventory or debug panel is open
-  if (!engine->playing() || engine->player->isInventoryOpen()) return;
+  if (!engine->playing() || engine->player->isInventoryOpen() || engine->paused()) return;
   if (g_settings.show_debug) return;
 
   if (engine->first_mouse) {
@@ -923,7 +969,7 @@ void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
 void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int mods) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
-  if (action != GLFW_PRESS || !engine->playing()) return;
+  if (action != GLFW_PRESS || !engine->playing() || engine->paused()) return;
 
   // Inventory screen: clicks move items instead of breaking/placing. Clicks
   // on an ImGui window (the F1 panel) belong to that window.
@@ -934,6 +980,18 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     std::optional<int> slot = layout.hitTestScreen(io.MousePos.x, io.MousePos.y);
     const Inventory::Slots &inv = engine->inventory_view;
     InventoryScreen &screen = engine->inventory_screen;
+
+    // Creative palette: a click gives a full stack of that item.
+    if (rulesFor(engine->game_mode).palette && !slot) {
+      const std::vector<ItemId> &items = paletteItems();
+      int count = static_cast<int>(items.size());
+      if (auto pick = layout.hitTestPalette(io.MousePos.x, io.MousePos.y, count)) {
+        screen.close(); // drop any pick-up; nothing was moved yet
+        ItemId id = items[*pick];
+        engine->connection().send(GiveItem{id, itemDef(id).max_stack});
+        return;
+      }
+    }
 
     std::optional<MoveItems> move;
     if (button == GLFW_MOUSE_BUTTON_LEFT)
@@ -994,7 +1052,7 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
 
 void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
-  if (!engine->playing()) return;
+  if (!engine->playing() || engine->paused()) return;
   auto& player = engine->player;
 
   int slot = player->getSelectedHotbarSlot();
