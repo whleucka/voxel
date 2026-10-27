@@ -80,11 +80,17 @@ struct CloseContainer {};
 // and a Crafting Table in reach when the recipe needs one.
 struct Craft { uint16_t recipe = 0; bool all = false; };
 
+// With a fishing rod held: throw the bobber along `dir` (the aim), replacing
+// any line already out. ReelIn brings it back, with a catch if it was biting.
+struct CastLine { glm::vec3 dir{0.0f, 0.0f, -1.0f}; };
+struct ReelIn {};
+
 using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SelectSlot, Save, SetTimeOfDay, GiveItem,
                              MoveItems, DropItem, AttackEntity,
                              SpawnDebugEntity, InteractEntity, EatItem, Craft,
-                             OpenContainer, CloseContainer, StartBreak>;
+                             OpenContainer, CloseContainer, StartBreak,
+                             CastLine, ReelIn>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 
@@ -155,6 +161,8 @@ struct EntityView {
   bool hurt = false;          // flash red
   bool happy = false;         // fed animal: show a heart
   bool burning = false;       // set alight: glow orange
+  PlayerId owner = 0;         // bobbers: who's fishing (draws the line)
+  bool biting = false;        // bobbers: dipped under
   bool moving = false;        // set client-side by the interpolator
 };
 
@@ -184,6 +192,9 @@ struct KnownItems { std::vector<ItemId> ids; };
 // The owner's tool wore out and is gone.
 struct ToolBroke { ItemId item = ItemId::NONE; };
 
+// The owner reeled something in (it's in their inventory, or at their feet).
+struct Caught { ItemId item = ItemId::NONE; };
+
 // The open furnace, to everyone looking in: when they open it, when its
 // slots change, and a few times a second while it burns. `open` false: it's
 // closed for them (out of reach, or the furnace is gone).
@@ -199,4 +210,4 @@ using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            CommandRejected, InventoryContents, VitalsChanged,
                            Respawned, EntitySnapshot, KnockedBack, JoinRefused,
                            Welcome, TimeSync, Disconnected, KnownItems,
-                           ContainerView, ToolBroke>;
+                           ContainerView, ToolBroke, Caught>;

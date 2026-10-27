@@ -26,6 +26,7 @@ enum class EntityKind : uint16_t {
   Pebblefish = 10,  // fish
   Sunfin = 11,
   Glowfin = 12,
+  Bobber = 13,      // a fishing line's float
 };
 
 // One cuboid of a box model, in blocks, relative to the entity's feet

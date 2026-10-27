@@ -26,6 +26,10 @@ struct PlayerState {
   std::optional<glm::ivec3> open_container; // the furnace they're looking in
   struct Breaking { glm::ivec3 pos{0}; uint64_t since_ms = 0; };
   std::optional<Breaking> breaking;         // from StartBreak (survival)
+  // A line out: its bobber, when the next bite comes (0 until the bobber is
+  // in water), and when the current bite's window closes (0: no bite).
+  struct Fishing { EntityId bobber = 0; uint64_t bite_at_ms = 0; uint64_t window_end_ms = 0; };
+  std::optional<Fishing> fishing;
 
   Vitals vitals;
   FallTracker fall;

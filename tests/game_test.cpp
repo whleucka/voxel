@@ -5,6 +5,7 @@
 #include "item/tools.hpp"
 #include "core/settings.hpp"
 #include "entity/enemies.hpp"
+#include "entity/fish.hpp"
 #include "sim/game.hpp"
 #include "sim/local_connection.hpp"
 #include "test_util.hpp"
@@ -2356,4 +2357,226 @@ TEST_CASE_FIXTURE(PartyGame, "two players looking in the same furnace both see i
     if (const auto *c = std::get_if<ContainerView>(&e)) v = c;
   REQUIRE(v);
   CHECK(v->input == ItemStack{ItemId::RAW_COPPER, 2});
+}
+
+// ─── Fishing ───────────────────────────────────────────────────────────
+
+namespace {
+
+// EditGame with a pond 2 deep just in front (-Z) of the player, who stands
+// on stone with a rod in hand.
+struct FishingGame : EditGame {
+  FishingGame() {
+    auto put = [&](int x, int y, int z, BlockType b) {
+      if (at({x, y, z}) != b) game.world().setBlockAt({x, y, z}, b);
+    };
+    for (int x = 1; x <= 10; ++x)
+      for (int z = 0; z <= 11; ++z) {
+        bool pond = z <= 6;
+        put(x, ground - 1, z, pond ? BlockType::WATER : BlockType::STONE);
+        put(x, ground, z, pond ? BlockType::WATER : BlockType::STONE);
+        for (int y = ground + 1; y <= ground + 5; ++y) put(x, y, z, BlockType::AIR);
+      }
+    moveTo({5.5f, ground + 1.0f, 8.5f});
+    wield(ItemId::FISHING_ROD);
+  }
+
+  const PlayerState &me() { return *game.findPlayer(id); }
+  Entity *bobber() {
+    return me().fishing ? game.entities().find(me().fishing->bobber) : nullptr;
+  }
+  std::vector<Event> cast() { return run(CastLine{{0.0f, 0.2f, -1.0f}}); }
+  // Ticks until the bobber bites (or the time runs out); false if it never did.
+  bool waitForBite(float seconds) {
+    for (int t = 0; t < static_cast<int>(seconds * 20); ++t) {
+      game.tick();
+      if (bobber() && bobber()->biting) return true;
+    }
+    return false;
+  }
+  static const Caught *caught(const std::vector<Event> &evs) {
+    for (const Event &e : evs)
+      if (const auto *c = std::get_if<Caught>(&e)) return c;
+    return nullptr;
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(FishingGame, "a cast lands in the pond and floats on top") {
+  CHECK(cast().empty());
+  REQUIRE(bobber());
+  CHECK(bobber()->owner == id);
+  for (int t = 0; t < 40; ++t) game.tick();
+  REQUIRE(bobber());
+  glm::vec3 p = bobber()->body.position;
+  CHECK(p.z < 7.0f);   // out over the water
+  CHECK(p.z > 0.0f);
+  CHECK(p.y == doctest::Approx(ground + 1.0f - 0.12f)); // at the surface
+  CHECK(me().fishing->bite_at_ms > 0);
+}
+
+TEST_CASE_FIXTURE(FishingGame, "one bobber each: a second cast replaces the first") {
+  cast();
+  EntityId first = me().fishing->bobber;
+  cast();
+  CHECK(me().fishing->bobber != first);
+  CHECK_FALSE(game.entities().find(first));
+  int bobbers = 0;
+  for (const auto &[eid, e] : game.entities().all()) bobbers += e.kind == EntityKind::Bobber;
+  CHECK(bobbers == 1);
+}
+
+TEST_CASE_FIXTURE(FishingGame, "casting needs a rod and a real direction") {
+  wield(ItemId::STICKS);
+  CHECK(rejected(cast()));
+  wield(ItemId::FISHING_ROD);
+  CHECK(rejected(run(CastLine{{0.0f, 0.0f, 0.0f}})));
+  CHECK(rejected(run(CastLine{{std::nanf(""), 0.0f, -1.0f}})));
+  CHECK(rejected(run(ReelIn{}))); // no line out
+  CHECK_FALSE(me().fishing);
+}
+
+TEST_CASE_FIXTURE(FishingGame, "reeling in during a bite catches a fish and wears the rod") {
+  cast();
+  REQUIRE(waitForBite(kBiteMaxMs / 1000.0f + 2.0f));
+  pollAll(conn);
+  auto evs = run(ReelIn{});
+  const Caught *c = caught(evs);
+  REQUIRE(c);
+  CHECK(heldCount(inventory(), c->item) >= 1);
+  CHECK(inventory().slot(me().selected_slot) == ItemStack{ItemId::FISHING_ROD, 1, 1});
+  CHECK_FALSE(me().fishing);
+  CHECK_FALSE(bobber());
+}
+
+TEST_CASE_FIXTURE(FishingGame, "reeling in early, or from land, brings up nothing and costs nothing") {
+  cast();
+  for (int t = 0; t < 40; ++t) game.tick(); // landed, but no bite before 5 s
+  pollAll(conn);
+  auto evs = run(ReelIn{});
+  CHECK_FALSE(caught(evs));
+  CHECK_FALSE(me().fishing);
+  CHECK(inventory().slot(me().selected_slot) == ItemStack{ItemId::FISHING_ROD, 1, 0});
+
+  // On land: straight down at the player's feet, then wait long enough.
+  run(CastLine{{0.0f, -1.0f, 0.0f}});
+  CHECK_FALSE(waitForBite(kBiteMaxMs / 1000.0f + 2.0f));
+  CHECK_FALSE(caught(run(ReelIn{})));
+}
+
+TEST_CASE_FIXTURE(FishingGame, "a missed bite swims off and another comes later") {
+  cast();
+  REQUIRE(waitForBite(kBiteMaxMs / 1000.0f + 2.0f));
+  // Let the window pass.
+  for (int t = 0; t < (kBiteWindowMs + 400) / Game::kTickMs; ++t) game.tick();
+  REQUIRE(bobber());
+  CHECK_FALSE(bobber()->biting);
+  CHECK(me().fishing->bite_at_ms > 0);
+  CHECK(waitForBite(kBiteMaxMs / 1000.0f + 2.0f)); // still on the line
+}
+
+TEST_CASE_FIXTURE(FishingGame, "a fish near the bobber halves the wait") {
+  for (int i = 0; i < 6; ++i) {
+    cast();
+    for (int t = 0; t < 40; ++t) game.tick();
+    REQUIRE(bobber());
+    auto fish = game.entities().spawn(EntityKind::Pebblefish,
+                                      bobber()->body.position - glm::vec3(0.0f, 0.8f, 0.0f));
+    REQUIRE(fish);
+    // Re-roll with the fish there, the way a new landing would.
+    game.findPlayer(id)->fishing->bite_at_ms = 0;
+    CHECK(waitForBite(kBiteMaxMs / 2000.0f + 0.5f));
+    game.entities().remove(*fish);
+    run(ReelIn{});
+  }
+}
+
+TEST_CASE_FIXTURE(FishingGame, "the line breaks on switching item, walking away or dying") {
+  cast();
+  REQUIRE(bobber());
+  wield(ItemId::STICKS);
+  game.tick();
+  CHECK_FALSE(me().fishing);
+  CHECK_FALSE(bobber());
+
+  wield(ItemId::FISHING_ROD);
+  cast();
+  for (int t = 0; t < 40; ++t) game.tick();
+  REQUIRE(bobber());
+  moveTo({5.5f, ground + 1.0f, 8.5f + kLineBreakDistance + 2.0f});
+  game.tick();
+  CHECK_FALSE(me().fishing);
+
+  moveTo({5.5f, ground + 1.0f, 8.5f});
+  cast();
+  game.findPlayer(id)->vitals.damage(Vitals::kMax);
+  game.tick();
+  CHECK_FALSE(me().fishing);
+  for (const auto &[eid, e] : game.entities().all()) CHECK(e.kind != EntityKind::Bobber);
+}
+
+TEST_CASE_FIXTURE(FishingGame, "leaving takes your bobber with you") {
+  cast();
+  REQUIRE(bobber());
+  game.removeClient(conn);
+  for (const auto &[eid, e] : game.entities().all()) CHECK(e.kind != EntityKind::Bobber);
+}
+
+TEST_CASE_FIXTURE(FishingGame, "a full inventory drops the catch at your feet") {
+  PlayerState &p = *game.findPlayer(id);
+  for (int i = 0; i < kInventorySlots; ++i)
+    if (i != p.selected_slot) p.inventory.set(i, {itemForBlock(BlockType::DIRT), 64});
+  cast();
+  REQUIRE(waitForBite(kBiteMaxMs / 1000.0f + 2.0f));
+  pollAll(conn);
+  auto evs = run(ReelIn{});
+  const Caught *c = caught(evs);
+  REQUIRE(c);
+  bool dropped = false;
+  for (const auto &[eid, e] : game.entities().all())
+    dropped |= e.kind == EntityKind::DroppedItem && e.item.id == c->item;
+  CHECK(dropped);
+}
+
+TEST_CASE_FIXTURE(FishingGame, "the rod breaks after its last catch, and creative never wears it") {
+  game.findPlayer(id)->inventory.set(game.findPlayer(id)->selected_slot,
+                                     {ItemId::FISHING_ROD, 1, 63});
+  cast();
+  REQUIRE(waitForBite(kBiteMaxMs / 1000.0f + 2.0f));
+  pollAll(conn);
+  auto evs = run(ReelIn{});
+  CHECK(caught(evs));
+  CHECK(inventory().slot(me().selected_slot).empty());
+  bool broke = false;
+  for (const Event &e : evs)
+    if (const auto *b = std::get_if<ToolBroke>(&e)) broke = b->item == ItemId::FISHING_ROD;
+  CHECK(broke);
+
+  game.setMode(GameMode::Creative);
+  wield(ItemId::FISHING_ROD);
+  cast();
+  REQUIRE(waitForBite(kBiteMaxMs / 1000.0f + 2.0f));
+  run(ReelIn{});
+  CHECK(inventory().slot(me().selected_slot) == ItemStack{ItemId::FISHING_ROD, 1, 0});
+}
+
+TEST_CASE_FIXTURE(FishingGame, "fish can't be hit") {
+  auto fish = game.entities().spawn(EntityKind::Sunfin, glm::vec3(5.5f, ground + 0.2f, 7.0f));
+  REQUIRE(fish);
+  CHECK(rejected(run(AttackEntity{*fish})));
+  CHECK(game.entities().find(*fish));
+}
+
+TEST_CASE_FIXTURE(FishingGame, "bobbers in snapshots carry their owner and bite") {
+  cast();
+  REQUIRE(waitForBite(kBiteMaxMs / 1000.0f + 2.0f));
+  pollAll(conn);
+  game.tick();
+  bool seen = false;
+  for (const Event &e : pollAll(conn))
+    if (const auto *s = std::get_if<EntitySnapshot>(&e))
+      for (const EntityView &v : s->entities)
+        if (v.kind == EntityKind::Bobber) seen = v.owner == id && v.biting;
+  CHECK(seen);
 }

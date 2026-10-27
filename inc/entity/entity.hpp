@@ -33,6 +33,10 @@ struct Entity {
   // Fish only
   int stranded_ms = 0; // out of water this long; it vanishes at kStrandedMs
 
+  // Bobbers only
+  uint32_t owner = 0;  // the PlayerId fishing with it
+  bool biting = false; // dipped under: reel in now
+
   // Dropped items only
   ItemStack item;
   int pickup_delay_ms = 0;

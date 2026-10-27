@@ -269,3 +269,57 @@ TEST_CASE("on generated terrain, fish appear only in water where they live") {
     CHECK(std::find(f.biomes.begin(), f.biomes.end(), b) != f.biomes.end());
   }
 }
+
+// ─── Fishing rules ─────────────────────────────────────────────────────
+
+TEST_CASE("bites come after 5-15 s, or half that with a fish near") {
+  Rng rng{8};
+  for (int i = 0; i < 500; ++i) {
+    int far = biteWaitMs(rng, false), near = biteWaitMs(rng, true);
+    REQUIRE(far >= kBiteMinMs);
+    REQUIRE(far <= kBiteMaxMs);
+    REQUIRE(near >= kBiteMinMs / 2);
+    REQUIRE(near <= kBiteMaxMs / 2);
+  }
+}
+
+TEST_CASE("each water gives its own fish, and treasure about 15% of the time") {
+  World world;
+  auto open = [&](BiomeType b) {
+    auto c = findBiomeChunk(b);
+    REQUIRE(c);
+    world.loadChunkSync(c->x, c->y);
+    glm::ivec3 cell{c->x * kChunkWidth + 5, 180, c->y * kChunkDepth + 5};
+    fill(world, cell, cell, BlockType::WATER);
+    return cell;
+  };
+  glm::ivec3 sea = open(BiomeType::OCEAN), isle = open(BiomeType::TROPICAL),
+             field = open(BiomeType::PLAINS), hill = open(BiomeType::MOUNTAIN);
+  CHECK(fishFor(world, sea) == ItemId::RAW_SUNFIN);
+  CHECK(fishFor(world, isle) == ItemId::RAW_SUNFIN);
+  CHECK(fishFor(world, field) == ItemId::RAW_PEBBLEFISH);
+  CHECK(fishFor(world, hill) == ItemId::RAW_PEBBLEFISH);
+
+  // A dark pool: Glowfin, whatever the biome.
+  fill(world, sea + glm::ivec3(-2, -1, -2), sea + glm::ivec3(2, 2, 2), BlockType::STONE);
+  fill(world, sea + glm::ivec3(-1, 0, -1), sea + glm::ivec3(1, 1, 1), BlockType::AIR);
+  fill(world, sea, sea, BlockType::WATER);
+  CHECK(fishFor(world, sea) == ItemId::RAW_GLOWFIN);
+
+  Rng rng{123};
+  constexpr int kCasts = 4000;
+  int fish = 0, boots = 0, diamonds = 0;
+  for (int i = 0; i < kCasts; ++i) {
+    ItemStack got = rollCatch(world, field, rng);
+    REQUIRE(got.count == 1);
+    REQUIRE(isValidItem(got.id));
+    fish += got.id == ItemId::RAW_PEBBLEFISH;
+    boots += got.id == ItemId::SOGGY_BOOT;
+    diamonds += got.id == ItemId::DIAMOND;
+  }
+  float treasure = 1.0f - static_cast<float>(fish) / kCasts;
+  CHECK(treasure > 0.12f);
+  CHECK(treasure < 0.18f);
+  CHECK(boots > kCasts * 0.15f * 0.2f * 0.6f); // about 120
+  CHECK(diamonds < kCasts * 0.15f * 0.01f * 4.0f); // rare: about 6
+}

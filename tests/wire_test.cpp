@@ -251,3 +251,22 @@ TEST_CASE("burning travels in entity snapshots") {
   REQUIRE(back.entities.size() == 1);
   CHECK(back.entities[0].burning);
 }
+
+TEST_CASE("fishing messages round-trip") {
+  auto cast = std::get<CastLine>(*wire::decodeCommand(enc(Command{CastLine{{0.5f, 0.25f, -1.0f}}})));
+  CHECK(cast.dir == glm::vec3(0.5f, 0.25f, -1.0f));
+  CHECK(std::holds_alternative<ReelIn>(*wire::decodeCommand(enc(Command{ReelIn{}}))));
+  CHECK(std::get<Caught>(*wire::decodeEvent(enc(Event{Caught{ItemId::RAW_SUNFIN}}))).item ==
+        ItemId::RAW_SUNFIN);
+
+  EntitySnapshot snap;
+  EntityView v;
+  v.kind = EntityKind::Bobber;
+  v.owner = 7;
+  v.biting = true;
+  snap.entities.push_back(v);
+  auto back = std::get<EntitySnapshot>(*wire::decodeEvent(enc(Event{snap})));
+  REQUIRE(back.entities.size() == 1);
+  CHECK(back.entities[0].owner == 7);
+  CHECK(back.entities[0].biting);
+}

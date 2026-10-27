@@ -93,6 +93,7 @@ void PhysicsBody::move(float dt, const World *world) {
   }
 
   // Apply horizontal friction (stop quickly when keys released)
+  if (glides && !on_ground && !inWater()) return;
   float friction = underwater ? kWaterDrag : 0.85f;
   velocity.x *= friction;
   velocity.z *= friction;

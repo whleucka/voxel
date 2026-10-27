@@ -146,12 +146,20 @@ private:
   void apply(Client &client, const OpenContainer &cmd);
   void apply(Client &client, const CloseContainer &cmd);
   void apply(Client &client, const StartBreak &cmd);
+  void apply(Client &client, const CastLine &cmd);
+  void apply(Client &client, const ReelIn &cmd);
+  // Bobbers float, bites come and go, and lines break.
+  void tickFishing();
+  // Takes the player's bobber out of the world and ends their fishing.
+  void endLine(PlayerState &ps);
   // A break may come this much before its time (network and tick jitter).
   static constexpr int kBreakSlackMs = 150;
   uint64_t nowMs() const { return static_cast<uint64_t>(tick_count) * kTickMs; }
   // Survival: the held tool spends a use, and breaks when it's used up.
   // False if nothing tool-like was held (so nothing changed).
   bool wearHeldTool(Client &client, PlayerState &ps);
+  // The held item spends a use, if it wears (tools, the rod).
+  bool spendUse(Client &client, PlayerState &ps);
   // Without this, an alternative with no overload above would convert back
   // to a Command and recurse forever; with it, that's a compile error.
   template <class T> void apply(Client &, const T &) = delete;

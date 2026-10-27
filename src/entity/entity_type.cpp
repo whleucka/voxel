@@ -278,6 +278,14 @@ const EntityTypeDef kGlowfin = makeFish(
      true},
     {{}, true, ItemId::RAW_GLOWFIN});
 
+// Red below, white on top. The Game moves it: no brain.
+const EntityTypeDef kBobber{
+    "Bobber", 0.1f, 0.2f, 0, 0, 0.0f,
+    {{{-0.1f, 0.0f, -0.1f}, {0.2f, 0.1f, 0.2f}, {0.86f, 0.16f, 0.16f}},
+     {{-0.1f, 0.1f, -0.1f}, {0.2f, 0.08f, 0.2f}, {0.96f, 0.96f, 0.96f}},
+     {{-0.02f, 0.18f, -0.02f}, {0.04f, 0.06f, 0.04f}, {0.86f, 0.16f, 0.16f}}},
+    nullptr, {}, {}};
+
 const EntityTypeDef kGloomling = makeGloomling();
 const EntityTypeDef kThornCrawler = makeThornCrawler();
 const EntityTypeDef kCaveGrumble = makeCaveGrumble();
@@ -302,7 +310,8 @@ bool isValidEntityKind(EntityKind kind) {
     case EntityKind::CaveGrumble:
     case EntityKind::Pebblefish:
     case EntityKind::Sunfin:
-    case EntityKind::Glowfin:      return true;
+    case EntityKind::Glowfin:
+    case EntityKind::Bobber:       return true;
   }
   return false;
 }
@@ -321,6 +330,7 @@ const EntityTypeDef &entityType(EntityKind kind) {
     case EntityKind::Pebblefish:   return kPebblefish;
     case EntityKind::Sunfin:       return kSunfin;
     case EntityKind::Glowfin:      return kGlowfin;
+    case EntityKind::Bobber:       return kBobber;
   }
   return kTestCreature;
 }
