@@ -17,6 +17,7 @@
   - Pebblefish, Sunfin and glowing Glowfin swim in lakes, the sea and cave pools.
 - **Crafting:** discover recipes as you collect things, and build a Crafting Table for the bigger ones ([more below](#crafting)).
 - **Smelting:** a furnace that cooks raw ore into ingots, and sand into glass, while you're off exploring ([more below](#smelting)).
+- **Chests:** craft chests to keep your things in, and hunt deep caves for locked treasure chests ([more below](#chests-and-treasure)).
 - **Fishing:** make a rod, cast it, and reel in when the bobber dips. Cook your catch, or find treasure ([more below](#fishing)).
 - **Tools and weapons:** pickaxes, axes, shovels and swords from wood to diamond; mining takes time and the best ore needs the best picks ([more below](#tools-and-weapons)).
 - **Creative mode:** fly, build without running out, and pick from every block, including planks, bricks, glass, eight bright colors and lamps.
@@ -32,7 +33,6 @@
 
 - **Pets:** tame an animal by feeding it, and it follows you around.
 - **Doors, slabs and stairs**
-- **Treasure chests** hidden around the world
 - **Your own look:** pick a color and a hat, so players can tell each other apart on the network
 - **Quick-chat:** a wheel of "Hi!", "Follow me!" and "Help!" messages, with no typing needed
 - **Hide-and-seek:** a network mini-game
@@ -98,7 +98,7 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **W, A, S, D:** Move. **Space:** Jump. **Mouse:** Look around.
 *   **Left Ctrl:** Sprint (uses stamina). **Left Shift:** Crouch.
 *   **Left click:** Hit a creature, or break a block (hold it in survival).
-*   **Right click:** Place a block, feed an animal, eat the food you're holding, or cast and reel in a fishing rod.
+*   **Right click:** Place a block, feed an animal, eat the food you're holding, cast and reel in a fishing rod, or open a chest, furnace or Crafting Table.
 *   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
 *   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
 *   **ESC:** Close the inventory, or open the pause menu (Resume, Settings,
@@ -179,6 +179,24 @@ copper one, and gems an iron one. Tools wear out (watch the bar under the
 icon). Gem tools have a trick each: a ruby sword sets enemies alight, an
 emerald pickaxe sometimes doubles ore, and diamond is the fastest and
 toughest. Creative breaks everything in one hit, as before.
+
+## Chests and treasure
+
+Make a **Chest** from 8 planks at a Crafting Table, place it and
+right-click it: it holds 20 stacks. Shift-click moves things between the
+chest and your inventory. Breaking a chest drops everything in it.
+
+Somewhere deep in the caves, far below the sea, there are **treasure
+chests**: dark wood with gold bands and a lock. They're rare, there's no
+sign pointing to them, and you can't break them open. You need a
+**Treasure Key** (2 gold ingots and a ruby, emerald or diamond at a
+Crafting Table). Hold it and right-click the chest: the key is used up
+and the chest is full of treasure, like ingots, gems, glow crystals, food,
+sometimes a good tool, and now and then another key. After that it's an
+ordinary chest you can keep using.
+
+Treasure chests are only in worlds made from now on. Older worlds keep
+exactly the terrain they had.
 
 ## Fishing
 

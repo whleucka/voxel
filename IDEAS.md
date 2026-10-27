@@ -4,12 +4,12 @@ remove F1,F2,F3,F4 (if they exist)
 make 'fly' F instead of T
 T will be used for chat later on
 
-feat: treasure chests (hard to find)
+[DONE] feat: treasure chests (hard to find)
 - a rare occurrence
 - requires gold key
 
 
-[DONE] [DONE] feat: draw overly on current block (black border like minecraft)
+[DONE] feat: draw overly on current block (black border like minecraft)
 - only blocks within radius will show this
 - never air or water
 

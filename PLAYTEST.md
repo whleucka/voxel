@@ -4,6 +4,19 @@ What's waiting on a real play-test, newest first. Tick things off as they
 pass; anything that fails, note what happened (a screenshot plus the F12
 coordinates helps).
 
+## Chests and treasure
+
+- [ ] Craft a Chest (8 planks at a table), place it, right-click: a 4 x 5 panel where crafting was
+- [ ] Put things in and take them out; shift-click goes both ways
+- [ ] Save and reload: the things are still there
+- [ ] Breaking a chest drops it and everything in it
+- [ ] A guest opens the same chest and sees it change
+- [ ] Make a NEW world and explore deep caves (below about y = 82) for a treasure chest
+- [ ] Right-click without a key: "Locked! You need a Treasure Key."; it can't be mined
+- [ ] Make a Treasure Key (2 gold ingots + a gem at a table) and unlock it: loot!
+- [ ] An old world has no treasure chests and looks exactly as before
+- [ ] The kids' verdict: too rare? good loot?
+
 ## Block outline
 
 - [ ] Aiming at a block within reach shows a thin dark frame round it
