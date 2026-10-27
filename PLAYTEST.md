@@ -4,7 +4,33 @@ What's waiting on a real play-test, newest first. Tick things off as they
 pass; anything that fails, note what happened (a screenshot plus the F12
 coordinates helps).
 
-## Tools and weapons (equipment)
+## Block outline
+
+- [ ] Aiming at a block within reach shows a thin dark frame round it
+- [ ] No frame on water, or when nothing is in reach
+- [ ] The frame follows the crosshair smoothly, also on glass, leaves and crystals
+- [ ] It goes away while the inventory is open
+
+## Fishing (PR #34)
+
+- [ ] Fish show up: Pebblefish in a lake, Sunfin in the sea, Glowfin in a cave pool (new worlds)
+- [ ] Glowfin spots glow in the dark; tails wag while fish swim
+- [ ] Fish never jump out of the water; one left on dry land flops and vanishes
+- [ ] Hitting a fish does nothing
+- [ ] Make a Fishing Rod (3 sticks + 2 wool at a Crafting Table)
+- [ ] Right-click casts: the bobber flies out and floats, with a line from your hand
+- [ ] On a bite the bobber dips and "Bite! Right-click!" pulses; reeling in shows "Caught a …!"
+- [ ] Reeling too early gets nothing; missing a bite just means waiting for the next
+- [ ] Casting near swimming fish gets bites quicker
+- [ ] Treasure turns up now and then (and the Soggy Boot)
+- [ ] Cook a raw fish in the furnace; cooked heals more than raw
+- [ ] Switching item or walking away breaks the line
+- [ ] The rod's wear bar goes down per catch, and it breaks after 64
+- [ ] A guest fishes next to the host, and each sees the other's line
+- [ ] Spam-clicking the rod doesn't catch anything faster
+- [ ] The kids' verdict on the 1.2 s bite window (easy to tune)
+
+## Tools and weapons (PR #33)
 
 - [ ] Survival: punching a tree is slow (about 3 s a log); the ring fills round the crosshair
 - [ ] Stone by hand takes ages and drops nothing; a wooden pickaxe gets cobblestone
