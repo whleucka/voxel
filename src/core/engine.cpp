@@ -120,6 +120,7 @@ bool Engine::init() {
     std::cerr << "HUD icons unavailable; drawing empty slots\n";
   if (!entity_renderer.init())
     std::cerr << "Entity textures unavailable\n";
+  block_outline.init();
 
   return true;
 }
@@ -490,6 +491,11 @@ void Engine::render() {
   entity_renderer.draw(entity_views, player_views, world(), view, proj,
                        player->getCamera().position, player->isUnderwater(),
                        session->clock().fractionOfDay(), now, player_id, hand);
+
+  // Frame the block under the crosshair, while there's a crosshair to aim.
+  if (!player->isInventoryOpen() && !vitals_view.dead)
+    if (auto aimed = BlockOutline::target(world(), eye.position, eye.front))
+      block_outline.draw(*aimed, view, proj);
 
   // ImGui frame must always be opened here so both renderCrosshair() and
   // debug() can safely submit widgets regardless of game state.
@@ -1252,6 +1258,7 @@ void Engine::windowResize(GLFWwindow *window, int w, int h) {
 
 void Engine::cleanup() {
   hud.shutdown(); // GL textures; must go before the context does
+  block_outline.shutdown();
   entity_renderer.shutdown();
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();

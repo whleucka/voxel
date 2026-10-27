@@ -9,6 +9,7 @@
 #include "ui/title_menu.hpp"
 #include "render/menu_scene.hpp"
 #include "entity/entity_interp.hpp"
+#include "render/block_outline.hpp"
 #include "render/entity_renderer.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -43,6 +44,7 @@ private:
   VitalsChanged vitals_view{Vitals::kMax, Vitals::kMax, Vitals::kMax, true, false};
   Hud hud;
   EntityRenderer entity_renderer;
+  BlockOutline block_outline;
   EntityInterpolator entity_interp;
   double last_snapshot_time = 0.0;
   std::vector<EntityView> entity_views; // this frame's interpolated entities
