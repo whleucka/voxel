@@ -234,3 +234,9 @@ TEST_CASE("wear travels with stacks") {
   auto back = std::get<InventoryContents>(*wire::decodeEvent(enc(Event{InventoryContents{inv.slots()}})));
   CHECK(back.slots[4] == ItemStack{ItemId::DIAMOND, 1, 321});
 }
+
+TEST_CASE("mining messages round-trip") {
+  roundTrip(StartBreak{{7, 64, -3}});
+  CHECK(std::get<ToolBroke>(*wire::decodeEvent(enc(Event{ToolBroke{ItemId::IRON_AXE}}))).item ==
+        ItemId::IRON_AXE);
+}

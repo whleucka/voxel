@@ -1,5 +1,6 @@
 #include "sim/game.hpp"
 #include "block/block_data.hpp"
+#include "item/mining.hpp"
 #include "entity/animals.hpp"
 #include "entity/enemies.hpp"
 #include "core/settings.hpp"
@@ -546,21 +547,56 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
   if (target == BlockType::BEDROCK || target == BlockType::WATER)
     return reject(client, "break: unbreakable block");
 
+  // Survival: it takes as long as the block and the tool in hand say, from
+  // the StartBreak on this block (judged by what's held now).
+  const ItemId held = ps->inventory.slot(ps->selected_slot).id;
+  if (rules().timed_mining) {
+    int need = breakMs(target, held);
+    bool started = ps->breaking && ps->breaking->pos == cmd.pos;
+    if (!started || nowMs() - ps->breaking->since_ms + kBreakSlackMs < static_cast<uint64_t>(need))
+      return reject(client, "break: not yet");
+    ps->breaking.reset();
+  }
+
   world_.setBlockAt(cmd.pos, BlockType::AIR);
   broadcast(BlockChanged{cmd.pos, BlockType::AIR});
   spillFurnace(cmd.pos);
 
-  // Survival: collect the drop.
+  // Survival: collect the drop, if the tool was good enough for it.
   if (!rules().block_drops) return;
-  if (auto drop = dropFor(target)) {
-    ItemStack left = ps->inventory.add({*drop, 1});
-    sendInventory(client, *ps);
+  if (auto drop = dropFor(target); drop && dropsWith(target, held)) {
+    ItemStack got{*drop, 1};
+    // Emerald pickaxe: a one in three chance of a second from ore.
+    if (held == ItemId::EMERALD_PICKAXE && isOre(target) &&
+        std::uniform_int_distribution<int>(0, 2)(rng_) == 0)
+      got.count = 2;
+    ItemStack left = ps->inventory.add(got);
     // No room: it pops out of the block instead.
     if (!left.empty()) {
       std::uniform_real_distribution<float> side(-1.0f, 1.0f);
       dropItem(left, glm::vec3(cmd.pos) + glm::vec3(0.5f, 0.3f, 0.5f),
                {side(rng_), 4.0f, side(rng_)}, kBreakDropDelayMs);
     }
+  }
+  if (rules().timed_mining) wearHeldTool(client, *ps);
+  sendInventory(client, *ps);
+}
+
+void Game::apply(Client &client, const StartBreak &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead()) return;
+  ps->breaking = PlayerState::Breaking{cmd.pos, nowMs()};
+}
+
+void Game::wearHeldTool(Client &client, PlayerState &ps) {
+  ItemStack held = ps.inventory.slot(ps.selected_slot);
+  Tool tool = toolOf(held.id);
+  if (tool.kind == ToolKind::None) return;
+  if (++held.wear >= maxUses(tool.tier)) {
+    ps.inventory.set(ps.selected_slot, {});
+    client.link->deliver(ToolBroke{held.id});
+  } else {
+    ps.inventory.set(ps.selected_slot, held);
   }
 }
 

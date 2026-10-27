@@ -62,3 +62,10 @@ TEST_CASE("every breakable block breaks in a sensible time") {
     CHECK(breakMs(b, ItemId::DIAMOND_PICKAXE) <= ms);
   }
 }
+
+TEST_CASE("which blocks are ore") {
+  CHECK(isOre(BlockType::COAL_ORE));
+  CHECK(isOre(BlockType::DIAMOND_ORE));
+  CHECK_FALSE(isOre(BlockType::STONE));
+  CHECK_FALSE(isOre(BlockType::GLOWSTONE));
+}

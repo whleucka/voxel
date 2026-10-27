@@ -23,3 +23,6 @@ int breakMs(BlockType block, ItemId held);
 
 // Whether breaking `block` with `held` gives its drop.
 bool dropsWith(BlockType block, ItemId held);
+
+// Coal, copper, iron, gold, ruby, emerald and diamond ore.
+bool isOre(BlockType block);

@@ -95,6 +95,12 @@ TEST_CASE_FIXTURE(LoopbackHost, "a guest's edit reaches the host's world and eve
   std::vector<Event> got;
   join(guest, got, "Bea");
   guest.send(MovePlayer{{5.5f, ground + 1.0f, 8.5f}});
+  // Survival breaking takes time: start, make sure the Game has seen it (the
+  // rejected slot comes back after it), give it long enough, then break.
+  guest.send(StartBreak{{5, ground, 5}});
+  guest.send(SelectSlot{-1});
+  REQUIRE(until(guest, got, has<CommandRejected>));
+  for (int i = 0; i < 12000 / Game::kTickMs; ++i) game.tick();
   guest.send(BreakBlock{{5, ground, 5}});
   got.clear();
   host_events.clear();

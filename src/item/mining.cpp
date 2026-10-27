@@ -67,3 +67,14 @@ bool dropsWith(BlockType block, ItemId held) {
   Tool tool = toolOf(held);
   return tool.kind == t.best && tool.tier >= t.needs;
 }
+
+bool isOre(BlockType b) {
+  using enum BlockType;
+  switch (b) {
+    case COAL_ORE: case COPPER_ORE: case IRON_ORE: case GOLD_ORE:
+    case RUBY_ORE: case EMERALD_ORE: case DIAMOND_ORE:
+      return true;
+    default:
+      return false;
+  }
+}
