@@ -1,3 +1,4 @@
+#include "item/mining.hpp"
 #include "core/engine.hpp"
 #include "ui/cursor.hpp"
 #include "ui/menu_style.hpp"
@@ -338,6 +339,7 @@ void Engine::update() {
   // Physics runs locally; the Game is told where we ended up, and streams
   // chunks around every player's reported position when it pumps.
   player->update(delta_time, &world());
+  updateMining(delta_time);
   const Camera &cam = player->getCamera();
   MovePlayer move;
   move.position = player->getPosition();
@@ -404,6 +406,9 @@ void Engine::handleEvents() {
     else if (const auto *contents = std::get_if<InventoryContents>(&ev)) {
       inventory_view = contents->slots;
       inventory_screen.sync(inventory_view);
+    }
+    else if (const auto *broke = std::get_if<ToolBroke>(&ev)) {
+      hud.notice("Your " + std::string(itemDef(broke->item).name) + " broke!", glfwGetTime());
     }
     else if (const auto *view = std::get_if<ContainerView>(&ev)) {
       if (view->open) {
@@ -512,6 +517,7 @@ void Engine::render() {
     hud.drawVitals(layout, vitals_view, glfwGetTime());
   }
   hud.drawNotice(layout, glfwGetTime());
+  if (mining && !player->isInventoryOpen()) hud.drawMiningRing(mining->progress);
   if (vitals_view.dead) hud.drawDeathScreen();
   PauseMenu::Action action = pause.draw(session->mode() == Session::Mode::Single,
                                         session->isGuest(), glfwGetTime());
@@ -1095,9 +1101,14 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
 
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
     auto hittable = [](EntityKind k) { return entityType(k).max_health > 0; };
-    if (auto target = aimedEntity(hittable))
+    engine->swinging = false;
+    if (auto target = aimedEntity(hittable)) {
       engine->connection().send(AttackEntity{*target});
-    else if (ray.hit)
+      engine->swinging = true;
+    }
+    // Survival mines while the button is held (updateMining); creative
+    // breaks on the click.
+    else if (ray.hit && !rulesFor(engine->game_mode).timed_mining)
       engine->connection().send(BreakBlock{ray.block_pos});
   } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
     // Feed an animal, else eat held food, else place a block.
@@ -1143,6 +1154,41 @@ void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
     slot = (slot - 1 + kHotbarSlots) % kHotbarSlots;
   }
   engine->selectSlot(slot);
+}
+
+// Survival mining: while the left button is held on a block, time it with the
+// same rule the Game checks; tell the Game when it starts and when it's done.
+// Letting go, looking at another block or opening a screen starts over.
+void Engine::updateMining(float dt) {
+  bool holding = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS &&
+                 rulesFor(game_mode).timed_mining && !player->isInventoryOpen() &&
+                 !vitals_view.dead && !ImGui::GetIO().WantCaptureMouse;
+  if (!holding || swinging) {
+    mining.reset();
+    if (!holding) swinging = false;
+    return;
+  }
+  const Camera &cam = player->getCamera();
+  RaycastResult ray = world().raycast(cam.position, cam.front, kPlayerReach);
+  if (!ray.hit) {
+    mining.reset();
+    return;
+  }
+  if (!mining || mining->pos != ray.block_pos) {
+    mining = Mining{ray.block_pos};
+    connection().send(StartBreak{ray.block_pos});
+  }
+  int need = breakMs(ray.block_type, inventory_view[player->getSelectedHotbarSlot()].id);
+  if (need < 0) { // bedrock and the like: nothing to show
+    mining->progress = 0.0f;
+    return;
+  }
+  mining->seconds += dt;
+  mining->progress = need == 0 ? 1.0f : mining->seconds * 1000.0f / need;
+  if (mining->progress >= 1.0f) {
+    connection().send(BreakBlock{ray.block_pos});
+    mining.reset(); // the next frame starts on whatever is behind it
+  }
 }
 
 std::vector<CraftRow> Engine::craftingRowsNow() {

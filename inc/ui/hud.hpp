@@ -67,6 +67,9 @@ public:
   }
   void drawNotice(const HudLayout &layout, double now);
 
+  // How far the block being mined has got, 0..1, as a ring round the crosshair.
+  void drawMiningRing(float progress);
+
 private:
   static constexpr double kNameShowSeconds = 1.5;
   static constexpr double kNameFadeSeconds = 0.5;

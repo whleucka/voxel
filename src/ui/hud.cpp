@@ -1,5 +1,6 @@
 #include "ui/hud.hpp"
 #include "block/block_data.hpp"
+#include "item/tools.hpp"
 #include "ui/logo.hpp"
 #include "imgui/imgui.h"
 #include "render/texture_util.hpp"
@@ -98,6 +99,17 @@ void Hud::drawSlot(ImDrawList *dl, const Rect &r, const ItemStack &s,
   if (!s.empty()) {
     drawIcon(dl, r, s.id, alpha);
     drawCount(dl, r, s.count, alpha);
+    // A worn tool: a bar along the bottom, shrinking from green to red.
+    Tool tool = toolOf(s.id);
+    if (tool.kind != ToolKind::None && s.wear > 0) {
+      float left = 1.0f - static_cast<float>(s.wear) / maxUses(tool.tier);
+      float h = std::max(2.0f, std::round(r.h * 0.07f));
+      ImVec2 a0(r.x + r.w * 0.12f, r.bottom() - h - r.h * 0.06f);
+      float full = r.w * 0.76f;
+      dl->AddRectFilled(a0, ImVec2(a0.x + full, a0.y + h), rgba(0, 0, 0, alpha));
+      int red = static_cast<int>(255 * (1.0f - left)), green = static_cast<int>(255 * left);
+      dl->AddRectFilled(a0, ImVec2(a0.x + full * left, a0.y + h), rgba(red, green, 40, alpha));
+    }
   }
 }
 
@@ -370,6 +382,17 @@ void Hud::drawCrafting(const HudLayout &layout, const std::vector<CraftRow> &row
   fg->AddRectFilled(ImVec2(pos.x - 5, pos.y - 3), ImVec2(pos.x + ext.x + 5, pos.y + ext.y + 3),
                     rgba(15, 15, 20, 0.92f), 3.0f);
   fg->AddText(nullptr, size, pos, rgba(255, 255, 255, 1.0f), tip.c_str());
+}
+
+void Hud::drawMiningRing(float progress) {
+  if (progress <= 0.0f) return;
+  ImDrawList *fg = ImGui::GetForegroundDrawList();
+  ImVec2 c(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.5f);
+  float r = std::max(14.0f, ImGui::GetIO().DisplaySize.y * 0.022f);
+  fg->AddCircle(c, r, rgba(0, 0, 0, 0.45f), 40, 4.0f);
+  constexpr float kTop = -1.5707964f; // start at twelve o'clock
+  fg->PathArcTo(c, r, kTop, kTop + 6.2831855f * std::min(progress, 1.0f), 40);
+  fg->PathStroke(rgba(255, 255, 255, 0.9f), 0, 3.0f);
 }
 
 void Hud::drawNotice(const HudLayout &layout, double now) {

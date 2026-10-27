@@ -52,6 +52,11 @@ private:
   bool known_baseline = true;  // the first KnownItems after joining: no popup
   int crafting_scroll = 0;     // first crafting row shown
   std::optional<ContainerView> container_view; // the furnace being looked into
+  // Survival: the block the held left button is working on, and for how long.
+  struct Mining { glm::ivec3 pos{0}; float seconds = 0.0f; float progress = 0.0f; };
+  std::optional<Mining> mining;
+  bool swinging = false; // this press hit a creature: holding it doesn't mine
+  void updateMining(float dt);
   // The crafting panel's rows right now (inventory, discoveries, a table near).
   std::vector<CraftRow> craftingRowsNow();
   TitleMenu menu;
