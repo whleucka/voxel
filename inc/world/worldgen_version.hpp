@@ -10,6 +10,7 @@ namespace worldgen {
 
 constexpr uint8_t kOriginal = 1; // before caves
 constexpr uint8_t kCaves = 2;    // natural caves, crystals, pools
-constexpr uint8_t kLatest = kCaves;
+constexpr uint8_t kChests = 3;   // treasure chests in deep caves; v2 otherwise
+constexpr uint8_t kLatest = kChests;
 
 } // namespace worldgen
