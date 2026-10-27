@@ -50,7 +50,12 @@ void Player::update(float dt, World* world) {
   body.eye_height = getPlayerEyeHeight();
   knockback_left = std::max(0.0f, knockback_left - dt);
   body.updateWater(world);
-  if (!fly_mode) body.move(dt, world);
+  if (fly_mode) {
+    body.glide(dt, world);
+    body.velocity = glm::vec3(0.0f); // flying has no momentum
+  } else {
+    body.move(dt, world);
+  }
   camera.position = getEyePosition();
 }
 
@@ -58,18 +63,20 @@ void Player::update(float dt, World* world) {
 
 void Player::processKeyboard(float dt, const PlayerInput& input) {
   if (fly_mode) {
-    // Fly mode: full 3D movement along camera direction
+    // Fly mode: full 3D movement along camera direction. update() moves the
+    // body, stopping at blocks.
     glm::vec3 direction = glm::normalize(camera.front);
     float speed = input.sprint ? kPlayerSprintSpeed * 5.0f : kPlayerMoveSpeed * 3.0f;
 
-    if (input.forward)  body.position += direction * speed * dt;
-    if (input.backward) body.position -= direction * speed * dt;
-    if (input.left)     body.position -= camera.right * speed * dt;
-    if (input.right)    body.position += camera.right * speed * dt;
-    if (input.fly_up)   body.position.y += speed * dt;
-    if (input.fly_down) body.position.y -= speed * dt;
+    glm::vec3 wish(0.0f);
+    if (input.forward)  wish += direction;
+    if (input.backward) wish -= direction;
+    if (input.left)     wish -= camera.right;
+    if (input.right)    wish += camera.right;
+    if (input.fly_up)   wish.y += 1.0f;
+    if (input.fly_down) wish.y -= 1.0f;
 
-    body.velocity = glm::vec3(0.0f); // No physics in fly mode
+    body.velocity = wish * speed;
     return;
   }
 

@@ -150,3 +150,73 @@ TEST_CASE("fly mode ignores knocks") {
   p.knock({0.0f, 5.0f, 7.0f});
   CHECK(p.getVelocity() == glm::vec3(0.0f));
 }
+
+TEST_CASE("flying stops at a wall") {
+  Rig r;
+  fill(r.world, {2, kBase + 1, 4}, {13, kBase + 4, 4}, BlockType::STONE); // wall at z = 4
+  Player p({8.5f, kBase + 1.0f, 8.5f});
+  p.toggleFlyMode();
+  PlayerInput in = forward();
+  in.sprint = true;
+  steps(p, r.world, 60, in);
+  CHECK(p.getPosition().z >= 5.0f + kPlayerHalfWidth - 1e-3f);
+  CHECK(p.getPosition().z < 5.0f + kPlayerHalfWidth + 0.3f);
+}
+
+TEST_CASE("flying fast doesn't skip through a thin wall") {
+  Rig r;
+  fill(r.world, {2, kBase + 1, 4}, {13, kBase + 4, 4}, BlockType::STONE);
+  Player p({8.5f, kBase + 1.0f, 8.5f});
+  p.toggleFlyMode();
+  PlayerInput in = forward();
+  in.sprint = true;
+  steps(p, r.world, 1, in);
+  for (int i = 0; i < 4; ++i) {
+    p.processKeyboard(0.5f, in); // a long frame: 14 blocks in one step
+    p.update(0.5f, &r.world);
+  }
+  CHECK(p.getPosition().z > 4.0f);
+}
+
+TEST_CASE("flying down stops on the floor") {
+  Rig r;
+  Player p({8.5f, kBase + 4.0f, 8.5f});
+  p.toggleFlyMode();
+  PlayerInput in;
+  in.fly_down = true;
+  steps(p, r.world, 120, in);
+  CHECK(p.getPosition().y >= kBase + 1.0f - 1e-3f);
+  CHECK(p.getPosition().y < kBase + 1.3f);
+  CHECK(p.getVelocity() == glm::vec3(0.0f));
+}
+
+TEST_CASE("flying slides along a wall") {
+  Rig r;
+  fill(r.world, {2, kBase + 1, 4}, {13, kBase + 4, 4}, BlockType::STONE);
+  Player p({8.5f, kBase + 1.0f, 5.5f});
+  p.toggleFlyMode();
+  PlayerInput in = forward();
+  in.right = true; // into the wall and along it (+X)
+  steps(p, r.world, 20, in);
+  CHECK(p.getPosition().z >= 5.0f + kPlayerHalfWidth - 1e-3f);
+  CHECK(p.getPosition().x > 9.5f);
+}
+
+TEST_CASE("flying out of a block you're stuck in") {
+  Rig r;
+  Player p({8.5f, kBase + 0.5f, 8.5f}); // feet inside the floor
+  p.toggleFlyMode();
+  PlayerInput in;
+  in.fly_up = true;
+  steps(p, r.world, 30, in);
+  CHECK(p.getPosition().y > kBase + 2.0f);
+}
+
+TEST_CASE("stuck in a block, flying sideways doesn't pass through") {
+  Rig r;
+  fill(r.world, {2, kBase + 1, 2}, {13, kBase + 3, 13}, BlockType::STONE); // solid rock
+  Player p({8.5f, kBase + 1.0f, 8.5f});
+  p.toggleFlyMode();
+  steps(p, r.world, 30, forward());
+  CHECK(p.getPosition().z == doctest::Approx(8.5f));
+}
