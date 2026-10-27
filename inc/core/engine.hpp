@@ -78,7 +78,8 @@ private:
   void pauseAction(PauseMenu::Action action);
   void applyDisplaySettings();
   void startFromMenu(const TitleMenu::Choice &choice);
-  void setCursorCaptured(bool captured);
+  // Shows or captures the cursor to match the game's state; once per frame.
+  void updateCursor();
   void debugMultiplayer();
   void processInput(GLFWwindow *window);
   void update();
