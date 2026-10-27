@@ -1,5 +1,6 @@
 #include "ui/hud.hpp"
 #include "block/block_data.hpp"
+#include "ui/logo.hpp"
 #include "imgui/imgui.h"
 #include "render/texture_util.hpp"
 #include "ui/item_icon_geometry.hpp"
@@ -191,6 +192,41 @@ void Hud::drawPalette(const HudLayout &layout, const std::vector<ItemId> &items,
   fg->AddRectFilled(ImVec2(pos.x - 5, pos.y - 3), ImVec2(pos.x + ext.x + 5, pos.y + ext.y + 3),
                     rgba(15, 15, 20, 0.92f), 3.0f);
   fg->AddText(nullptr, size, pos, rgba(255, 255, 255, 1.0f), name.c_str());
+}
+
+// ─── Title logo ────────────────────────────────────────────────────────
+
+void Hud::drawLogo(float display_w, float display_h) {
+  ImDrawList *dl = ImGui::GetForegroundDrawList();
+  LogoLayout l = logoLayout(kGameTitle, display_w, display_h);
+  std::vector<LogoCell> cells = logoCells(kGameTitle);
+  float s = l.cell;
+  auto cellRect = [&](const LogoCell &c, float dx, float dy) {
+    ImVec2 a(l.x + c.col * s + dx, l.y + c.row * s + dy);
+    return std::pair{a, ImVec2(a.x + s, a.y + s)};
+  };
+
+  // A soft drop shadow first, so the blocks stand off the scene.
+  float off = std::max(2.0f, std::round(s * 0.28f));
+  for (const LogoCell &c : cells) {
+    auto [a, b] = cellRect(c, off, off);
+    dl->AddRectFilled(a, b, rgba(0, 0, 0, 0.55f));
+  }
+
+  for (const LogoCell &c : cells) {
+    auto [a, b] = cellRect(c, 0, 0);
+    auto tex = block_data.find(c.block);
+    if (block_tex && tex != block_data.end()) {
+      UvRect uv = tileUv(tex->second.side, kBlockAtlasTiles);
+      dl->AddImage(static_cast<ImTextureID>(block_tex), a, b, iv(uv.uv0), iv(uv.uv1));
+    } else { // no atlas: plain colours
+      ImU32 col = c.block == BlockType::GRASS   ? rgba(95, 160, 60, 1.0f)
+                  : c.block == BlockType::STONE ? rgba(125, 125, 130, 1.0f)
+                                                : rgba(90, 200, 220, 1.0f);
+      dl->AddRectFilled(a, b, col);
+    }
+    dl->AddRect(a, b, rgba(0, 0, 0, 0.35f)); // block edges
+  }
 }
 
 // ─── Vitals ────────────────────────────────────────────────────────────
