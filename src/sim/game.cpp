@@ -206,14 +206,19 @@ Inventory Game::starterKit() {
 }
 
 bool Game::tableInReach(const PlayerState &ps) const {
-  const glm::ivec3 eye = glm::floor(ps.eyePosition());
+  return craftingTableWithinReach(world_, ps.eyePosition());
+}
+
+bool Game::craftingTableWithinReach(const World &world, glm::vec3 eye) {
+  constexpr float kHalfBlockDiagonal = 0.8660254f; // as in inReach()
+  const glm::ivec3 at = glm::floor(eye);
   const int r = static_cast<int>(std::ceil(kPlayerReach + 1.0f));
   for (int dy = -r; dy <= r; ++dy)
     for (int dz = -r; dz <= r; ++dz)
       for (int dx = -r; dx <= r; ++dx) {
-        glm::ivec3 p = eye + glm::ivec3(dx, dy, dz);
-        if (world_.getBlockAt(glm::vec3(p) + 0.5f) == BlockType::CRAFTING_TABLE &&
-            inReach(ps, p))
+        glm::ivec3 p = at + glm::ivec3(dx, dy, dz);
+        if (world.getBlockAt(glm::vec3(p) + 0.5f) == BlockType::CRAFTING_TABLE &&
+            glm::distance(eye, glm::vec3(p) + 0.5f) <= kPlayerReach + kHalfBlockDiagonal)
           return true;
       }
   return false;

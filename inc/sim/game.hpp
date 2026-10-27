@@ -102,6 +102,10 @@ public:
   PlayerState *findPlayer(PlayerId id) {
     return const_cast<PlayerState *>(std::as_const(*this).findPlayer(id));
   }
+
+  // A Crafting Table close enough to an eye at `eye` to use: the rule the
+  // Game checks crafts with, shared with the client's crafting panel.
+  static bool craftingTableWithinReach(const World &world, glm::vec3 eye);
   // A guest's saved state, if they've played here before.
   const WorldSave::GuestRecord *guestRecord(const std::string &name) const;
 
@@ -153,6 +157,7 @@ private:
   bool inReach(const PlayerState &ps, const glm::ivec3 &block) const;
   // A Crafting Table within the player's reach (the same rule as placing).
   bool tableInReach(const PlayerState &ps) const;
+
   bool overlapsAnyPlayer(const glm::ivec3 &block) const;
   // Stream chunks around every player.
   void updateInterestPoints();

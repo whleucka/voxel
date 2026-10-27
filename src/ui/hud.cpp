@@ -194,6 +194,126 @@ void Hud::drawPalette(const HudLayout &layout, const std::vector<ItemId> &items,
   fg->AddText(nullptr, size, pos, rgba(255, 255, 255, 1.0f), name.c_str());
 }
 
+// ─── Crafting ──────────────────────────────────────────────────────────
+
+void Hud::drawCrafting(const HudLayout &layout, const std::vector<CraftRow> &rows, int first,
+                       const Inventory &inventory, glm::vec2 mouse) {
+  ImDrawList *dl = ImGui::GetBackgroundDrawList();
+  Rect panel = layout.craftingPanel();
+  if (panel.w <= 0) return;
+  dl->AddRectFilled(ImVec2(panel.x, panel.y), ImVec2(panel.right(), panel.bottom()),
+                    rgba(30, 30, 36, 0.92f), layout.slotSize() * 0.12f);
+
+  Rect title = layout.craftingTitle();
+  shadowText(dl, title.h, ImVec2(title.x, title.y), rgba(255, 255, 255, 1.0f), 1.0f, "Crafting");
+  if (int hidden = hiddenCount(rows)) {
+    std::string left = std::to_string(hidden) + " to discover";
+    float size = std::round(title.h * 0.7f);
+    ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, left.c_str());
+    dl->AddText(nullptr, size, ImVec2(title.right() - ext.x, title.bottom() - ext.y),
+                rgba(200, 200, 210, 0.8f), left.c_str());
+  }
+
+  std::optional<int> hover = layout.hitTestCrafting(mouse.x, mouse.y);
+  const int visible = layout.craftingVisibleRows();
+  for (int i = 0; i < visible && first + i < static_cast<int>(rows.size()); ++i) {
+    const CraftRow &row = rows[first + i];
+    Rect r = layout.craftingRow(i);
+    bool lit = row.canCraft();
+    dl->AddRectFilled(ImVec2(r.x, r.y), ImVec2(r.right(), r.bottom()),
+                      lit ? rgba(64, 64, 76, 0.95f) : rgba(42, 42, 50, 0.8f), 3.0f);
+    if (lit && hover && *hover == i)
+      dl->AddRect(ImVec2(r.x, r.y), ImVec2(r.right(), r.bottom()), rgba(255, 235, 140, 1.0f),
+                  3.0f, 0, std::max(2.0f, r.h * 0.04f));
+
+    Rect icon{r.x + 2, r.y + 2, r.h - 4, r.h - 4};
+    float text_x = icon.right() + layout.gap() * 2;
+    float name_size = std::round(r.h * 0.3f);
+    if (!row.known) {
+      dl->AddRectFilled(ImVec2(icon.x, icon.y), ImVec2(icon.right(), icon.bottom()),
+                        rgba(0, 0, 0, 0.45f));
+      shadowText(dl, std::round(icon.h * 0.6f), ImVec2(icon.center().x - icon.h * 0.15f, icon.y + icon.h * 0.15f),
+                 rgba(160, 160, 170, 1.0f), 1.0f, "?");
+      shadowText(dl, name_size, ImVec2(text_x, r.y + r.h * 0.33f), rgba(150, 150, 160, 1.0f),
+                 1.0f, "???");
+      continue;
+    }
+
+    const Recipe &recipe = recipes()[row.recipe];
+    float alpha = lit ? 1.0f : 0.55f;
+    drawIcon(dl, icon, recipe.makes.id, alpha);
+    drawCount(dl, icon, recipe.makes.count, alpha);
+
+    std::string name(itemDef(recipe.makes.id).name);
+    shadowText(dl, name_size, ImVec2(text_x, r.y + r.h * 0.08f), rgba(255, 255, 255, alpha), alpha,
+               name.c_str());
+    if (row.needs_table) {
+      const char *note = "needs a table";
+      float size = std::round(name_size * 0.8f);
+      ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, note);
+      dl->AddText(nullptr, size, ImVec2(r.right() - ext.x - 4, r.y + r.h * 0.1f),
+                  rgba(240, 190, 90, 1.0f), note);
+    }
+
+    // Ingredients: an icon and have/need each, red when short.
+    float ing = std::round(r.h * 0.42f);
+    float x = text_x;
+    float y = r.bottom() - ing - r.h * 0.06f;
+    for (const Ingredient &in : recipe.needs) {
+      ItemId shown = in.any_of.front();
+      for (ItemId id : in.any_of)
+        for (const ItemStack &s : inventory.slots())
+          if (s.id == id) shown = id;
+      Rect small{x, y, ing, ing};
+      drawIcon(dl, small, shown, alpha);
+      int have = countOf(inventory, in);
+      std::string text = std::to_string(std::min(have, 999)) + "/" + std::to_string(in.count);
+      float size = std::round(ing * 0.6f);
+      ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, text.c_str());
+      ImU32 col = have >= in.count ? rgba(220, 220, 225, alpha) : rgba(255, 110, 100, 1.0f);
+      dl->AddText(nullptr, size, ImVec2(small.right() + 2, y + (ing - ext.y) * 0.5f), col,
+                  text.c_str());
+      x = small.right() + ext.x + layout.gap() * 3;
+    }
+  }
+
+  // More above or below: a hint that the list scrolls.
+  float hint = std::round(layout.slotSize() * 0.25f);
+  if (first > 0)
+    dl->AddText(nullptr, hint, ImVec2(title.center().x, title.bottom() - hint),
+                rgba(200, 200, 210, 0.8f), "^");
+  if (first + visible < static_cast<int>(rows.size()))
+    dl->AddText(nullptr, hint * 1.2f, ImVec2(title.center().x, panel.bottom() - hint * 1.4f),
+                rgba(200, 200, 210, 0.8f), "more...");
+
+  // Tooltip: what a dimmed row is waiting for.
+  if (!hover || first + *hover >= static_cast<int>(rows.size())) return;
+  const CraftRow &row = rows[first + *hover];
+  std::string tip = !row.known      ? "Find all of its ingredients to discover it"
+                    : row.needs_table ? "Stand near a Crafting Table"
+                    : row.affordable == 0 ? "Missing ingredients"
+                                          : "Click: make one  -  Shift-click: make all";
+  float size = std::round(layout.slotSize() * 0.3f);
+  ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, tip.c_str());
+  ImVec2 pos(mouse.x + 14, mouse.y - ext.y - 6);
+  ImDrawList *fg = ImGui::GetForegroundDrawList();
+  fg->AddRectFilled(ImVec2(pos.x - 5, pos.y - 3), ImVec2(pos.x + ext.x + 5, pos.y + ext.y + 3),
+                    rgba(15, 15, 20, 0.92f), 3.0f);
+  fg->AddText(nullptr, size, pos, rgba(255, 255, 255, 1.0f), tip.c_str());
+}
+
+void Hud::drawNotice(const HudLayout &layout, double now) {
+  double age = now - notice_since;
+  if (notice_text.empty() || age > kNoticeSeconds) return;
+  float alpha = age < kNoticeSeconds - 0.5 ? 1.0f : static_cast<float>((kNoticeSeconds - age) / 0.5);
+  Rect area = layout.noticeArea();
+  float size = area.h;
+  ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, notice_text.c_str());
+  shadowText(ImGui::GetForegroundDrawList(), size,
+             ImVec2(area.center().x - ext.x * 0.5f, area.y), rgba(255, 225, 120, alpha), alpha,
+             notice_text.c_str());
+}
+
 // ─── Title logo ────────────────────────────────────────────────────────
 
 void Hud::drawLogo(float display_w, float display_h) {

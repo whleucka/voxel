@@ -36,6 +36,7 @@ public:
   Rect barStrip() const;         // hearts (left) and stamina bolts (right)
   Rect breathStrip() const;      // breath bubbles, above the bar strip
   Rect nameArea() const;         // held-item name popup, above the breath strip
+  Rect noticeArea() const;       // "New recipe!" popup, above the name popup
 
   // ─── Inventory screen ───────────────────────────────────────────────
   Rect screenPanel() const;
@@ -48,6 +49,18 @@ public:
   Rect palettePanel(int count) const;
   Rect paletteSlot(int i, int count) const; // 0..count-1, row by row
   std::optional<int> hitTestPalette(float px, float py, int count) const;
+
+  // ─── Crafting (left of the inventory screen) ────────────────────────
+  // The panel holds a title line ("Crafting", how many are still hidden)
+  // and as many recipe rows as fit; the rest scroll.
+  Rect craftingPanel() const;
+  Rect craftingTitle() const;
+  float craftingRowHeight() const;
+  int craftingVisibleRows() const;
+  // The visible row `i` (0 = the top one on screen).
+  Rect craftingRow(int i) const;
+  // Which visible row is under the point.
+  std::optional<int> hitTestCrafting(float px, float py) const;
 
 private:
   float w, h;

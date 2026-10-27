@@ -2,6 +2,7 @@
 
 #include "inventory/inventory.hpp"
 #include "sim/protocol.hpp"
+#include "ui/crafting_panel.hpp"
 #include "ui/hud_layout.hpp"
 #include "ui/inventory_screen.hpp"
 #include <glad/glad.h>
@@ -49,6 +50,18 @@ public:
   void drawPalette(const HudLayout &layout, const std::vector<ItemId> &items,
                    glm::vec2 mouse);
 
+  // The crafting panel left of it, from row `first` down.
+  void drawCrafting(const HudLayout &layout, const std::vector<CraftRow> &rows, int first,
+                    const Inventory &inventory, glm::vec2 mouse);
+
+  // A short message above the hotbar ("New recipe: ..."), shown for a few
+  // seconds from `now`; drawNotice draws it while it lasts.
+  void notice(std::string text, double now) {
+    notice_text = std::move(text);
+    notice_since = now;
+  }
+  void drawNotice(const HudLayout &layout, double now);
+
 private:
   static constexpr double kNameShowSeconds = 1.5;
   static constexpr double kNameFadeSeconds = 0.5;
@@ -61,6 +74,9 @@ private:
   ItemId popup_item = ItemId::NONE;
   double popup_since = -100.0;
   double damage_since = -100.0;
+  std::string notice_text;
+  double notice_since = -100.0;
+  static constexpr double kNoticeSeconds = 3.0;
 
   void drawSlot(ImDrawList *dl, const Rect &r, const ItemStack &s,
                 bool highlighted, float alpha, int number_label) const;
