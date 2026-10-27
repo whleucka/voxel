@@ -81,6 +81,7 @@ TEST_CASE_FIXTURE(SmallGame, "joining a fresh world spawns on solid ground") {
 TEST_CASE_FIXTURE(SmallGame, "the first join restores the saved player") {
   WorldSave::LevelData level;
   level.time_of_day = 1000.0f;
+  level.mode = GameMode::Creative; // flying is kept only where it's allowed
   WorldSave::PlayerData pd;
   pd.position = {12.5f, 90.0f, -7.5f};
   pd.yaw = 30.0f;
@@ -376,6 +377,7 @@ TEST_CASE_FIXTURE(EditGame, "a played game round-trips through save and load") {
   ScopedSeed seed;
   TempDir dir;
   CHECK_FALSE(game.load(dir.path.string())); // empty dir: fresh world
+  game.setMode(GameMode::Creative);            // so the saved flying is kept
 
   glm::ivec3 broken{5, ground, 5};
   glm::ivec3 placed{6, ground + 1, 5};
@@ -397,6 +399,7 @@ TEST_CASE_FIXTURE(EditGame, "a played game round-trips through save and load") {
   Game loaded;
   REQUIRE(loaded.load(dir.path.string()));
   CHECK(loaded.clock().time_of_day == 5000.0f);
+  CHECK(loaded.mode() == GameMode::Creative);
 
   loaded.world().loadChunkSync(0, 0);
   auto blockAt = [&](glm::ivec3 p) {
@@ -1643,6 +1646,7 @@ struct SavedParty : PartyGame {
 } // namespace
 
 TEST_CASE_FIXTURE(SavedParty, "a guest who leaves is saved and comes back with their stuff") {
+  game.setMode(GameMode::Creative); // so the saved flying is kept
   PlayerId id = joinedId(joinGuest("Bea"));
   MovePlayer move{{5.5f, 90.0f, 6.5f}, 12.0f, -4.0f, true};
   send(guest(), move);
@@ -1696,4 +1700,80 @@ TEST_CASE_FIXTURE(SavedParty, "the host never takes a guest's record") {
   auto *j = find<Joined>(evs);
   REQUIRE(j);
   CHECK(game.findPlayer(j->id)->inventory.slots() == Game::starterKit().slots());
+}
+
+// ─── Creative mode ─────────────────────────────────────────────────────
+
+TEST_CASE_FIXTURE(EditGame, "creative: placing uses nothing up and breaking drops nothing") {
+  game.setMode(GameMode::Creative);
+  run(GiveItem{itemForBlock(BlockType::COBBLESTONE), 1});
+  int slot = -1;
+  for (int i = 0; i < kHotbarSlots; ++i)
+    if (inventory().slot(i).id == itemForBlock(BlockType::COBBLESTONE)) slot = i;
+  REQUIRE(slot >= 0);
+  run(SelectSlot{slot});
+  for (int x = 5; x < 8; ++x) CHECK(changes(run(PlaceBlock{{x, ground + 1, 5}})) == 1);
+  CHECK(inventory().slot(slot) == ItemStack{itemForBlock(BlockType::COBBLESTONE), 1});
+
+  size_t entities_before = game.entities().size();
+  Inventory before = inventory();
+  CHECK(changes(run(BreakBlock{{5, ground + 1, 5}})) == 1);
+  CHECK(at({5, ground + 1, 5}) == BlockType::AIR);
+  CHECK(inventory().slots() == before.slots());
+  CHECK(game.entities().size() == entities_before);
+}
+
+TEST_CASE_FIXTURE(VitalsGame, "creative: no fall damage, drowning or stamina drain") {
+  game.setMode(GameMode::Creative);
+  fall(10.0f);
+  CHECK(me().vitals.health() == Vitals::kMax);
+
+  MovePlayer under = at({0.5f, 60.0f, 0.5f}, false);
+  under.in_water = under.eyes_underwater = true;
+  under.sprinting = true;
+  send(under);
+  advance(15.0f);
+  CHECK(me().vitals.breath() == Vitals::kMax);
+  CHECK(me().vitals.stamina() == Vitals::kMax);
+  CHECK(me().vitals.health() == Vitals::kMax);
+}
+
+TEST_CASE_FIXTURE(EnemyGame, "creative: enemies don't hit or chase you") {
+  game.setMode(GameMode::Creative);
+  for (int i = 0; i < 40; ++i) CHECK(knocks(tick()).empty());
+  CHECK(health() == Vitals::kMax);
+
+  // Let it roam: with no targets it never closes in to touch the player.
+  game.advance(5.0f);
+  CHECK(health() == Vitals::kMax);
+}
+
+TEST_CASE_FIXTURE(PartyGame, "creative: guests may use the palette, other cheats stay the host's") {
+  game.setMode(GameMode::Creative);
+  joinGuest("Bea");
+  CHECK_FALSE(find<CommandRejected>(send(guest(), GiveItem{ItemId::DIAMOND, 64})));
+  CHECK(find<CommandRejected>(send(guest(), SetTimeOfDay{0.0f})));
+  CHECK(find<CommandRejected>(send(guest(), Save{})));
+}
+
+TEST_CASE_FIXTURE(PartyGame, "Joined tells every player the world's mode") {
+  CHECK(find<Joined>(joinGuest("Bea"))->mode == GameMode::Survival);
+  game.setMode(GameMode::Creative);
+  CHECK(find<Joined>(joinGuest("Cy"))->mode == GameMode::Creative);
+}
+
+TEST_CASE_FIXTURE(SmallGame, "a saved flyer lands in a survival world") {
+  WorldSave::PlayerData pd;
+  pd.position = {0.5f, 120.0f, 0.5f};
+  pd.fly_mode = 1;
+  game.restore({}, {}, pd);
+  LocalConnection conn;
+  CHECK_FALSE(join(game, conn).fly);
+
+  SmallGame creative;
+  WorldSave::LevelData level;
+  level.mode = GameMode::Creative;
+  creative.game.restore(level, {}, pd);
+  LocalConnection c2;
+  CHECK(join(creative.game, c2).fly);
 }

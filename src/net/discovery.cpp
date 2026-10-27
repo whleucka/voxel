@@ -32,6 +32,7 @@ std::vector<uint8_t> encode(const Beacon &b) {
   out.push_back(b.players);
   out.push_back(b.max_players);
   out.push_back(static_cast<uint8_t>(b.port)), out.push_back(static_cast<uint8_t>(b.port >> 8));
+  out.push_back(static_cast<uint8_t>(b.mode));
   return out;
 }
 
@@ -41,10 +42,14 @@ std::optional<Beacon> decode(std::span<const uint8_t> in) {
   b.version = static_cast<uint16_t>(in[4] | in[5] << 8);
   size_t pos = 6;
   if (!getString(in, pos, b.world) || !getString(in, pos, b.host)) return std::nullopt;
-  if (in.size() - pos != 4) return std::nullopt;
+  // Version 1 hosts send no mode byte; they still list, as a different version.
+  size_t tail = b.version < 2 ? 4 : 5;
+  if (in.size() - pos != tail) return std::nullopt;
   b.players = in[pos];
   b.max_players = in[pos + 1];
   b.port = static_cast<uint16_t>(in[pos + 2] | in[pos + 3] << 8);
+  if (tail == 5 && in[pos + 4] == static_cast<uint8_t>(GameMode::Creative))
+    b.mode = GameMode::Creative;
   return b;
 }
 

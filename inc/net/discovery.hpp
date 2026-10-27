@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/game_mode.hpp"
 #include "net/socket.hpp"
 #include <cstdint>
 #include <optional>
@@ -22,6 +23,7 @@ struct Beacon {
   uint8_t players = 0;
   uint8_t max_players = 0;
   uint16_t port = 0;      // the host's TCP port
+  GameMode mode = GameMode::Survival; // from version 2
 };
 
 std::vector<uint8_t> encode(const Beacon &b);

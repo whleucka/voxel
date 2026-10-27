@@ -90,6 +90,8 @@ public:
   const GameClock &clock() const { return clock_; }
   GameMode mode() const { return mode_; }
   ModeRules rules() const { return rulesFor(mode_); }
+  // The world's mode normally comes from its level.dat (load/restore).
+  void setMode(GameMode mode) { mode_ = mode; }
   EntityStore &entities() { return entities_; }
   Spawner &spawner() { return spawner_; }
   const EntityStore &entities() const { return entities_; }

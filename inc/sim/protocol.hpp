@@ -1,6 +1,7 @@
 #pragma once
 
 #include "block/block_type.hpp"
+#include "core/game_mode.hpp"
 #include "entity/entity_type.hpp"
 #include "inventory/inventory.hpp"
 #include "world/block_edit.hpp"
@@ -75,6 +76,7 @@ struct Joined {
   float pitch = 0.0f;
   int slot = 0;
   bool fly = false;
+  GameMode mode = GameMode::Survival; // the world's
 };
 
 // Sent to a guest before Joined: everything needed to build its own copy of

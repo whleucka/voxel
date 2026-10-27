@@ -68,6 +68,7 @@ TEST_CASE("commands round-trip with real values") {
 
 TEST_CASE("events round-trip with real values") {
   roundTrip(Joined{5, {1, 2, 3}, 10.0f, -20.0f, 7, true});
+  roundTrip(Joined{5, {1, 2, 3}, 10.0f, -20.0f, 7, false, GameMode::Creative});
   roundTrip(BlockChanged{{-1, 100, -1}, BlockType::GLOWSTONE});
   roundTrip(PlayerJoined{4, "Cy"});
   roundTrip(CommandRejected{"give: host only"});

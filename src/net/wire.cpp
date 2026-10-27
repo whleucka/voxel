@@ -171,8 +171,11 @@ template <class IO> void fields(IO &, EatItem &) {}
 // Events
 template <class IO> void fields(IO &io, Joined &m) {
   int32_t slot = m.slot;
-  io(m.id, m.position, m.yaw, m.pitch, slot, m.fly);
+  uint8_t mode = static_cast<uint8_t>(m.mode);
+  io(m.id, m.position, m.yaw, m.pitch, slot, m.fly, mode);
   m.slot = slot;
+  m.mode = mode == static_cast<uint8_t>(GameMode::Creative) ? GameMode::Creative
+                                                             : GameMode::Survival;
 }
 template <class IO> void fields(IO &io, BlockChanged &m) { io(m.pos, m.type); }
 template <class IO> void fields(IO &io, PlayerJoined &m) { io(m.id, m.name); }
