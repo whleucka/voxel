@@ -79,3 +79,8 @@ bool isOre(BlockType b) {
       return false;
   }
 }
+
+ItemId pickaxeNeeded(BlockType block, ItemId held) {
+  if (!isOre(block) || dropsWith(block, held)) return ItemId::NONE;
+  return toolItem(ToolKind::Pickaxe, toughness(block).needs);
+}

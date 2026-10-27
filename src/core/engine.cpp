@@ -1228,7 +1228,19 @@ void Engine::updateMining(float dt) {
     mining = Mining{ray.block_pos};
     connection().send(StartBreak{ray.block_pos});
   }
-  int need = breakMs(ray.block_type, inventory_view[player->getSelectedHotbarSlot()].id);
+  const ItemId held = inventory_view[player->getSelectedHotbarSlot()].id;
+  // Ore a weak pickaxe can't get anything from doesn't budge; say what will.
+  if (ItemId pick = pickaxeNeeded(ray.block_type, held); pick != ItemId::NONE) {
+    if (mining->seconds == 0.0f) {
+      std::string name(itemDef(pick).name);
+      const char *a = std::string_view("AEIOU").find(name[0]) != std::string_view::npos ? "an" : "a";
+      hud.notice("Too hard! You need " + std::string(a) + " " + name + " or better.", glfwGetTime());
+    }
+    mining->seconds = -1.0f; // told once for this block
+    mining->progress = 0.0f;
+    return;
+  }
+  int need = breakMs(ray.block_type, held);
   if (need < 0) { // bedrock and the like: nothing to show
     mining->progress = 0.0f;
     return;

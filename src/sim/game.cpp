@@ -622,9 +622,13 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
       target == BlockType::TREASURE_CHEST)
     return reject(client, "break: unbreakable block");
 
+  // Survival: ore holds until there's a pickaxe good enough to get its drop.
+  const ItemId held = ps->inventory.slot(ps->selected_slot).id;
+  if (rules().block_drops && pickaxeNeeded(target, held) != ItemId::NONE)
+    return reject(client, "break: needs a better pickaxe");
+
   // Survival: it takes as long as the block and the tool in hand say, from
   // the StartBreak on this block (judged by what's held now).
-  const ItemId held = ps->inventory.slot(ps->selected_slot).id;
   if (rules().timed_mining) {
     int need = breakMs(target, held);
     bool started = ps->breaking && ps->breaking->pos == cmd.pos;

@@ -26,3 +26,8 @@ bool dropsWith(BlockType block, ItemId held);
 
 // Coal, copper, iron, gold, ruby, emerald and diamond ore.
 bool isOre(BlockType block);
+
+// Ore won't break for a pickaxe too weak to get its drop, so nothing is
+// wasted: the weakest pickaxe that will, when `held` isn't good enough;
+// NONE when it is, or `block` isn't ore.
+ItemId pickaxeNeeded(BlockType block, ItemId held);
