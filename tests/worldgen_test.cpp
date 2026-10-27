@@ -4,6 +4,7 @@
 #include "doctest/doctest.h"
 #include "chunk/chunk.hpp"
 #include "core/constants.hpp"
+#include "core/seed.hpp"
 #include "core/settings.hpp"
 #include <thread>
 #include <vector>
@@ -63,4 +64,49 @@ TEST_CASE("different seeds give different chunks") {
   // Terrain shape follows noise_offset (unchanged here); the seeded parts
   // (bedrock mix, ores, tree shapes) must still differ.
   CHECK(a != b);
+}
+
+// ─── Old worlds keep their terrain ─────────────────────────────────────
+
+namespace {
+
+uint64_t fnv1a(const std::vector<BlockType> &blocks) {
+  uint64_t h = 0xcbf29ce484222325ull;
+  for (BlockType b : blocks) {
+    h ^= static_cast<uint8_t>(b);
+    h *= 0x100000001b3ull;
+  }
+  return h;
+}
+
+// Seeds the generator like a loaded world, and puts it back afterwards.
+struct SeededWorld {
+  uint32_t saved_seed = g_settings.world_seed;
+  glm::vec2 saved_offset = g_settings.noise_offset;
+  explicit SeededWorld(uint32_t seed) {
+    g_settings.world_seed = seed;
+    g_settings.noise_offset = noiseOffsetFor(seed);
+  }
+  ~SeededWorld() {
+    g_settings.world_seed = saved_seed;
+    g_settings.noise_offset = saved_offset;
+  }
+};
+
+} // namespace
+
+TEST_CASE("version 1 terrain is block-for-block what it was before caves") {
+  // Recorded on main at 8288eb2, before caves existed. A world saved
+  // before caves must regenerate exactly, or edits land on the wrong terrain.
+  SeededWorld world(12345);
+  const std::pair<glm::ivec2, uint64_t> golden[] = {
+      {{0, 0}, 7253626337975457968ull},    {{5, -3}, 9952782697928643798ull},
+      {{-20, 14}, 10457763427820496660ull}, {{37, 2}, 3171172932800387816ull},
+      {{-8, -40}, 7604037320953062175ull},  {{90, 61}, 3652691629932540463ull},
+  };
+  for (const auto &[pos, hash] : golden) {
+    CAPTURE(pos.x);
+    CAPTURE(pos.y);
+    CHECK(fnv1a(generate(pos.x, pos.y)) == hash);
+  }
 }
