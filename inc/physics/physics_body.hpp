@@ -28,6 +28,11 @@ struct PhysicsBody {
   // One physics step: gravity and buoyancy, per-axis movement with collision
   // and auto-step, then horizontal friction. Call updateWater() first.
   void move(float dt, const World *world);
+  // Fly-mode step: moves by velocity with no gravity or friction, stopping at
+  // blocks one axis at a time (so it slides along walls). Small sub-steps keep
+  // fast flight from passing through thin walls. A body already stuck inside
+  // blocks can still rise, so it can fly out the top.
+  void glide(float dt, const World *world);
   // Both of the above.
   void step(float dt, const World *world) {
     updateWater(world);

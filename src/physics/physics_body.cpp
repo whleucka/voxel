@@ -1,6 +1,7 @@
 #include "physics/physics_body.hpp"
 #include "block/block_data.hpp"
 #include "world/world.hpp"
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -98,6 +99,32 @@ void PhysicsBody::move(float dt, const World *world) {
   // Clamp tiny velocities to zero
   if (std::abs(velocity.x) < 0.01f) velocity.x = 0.0f;
   if (std::abs(velocity.z) < 0.01f) velocity.z = 0.0f;
+}
+
+void PhysicsBody::glide(float dt, const World *world) {
+  constexpr float kMaxSubStep = 0.25f; // blocks per sub-step
+  glm::vec3 delta = velocity * dt;
+  float longest = std::max({std::abs(delta.x), std::abs(delta.y), std::abs(delta.z)});
+  int n = std::max(1, static_cast<int>(std::ceil(longest / kMaxSubStep)));
+  glm::vec3 sub = delta / static_cast<float>(n);
+  on_ground = false;
+
+  for (int i = 0; i < n; ++i) {
+    for (int axis = 0; axis < 3; ++axis) {
+      if (sub[axis] == 0.0f) continue;
+      glm::vec3 next = position;
+      next[axis] += sub[axis];
+      // Stuck inside blocks: only rising is allowed, so it isn't a way
+      // through walls.
+      bool escaping = axis == 1 && sub.y > 0.0f && collidesAt(world, position);
+      if (escaping || !collidesAt(world, next)) {
+        position = next;
+      } else {
+        if (axis == 1 && sub.y < 0.0f) on_ground = true;
+        sub[axis] = 0.0f;
+      }
+    }
+  }
 }
 
 // ─── Auto-Step ─────────────────────────────────────────────────────────
