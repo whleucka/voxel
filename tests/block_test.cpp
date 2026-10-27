@@ -98,3 +98,14 @@ TEST_CASE("the faces behind glass are still drawn") {
   CHECK_FALSE(shouldRenderFace(BlockType::GLASS, BlockType::STONE));
   CHECK_FALSE(shouldRenderFace(BlockType::BRICKS, BlockType::RED_BLOCK));
 }
+
+TEST_CASE("the glow crystal glows softer than the lamp and drops itself") {
+  CHECK(static_cast<int>(BlockType::GLOW_CRYSTAL) == 43);
+  CHECK(blockName(BlockType::GLOW_CRYSTAL) == "Glow Crystal");
+  CHECK(blockLightEmission(BlockType::GLOW_CRYSTAL) == 10);
+  CHECK(skyLightOpacity(BlockType::GLOW_CRYSTAL) == 15);
+  CHECK(dropFor(BlockType::GLOW_CRYSTAL) == itemForBlock(BlockType::GLOW_CRYSTAL));
+  const auto &palette = paletteItems();
+  CHECK(std::find(palette.begin(), palette.end(),
+                  itemForBlock(BlockType::GLOW_CRYSTAL)) != palette.end());
+}

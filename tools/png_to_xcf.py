@@ -8,7 +8,7 @@ Runs inside GIMP 3's Python, not on its own:
 Every PNG_DIR/<name>.png becomes OUT_DIR/<name>.xcf.
 
 With a third argument, ATLAS_XCF, each tile is also added to that layered
-atlas as its own layer, at the row-2 cell gen_building_tiles.py gives it.
+atlas as its own layer, at the cell gen_building_tiles.py gives it.
 """
 
 import sys
@@ -27,12 +27,13 @@ for png in sorted(png_dir.glob("*.png")):
 
 if len(sys.argv) > 3:
     sys.path.insert(0, "tools")  # run from the repo root, as shown above
-    from gen_building_tiles import ROW, TILE, TILES
+    from gen_building_tiles import TILE, TILES, cell
 
     atlas_file = Gio.File.new_for_path(sys.argv[3])
     atlas = Gimp.file_load(Gimp.RunMode.NONINTERACTIVE, atlas_file)
     names = {layer.get_name() for layer in atlas.get_layers()}
-    for col, (name, _) in enumerate(TILES):
+    for i, (name, _) in enumerate(TILES):
+        col, row = cell(i)
         if name in names:
             print(f"skip {name}: the atlas already has that layer")
             continue
@@ -40,7 +41,7 @@ if len(sys.argv) > 3:
         layer = Gimp.file_load_layer(Gimp.RunMode.NONINTERACTIVE, atlas, png)
         layer.set_name(name)
         atlas.insert_layer(layer, None, 0)
-        layer.set_offsets(col * TILE, ROW * TILE)
+        layer.set_offsets(col * TILE, row * TILE)
         print(f"added layer {name}")
     Gimp.file_save(Gimp.RunMode.NONINTERACTIVE, atlas, atlas_file, None)
     atlas.delete()

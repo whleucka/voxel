@@ -98,7 +98,8 @@ inline uint8_t skyLightOpacity(BlockType type) {
 // Emissive blocks seed the block-light BFS in Chunk::computeBlockLight().
 inline uint8_t blockLightEmission(BlockType type) {
   switch (type) {
-    case BlockType::GLOWSTONE: return 15;
+    case BlockType::GLOWSTONE:    return 15;
+    case BlockType::GLOW_CRYSTAL: return 10; // softer than the lamp
     default:                   return 0;
   }
 }
@@ -148,6 +149,7 @@ inline std::string_view blockName(BlockType type) {
     case BlockType::BLUE_BLOCK:    return "Blue Block";
     case BlockType::PURPLE_BLOCK:  return "Purple Block";
     case BlockType::PINK_BLOCK:    return "Pink Block";
+    case BlockType::GLOW_CRYSTAL:  return "Glow Crystal";
     default:                      return "Unknown";
   }
 }
@@ -179,7 +181,7 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = {
     {BlockType::COPPER_ORE, {glm::ivec2{11, 1}, glm::ivec2{11, 1}, glm::ivec2{11, 1}}},
     {BlockType::CHERRY_LEAF, {glm::ivec2{12, 1}, glm::ivec2{12, 1}, glm::ivec2{12, 1}}},
     {BlockType::CHERRY_LOG, {glm::ivec2{14, 1}, glm::ivec2{14, 1}, glm::ivec2{13, 1}}},
-    // Building blocks fill row 2 in this order (tools/gen_building_tiles.py).
+    // Building blocks fill row 2 on, in this order (tools/gen_building_tiles.py).
     {BlockType::OAK_PLANKS, {glm::ivec2{0, 2}, glm::ivec2{0, 2}, glm::ivec2{0, 2}}},
     {BlockType::PINE_PLANKS, {glm::ivec2{1, 2}, glm::ivec2{1, 2}, glm::ivec2{1, 2}}},
     {BlockType::PALM_PLANKS, {glm::ivec2{2, 2}, glm::ivec2{2, 2}, glm::ivec2{2, 2}}},
@@ -196,4 +198,5 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = {
     {BlockType::PURPLE_BLOCK, {glm::ivec2{13, 2}, glm::ivec2{13, 2}, glm::ivec2{13, 2}}},
     {BlockType::PINK_BLOCK, {glm::ivec2{14, 2}, glm::ivec2{14, 2}, glm::ivec2{14, 2}}},
     {BlockType::GLOWSTONE, {glm::ivec2{15, 2}, glm::ivec2{15, 2}, glm::ivec2{15, 2}}},
+    {BlockType::GLOW_CRYSTAL, {glm::ivec2{0, 3}, glm::ivec2{0, 3}, glm::ivec2{0, 3}}},
 };

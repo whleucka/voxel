@@ -49,8 +49,9 @@ enum class BlockType : uint8_t {
   BLUE_BLOCK,
   PURPLE_BLOCK,
   PINK_BLOCK,
+  GLOW_CRYSTAL, // grows in caves (worldgen v2)
 };
 
 // The highest BlockType value. Update it when appending a type; a test in
 // tests/item_test.cpp fails if a named type exists past it.
-constexpr BlockType kLastBlockType = BlockType::PINK_BLOCK;
+constexpr BlockType kLastBlockType = BlockType::GLOW_CRYSTAL;
