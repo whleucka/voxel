@@ -43,6 +43,17 @@ TEST_CASE("ore gates: each ore needs a good enough pickaxe to drop") {
   }
 }
 
+TEST_CASE("ore names the pickaxe it needs, until you hold one good enough") {
+  CHECK(pickaxeNeeded(BlockType::DIAMOND_ORE, ItemId::WOOD_PICKAXE) == ItemId::IRON_PICKAXE);
+  CHECK(pickaxeNeeded(BlockType::DIAMOND_ORE, ItemId::NONE) == ItemId::IRON_PICKAXE);
+  CHECK(pickaxeNeeded(BlockType::COAL_ORE, ItemId::WOOD_PICKAXE) == ItemId::STONE_PICKAXE);
+  CHECK(pickaxeNeeded(BlockType::DIAMOND_ORE, ItemId::IRON_PICKAXE) == ItemId::NONE);
+  CHECK(pickaxeNeeded(BlockType::COAL_ORE, ItemId::DIAMOND_PICKAXE) == ItemId::NONE);
+  // Only ore holds back: stone still breaks by hand, so no one is walled in.
+  CHECK(pickaxeNeeded(BlockType::STONE, ItemId::NONE) == ItemId::NONE);
+  CHECK(pickaxeNeeded(BlockType::DIRT, ItemId::NONE) == ItemId::NONE);
+}
+
 TEST_CASE("glass needs a pickaxe to come back; bedrock never breaks") {
   CHECK_FALSE(dropsWith(BlockType::GLASS, ItemId::NONE));
   CHECK(dropsWith(BlockType::GLASS, ItemId::WOOD_PICKAXE));

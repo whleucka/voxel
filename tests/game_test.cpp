@@ -814,13 +814,13 @@ TEST_CASE_FIXTURE(EditGame, "creative breaks anything at once") {
   CHECK(changes(run(BreakBlock{ore})) == 1);
 }
 
-TEST_CASE_FIXTURE(EditGame, "ore broken without a good enough pickaxe gives nothing") {
+TEST_CASE_FIXTURE(EditGame, "ore won't break without a good enough pickaxe, so it isn't wasted") {
   glm::ivec3 ore{5, ground + 1, 5};
   game.world().setBlockAt(ore, BlockType::IRON_ORE);
   wield(ItemId::STONE_PICKAXE);
-  CHECK(changes(mine(ore)) == 1);
+  CHECK(changes(mine(ore)) == 0);
+  CHECK(game.world().getBlockAt(glm::vec3(ore) + 0.5f) == BlockType::IRON_ORE);
   CHECK(heldCount(inventory(), ItemId::RAW_IRON) == 0);
-  game.world().setBlockAt(ore, BlockType::IRON_ORE);
   wield(ItemId::COPPER_PICKAXE);
   mine(ore);
   CHECK(heldCount(inventory(), ItemId::RAW_IRON) == 1);
