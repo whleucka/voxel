@@ -36,6 +36,7 @@ std::unique_ptr<Session> Session::join(const std::string &address, const Options
   if (!s->remote->connect(address, opts.port, error)) return nullptr;
   s->saved_seed = g_settings.world_seed;
   s->saved_offset = g_settings.noise_offset;
+  s->saved_worldgen = g_settings.worldgen;
   s->client_world = std::make_unique<World>();
   s->remote->send(Join{opts.name});
   return s;
@@ -48,6 +49,7 @@ Session::~Session() {
     client_world.reset();
     g_settings.world_seed = saved_seed;
     g_settings.noise_offset = saved_offset;
+    g_settings.worldgen = saved_worldgen;
   }
 }
 
@@ -87,6 +89,7 @@ void Session::poll(std::vector<Event> &out) {
       // Before any chunk exists: chunks generate from these as they stream in.
       g_settings.world_seed = w->seed;
       g_settings.noise_offset = w->noise_offset;
+      g_settings.worldgen = w->worldgen;
       client_world->setLoadedEdits(std::span<const BlockEdit>(w->edits));
       client_clock.time_of_day = w->time_of_day;
       client_clock.scale = w->time_scale;

@@ -4,6 +4,7 @@
 #include "core/game_mode.hpp"
 #include "item/item_stack.hpp"
 #include "robin_hood/robin_hood.h"
+#include "world/worldgen_version.hpp"
 #include <cstdint>
 #include <map>
 #include <glm/glm.hpp>
@@ -29,6 +30,9 @@ struct LevelData {
   // A trailing byte: files written before modes existed load as Survival,
   // and older builds stop reading before it.
   GameMode  mode = GameMode::Survival;
+  // Another trailing byte: files written before caves load as the original
+  // generator, so their terrain doesn't change.
+  uint8_t   worldgen = worldgen::kLatest;
 };
 
 // player.dat — player state restored after the world is generated.

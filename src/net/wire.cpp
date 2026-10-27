@@ -192,7 +192,7 @@ template <class IO> void fields(IO &io, EntitySnapshot &m) { io(m.tick, m.entiti
 template <class IO> void fields(IO &io, KnockedBack &m) { io(m.velocity); }
 template <class IO> void fields(IO &io, JoinRefused &m) { io(m.reason); }
 template <class IO> void fields(IO &io, Welcome &m) {
-  io(m.seed, m.noise_offset, m.time_of_day, m.time_scale, m.edits);
+  io(m.seed, m.noise_offset, m.time_of_day, m.time_scale, m.edits, m.worldgen);
 }
 template <class IO> void fields(IO &io, TimeSync &m) { io(m.time_of_day, m.time_scale); }
 template <class IO> void fields(IO &io, Disconnected &m) { io(m.reason); }

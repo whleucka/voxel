@@ -1562,6 +1562,7 @@ TEST_CASE_FIXTURE(PartyGame, "a guest is welcomed with the world before it joins
   const Welcome &w = std::get<Welcome>(evs[0]);
   CHECK(w.seed == g_settings.world_seed);
   CHECK(w.noise_offset == g_settings.noise_offset);
+  CHECK(w.worldgen == g_settings.worldgen);
   CHECK(w.time_of_day == game.clock().time_of_day);
   CHECK(w.time_scale == g_settings.time_scale);
   CHECK(std::find(w.edits.begin(), w.edits.end(),

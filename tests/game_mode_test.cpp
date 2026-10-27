@@ -54,7 +54,7 @@ TEST_CASE("a level.dat from before modes loads as survival") {
   level.mode = GameMode::Creative;
   REQUIRE(WorldSave::saveLevel(dir.path.string(), level));
   fs::path file = dir.path / "level.dat";
-  fs::resize_file(file, fs::file_size(file) - 1); // drop the mode byte
+  fs::resize_file(file, fs::file_size(file) - 2); // drop the mode and worldgen bytes
 
   WorldSave::LevelData back;
   REQUIRE(WorldSave::loadLevel(dir.path.string(), back));
@@ -111,5 +111,54 @@ TEST_CASE("the game keeps a world's mode when it saves") {
   WorldSave::LevelData level;
   REQUIRE(WorldSave::loadLevel(dir, level));
   CHECK(level.mode == GameMode::Creative);
+  g_settings = saved;
+}
+
+// ─── Worldgen version ──────────────────────────────────────────────────
+
+TEST_CASE("level.dat round-trips the worldgen version") {
+  TempDir dir;
+  WorldSave::LevelData level;
+  level.worldgen = worldgen::kOriginal;
+  REQUIRE(WorldSave::saveLevel(dir.path.string(), level));
+  WorldSave::LevelData back;
+  REQUIRE(WorldSave::loadLevel(dir.path.string(), back));
+  CHECK(back.worldgen == worldgen::kOriginal);
+}
+
+TEST_CASE("a level.dat from before caves loads as the original generator") {
+  TempDir dir;
+  WorldSave::LevelData level;
+  level.mode = GameMode::Creative;
+  REQUIRE(WorldSave::saveLevel(dir.path.string(), level));
+  fs::path file = dir.path / "level.dat";
+  fs::resize_file(file, fs::file_size(file) - 1); // drop the worldgen byte
+
+  WorldSave::LevelData back;
+  REQUIRE(WorldSave::loadLevel(dir.path.string(), back));
+  CHECK(back.mode == GameMode::Creative);
+  CHECK(back.worldgen == worldgen::kOriginal);
+}
+
+TEST_CASE("new worlds get caves; an old world keeps its generator through a save") {
+  ScopedRenderDistance rd{0};
+  Settings saved = g_settings;
+  TempDir saves;
+  REQUIRE_FALSE(createWorld(saves.path, "fresh", "3", GameMode::Survival));
+  WorldSave::LevelData level;
+  REQUIRE(WorldSave::loadLevel((saves.path / "fresh").string(), level));
+  CHECK(level.worldgen == worldgen::kCaves);
+
+  std::string dir = (saves.path / "old").string();
+  level.worldgen = worldgen::kOriginal;
+  REQUIRE(WorldSave::saveLevel(dir, level));
+  {
+    Game game;
+    REQUIRE(game.load(dir));
+    CHECK(g_settings.worldgen == worldgen::kOriginal);
+    REQUIRE(game.save());
+  }
+  REQUIRE(WorldSave::loadLevel(dir, level));
+  CHECK(level.worldgen == worldgen::kOriginal);
   g_settings = saved;
 }
