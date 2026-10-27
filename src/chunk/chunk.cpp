@@ -24,11 +24,12 @@ void Chunk::init() {
   std::unique_ptr<Biome> biome = BiomeManager::createBiome(biome_type);
   const bool with_caves = g_settings.worldgen >= worldgen::kCaves;
   biome->generateTerrain(*this);
-  if (with_caves) caves::carve(*this);
+  caves::Surfaces surfaces;
+  if (with_caves) caves::carve(*this, surfaces);
   biome->generateMinerals(*this);
   biome->fillWater(*this);
   biome->spawnDecorations(*this);
-  if (with_caves) caves::decorate(*this);
+  if (with_caves) caves::decorate(*this, surfaces);
   computeSkyLight();
   computeBlockLight();
 }

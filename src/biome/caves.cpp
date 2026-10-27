@@ -150,13 +150,15 @@ bool isTunnel(glm::ivec3 w) {
   return tunnel(f, columnAt(w.x, w.z, directHeight, nullptr), w.y);
 }
 
-void carve(Chunk &chunk) {
+void carve(Chunk &chunk, Surfaces &surfaces) {
   const int wx0 = chunk.getPos().x * kChunkWidth;
   const int wz0 = chunk.getPos().y * kChunkDepth;
 
   Heights heights{{wx0 - 1, wz0 - 1}};
   for (int z = -1; z <= kChunkDepth; ++z)
     for (int x = -1; x <= kChunkWidth; ++x) heights.at(wx0 + x, wz0 + z) = surfaceAt(wx0 + x, wz0 + z);
+  for (int z = 0; z < kChunkDepth; ++z)
+    for (int x = 0; x < kChunkWidth; ++x) surfaces[x + kChunkWidth * z] = heights.at(wx0 + x, wz0 + z);
 
   std::array<Column, kChunkWidth * kChunkDepth> columns;
   bool any = false;
@@ -200,14 +202,10 @@ void carve(Chunk &chunk) {
   }
 }
 
-void decorate(Chunk &chunk) {
+void decorate(Chunk &chunk, const Surfaces &surface) {
   const int wx0 = chunk.getPos().x * kChunkWidth;
   const int wz0 = chunk.getPos().y * kChunkDepth;
-  std::array<int, kChunkWidth * kChunkDepth> surface;
-  int top = 0;
-  for (int z = 0; z < kChunkDepth; ++z)
-    for (int x = 0; x < kChunkWidth; ++x)
-      top = std::max(top, surface[x + kChunkWidth * z] = surfaceAt(wx0 + x, wz0 + z));
+  const int top = *std::max_element(surface.begin(), surface.end());
 
   auto ground = [&](int x, int z) { return surface[x + kChunkWidth * z]; };
   auto caveAir = [&](int x, int y, int z) {

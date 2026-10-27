@@ -115,6 +115,17 @@ The tiles are original pixel art drawn by `tools/gen_building_tiles.py`.
 Each has a GIMP source in `assets/blocks/` (and a layer in
 `assets/atlas/block_atlas.xcf`) for anyone who'd like to repaint it.
 
+## Caves
+
+Worlds made from now on have **natural caves**: winding tunnels, some
+opening onto hillsides so you can walk straight in. Deep inside you'll find
+**glow crystals** (break one to take its light home), shallow **pools**, and
+gems in the walls, better ones the deeper you go. Cave Grumbles only appear
+in the dark, so a crystal or lamp keeps the area around it safe.
+
+Worlds made before caves keep exactly the terrain they had: each world
+remembers which generator made it.
+
 ## Playing together (home network)
 
 The game opens on a title menu, with your last world slowly circling behind
