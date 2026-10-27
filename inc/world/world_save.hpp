@@ -66,12 +66,20 @@ bool save(const std::string &dir, const LevelData &level,
 bool loadInventory(const std::string &dir, std::vector<ItemStack> &out);
 bool saveInventory(const std::string &dir, std::span<const ItemStack> slots);
 
+// discovered.dat — every item the host has ever had (crafting discovery).
+// Worlds from before crafting have none; the Game starts it from the inventory.
+bool loadDiscovered(const std::string &dir, std::vector<ItemId> &out);
+bool saveDiscovered(const std::string &dir, std::span<const ItemId> ids);
+
 // players/<name>.dat — a guest's state, kept in the host's world so they carry
 // on where they left off. The host's own record stays in player.dat and
 // inventory.dat. Names must be 1-16 of [A-Za-z0-9_-] (they're file names).
 struct GuestRecord {
   PlayerData player;
   std::vector<ItemStack> inventory; // slot order
+  // Every item they've ever had (crafting discovery). A trailing section:
+  // records from before crafting load with none.
+  std::vector<ItemId> discovered;
 };
 bool saveGuest(const std::string &dir, const std::string &name, const GuestRecord &rec);
 // Every readable record under dir/players/, keyed by name. Missing folder:

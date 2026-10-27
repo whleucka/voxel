@@ -143,7 +143,8 @@ private:
   void reject(Client &client, std::string reason);
   bool hostOnly(Client &client, std::string_view what);
   void broadcast(const Event &ev);
-  void sendInventory(Client &client, const PlayerState &ps);
+  // Sends the inventory, and notes any item the player hasn't had before.
+  void sendInventory(Client &client, PlayerState &ps);
   bool inReach(const PlayerState &ps, const glm::ivec3 &block) const;
   bool overlapsAnyPlayer(const glm::ivec3 &block) const;
   // Stream chunks around every player.
@@ -172,6 +173,7 @@ private:
   PlayerId next_player_id = 1;
   std::optional<WorldSave::PlayerData> saved_player;
   std::optional<std::vector<ItemStack>> saved_inventory;
+  std::optional<std::vector<ItemId>> saved_discovered; // the host's, like saved_inventory
   // Guests who have played in this world, by name (players/<name>.dat).
   std::map<std::string, WorldSave::GuestRecord> guest_records;
   void storeGuest(const PlayerState &ps);

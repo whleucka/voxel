@@ -418,6 +418,78 @@ TEST_CASE_FIXTURE(EditGame, "a played game round-trips through save and load") {
   CHECK(loaded.findPlayer(j.id)->inventory.slots() == saved_inv.slots());
 }
 
+// ─── Discovery (items seen) ────────────────────────────────────────────
+
+namespace {
+bool seen(const Game &game, PlayerId id, ItemId item) {
+  return game.findPlayer(id)->seen.test(static_cast<size_t>(item));
+}
+int heldCount(const Inventory &inv, ItemId id) {
+  int n = 0;
+  for (const ItemStack &s : inv.slots()) n += s.id == id ? s.count : 0;
+  return n;
+}
+} // namespace
+
+TEST_CASE_FIXTURE(EditGame, "items count as seen once they've been in the inventory") {
+  CHECK(seen(game, id, itemForBlock(BlockType::GLOWSTONE))); // the starter kit
+  CHECK_FALSE(seen(game, id, ItemId::RUBY));
+  run(GiveItem{ItemId::RUBY, 1});
+  CHECK(seen(game, id, ItemId::RUBY));
+
+  glm::ivec3 target{5, ground, 5};
+  ItemId drop = *dropFor(at(target));
+  run(BreakBlock{target});
+  CHECK(seen(game, id, drop));
+
+  // Still seen after it's gone.
+  for (int i = 0; i < kInventorySlots; ++i)
+    if (inventory().slot(i).id == ItemId::RUBY) {
+      run(SelectSlot{i});
+      run(DropItem{true});
+    }
+  REQUIRE(heldCount(inventory(), ItemId::RUBY) == 0);
+  CHECK(seen(game, id, ItemId::RUBY));
+}
+
+TEST_CASE_FIXTURE(EditGame, "the host's discoveries are saved, even for items they no longer have") {
+  ScopedSeed seed;
+  TempDir dir;
+  CHECK_FALSE(game.load(dir.path.string()));
+  run(GiveItem{ItemId::EMERALD, 1});
+  for (int i = 0; i < kHotbarSlots; ++i)
+    if (inventory().slot(i).id == ItemId::EMERALD) {
+      run(SelectSlot{i});
+      run(DropItem{true});
+    }
+  run(Save{});
+
+  ScopedRenderDistance rd2{0};
+  Game loaded;
+  REQUIRE(loaded.load(dir.path.string()));
+  LocalConnection c;
+  Joined j = join(loaded, c);
+  CHECK(seen(loaded, j.id, ItemId::EMERALD));
+  CHECK(heldCount(loaded.findPlayer(j.id)->inventory, ItemId::EMERALD) == 0);
+}
+
+TEST_CASE_FIXTURE(EditGame, "a world from before crafting starts discoveries from the inventory") {
+  ScopedSeed seed;
+  TempDir dir;
+  CHECK_FALSE(game.load(dir.path.string()));
+  run(GiveItem{ItemId::DIAMOND, 2});
+  run(Save{});
+  std::filesystem::remove(dir.path / "discovered.dat");
+
+  ScopedRenderDistance rd2{0};
+  Game loaded;
+  REQUIRE(loaded.load(dir.path.string()));
+  LocalConnection c;
+  Joined j = join(loaded, c);
+  CHECK(seen(loaded, j.id, ItemId::DIAMOND));
+  CHECK_FALSE(seen(loaded, j.id, ItemId::RUBY));
+}
+
 TEST_CASE_FIXTURE(SmallGame, "save without a bound directory fails") {
   CHECK_FALSE(game.save());
 }

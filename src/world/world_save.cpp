@@ -39,6 +39,7 @@ constexpr char kPlayerMagic[4] = {'V', 'X', 'P', 'L'};
 constexpr char kEditMagic[4]   = {'V', 'X', 'E', 'D'};
 constexpr char kInvMagic[4]    = {'V', 'X', 'I', 'N'};
 constexpr char kGuestMagic[4]  = {'V', 'X', 'G', 'P'};
+constexpr char kKnownMagic[4]  = {'V', 'X', 'D', 'I'};
 
 bool safeName(const std::string &name) {
   if (name.empty() || name.size() > 16) return false;
@@ -82,6 +83,23 @@ bool readSlots(std::istream &in, std::vector<ItemStack> &out) {
     if (isValidItem(item) && count > 0) s = {item, count};
   }
   out = std::move(slots);
+  return true;
+}
+
+void writeIds(std::ostream &o, std::span<const ItemId> ids) {
+  wr(o, static_cast<uint32_t>(ids.size()));
+  for (ItemId id : ids) wr(o, static_cast<uint16_t>(id));
+}
+
+bool readIds(std::istream &in, std::vector<ItemId> &out) {
+  uint32_t n = 0;
+  if (!rd(in, n) || n > 4096) return false;
+  out.clear();
+  for (uint32_t i = 0; i < n; ++i) {
+    uint16_t v = 0;
+    if (!rd(in, v)) return false;
+    if (isValidItem(static_cast<ItemId>(v))) out.push_back(static_cast<ItemId>(v));
+  }
   return true;
 }
 
@@ -210,6 +228,25 @@ bool saveInventory(const std::string &dir, std::span<const ItemStack> slots) {
   return static_cast<bool>(o);
 }
 
+// ─── discovered.dat ─────────────────────────────────────────────────────────
+
+bool loadDiscovered(const std::string &dir, std::vector<ItemId> &out) {
+  std::ifstream in(dir + "/discovered.dat", std::ios::binary);
+  if (!in || !checkHeader(in, kKnownMagic)) return false;
+  return readIds(in, out);
+}
+
+bool saveDiscovered(const std::string &dir, std::span<const ItemId> ids) {
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+  if (ec) return false;
+  std::ofstream o(dir + "/discovered.dat", std::ios::binary | std::ios::trunc);
+  if (!o) return false;
+  writeHeader(o, kKnownMagic);
+  writeIds(o, ids);
+  return static_cast<bool>(o);
+}
+
 // ─── players/<name>.dat ─────────────────────────────────────────────────────
 
 bool saveGuest(const std::string &dir, const std::string &name, const GuestRecord &rec) {
@@ -222,6 +259,7 @@ bool saveGuest(const std::string &dir, const std::string &name, const GuestRecor
   writeHeader(o, kGuestMagic);
   writePlayer(o, rec.player);
   writeSlots(o, rec.inventory);
+  writeIds(o, rec.discovered);
   return static_cast<bool>(o);
 }
 
@@ -240,6 +278,7 @@ bool loadGuests(const std::string &dir, std::map<std::string, GuestRecord> &out)
       std::cerr << "[save] skipping unreadable " << entry.path() << "\n";
       continue;
     }
+    if (!readIds(in, rec.discovered)) rec.discovered.clear(); // from before crafting
     out[name] = std::move(rec);
   }
   return !ec;
