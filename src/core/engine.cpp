@@ -199,6 +199,8 @@ void Engine::menuFrame() {
         IM_COL32(26, 31, 41, static_cast<int>(cover * 255)));
   std::string name = g_settings.player_name;
   std::string last_world = g_settings.world_name;
+  const ImGuiIO &io = ImGui::GetIO();
+  hud.drawLogo(io.DisplaySize.x, io.DisplaySize.y);
   TitleMenu::Choice choice = menu.draw(glfwGetTime(), name, last_world,
                                        static_cast<uint16_t>(g_settings.server_port));
   g_settings.player_name = name;

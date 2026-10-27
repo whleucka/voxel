@@ -42,6 +42,9 @@ public:
   // The inventory screen, the stack being carried, and the hover tooltip.
   void drawInventoryScreen(const HudLayout &layout, const Inventory::Slots &inv,
                            const InventoryScreen &screen, glm::vec2 mouse);
+  // The game's title as a wall of blocks (title screen).
+  void drawLogo(float display_w, float display_h);
+
   // The creative palette beside it: one of every item, with a tooltip.
   void drawPalette(const HudLayout &layout, const std::vector<ItemId> &items,
                    glm::vec2 mouse);

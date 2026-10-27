@@ -3,6 +3,7 @@
 #include "sim/game.hpp"
 #include "core/settings.hpp"
 #include "imgui/imgui.h"
+#include "ui/logo.hpp"
 #include "ui/menu_style.hpp"
 #include <cctype>
 #include <charconv>
@@ -112,17 +113,14 @@ TitleMenu::Choice TitleMenu::draw(double now, std::string &name, std::string &la
 void TitleMenu::drawTitle() {
   const ImGuiIO &io = ImGui::GetIO();
   ImDrawList *draw = ImGui::GetForegroundDrawList();
-  const char *title = "GRUMBLEGROVE";
-  float size = std::max(48.0f, io.DisplaySize.y * 0.11f);
-  ImVec2 extent = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, title);
-  ImVec2 at(io.DisplaySize.x * 0.5f - extent.x * 0.5f, io.DisplaySize.y * 0.12f);
-  draw->AddText(ImGui::GetFont(), size, ImVec2(at.x + 4, at.y + 4), IM_COL32(0, 0, 0, 150), title);
-  draw->AddText(ImGui::GetFont(), size, at, IM_COL32(250, 245, 225, 255), title);
+  // The block logo itself is drawn by the Hud (it has the block atlas); the
+  // subtitle goes under it.
+  Rect logo = logoLayout(kGameTitle, io.DisplaySize.x, io.DisplaySize.y).bounds();
 
   const char *subtitle = "build  -  explore  -  survive";
-  float sub_size = std::max(16.0f, size * 0.22f);
+  float sub_size = std::max(16.0f, logo.h * 0.24f);
   ImVec2 sub_ext = ImGui::GetFont()->CalcTextSizeA(sub_size, FLT_MAX, 0.0f, subtitle);
-  ImVec2 sub_at(io.DisplaySize.x * 0.5f - sub_ext.x * 0.5f, at.y + extent.y + sub_size * 0.2f);
+  ImVec2 sub_at(io.DisplaySize.x * 0.5f - sub_ext.x * 0.5f, logo.bottom() + sub_size * 0.6f);
   draw->AddText(ImGui::GetFont(), sub_size, ImVec2(sub_at.x + 2, sub_at.y + 2),
                 IM_COL32(0, 0, 0, 140), subtitle);
   draw->AddText(ImGui::GetFont(), sub_size, sub_at, IM_COL32(240, 190, 120, 255), subtitle);
