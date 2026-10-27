@@ -17,7 +17,9 @@ public:
   ChunkMesh();
   ~ChunkMesh();
 
-  static BlockType  getBlock(World*, const Chunk&, int, int, int);
+  // A neighbouring cell; `unloaded` stands in for a chunk not loaded yet.
+  static BlockType  getBlock(World*, const Chunk&, int, int, int,
+                             BlockType unloaded = BlockType::AIR);
   static uint8_t    getSkyLight(World*, const Chunk&, int, int, int);
   static uint8_t    getBlockLight(World*, const Chunk&, int, int, int);
   void generateCPU(World* world, const Chunk& chunk, TextureManager& texture_manager); // CPU-only
@@ -27,6 +29,8 @@ public:
 
   bool isUploaded() const { return gpuUploaded; }
   bool hasTransparent() const { return transparent_index_count > 0; }
+  // The blended faces (water) as built by generateCPU, for tests.
+  const std::vector<BlockVertex> &transparentVertexData() const { return transparentVertices; }
 
 private:
   void setupVAO(GLuint vao, GLuint vbo, GLuint ebo,
