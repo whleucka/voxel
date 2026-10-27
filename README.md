@@ -15,6 +15,7 @@
   - Friendly Woollies, Bunnies, Shell Turtles and Blossom Deer. Feed them and they give you something back.
   - At night, Gloomlings and Thorn Crawlers come out, and Cave Grumbles lurk in the dark underground.
 - **Crafting:** discover recipes as you collect things, and build a Crafting Table for the bigger ones ([more below](#crafting)).
+- **Smelting:** a furnace that cooks raw ore into ingots, and sand into glass, while you're off exploring ([more below](#smelting)).
 - **Creative mode:** fly, build without running out, and pick from every block, including planks, bricks, glass, eight bright colors and lamps.
 - **Play together:** host a world on your home network, and up to 8 players can join from the title screen.
 - **Your own worlds:** create, rename and delete worlds. Each one saves its edits, inventories and mode.
@@ -27,7 +28,7 @@
 ## Ideas for next time
 
 - **Pets:** tame an animal by feeding it, and it follows you around.
-- **Tools and smelting:** pickaxes and swords from wood to gems, and a furnace for ore *(in progress)*
+- **Tools:** pickaxes and swords from wood to gems *(in progress)*
 - **Doors, slabs and stairs**
 - **Treasure chests** hidden around the world
 - **Your own look:** pick a color and a hat, so players can tell each other apart on the network
@@ -134,10 +135,25 @@ discovers their own.
 *   **Anywhere:** planks from logs, sticks, and a **Crafting Table**.
 *   **At a Crafting Table** (right-click it, or stand next to it): stone
     bricks, white blocks, colored blocks dyed with gems and things animals
-    give you, and lamps.
+    give you, lamps, and the Furnace.
 
 Click a recipe to make one, shift-click to make as many as you can.
 Crouch and right-click to build against a table instead of opening it.
+
+## Smelting
+
+Build a **Furnace** (8 cobblestone at a Crafting Table), place it and
+right-click it. Put something to smelt in the top-left slot and fuel in
+the slot below; it cooks one item every five seconds, keeps going while
+you're away, and glows while it burns.
+
+*   **Raw iron, copper and gold** → ingots
+*   **Sand** → glass, **cobblestone** → stone, **sandstone** → bricks
+*   **Logs** → charcoal
+
+Fuel: coal or charcoal smelts 8 items, a log 2, planks 1½, sticks ½.
+Shift-click sends things to the right slot. Breaking a furnace drops
+everything in it.
 
 ## Caves
 
