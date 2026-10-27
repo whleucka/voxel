@@ -16,4 +16,7 @@ public:
   bool draw(Settings &s, bool difficulty_locked);
   // Leaving without Done (Esc): saves the same way.
   void close();
+
+private:
+  bool confirm_reset = false;
 };

@@ -39,6 +39,22 @@ bool SettingsPage::draw(Settings &s, bool difficulty_locked) {
 
   ImGui::Spacing();
   ImGui::Separator();
+  // Also resets what only the F1 panel shows (time speed, fog, cloud and
+  // shadow details), so a stray change there is easy to undo.
+  if (!confirm_reset) {
+    if (ImGui::Button("Reset to defaults", ImVec2(-1, 0))) confirm_reset = true;
+  } else {
+    ImGui::TextColored(ImVec4(1.f, 0.6f, 0.3f, 1.f),
+                       "Reset every setting? Your name and worlds are kept.");
+    if (ImGui::Button("Yes, reset")) {
+      Difficulty kept = s.difficulty;
+      s = defaultsKeepingIdentity(s);
+      if (difficulty_locked) s.difficulty = kept; // the host's, not ours
+      confirm_reset = false;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel")) confirm_reset = false;
+  }
   bool done = menuButton("Done");
   if (ImGui::IsWindowAppearing()) ImGui::SetItemDefaultFocus();
   endMenuPanel();
@@ -46,4 +62,7 @@ bool SettingsPage::draw(Settings &s, bool difficulty_locked) {
   return done;
 }
 
-void SettingsPage::close() { saveServerProperties(); }
+void SettingsPage::close() {
+  confirm_reset = false;
+  saveServerProperties();
+}

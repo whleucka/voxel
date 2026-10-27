@@ -68,3 +68,18 @@ struct Settings {
 };
 
 inline Settings g_settings;
+
+// Every setting back to its default, except who and where you are: the world,
+// its seed, your name, the server port and the windowed size are kept.
+inline Settings defaultsKeepingIdentity(const Settings &s) {
+  Settings d;
+  d.world_name = s.world_name;
+  d.world_seed = s.world_seed;
+  d.noise_offset = s.noise_offset;
+  d.player_name = s.player_name;
+  d.server_port = s.server_port;
+  d.window_width = s.window_width;
+  d.window_height = s.window_height;
+  d.show_debug = s.show_debug;
+  return d;
+}

@@ -108,3 +108,34 @@ TEST_CASE("noise offsets stay within 5000 units") {
   }
   CHECK(noiseOffsetFor(5001) == glm::vec2(1.0f, 1.0f));
 }
+
+TEST_CASE("reset to defaults keeps the world, name and port") {
+  Settings s;
+  s.world_name = "castle";
+  s.world_seed = 42;
+  s.noise_offset = {1.0f, 2.0f};
+  s.player_name = "alex";
+  s.server_port = 50000;
+  s.window_width = 1280;
+  s.time_scale = 720.0f;
+  s.fog_start = 300.0f;
+  s.clouds_enabled = false;
+  s.shadow_map_size = 1024;
+  s.difficulty = Difficulty::Normal;
+  s.render_distance = 64;
+
+  Settings d = defaultsKeepingIdentity(s);
+  Settings fresh;
+  CHECK(d.world_name == "castle");
+  CHECK(d.world_seed == 42u);
+  CHECK(d.noise_offset == glm::vec2(1.0f, 2.0f));
+  CHECK(d.player_name == "alex");
+  CHECK(d.server_port == 50000);
+  CHECK(d.window_width == 1280);
+  CHECK(d.time_scale == fresh.time_scale);
+  CHECK(d.fog_start == fresh.fog_start);
+  CHECK(d.clouds_enabled == fresh.clouds_enabled);
+  CHECK(d.shadow_map_size == fresh.shadow_map_size);
+  CHECK(d.difficulty == fresh.difficulty);
+  CHECK(d.render_distance == fresh.render_distance);
+}
