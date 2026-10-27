@@ -1723,6 +1723,30 @@ TEST_CASE_FIXTURE(EditGame, "creative: placing uses nothing up and breaking drop
   CHECK(game.entities().size() == entities_before);
 }
 
+TEST_CASE_FIXTURE(EditGame, "creative: every building block can be placed") {
+  game.setMode(GameMode::Creative);
+  const glm::ivec3 spot{5, ground + 1, 5};
+  for (auto v = static_cast<uint16_t>(BlockType::OAK_PLANKS);
+       v <= static_cast<uint16_t>(BlockType::PINK_BLOCK); ++v) {
+    BlockType b = static_cast<BlockType>(v);
+    CAPTURE(v);
+    CHECK(changes(place(spot, b)) == 1);
+    CHECK(at(spot) == b);
+    run(BreakBlock{spot});
+    run(DropItem{true}); // free the slot: there are more blocks than hotbar slots
+  }
+}
+
+TEST_CASE_FIXTURE(EditGame, "survival: a placed brick breaks into one brick") {
+  game.setMode(GameMode::Creative);
+  REQUIRE(changes(place({5, ground + 1, 5}, BlockType::BRICKS)) == 1);
+
+  game.setMode(GameMode::Survival);
+  int before = countOf(inventory(), itemForBlock(BlockType::BRICKS));
+  CHECK(changes(run(BreakBlock{{5, ground + 1, 5}})) == 1);
+  CHECK(countOf(inventory(), itemForBlock(BlockType::BRICKS)) == before + 1);
+}
+
 TEST_CASE_FIXTURE(VitalsGame, "creative: no fall damage, drowning or stamina drain") {
   game.setMode(GameMode::Creative);
   fall(10.0f);
