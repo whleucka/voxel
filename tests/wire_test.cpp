@@ -209,3 +209,21 @@ TEST_CASE("crafting messages round-trip") {
   auto back = std::get<KnownItems>(*wire::decodeEvent(enc(Event{k})));
   CHECK(back.ids == k.ids);
 }
+
+TEST_CASE("container messages round-trip") {
+  roundTrip(OpenContainer{{-4, 70, 12}});
+  roundTrip(CloseContainer{});
+  ContainerView v;
+  v.pos = {1, 2, 3};
+  v.open = true;
+  v.input = {ItemId::RAW_IRON, 5};
+  v.output = {ItemId::IRON_INGOT, 64};
+  v.burn = 200;
+  v.cook = 17;
+  auto back = std::get<ContainerView>(*wire::decodeEvent(enc(Event{v})));
+  CHECK(back.pos == v.pos);
+  CHECK(back.input == v.input);
+  CHECK(back.output == v.output);
+  CHECK(back.burn == 200);
+  CHECK(back.cook == 17);
+}

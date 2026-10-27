@@ -1,4 +1,5 @@
 #include "item/item_stack.hpp"
+#include <utility>
 #include <algorithm>
 
 namespace {
@@ -37,4 +38,21 @@ ItemStack split(ItemStack &s, uint16_t n) {
   s.count -= taken;
   normalize(s);
   return out;
+}
+
+bool moveStack(ItemStack &src, ItemStack &dst, uint16_t count) {
+  if (src.empty()) return false;
+  uint16_t n = (count == 0 || count > src.count) ? src.count : count;
+
+  if (dst.empty() || dst.id == src.id) {
+    ItemStack moving = split(src, n);
+    uint16_t moved = mergeInto(dst, moving);
+    mergeInto(src, moving); // anything that didn't fit goes back
+    return moved > 0;
+  }
+
+  // Different items: only a whole-stack move can swap them.
+  if (n != src.count) return false;
+  std::swap(src, dst);
+  return true;
 }

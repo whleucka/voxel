@@ -143,6 +143,17 @@ private:
   void apply(Client &client, const InteractEntity &cmd);
   void apply(Client &client, const EatItem &cmd);
   void apply(Client &client, const Craft &cmd);
+  void apply(Client &client, const OpenContainer &cmd);
+  void apply(Client &client, const CloseContainer &cmd);
+  // Without this, an alternative with no overload above would convert back
+  // to a Command and recurse forever; with it, that's a compile error.
+  template <class T> void apply(Client &, const T &) = delete;
+  // The furnace the player has open, if it's still there and in reach.
+  Furnace *openFurnace(const PlayerState &ps);
+  void sendContainer(Client &client, glm::ivec3 pos);
+  // Every player looking into the furnace at `pos` gets its current state.
+  void sendContainerToViewers(glm::ivec3 pos);
+  void closeContainer(Client &client, PlayerState &ps);
   // Eye-to-box distance check shared by hitting and feeding.
   bool inReachOf(const PlayerState &ps, const Entity &e) const;
   void releaseAnimalProducts();

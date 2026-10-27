@@ -23,3 +23,9 @@ uint16_t mergeInto(ItemStack &dst, ItemStack &src);
 
 // Remove up to n from s and return them as a new stack.
 ItemStack split(ItemStack &s, uint16_t n);
+
+// Moves count items (0 = the whole stack) from src to dst: into an empty
+// dst, merged onto the same item (the remainder stays), or swapped with a
+// different item when moving the whole stack. False, changing nothing, for
+// anything else. The rule for every slot-to-slot move.
+bool moveStack(ItemStack &src, ItemStack &dst, uint16_t count);

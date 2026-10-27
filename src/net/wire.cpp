@@ -168,6 +168,8 @@ template <class IO> void fields(IO &io, SpawnDebugEntity &m) { io(m.kind); }
 template <class IO> void fields(IO &io, InteractEntity &m) { io(m.id); }
 template <class IO> void fields(IO &, EatItem &) {}
 template <class IO> void fields(IO &io, Craft &m) { io(m.recipe, m.all); }
+template <class IO> void fields(IO &io, OpenContainer &m) { io(m.pos); }
+template <class IO> void fields(IO &, CloseContainer &) {}
 
 // Events
 template <class IO> void fields(IO &io, Joined &m) {
@@ -184,6 +186,9 @@ template <class IO> void fields(IO &io, PlayerLeft &m) { io(m.id); }
 template <class IO> void fields(IO &io, CommandRejected &m) { io(m.reason); }
 template <class IO> void fields(IO &io, InventoryContents &m) { io(m.slots); }
 template <class IO> void fields(IO &io, KnownItems &m) { io(m.ids); }
+template <class IO> void fields(IO &io, ContainerView &m) {
+  io(m.pos, m.open, m.input, m.fuel, m.output, m.burn, m.cook);
+}
 template <class IO> void fields(IO &io, VitalsChanged &m) {
   int32_t h = m.health, s = m.stamina, b = m.breath;
   io(h, s, b, m.can_sprint, m.dead);

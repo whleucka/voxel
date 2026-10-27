@@ -659,6 +659,100 @@ TEST_CASE_FIXTURE(EditGame, "furnaces are saved and keep cooking where nobody is
   CHECK(loaded.world().getBlockAt(glm::vec3(at_) + 0.5f) == BlockType::FURNACE);
 }
 
+namespace {
+std::optional<ContainerView> lastView(const std::vector<Event> &evs) {
+  std::optional<ContainerView> v;
+  for (const Event &e : evs)
+    if (const auto *c = std::get_if<ContainerView>(&e)) v = *c;
+  return v;
+}
+} // namespace
+
+TEST_CASE_FIXTURE(EditGame, "opening a furnace shows it; only furnaces in reach open") {
+  glm::ivec3 at_{5, ground + 1, 5};
+  CHECK(reason(run(OpenContainer{at_})) == "open: that isn't a furnace");
+  place(at_, BlockType::FURNACE);
+  game.furnaceAt(at_)->output = {ItemId::IRON_INGOT, 3};
+  std::optional<ContainerView> v = lastView(run(OpenContainer{at_}));
+  REQUIRE(v);
+  CHECK(v->open);
+  CHECK(v->pos == at_);
+  CHECK(v->output == ItemStack{ItemId::IRON_INGOT, 3});
+
+  game.world().setBlockAt({5, ground + 1, 15}, BlockType::FURNACE);
+  CHECK(reason(run(OpenContainer{{5, ground + 1, 15}})) == "open: out of reach");
+}
+
+TEST_CASE_FIXTURE(EditGame, "items go in and out of a furnace by the slot rules") {
+  glm::ivec3 at_{5, ground + 1, 5};
+  place(at_, BlockType::FURNACE);
+  PlayerState &me = *game.findPlayer(id);
+  me.inventory.set(20, {ItemId::RAW_IRON, 5});
+  me.inventory.set(21, {ItemId::COAL, 3});
+  me.inventory.set(22, {itemForBlock(BlockType::DIRT), 4});
+  run(OpenContainer{at_});
+
+  CHECK(reason(run(MoveItems{20, kFurnaceFuel, 0})) == "move: not allowed");   // ore isn't fuel
+  CHECK(reason(run(MoveItems{22, kFurnaceInput, 0})) == "move: not allowed");  // dirt won't smelt
+  CHECK(reason(run(MoveItems{21, kFurnaceOutput, 0})) == "move: not allowed"); // nothing goes in there
+  run(MoveItems{20, kFurnaceInput, 0});
+  run(MoveItems{21, kFurnaceFuel, 1}); // one lump
+  Furnace &f = *game.furnaceAt(at_);
+  CHECK(f.input == ItemStack{ItemId::RAW_IRON, 5});
+  CHECK(f.fuel == ItemStack{ItemId::COAL, 1});
+  CHECK(me.inventory.slot(21) == ItemStack{ItemId::COAL, 2});
+  CHECK(me.inventory.slot(20).empty());
+
+  f.output = {ItemId::IRON_INGOT, 2};
+  auto evs = run(MoveItems{kFurnaceOutput, 25, 0});
+  CHECK(me.inventory.slot(25) == ItemStack{ItemId::IRON_INGOT, 2});
+  CHECK(f.output.empty());
+  REQUIRE(lastView(evs));
+  CHECK(lastView(evs)->output.empty());
+
+  // A swap may not put the wrong thing in: dirt can't trade places with the ore.
+  CHECK(reason(run(MoveItems{22, kFurnaceInput, 0})) == "move: not allowed");
+  CHECK(f.input == ItemStack{ItemId::RAW_IRON, 5});
+}
+
+TEST_CASE_FIXTURE(EditGame, "moves need an open furnace, and walking away or breaking it closes it") {
+  glm::ivec3 at_{5, ground + 1, 5};
+  place(at_, BlockType::FURNACE);
+  PlayerState &me = *game.findPlayer(id);
+  me.inventory.set(20, {ItemId::RAW_IRON, 1});
+  CHECK(reason(run(MoveItems{20, kFurnaceInput, 0})) == "move: no furnace open");
+
+  run(OpenContainer{at_});
+  moveTo({5.5f, ground + 1.0f, 15.5f}); // out of reach
+  game.tick();
+  std::optional<ContainerView> v = lastView(pollAll(conn));
+  REQUIRE(v);
+  CHECK_FALSE(v->open);
+  CHECK_FALSE(me.open_container);
+
+  moveTo({5.5f, ground + 1.0f, 8.5f});
+  run(OpenContainer{at_});
+  run(BreakBlock{at_});
+  game.tick();
+  v = lastView(pollAll(conn));
+  REQUIRE(v);
+  CHECK_FALSE(v->open);
+}
+
+TEST_CASE_FIXTURE(EditGame, "a viewer sees the furnace cook") {
+  glm::ivec3 at_{5, ground + 1, 5};
+  place(at_, BlockType::FURNACE);
+  Furnace &f = *game.furnaceAt(at_);
+  f.input = {itemForBlock(BlockType::SAND), 1};
+  f.fuel = {ItemId::COAL, 1};
+  run(OpenContainer{at_});
+  for (int i = 0; i < kSmeltMs / Game::kTickMs; ++i) game.tick();
+  std::optional<ContainerView> v = lastView(pollAll(conn));
+  REQUIRE(v);
+  CHECK(v->output == ItemStack{itemForBlock(BlockType::GLASS), 1});
+  CHECK(v->burn > 0);
+}
+
 TEST_CASE_FIXTURE(SmallGame, "save without a bound directory fails") {
   CHECK_FALSE(game.save());
 }
@@ -2077,4 +2171,29 @@ TEST_CASE_FIXTURE(PartyGame, "a guest crafts at the host's table, checked the sa
   game.world().setBlockAt(near, BlockType::CRAFTING_TABLE);
   send(guest(), Craft{kStoneBricksRecipe, false});
   CHECK(heldCount(bea.inventory, itemForBlock(BlockType::STONE_BRICKS)) == 4);
+}
+
+TEST_CASE_FIXTURE(PartyGame, "two players looking in the same furnace both see it change") {
+  game.world().loadChunkSync(0, 0);
+  PlayerId bea_id = find<Joined>(joinGuest("Bea"))->id;
+  PlayerState &bea = *game.findPlayer(bea_id);
+  glm::ivec3 at_ = glm::ivec3(glm::floor(bea.position)) + glm::ivec3(1, 0, 0);
+  game.world().setBlockAt(at_, BlockType::FURNACE);
+  PlayerId host_id = 0;
+  for (PlayerId pid = 1; pid < 10; ++pid)
+    if (game.findPlayer(pid) && pid != bea_id) host_id = pid;
+  REQUIRE(host_id);
+  game.findPlayer(host_id)->position = bea.position; // stand together
+  send(host, OpenContainer{at_});
+  send(guest(), OpenContainer{at_});
+  bea.inventory.set(0, {ItemId::RAW_COPPER, 2});
+  send(guest(), MoveItems{0, kFurnaceInput, 0});
+  game.pump();
+  std::vector<Event> seen_by_host;
+  host.poll(seen_by_host);
+  const ContainerView *v = nullptr;
+  for (const Event &e : seen_by_host)
+    if (const auto *c = std::get_if<ContainerView>(&e)) v = c;
+  REQUIRE(v);
+  CHECK(v->input == ItemStack{ItemId::RAW_COPPER, 2});
 }

@@ -401,8 +401,18 @@ const Furnace *Game::furnaceAt(glm::ivec3 pos) const {
 }
 
 void Game::tickFurnaces() {
-  for (auto &[pos, furnace] : furnaces_)
-    if (tickFurnace(furnace, kTickMs).lit_changed) showFurnaceLit(pos, furnace.lit());
+  // Viewers see slot changes at once and the gauges move four times a second.
+  const bool gauges = tick_count % (250 / kTickMs) == 0;
+  for (auto &[pos, furnace] : furnaces_) {
+    FurnaceStep step = tickFurnace(furnace, kTickMs);
+    if (step.lit_changed) showFurnaceLit(pos, furnace.lit());
+    if (step.slots_changed || step.lit_changed || (gauges && furnace.lit()))
+      sendContainerToViewers(pos);
+  }
+  // Walked away, or the furnace is gone: it closes for them.
+  for (Client &c : clients)
+    if (PlayerState *ps = playerFor(c); ps && ps->open_container && !openFurnace(*ps))
+      closeContainer(c, *ps);
 }
 
 void Game::showFurnaceLit(glm::ivec3 pos, bool lit) {
@@ -614,12 +624,109 @@ void Game::apply(Client &client, const GiveItem &cmd) {
   }
 }
 
+namespace {
+
+bool isContainerSlot(int slot) { return slot >= kFurnaceInput && slot <= kFurnaceOutput; }
+
+// What a slot will take: anything in the inventory; smeltables in the input,
+// fuel in the fuel slot, nothing put into the output.
+bool accepts(int slot, ItemId id) {
+  if (slot == kFurnaceInput) return smeltResult(id).has_value();
+  if (slot == kFurnaceFuel) return fuelMs(id) > 0;
+  if (slot == kFurnaceOutput) return false;
+  return true;
+}
+
+ItemStack *furnaceSlot(Furnace &f, int slot) {
+  if (slot == kFurnaceInput) return &f.input;
+  if (slot == kFurnaceFuel) return &f.fuel;
+  if (slot == kFurnaceOutput) return &f.output;
+  return nullptr;
+}
+
+} // namespace
+
 void Game::apply(Client &client, const MoveItems &cmd) {
   PlayerState *ps = playerFor(client);
   if (!ps) return;
-  if (!ps->inventory.move(cmd.from, cmd.to, cmd.count))
+  if (!isContainerSlot(cmd.from) && !isContainerSlot(cmd.to)) {
+    if (!ps->inventory.move(cmd.from, cmd.to, cmd.count))
+      return reject(client, "move: not allowed");
+    return sendInventory(client, *ps);
+  }
+
+  // To or from the open furnace.
+  Furnace *f = openFurnace(*ps);
+  if (!f) return reject(client, "move: no furnace open");
+  auto valid = [](int s) { return Inventory::validSlot(s) || isContainerSlot(s); };
+  if (!valid(cmd.from) || !valid(cmd.to) || cmd.from == cmd.to)
     return reject(client, "move: not allowed");
+  ItemStack src = isContainerSlot(cmd.from) ? *furnaceSlot(*f, cmd.from)
+                                            : ps->inventory.slot(cmd.from);
+  ItemStack dst = isContainerSlot(cmd.to) ? *furnaceSlot(*f, cmd.to)
+                                          : ps->inventory.slot(cmd.to);
+  bool swapping = !dst.empty() && dst.id != src.id;
+  if (src.empty() || !accepts(cmd.to, src.id) || (swapping && !accepts(cmd.from, dst.id)) ||
+      !moveStack(src, dst, cmd.count))
+    return reject(client, "move: not allowed");
+
+  auto store = [&](int slot, const ItemStack &s) {
+    if (isContainerSlot(slot)) *furnaceSlot(*f, slot) = s;
+    else ps->inventory.set(slot, s);
+  };
+  store(cmd.from, src);
+  store(cmd.to, dst);
   sendInventory(client, *ps);
+  sendContainerToViewers(*ps->open_container);
+}
+
+void Game::apply(Client &client, const OpenContainer &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead()) return;
+  if (!inReach(*ps, cmd.pos)) return reject(client, "open: out of reach");
+  BlockType b = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
+  if (b != BlockType::FURNACE && b != BlockType::FURNACE_LIT)
+    return reject(client, "open: that isn't a furnace");
+  furnaces_.try_emplace(cmd.pos); // a furnace block with no record yet starts empty
+  ps->open_container = cmd.pos;
+  sendContainer(client, cmd.pos);
+}
+
+void Game::apply(Client &client, const CloseContainer &) {
+  if (PlayerState *ps = playerFor(client)) ps->open_container.reset();
+}
+
+Furnace *Game::openFurnace(const PlayerState &ps) {
+  if (!ps.open_container || !inReach(ps, *ps.open_container)) return nullptr;
+  return furnaceAt(*ps.open_container);
+}
+
+void Game::sendContainer(Client &client, glm::ivec3 pos) {
+  ContainerView view;
+  view.pos = pos;
+  if (const Furnace *f = furnaceAt(pos)) {
+    view.input = f->input;
+    view.fuel = f->fuel;
+    view.output = f->output;
+    if (f->burn_total_ms > 0) view.burn = static_cast<uint8_t>(f->burn_ms * 255 / f->burn_total_ms);
+    view.cook = static_cast<uint8_t>(f->cook_ms * 255 / kSmeltMs);
+  } else {
+    view.open = false;
+  }
+  client.link->deliver(view);
+}
+
+void Game::sendContainerToViewers(glm::ivec3 pos) {
+  for (Client &c : clients)
+    if (PlayerState *ps = playerFor(c); ps && ps->open_container == pos) sendContainer(c, pos);
+}
+
+void Game::closeContainer(Client &client, PlayerState &ps) {
+  ContainerView closed;
+  closed.pos = *ps.open_container;
+  closed.open = false;
+  ps.open_container.reset();
+  client.link->deliver(closed);
 }
 
 // ─── Dropped items ─────────────────────────────────────────────────────
