@@ -51,7 +51,8 @@ const std::vector<Recipe> &recipes() {
       dyed(BlockType::PURPLE_BLOCK, ItemId::BERRIES),
       dyed(BlockType::PINK_BLOCK, ItemId::SWEET_PETALS),
       atTable({block(BlockType::GLOWSTONE), 1},
-              {{{block(BlockType::GLOW_CRYSTAL)}, 1}, {{ItemId::RAW_COPPER}, 2}}),
+              {{{block(BlockType::GLOW_CRYSTAL)}, 1}, {{ItemId::COPPER_INGOT}, 1}}),
+      atTable({block(BlockType::FURNACE), 1}, {{{block(BlockType::COBBLESTONE)}, 8}}),
   };
   return all;
 }
