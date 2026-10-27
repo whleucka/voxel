@@ -104,6 +104,8 @@ bool loadLevel(const std::string &dir, LevelData &out) {
   out.mode = rd(in, mode) && mode == static_cast<uint8_t>(GameMode::Creative)
                  ? GameMode::Creative
                  : GameMode::Survival;
+  uint8_t worldgen = 0;
+  out.worldgen = rd(in, worldgen) ? worldgen : worldgen::kOriginal;
   return true;
 }
 
@@ -149,6 +151,7 @@ bool saveLevel(const std::string &dir, const LevelData &level) {
   wr(o, level.noise_offset.y);
   wr(o, level.time_of_day);
   wr(o, static_cast<uint8_t>(level.mode));
+  wr(o, level.worldgen);
   return static_cast<bool>(o);
 }
 

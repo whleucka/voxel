@@ -77,4 +77,5 @@ private:
   // A guest borrows the host's seed; the player's own is put back after.
   uint32_t saved_seed = 0;
   glm::vec2 saved_offset{0.0f};
+  uint8_t saved_worldgen = 0;
 };

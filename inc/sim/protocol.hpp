@@ -1,5 +1,6 @@
 #pragma once
 
+#include "world/worldgen_version.hpp"
 #include "block/block_type.hpp"
 #include "core/game_mode.hpp"
 #include "entity/entity_type.hpp"
@@ -87,6 +88,7 @@ struct Welcome {
   float time_of_day = 0.0f; // seconds
   float time_scale = 1.0f;
   std::vector<BlockEdit> edits;
+  uint8_t worldgen = worldgen::kOriginal; // the host world's generator
 };
 
 // The host's clock, once a second, so every guest's sky matches.

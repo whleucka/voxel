@@ -98,13 +98,14 @@ TEST_CASE("events round-trip with real values") {
 }
 
 TEST_CASE("a welcome with many edits round-trips") {
-  Welcome w{0xDEADBEEF, {123.5f, -9.0f}, 3600.0f, 72.0f, {}};
+  Welcome w{0xDEADBEEF, {123.5f, -9.0f}, 3600.0f, 72.0f, {}, worldgen::kCaves};
   for (int i = 0; i < 50000; ++i)
     w.edits.push_back({{i - 25000, i % 256, -i}, static_cast<BlockType>(i % 4)});
   roundTrip(w);
   auto back = std::get<Welcome>(*wire::decodeEvent(enc(Event{w})));
   CHECK(back.edits == w.edits);
   CHECK(back.seed == w.seed);
+  CHECK(back.worldgen == worldgen::kCaves);
   CHECK(enc(Event{w}).size() < wire::kMaxFrame);
 }
 

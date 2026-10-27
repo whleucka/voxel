@@ -175,6 +175,7 @@ private:
   // This world's seed, fixed when it's created or loaded (sent in Welcome).
   uint32_t seed_ = 0;
   glm::vec2 noise_offset_{0.0f};
+  uint8_t worldgen_ = 0;
   GameMode mode_ = GameMode::Survival;
   std::optional<glm::vec3> respawn_point; // world spawn, found on first death
 };

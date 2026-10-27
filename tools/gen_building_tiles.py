@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Draw the building-block tiles into row 2 of res/block_atlas.png.
+"""Draw the building-block tiles into rows 2 and up of res/block_atlas.png.
 
-The atlas is 512x512 with 32 px tiles (16x16). Row 2 holds, in order, the
-tiles listed in TILES below; inc/block/block_data.hpp points each block at
-its cell. Every tile is drawn from a fixed seed, so running this again
+The atlas is 512x512 with 32 px tiles (16x16). The tiles listed in TILES
+below fill it in order from row 2, sixteen to a row (see cell());
+inc/block/block_data.hpp points each block at its cell. Every tile is drawn from a fixed seed, so running this again
 produces the same image.
 
 Only empty cells are written. Pass --force to redraw cells that already hold
@@ -19,7 +19,7 @@ import argparse
 import random
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 TILE = 32
 ROW = 2
@@ -137,6 +137,34 @@ def colour(base, rng):
     return img
 
 
+def crystal(rng):
+    """Glowing shards growing out of dark rock."""
+    img = new_tile()
+    px = pixels(img)
+    rock = (52, 50, 64)
+    for y in range(TILE):
+        for x in range(TILE):
+            px[x, y] = shade(rock, rng.randint(-8, 8)) + (255,)
+    draw = ImageDraw.Draw(img)
+    # (base x, base y, height, half width, lean, colour): back to front.
+    shards = [
+        (7, 30, 17, 3, -3, (150, 110, 240)),
+        (25, 31, 15, 3, 3, (150, 110, 240)),
+        (19, 31, 22, 4, 1, (110, 225, 240)),
+        (11, 31, 25, 4, -1, (120, 235, 250)),
+        (27, 14, 9, 2, 2, (200, 150, 250)),
+        (4, 12, 8, 2, -2, (110, 225, 240)),
+    ]
+    for bx, by, h, w, lean, colour in shards:
+        tip = (bx + lean, by - h)
+        left = [(bx - w, by), (bx - w + lean, by - h + w + 1), tip, (bx, by)]
+        right = [(bx, by), tip, (bx + w + lean, by - h + w + 1), (bx + w, by)]
+        draw.polygon(left, fill=shade(colour, -35) + (255,))
+        draw.polygon(right, fill=colour + (255,))
+        draw.line([(bx, by - 1), tip], fill=(235, 250, 255, 255))
+    return img
+
+
 def lamp(rng):
     """Four glowing panes in a dark iron frame, brightest in the middle."""
     img = new_tile()
@@ -178,12 +206,19 @@ TILES = [
     ("purple_block",  lambda r: colour((142, 66, 196), r)),
     ("pink_block",    lambda r: colour((244, 140, 190), r)),
     ("lamp",          lamp),
+    # Row 3
+    ("glow_crystal",  crystal),
 ]
 
 
-def is_empty(atlas, col):
-    cell = atlas.crop((col * TILE, ROW * TILE, (col + 1) * TILE, (ROW + 1) * TILE))
-    return cell.getchannel("A").getbbox() is None
+def cell(index):
+    """The atlas cell (col, row) of TILES[index]."""
+    return index % 16, ROW + index // 16
+
+
+def is_empty(atlas, col, row):
+    box = atlas.crop((col * TILE, row * TILE, (col + 1) * TILE, (row + 1) * TILE))
+    return box.getchannel("A").getbbox() is None
 
 
 def main():
@@ -195,15 +230,16 @@ def main():
     atlas = Image.open(ATLAS).convert("RGBA")
     if args.png_dir:
         args.png_dir.mkdir(parents=True, exist_ok=True)
-    for col, (name, draw) in enumerate(TILES):
-        tile = draw(random.Random(f"{name}:{col}"))
+    for i, (name, draw) in enumerate(TILES):
+        col, row = cell(i)
+        tile = draw(random.Random(f"{name}:{i}"))
         if args.png_dir:
             tile.save(args.png_dir / f"{name}.png")
-        if not args.force and not is_empty(atlas, col):
-            print(f"skip {name}: cell ({col}, {ROW}) already has art")
+        if not args.force and not is_empty(atlas, col, row):
+            print(f"skip {name}: cell ({col}, {row}) already has art")
             continue
-        atlas.paste(tile, (col * TILE, ROW * TILE))
-        print(f"drew {name} at ({col}, {ROW})")
+        atlas.paste(tile, (col * TILE, row * TILE))
+        print(f"drew {name} at ({col}, {row})")
     atlas.save(ATLAS)
 
 

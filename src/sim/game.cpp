@@ -10,7 +10,9 @@
 
 // ─── Setup ─────────────────────────────────────────────────────────────
 
-Game::Game() : seed_(g_settings.world_seed), noise_offset_(g_settings.noise_offset) {
+Game::Game()
+    : seed_(g_settings.world_seed), noise_offset_(g_settings.noise_offset),
+      worldgen_(g_settings.worldgen) {
   registerAnimalSpawns(spawner_);
   registerEnemySpawns(spawner_);
 }
@@ -19,14 +21,17 @@ bool Game::load(const std::string &dir) {
   save_dir = dir;
   seed_ = g_settings.world_seed;
   noise_offset_ = g_settings.noise_offset;
+  worldgen_ = g_settings.worldgen;
 
   WorldSave::LevelData level;
   if (!WorldSave::loadLevel(dir, level)) return false;
 
   g_settings.world_seed   = level.seed;
   g_settings.noise_offset = level.noise_offset;
+  g_settings.worldgen     = level.worldgen;
   seed_ = level.seed;
   noise_offset_ = level.noise_offset;
+  worldgen_ = level.worldgen;
 
   WorldEdits edits;
   WorldSave::loadEdits(dir, edits);
@@ -47,6 +52,7 @@ bool Game::save() {
   WorldSave::LevelData level;
   level.seed         = g_settings.world_seed;
   level.noise_offset = g_settings.noise_offset;
+  level.worldgen     = worldgen_;
   level.time_of_day  = clock_.time_of_day;
   level.mode         = mode_;
 
@@ -375,7 +381,7 @@ void Game::apply(Client &client, const Join &cmd) {
   if (client.role == Role::Guest)
     client.link->deliver(Welcome{seed_, noise_offset_,
                                  clock_.time_of_day, g_settings.time_scale,
-                                 world_.editList()});
+                                 world_.editList(), worldgen_});
   for (Client &other : clients)
     if (other.player) other.link->deliver(PlayerJoined{ps.id, ps.name});
   players[ps.id] = ps;

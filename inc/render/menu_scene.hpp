@@ -56,4 +56,5 @@ private:
   float cover_ = 1.0f;
   uint32_t saved_seed = 0;
   glm::vec2 saved_offset{0.0f};
+  uint8_t saved_worldgen = 0;
 };

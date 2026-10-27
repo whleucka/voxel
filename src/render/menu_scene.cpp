@@ -23,6 +23,7 @@ void MenuScene::open(const std::string &save_dir) {
   close();
   saved_seed = g_settings.world_seed;
   saved_offset = g_settings.noise_offset;
+  saved_worldgen = g_settings.worldgen;
 
   WorldSave::LevelData level;
   bool saved = WorldSave::loadLevel(save_dir, level);
@@ -33,6 +34,7 @@ void MenuScene::open(const std::string &save_dir) {
   }
   g_settings.world_seed = level.seed;
   g_settings.noise_offset = level.noise_offset;
+  g_settings.worldgen = level.worldgen;
 
   world = std::make_unique<World>();
   if (saved) {
@@ -59,6 +61,7 @@ void MenuScene::close() {
   world.reset(); // joins its generator threads, which read the seed
   g_settings.world_seed = saved_seed;
   g_settings.noise_offset = saved_offset;
+  g_settings.worldgen = saved_worldgen;
 }
 
 // The highest ground anywhere on the camera's circle (in loaded chunks), so

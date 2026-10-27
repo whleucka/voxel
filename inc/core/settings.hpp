@@ -1,5 +1,6 @@
 #pragma once
 
+#include "world/worldgen_version.hpp"
 #include "core/difficulty.hpp"
 #include <glm/vec2.hpp>
 #include <cstdint>
@@ -10,6 +11,7 @@ struct Settings {
   std::string world_name;    // save under saves/<world_name>/
   uint32_t   world_seed;
   glm::vec2  noise_offset;  // added to all noise coordinates for seeding
+  uint8_t    worldgen;      // the world's generator version (worldgen_version.hpp)
   int        render_distance; // how far (in world units) chunks stay loaded
   Difficulty difficulty;      // enemies; read by the Game every tick
 
@@ -52,7 +54,8 @@ struct Settings {
 
   Settings()
       : world_name("world"),
-        world_seed(0), noise_offset(0.0f, 0.0f), render_distance(320),
+        world_seed(0), noise_offset(0.0f, 0.0f), worldgen(worldgen::kLatest),
+        render_distance(320),
         difficulty(Difficulty::Easy),
         player_name("Player"), server_port(47800),
         show_debug(false),
@@ -76,6 +79,7 @@ inline Settings defaultsKeepingIdentity(const Settings &s) {
   d.world_name = s.world_name;
   d.world_seed = s.world_seed;
   d.noise_offset = s.noise_offset;
+  d.worldgen = s.worldgen;
   d.player_name = s.player_name;
   d.server_port = s.server_port;
   d.window_width = s.window_width;

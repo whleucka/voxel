@@ -2,6 +2,7 @@
 #include "block/block_data.hpp"
 #include "render/texture_manager.hpp"
 #include "biome/biome_manager.hpp"
+#include "biome/caves.hpp"
 #include "core/constants.hpp"
 #include "core/settings.hpp"
 #include "util/worldgen_rng.hpp"
@@ -21,10 +22,14 @@ void Chunk::init() {
   worldgen::seedChunk(g_settings.world_seed, pos[0], pos[1]);
   BiomeType biome_type = BiomeManager::getBiomeForChunk(pos[0], pos[1]);
   std::unique_ptr<Biome> biome = BiomeManager::createBiome(biome_type);
+  const bool with_caves = g_settings.worldgen >= worldgen::kCaves;
   biome->generateTerrain(*this);
+  caves::Surfaces surfaces;
+  if (with_caves) caves::carve(*this, surfaces);
   biome->generateMinerals(*this);
   biome->fillWater(*this);
   biome->spawnDecorations(*this);
+  if (with_caves) caves::decorate(*this, surfaces);
   computeSkyLight();
   computeBlockLight();
 }

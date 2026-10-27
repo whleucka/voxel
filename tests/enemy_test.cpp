@@ -1,4 +1,5 @@
 #include "doctest/doctest.h"
+#include "core/constants.hpp"
 #include "block/block_type.hpp"
 #include "item/item.hpp"
 #include "entity/brain.hpp"
@@ -237,6 +238,23 @@ TEST_CASE("a cave grumble spawns only underground in the dark, at any time") {
   CHECK_FALSE(enemyCanSpawn(k, s.world, s.cave, kMidnight));
 }
 
+TEST_CASE("a glow crystal keeps cave grumbles away for about six blocks") {
+  glm::ivec3 feet{8, kBase + 1, 8};
+  {
+    SpawnSpots s;
+    fill(s.world, feet + glm::ivec3(3, 0, 2), feet + glm::ivec3(3, 0, 2),
+         BlockType::GLOW_CRYSTAL); // 5 blocks of travel
+    CHECK(s.world.getBlockLightAt(feet) == 5);
+    CHECK_FALSE(enemyCanSpawn(EntityKind::CaveGrumble, s.world, s.cave, kMidnight));
+  }
+  {
+    SpawnSpots s;
+    fill(s.world, {4, kBase + 1, 4}, {4, kBase + 1, 4}, BlockType::GLOW_CRYSTAL); // 8 blocks
+    CHECK(s.world.getBlockLightAt(feet) == 2);
+    CHECK(enemyCanSpawn(EntityKind::CaveGrumble, s.world, s.cave, kMidnight));
+  }
+}
+
 TEST_CASE("only enemies pass the enemy predicate") {
   SpawnSpots s;
   CHECK_FALSE(enemyCanSpawn(EntityKind::Woolly, s.world, s.surface, kMidnight));
@@ -327,9 +345,13 @@ TEST_CASE("cave rules spawn below the surface, closer in") {
   for (const auto &[id, e] : r.store.all()) {
     glm::vec3 p = e.body.position;
     int cx = static_cast<int>(std::floor(p.x)), cz = static_cast<int>(std::floor(p.z));
-    auto surface = Spawner::groundAt(r.world, cx, cz);
-    REQUIRE(surface);
-    CHECK(p.y < surface->y);
+    // Under the column's topmost block (natural caves run under lakes too,
+    // where groundAt refuses the water on top).
+    int top = kChunkHeight - 1;
+    while (top > 0 && r.world.getBlockAt(glm::vec3(cx + 0.5f, top + 0.5f, cz + 0.5f)) ==
+                          BlockType::AIR)
+      --top;
+    CHECK(p.y < top);
     float d = glm::length(glm::vec2(p.x - 8.0f, p.z - 8.0f));
     CHECK(d >= Spawner::kCaveMinDistance - 1.5f);
     CHECK(d <= Spawner::kCaveMaxDistance + 1.5f);
