@@ -1,28 +1,36 @@
-# 3D Voxel Project
+# Grumblegrove
 
 <img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/4bc2fe34-cb1c-488c-b04a-0df6029a89e9" />
 
-* A simple hobby project: A Minecraft-inspired voxel game engine and prototype built with C++ and OpenGL. 
-* Goals: explore fundamental voxel rendering techniques, chunk management, and basic game mechanics.
-* Fun fact: my 8 year old daughter helped make some of the block textures!
+* A hobby voxel survival game, built from scratch in C++ and OpenGL.
+* It started as an engine prototype to explore voxel rendering and chunk management, and grew into a game the family plays together on the home network.
+* Fun fact: my daughter helped make some of the block textures!
 
 ## Features
 
-- **Custom Textures:** Unique block textures hand-crafted in GIMP for a distinct look and feel.  
-- **Chunk-Based World:** Efficient world streaming with chunk management, greedy meshing, and back-face/frustum culling for high performance.  
-- **Block Variety:** Core voxel types (dirt, grass, stone, water, etc.) with proper texture atlasing and UV mapping.  
-- **Modern Rendering Pipeline:** Shader-driven OpenGL rendering with support for lighting, transparency, and depth-sorted passes.  
-- **Debug Interface:** Built-in Dear ImGui panel for live debugging, tweaking parameters, and profiling engine performance.  
+- **A world to explore:** endless terrain streamed in chunks across plains, mountains, deserts, oceans, tropical islands and cherry groves. It has trees, a day/night cycle, clouds and shadows.
+- **Caves:** new worlds have winding tunnels with glow crystals, shallow pools and gems in the walls ([more below](#caves)).
+- **Survival:** break blocks to collect them and place them to build. Watch your health, stamina and breath, and dig for coal, iron, copper, gold, emerald, ruby and diamond.
+- **Creatures:**
+  - Friendly Woollies, Bunnies, Shell Turtles and Blossom Deer. Feed them and they give you something back.
+  - At night, Gloomlings and Thorn Crawlers come out, and Cave Grumbles lurk in the dark underground.
+- **Creative mode:** fly, build without running out, and pick from every block, including planks, bricks, glass, eight bright colors and lamps.
+- **Play together:** host a world on your home network, and up to 8 players can join from the title screen.
+- **Your own worlds:** create, rename and delete worlds. Each one saves its edits, inventories and mode.
+- **Engine:**
+  - Greedy meshing with frustum culling, multi-threaded chunk generation and deterministic, seeded worldgen.
+  - Sky and block lighting, shadow mapping, and transparent and cut-out blocks.
+  - A Dear ImGui debug panel (F1).
+- **Original art:** block textures hand-made in GIMP, plus generator scripts in `tools/` for the newer tiles.
 
+## Ideas for next time
 
-## Next Steps
-
-- **Biomes & Environment:** Expand procedural generation with biome-specific features — trees, flowers, vegetation, clouds, and terrain variation.  
-- **First-Person Camera:** Add a controllable camera for free exploration of the voxel world.  
-- **Physics & Collision:** Implement simple AABB collision detection and movement constraints for the player.  
-- **Lighting & Shadows:** Introduce directional light and shadow mapping for more depth and realism.  
-- **Saving & Loading:** Add persistent world serialization for chunks and player state.  
-- **Optimization Pass:** Continue improving mesh generation, multi-threading, and memory usage for larger worlds.  
+- **Pets:** tame an animal by feeding it, and it follows you around.
+- **Doors, slabs and stairs**
+- **Treasure chests** hidden around the world
+- **Your own look:** pick a color and a hat, so players can tell each other apart on the network
+- **Quick-chat:** a wheel of "Hi!", "Follow me!" and "Help!" messages, with no typing needed
+- **Hide-and-seek:** a network mini-game
 
 ---
 
@@ -82,17 +90,16 @@ Drawing blocks couldn't be *that* hard... *Right?*
 
 ## Controls
 
-*   **F1:** Show debug info/stats.
-*   **F2:** Toggle wireframe.
-*   **F3:** Toggle V-sync.
-*   **W, A, S, D:** Move camera forward, left, backward, right.
-*   **Space:** Jump.
-*   **Mouse:** Look around.
+*   **W, A, S, D:** Move. **Space:** Jump. **Mouse:** Look around.
+*   **Left Ctrl:** Sprint (uses stamina). **Left Shift:** Crouch.
+*   **Left click:** Break a block, or hit a creature.
+*   **Right click:** Place a block, feed an animal, or eat the food you're holding.
+*   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
+*   **T:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
 *   **ESC:** Close the inventory, or open the pause menu (Resume, Settings,
     Save game, Return to title screen, Exit game). Single player pauses.
-*   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
-*   **T:** Toggle fly mode (creative worlds only). **F5:** Save the world.
-*   **F11:** Toggle fullscreen.
+*   **F5:** Save the world. **F11:** Toggle fullscreen.
+*   **F1:** Debug info and stats. **F2:** Wireframe. **F3:** V-sync.
 
 ## Game modes
 
