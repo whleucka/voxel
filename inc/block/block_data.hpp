@@ -111,7 +111,22 @@ inline std::string_view blockName(BlockType type) {
     case BlockType::EMERALD_ORE:  return "Emerald Ore";
     case BlockType::RUBY_ORE:     return "Ruby Ore";
     case BlockType::COPPER_ORE:   return "Copper Ore";
-    case BlockType::GLOWSTONE:    return "Glowstone";
+    case BlockType::GLOWSTONE:    return "Lamp";  // enum name kept for saves
+    case BlockType::OAK_PLANKS:    return "Oak Planks";
+    case BlockType::PINE_PLANKS:   return "Pine Planks";
+    case BlockType::PALM_PLANKS:   return "Palm Planks";
+    case BlockType::CHERRY_PLANKS: return "Cherry Planks";
+    case BlockType::BRICKS:        return "Bricks";
+    case BlockType::STONE_BRICKS:  return "Stone Bricks";
+    case BlockType::GLASS:         return "Glass";
+    case BlockType::WHITE_BLOCK:   return "White Block";
+    case BlockType::RED_BLOCK:     return "Red Block";
+    case BlockType::ORANGE_BLOCK:  return "Orange Block";
+    case BlockType::YELLOW_BLOCK:  return "Yellow Block";
+    case BlockType::GREEN_BLOCK:   return "Green Block";
+    case BlockType::BLUE_BLOCK:    return "Blue Block";
+    case BlockType::PURPLE_BLOCK:  return "Purple Block";
+    case BlockType::PINK_BLOCK:    return "Pink Block";
     default:                      return "Unknown";
   }
 }
@@ -143,7 +158,21 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = {
     {BlockType::COPPER_ORE, {glm::ivec2{11, 1}, glm::ivec2{11, 1}, glm::ivec2{11, 1}}},
     {BlockType::CHERRY_LEAF, {glm::ivec2{12, 1}, glm::ivec2{12, 1}, glm::ivec2{12, 1}}},
     {BlockType::CHERRY_LOG, {glm::ivec2{14, 1}, glm::ivec2{14, 1}, glm::ivec2{13, 1}}},
-    // Placeholder art: reuses the snow tile (a bright, lamp-like block) until a
-    // dedicated glowstone texture is drawn.
-    {BlockType::GLOWSTONE, {glm::ivec2{8, 0}, glm::ivec2{8, 0}, glm::ivec2{8, 0}}},
+    // Building blocks fill row 2 in this order (tools/gen_building_tiles.py).
+    {BlockType::OAK_PLANKS, {glm::ivec2{0, 2}, glm::ivec2{0, 2}, glm::ivec2{0, 2}}},
+    {BlockType::PINE_PLANKS, {glm::ivec2{1, 2}, glm::ivec2{1, 2}, glm::ivec2{1, 2}}},
+    {BlockType::PALM_PLANKS, {glm::ivec2{2, 2}, glm::ivec2{2, 2}, glm::ivec2{2, 2}}},
+    {BlockType::CHERRY_PLANKS, {glm::ivec2{3, 2}, glm::ivec2{3, 2}, glm::ivec2{3, 2}}},
+    {BlockType::BRICKS, {glm::ivec2{4, 2}, glm::ivec2{4, 2}, glm::ivec2{4, 2}}},
+    {BlockType::STONE_BRICKS, {glm::ivec2{5, 2}, glm::ivec2{5, 2}, glm::ivec2{5, 2}}},
+    {BlockType::GLASS, {glm::ivec2{6, 2}, glm::ivec2{6, 2}, glm::ivec2{6, 2}}},
+    {BlockType::WHITE_BLOCK, {glm::ivec2{7, 2}, glm::ivec2{7, 2}, glm::ivec2{7, 2}}},
+    {BlockType::RED_BLOCK, {glm::ivec2{8, 2}, glm::ivec2{8, 2}, glm::ivec2{8, 2}}},
+    {BlockType::ORANGE_BLOCK, {glm::ivec2{9, 2}, glm::ivec2{9, 2}, glm::ivec2{9, 2}}},
+    {BlockType::YELLOW_BLOCK, {glm::ivec2{10, 2}, glm::ivec2{10, 2}, glm::ivec2{10, 2}}},
+    {BlockType::GREEN_BLOCK, {glm::ivec2{11, 2}, glm::ivec2{11, 2}, glm::ivec2{11, 2}}},
+    {BlockType::BLUE_BLOCK, {glm::ivec2{12, 2}, glm::ivec2{12, 2}, glm::ivec2{12, 2}}},
+    {BlockType::PURPLE_BLOCK, {glm::ivec2{13, 2}, glm::ivec2{13, 2}, glm::ivec2{13, 2}}},
+    {BlockType::PINK_BLOCK, {glm::ivec2{14, 2}, glm::ivec2{14, 2}, glm::ivec2{14, 2}}},
+    {BlockType::GLOWSTONE, {glm::ivec2{15, 2}, glm::ivec2{15, 2}, glm::ivec2{15, 2}}},
 };

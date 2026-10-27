@@ -33,8 +33,24 @@ enum class BlockType : uint8_t {
   // edit deltas, so reordering would remap blocks in existing saves.
   CHERRY_LOG,
   CHERRY_LEAF,
+  // Building blocks (creative palette only).
+  OAK_PLANKS,
+  PINE_PLANKS,
+  PALM_PLANKS,
+  CHERRY_PLANKS,
+  BRICKS,
+  STONE_BRICKS,
+  GLASS,
+  WHITE_BLOCK,
+  RED_BLOCK,
+  ORANGE_BLOCK,
+  YELLOW_BLOCK,
+  GREEN_BLOCK,
+  BLUE_BLOCK,
+  PURPLE_BLOCK,
+  PINK_BLOCK,
 };
 
 // The highest BlockType value. Update it when appending a type; a test in
 // tests/item_test.cpp fails if a named type exists past it.
-constexpr BlockType kLastBlockType = BlockType::CHERRY_LEAF;
+constexpr BlockType kLastBlockType = BlockType::PINK_BLOCK;
