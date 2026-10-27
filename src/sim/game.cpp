@@ -326,6 +326,21 @@ void Game::respawn(Client &client, PlayerState &ps) {
   client.link->deliver(Respawned{ps.position, ps.respawn});
 }
 
+void Game::rescueFromVoid(Client &client, PlayerState &ps) {
+  glm::vec3 to = respawnPoint();
+  const int x = static_cast<int>(std::floor(ps.position.x));
+  const int z = static_cast<int>(std::floor(ps.position.z));
+  for (int y = kChunkHeight - 1; y >= 0; --y)
+    if (world_.getBlockAt(glm::vec3(x + 0.5f, y + 0.5f, z + 0.5f)) != BlockType::AIR) {
+      to = glm::vec3(x + 0.5f, y + 1.0f, z + 0.5f);
+      break;
+    }
+  ps.fall.reset();
+  ps.position = to;
+  ++ps.respawn; // moves sent from down there are stale now
+  client.link->deliver(Respawned{ps.position, ps.respawn});
+}
+
 // ─── Commands ──────────────────────────────────────────────────────────
 
 // Every Command alternative needs an apply() overload; a missing one is a
@@ -398,6 +413,10 @@ void Game::apply(Client &client, const MovePlayer &cmd) {
   // The dead stay put until they respawn, and moves from before the respawn
   // (still in flight when it happened) are stale.
   if (!ps || ps->vitals.dead() || cmd.respawn != ps->respawn) return;
+  if (cmd.position.y < kVoidY) {
+    ps->position = cmd.position;
+    return rescueFromVoid(client, *ps);
+  }
   ps->position = cmd.position;
   ps->yaw = cmd.yaw;
   ps->pitch = cmd.pitch;

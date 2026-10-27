@@ -153,6 +153,10 @@ private:
   void sendEntitySnapshots();
   void respawn(Client &client, PlayerState &ps);
   glm::vec3 respawnPoint();
+  // Out of the world (dug through the bedrock, or fell before the ground
+  // loaded): back on top of the same column, unharmed.
+  void rescueFromVoid(Client &client, PlayerState &ps);
+  static constexpr float kVoidY = -32.0f; // below the bedrock floor
 
   World world_;
   GameClock clock_;
