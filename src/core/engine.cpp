@@ -79,13 +79,7 @@ bool Engine::init() {
   glfwSetMouseButtonCallback(window, mouseButtonCallback);
   glfwSetScrollCallback(window, scrollCallback);
   glfwSetFramebufferSizeCallback(window, windowResize);
-  // Set before ImGui's backend, which chains them.
-  glfwSetCursorEnterCallback(window, [](GLFWwindow *w, int entered) {
-    if (entered) reinterpret_cast<Engine *>(glfwGetWindowUserPointer(w))->recaptureCursor();
-  });
-  glfwSetWindowFocusCallback(window, [](GLFWwindow *w, int focused) {
-    if (focused) reinterpret_cast<Engine *>(glfwGetWindowUserPointer(w))->recaptureCursor();
-  });
+
 
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
     std::cerr << "Failed to initialize GLAD\n";
@@ -273,22 +267,13 @@ void Engine::updateCursor() {
   if (glfwGetInputMode(window, GLFW_CURSOR) != want) {
     glfwSetInputMode(window, GLFW_CURSOR, want);
     first_mouse = true; // no camera jump when it's captured again
-    recapture_at = free ? 0.0 : glfwGetTime() + 1.0;
-  } else if (recapture_at > 0.0 && glfwGetTime() >= recapture_at) {
-    recapture_at = 0.0;
-    recaptureCursor();
   }
-}
-
-// On Wayland (seen on Hyprland) GLFW only hides and locks the cursor while the
-// pointer is over the window. A capture made while it isn't, e.g. just after
-// a world loads and the window was busy, leaves the cursor showing. Capturing
-// again once the pointer is back fixes it, the same as pausing and resuming.
-void Engine::recaptureCursor() {
-  if (glfwGetInputMode(window, GLFW_CURSOR) != GLFW_CURSOR_DISABLED) return;
-  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-  first_mouse = true;
+  // On Wayland (seen on Hyprland), capturing while the pointer is over the
+  // window locks the pointer and hides the cursor in one go, and the
+  // compositor shows the cursor again once the lock takes effect. Asking for
+  // no cursor again (this keeps the lock) makes it stick; it's one tiny
+  // request a frame, and also covers anything else that brings it back.
+  if (!free) glfwSetCursor(window, nullptr);
 }
 
 void Engine::startSession(std::unique_ptr<Session> s) {

@@ -40,7 +40,6 @@ private:
   Inventory::Slots inventory_view{}; // the Game's latest InventoryContents
   GameMode game_mode = GameMode::Survival;   // the world's, from Joined
   PauseMenu pause;
-  double recapture_at = 0.0; // when to capture once more after starting to play
   VitalsChanged vitals_view{Vitals::kMax, Vitals::kMax, Vitals::kMax, true, false};
   Hud hud;
   EntityRenderer entity_renderer;
@@ -81,7 +80,6 @@ private:
   void startFromMenu(const TitleMenu::Choice &choice);
   // Shows or captures the cursor to match the game's state; once per frame.
   void updateCursor();
-  void recaptureCursor(); // capture again (Wayland can miss the first one)
   void debugMultiplayer();
   void processInput(GLFWwindow *window);
   void update();
