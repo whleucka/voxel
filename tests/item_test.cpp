@@ -2,6 +2,7 @@
 #include "block/block_data.hpp"
 #include "item/item.hpp"
 #include "item/item_stack.hpp"
+#include "item/tools.hpp"
 #include <set>
 #include <utility>
 
@@ -44,7 +45,7 @@ TEST_CASE("every placeable block has an item that places it") {
 
 TEST_CASE("the material items are defined with unique item-atlas tiles") {
   auto mats = materials();
-  CHECK(mats.size() == 16);
+  CHECK(mats.size() == 44);
 
   std::set<std::pair<int, int>> tiles;
   for (ItemId id : mats) {
@@ -53,7 +54,7 @@ TEST_CASE("the material items are defined with unique item-atlas tiles") {
     CAPTURE(def.name);
     CHECK(!def.name.empty());
     CHECK(def.name != "Unknown");
-    CHECK(def.max_stack == 64);
+    CHECK(def.max_stack == (toolOf(id).kind == ToolKind::None ? 64 : 1));
     CHECK_FALSE(def.places.has_value());
     CHECK(def.icon.atlas == ItemIcon::Atlas::Item);
     CHECK(def.icon.tile.x >= 0);

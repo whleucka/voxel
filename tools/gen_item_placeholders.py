@@ -117,13 +117,81 @@ def charcoal():
     return tile_image(LUMP, (58, 44, 36), (20, 14, 10), (110, 90, 74))
 
 
+# Tools: a wooden handle and a head in the tier's colours (fill, dark edge).
+TIERS = [
+    ((166, 122, 74), (96, 66, 36)),     # wood
+    ((136, 136, 142), (72, 72, 78)),    # stone
+    ((214, 120, 64), (118, 58, 26)),    # copper
+    ((216, 216, 222), (112, 112, 120)), # iron
+    ((222, 44, 66), (110, 12, 28)),     # ruby
+    ((60, 204, 104), (20, 100, 50)),    # emerald
+    ((112, 232, 242), (30, 120, 140)),  # diamond
+]
+HANDLE, HANDLE_DARK = (150, 106, 62), (74, 50, 26)
+
+
+def handle(d, a, b):
+    d.line([a, b], fill=HANDLE_DARK + (255,), width=4)
+    d.line([a, b], fill=HANDLE + (255,), width=2)
+
+
+def pickaxe(fill, dark):
+    def draw():
+        img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        handle(d, (7, 26), (21, 12))
+        d.arc([5, 3, 29, 23], 200, 340, fill=dark + (255,), width=6)  # the head's curve
+        d.arc([6, 4, 28, 22], 205, 335, fill=fill + (255,), width=3)
+        return img
+    return draw
+
+
+def axe(fill, dark):
+    def draw():
+        img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        handle(d, (8, 27), (21, 7))
+        blade = [(17, 5), (27, 7), (28, 16), (20, 17)]
+        d.polygon(blade, fill=fill + (255,), outline=dark + (255,))
+        d.line([(27, 8), (27, 15)], fill=(255, 255, 255, 120))
+        return img
+    return draw
+
+
+def shovel(fill, dark):
+    def draw():
+        img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        handle(d, (6, 26), (18, 14))
+        d.line([(4, 24), (9, 29)], fill=HANDLE_DARK + (255,), width=3)  # grip
+        spade = [(17, 11), (23, 5), (29, 8), (27, 15), (21, 17)]
+        d.polygon(spade, fill=fill + (255,), outline=dark + (255,))
+        return img
+    return draw
+
+
+def sword(fill, dark):
+    def draw():
+        img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        d.line([(11, 21), (27, 5)], fill=dark + (255,), width=5)   # blade
+        d.line([(11, 21), (27, 5)], fill=fill + (255,), width=3)
+        d.line([(13, 19), (25, 7)], fill=(255, 255, 255, 140))
+        d.line([(7, 17), (15, 25)], fill=HANDLE_DARK + (255,), width=3)  # guard
+        handle(d, (5, 27), (10, 22))
+        return img
+    return draw
+
+
+TOOLS = [make(*t) for make in (pickaxe, axe, shovel, sword) for t in TIERS]
+
 # Animal products, crafted and smelted items, after the shape-based
 # materials, in ItemId order.
 DRAWN = [wool, berries, shell, petals, sticks,
          ingot((200, 200, 206), (110, 110, 118), (236, 236, 242)),   # iron
          ingot((214, 120, 64), (120, 60, 28), (246, 170, 120)),     # copper
          ingot((240, 200, 60), (150, 110, 20), (255, 236, 140)),    # gold
-         charcoal]
+         charcoal] + TOOLS
 
 
 def main():
