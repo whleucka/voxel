@@ -233,3 +233,15 @@ TEST_CASE("flying is only possible where the world allows it") {
   p.toggleFlyMode();
   CHECK(p.isFlyMode());
 }
+
+TEST_CASE("a player over ground that hasn't loaded yet holds still") {
+  World world; // no chunks: the ground hasn't generated
+  Player p({8.5f, kBase + 6.0f, 8.5f});
+  steps(p, world, 60, forward());
+  CHECK(p.getPosition() == glm::vec3(8.5f, kBase + 6.0f, 8.5f));
+  CHECK(p.getVelocity() == glm::vec3(0.0f));
+
+  world.loadChunkSync(0, 0); // once it's there, gravity takes over
+  steps(p, world, 10);
+  CHECK(p.getPosition().y < kBase + 6.0f);
+}

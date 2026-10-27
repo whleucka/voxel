@@ -1,3 +1,4 @@
+#include <cmath>
 #include "player/player.hpp"
 #include "core/constants.hpp"
 #include "world/world.hpp"
@@ -46,6 +47,18 @@ void Player::setSelectedHotbarSlot(int slot) {
 // ─── Update ────────────────────────────────────────────────────────────
 
 void Player::update(float dt, World* world) {
+  // Hold still until the ground here has generated: an unloaded chunk has
+  // nothing to stand on, so we'd fall straight through it.
+  if (world) {
+    glm::vec3 p = body.position;
+    int cx = static_cast<int>(std::floor(p.x / kChunkWidth));
+    int cz = static_cast<int>(std::floor(p.z / kChunkDepth));
+    if (!world->getChunk(cx, cz)) {
+      body.velocity = glm::vec3(0.0f);
+      camera.position = getEyePosition();
+      return;
+    }
+  }
   body.height = getPlayerHeight();
   body.eye_height = getPlayerEyeHeight();
   knockback_left = std::max(0.0f, knockback_left - dt);

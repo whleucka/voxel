@@ -1748,6 +1748,27 @@ TEST_CASE_FIXTURE(EditGame, "survival: a placed brick breaks into one brick") {
   CHECK(countOf(inventory(), itemForBlock(BlockType::BRICKS)) == before + 1);
 }
 
+// ─── Falling out of the world ──────────────────────────────────────────
+
+TEST_CASE_FIXTURE(EditGame, "a player below the world is put back on top of the same column") {
+  MovePlayer fell;
+  fell.position = {5.5f, -1746.0f, 5.5f};
+  auto evs = run(fell);
+  const Respawned *back = nullptr;
+  for (const Event &e : evs)
+    if (const auto *r = std::get_if<Respawned>(&e)) back = r;
+  REQUIRE(back);
+  int top = kChunkHeight - 1;
+  while (at({5, top, 5}) == BlockType::AIR) --top;
+  CHECK(back->position == glm::vec3(5.5f, top + 1.0f, 5.5f));
+  CHECK(game.findPlayer(id)->position == back->position);
+
+  // Moves still in flight from down there are stale; nobody got hurt.
+  run(fell);
+  CHECK(game.findPlayer(id)->position == back->position);
+  CHECK(game.findPlayer(id)->vitals.health() == Vitals::kMax);
+}
+
 TEST_CASE_FIXTURE(VitalsGame, "creative: no fall damage, drowning or stamina drain") {
   game.setMode(GameMode::Creative);
   fall(10.0f);
