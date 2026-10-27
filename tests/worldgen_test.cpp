@@ -221,3 +221,59 @@ TEST_CASE("no tree floats over a cave mouth") {
           if (isLog(c.at(x, y, z))) CHECK(c.at(x, y - 1, z) != BlockType::AIR);
   }
 }
+
+TEST_CASE("caves hold glow crystals, shallow pools and extra gems") {
+  auto gemsIn = [](const Chunk &c) {
+    long n = 0;
+    for (int y = 0; y < kChunkHeight; ++y)
+      for (int z = 0; z < kChunkDepth; ++z)
+        for (int x = 0; x < kChunkWidth; ++x) {
+          BlockType b = c.at(x, y, z);
+          n += b == BlockType::DIAMOND_ORE || b == BlockType::EMERALD_ORE ||
+               b == BlockType::RUBY_ORE;
+        }
+    return n;
+  };
+  auto solid = [](BlockType b) {
+    return b != BlockType::AIR && b != BlockType::WATER && b != BlockType::GLOW_CRYSTAL;
+  };
+
+  long gems_v1 = 0;
+  {
+    SeededWorld world(12345, worldgen::kOriginal);
+    for (glm::ivec2 pos : kSample) {
+      Chunk c(pos.x, pos.y);
+      c.init();
+      gems_v1 += gemsIn(c);
+    }
+  }
+
+  SeededWorld world(12345, worldgen::kCaves);
+  long crystals = 0, pools = 0, gems_v2 = 0;
+  for (glm::ivec2 pos : kSample) {
+    Chunk c(pos.x, pos.y);
+    c.init();
+    gems_v2 += gemsIn(c);
+    for (int x = 0; x < kChunkWidth; ++x)
+      for (int z = 0; z < kChunkDepth; ++z) {
+        int h = surfaceOf(pos.x * kChunkWidth + x, pos.y * kChunkDepth + z);
+        for (int y = 1; y < h; ++y) {
+          CAPTURE(y);
+          BlockType b = c.at(x, y, z);
+          if (b == BlockType::GLOW_CRYSTAL) {
+            ++crystals;
+            CHECK(y < kSeaLevel - 15);
+            CHECK((solid(c.at(x, y - 1, z)) || solid(c.at(x, y + 1, z))));
+          } else if (b == BlockType::WATER) {
+            ++pools;
+            CHECK(y < kSeaLevel - 25);
+            CHECK(solid(c.at(x, y - 1, z)));             // on rock...
+            CHECK(c.at(x, y + 1, z) != BlockType::WATER); // ...one block deep
+          }
+        }
+      }
+  }
+  CHECK(crystals > 0);
+  CHECK(pools > 0);
+  CHECK(gems_v2 > gems_v1);
+}

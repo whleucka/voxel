@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <glm/gtc/noise.hpp>
+#include <random>
 
 namespace caves {
 
@@ -26,6 +27,15 @@ const glm::vec3 kSecondField{113.7f, 51.1f, 87.3f};
 constexpr float kRegionFrequency = 0.011f;
 const glm::vec2 kRegionOffset{71.3f, 19.7f};
 constexpr float kRegionEdge = 0.05f, kRegionCore = 0.25f;
+
+// What grows inside: depths are below sea level, odds are one in N.
+constexpr int kPoolDepth = 25;
+constexpr float kPoolFrequency = 0.12f;
+constexpr float kPoolThreshold = 0.42f;
+constexpr int kCrystalDepth = 15;
+constexpr unsigned kCrystalOdds = 60;
+constexpr unsigned kWallOreOdds = 20;
+constexpr int kGemDepth = 30;
 
 // The fields are sampled every kStep blocks and blended in between, which
 // keeps a chunk cheap. Lattice points are world-aligned, so two chunks agree
@@ -111,6 +121,20 @@ int cachedHeight(int wx, int wz, const void *ctx) {
   return const_cast<Heights *>(static_cast<const Heights *>(ctx))->at(wx, wz);
 }
 
+BlockType wallOre(std::mt19937 &rng, bool deep) {
+  unsigned roll = rng() % 10;
+  if (deep) {
+    if (roll == 0) return BlockType::DIAMOND_ORE;
+    if (roll <= 3) return BlockType::EMERALD_ORE;
+    if (roll <= 5) return BlockType::RUBY_ORE;
+    if (roll <= 7) return BlockType::GOLD_ORE;
+    return BlockType::IRON_ORE;
+  }
+  if (roll <= 3) return BlockType::COAL_ORE;
+  if (roll <= 6) return BlockType::COPPER_ORE;
+  return BlockType::IRON_ORE;
+}
+
 } // namespace
 
 bool isTunnel(glm::ivec3 w) {
@@ -177,7 +201,61 @@ void carve(Chunk &chunk) {
 }
 
 void decorate(Chunk &chunk) {
-  (void)chunk; // ores, crystals and pools: next
+  const int wx0 = chunk.getPos().x * kChunkWidth;
+  const int wz0 = chunk.getPos().y * kChunkDepth;
+  std::array<int, kChunkWidth * kChunkDepth> surface;
+  int top = 0;
+  for (int z = 0; z < kChunkDepth; ++z)
+    for (int x = 0; x < kChunkWidth; ++x)
+      top = std::max(top, surface[x + kChunkWidth * z] = surfaceAt(wx0 + x, wz0 + z));
+
+  auto ground = [&](int x, int z) { return surface[x + kChunkWidth * z]; };
+  auto caveAir = [&](int x, int y, int z) {
+    return x >= 0 && x < kChunkWidth && z >= 0 && z < kChunkDepth && y >= 0 &&
+           y < ground(x, z) && chunk.at(x, y, z) == BlockType::AIR;
+  };
+  auto rockAt = [&](int x, int y, int z) {
+    if (x < 0 || x >= kChunkWidth || z < 0 || z >= kChunkDepth || y < 0 || y >= kChunkHeight)
+      return false;
+    BlockType b = chunk.at(x, y, z);
+    return b != BlockType::AIR && !isLiquid(b) && b != BlockType::GLOW_CRYSTAL;
+  };
+
+  // Its own stream, so the rest of generation draws exactly what it always did.
+  uint64_t h = worldgen::mix(g_settings.world_seed ^ 0xCA7Eull);
+  h = worldgen::mix(h ^ static_cast<uint32_t>(chunk.getPos().x));
+  h = worldgen::mix(h ^ static_cast<uint32_t>(chunk.getPos().y));
+  std::mt19937 rng(static_cast<uint32_t>(h ^ (h >> 32)));
+
+  for (int y = kFloor; y < top; ++y)
+    for (int z = 0; z < kChunkDepth; ++z)
+      for (int x = 0; x < kChunkWidth; ++x) {
+        BlockType &b = chunk.at(x, y, z);
+        if (caveAir(x, y, z)) {
+          const bool floor = rockAt(x, y - 1, z);
+          // Shallow pools on low floors: one block of water on rock, so
+          // nobody's head goes under.
+          if (floor && y < kSeaLevel - kPoolDepth) {
+            glm::vec2 p = (glm::vec2(wx0 + x, wz0 + z) + g_settings.noise_offset) *
+                              kPoolFrequency + glm::vec2(y * 0.37f);
+            if (glm::perlin(p) > kPoolThreshold) {
+              b = BlockType::WATER;
+              continue;
+            }
+          }
+          // Glow crystals on floors and ceilings, deep enough to be dark.
+          if ((floor || rockAt(x, y + 1, z)) && y < kSeaLevel - kCrystalDepth &&
+              rng() % kCrystalOdds == 0)
+            b = BlockType::GLOW_CRYSTAL;
+        } else if (b == BlockType::STONE || b == BlockType::COBBLESTONE) {
+          // Gems in the walls, and better ones deeper down.
+          const bool wall = caveAir(x + 1, y, z) || caveAir(x - 1, y, z) ||
+                            caveAir(x, y + 1, z) || caveAir(x, y - 1, z) ||
+                            caveAir(x, y, z + 1) || caveAir(x, y, z - 1);
+          if (wall && rng() % kWallOreOdds == 0)
+            b = wallOre(rng, y < kSeaLevel - kGemDepth);
+        }
+      }
 }
 
 } // namespace caves
