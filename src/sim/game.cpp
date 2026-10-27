@@ -48,6 +48,7 @@ bool Game::save() {
   level.seed         = g_settings.world_seed;
   level.noise_offset = g_settings.noise_offset;
   level.time_of_day  = clock_.time_of_day;
+  level.mode         = mode_;
 
   // The save format holds one player: the host, who joined first. A saved
   // player that never rejoined is written back unchanged.
@@ -88,6 +89,7 @@ void Game::restore(const WorldSave::LevelData &level, WorldEdits edits,
                    std::optional<WorldSave::PlayerData> player,
                    std::optional<std::vector<ItemStack>> inventory) {
   clock_.time_of_day = level.time_of_day;
+  mode_ = level.mode;
   world_.setLoadedEdits(std::move(edits));
   saved_player = std::move(player);
   saved_inventory = std::move(inventory);

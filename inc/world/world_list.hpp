@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/game_mode.hpp"
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -16,6 +17,7 @@
 struct WorldInfo {
   std::string name;
   uint32_t seed = 0;
+  GameMode mode = GameMode::Survival;
   std::filesystem::file_time_type last_played{}; // level.dat's modified time
   uintmax_t size_bytes = 0;
 };
@@ -29,7 +31,11 @@ bool validWorldName(std::string_view name);
 // A new world with this seed text (blank = random, a number as-is, other text
 // hashed): its level.dat is written now, so it lists and loads with it.
 std::optional<std::string> createWorld(const std::filesystem::path &root,
-                                       const std::string &name, std::string_view seed_text);
+                                       const std::string &name, std::string_view seed_text,
+                                       GameMode mode = GameMode::Survival);
+// Rewrites only the mode in the world's level.dat.
+std::optional<std::string> setWorldMode(const std::filesystem::path &root,
+                                        const std::string &name, GameMode mode);
 std::optional<std::string> renameWorld(const std::filesystem::path &root,
                                        const std::string &from, const std::string &to);
 std::optional<std::string> deleteWorld(const std::filesystem::path &root,

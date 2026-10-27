@@ -88,6 +88,8 @@ public:
   World &world() { return world_; }
   const World &world() const { return world_; }
   const GameClock &clock() const { return clock_; }
+  GameMode mode() const { return mode_; }
+  ModeRules rules() const { return rulesFor(mode_); }
   EntityStore &entities() { return entities_; }
   Spawner &spawner() { return spawner_; }
   const EntityStore &entities() const { return entities_; }
@@ -171,5 +173,6 @@ private:
   // This world's seed, fixed when it's created or loaded (sent in Welcome).
   uint32_t seed_ = 0;
   glm::vec2 noise_offset_{0.0f};
+  GameMode mode_ = GameMode::Survival;
   std::optional<glm::vec3> respawn_point; // world spawn, found on first death
 };

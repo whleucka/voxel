@@ -59,6 +59,7 @@ std::vector<WorldInfo> listWorlds(const fs::path &root) {
     WorldInfo info;
     info.name = name;
     info.seed = level.seed;
+    info.mode = level.mode;
     info.last_played = fs::last_write_time(entry.path() / "level.dat", ec);
     info.size_bytes = folderSize(entry.path());
     out.push_back(std::move(info));
@@ -70,7 +71,7 @@ std::vector<WorldInfo> listWorlds(const fs::path &root) {
 }
 
 std::optional<std::string> createWorld(const fs::path &root, const std::string &name,
-                                       std::string_view seed_text) {
+                                       std::string_view seed_text, GameMode mode) {
   auto dir = folderFor(root, name);
   if (!dir) return "World names are 1-32 letters, digits, spaces, _ or -";
   std::error_code ec;
@@ -78,7 +79,23 @@ std::optional<std::string> createWorld(const fs::path &root, const std::string &
   WorldSave::LevelData level;
   level.seed = resolveSeed(seed_text);
   level.noise_offset = noiseOffsetFor(level.seed);
+  level.mode = mode;
   if (!WorldSave::saveLevel(dir->string(), level)) return "Couldn't create '" + name + "'";
+  return std::nullopt;
+}
+
+std::optional<std::string> setWorldMode(const fs::path &root, const std::string &name,
+                                        GameMode mode) {
+  auto dir = folderFor(root, name);
+  WorldSave::LevelData level;
+  if (!dir || !WorldSave::loadLevel(dir->string(), level))
+    return "There's no world called '" + name + "'";
+  // Keep "last played" as it was: changing the mode isn't playing.
+  std::error_code ec;
+  auto when = fs::last_write_time(*dir / "level.dat", ec);
+  level.mode = mode;
+  if (!WorldSave::saveLevel(dir->string(), level)) return "Couldn't change '" + name + "'";
+  if (!ec) fs::last_write_time(*dir / "level.dat", when, ec);
   return std::nullopt;
 }
 
