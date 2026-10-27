@@ -4,6 +4,7 @@
 #include "item/tools.hpp"
 #include "entity/animals.hpp"
 #include "entity/enemies.hpp"
+#include "entity/fish.hpp"
 #include "core/settings.hpp"
 #include <algorithm>
 #include <cctype>
@@ -28,6 +29,7 @@ Game::Game()
       worldgen_(g_settings.worldgen) {
   registerAnimalSpawns(spawner_);
   registerEnemySpawns(spawner_);
+  registerFishSpawns(spawner_);
 }
 
 bool Game::load(const std::string &dir) {

@@ -1,5 +1,7 @@
 #include "doctest/doctest.h"
+#include "biome/biome_manager.hpp"
 #include "entity/entity_store.hpp"
+#include "entity/fish.hpp"
 #include "item/item.hpp"
 #include "item/recipes.hpp"
 #include "item/smelting.hpp"
@@ -179,4 +181,91 @@ TEST_CASE("a fish back in water stops counting down") {
   t.tick();
   REQUIRE(t.e());
   CHECK(t.e()->stranded_ms == 0);
+}
+
+// ─── Spawning ──────────────────────────────────────────────────────────
+
+TEST_CASE("waterAt finds water at least 2 deep, and nothing on dry land") {
+  World world;
+  world.loadChunkSync(0, 0);
+  Rng rng{1};
+  fill(world, {0, 0, 0}, {15, kChunkHeight - 1, 15}, BlockType::AIR);
+  fill(world, {2, kBase, 2}, {2, kBase, 2}, BlockType::STONE);      // dry
+  fill(world, {3, kBase, 3}, {3, kBase, 3}, BlockType::WATER);      // 1 deep
+  fill(world, {4, kBase, 4}, {4, kBase + 2, 4}, BlockType::WATER);  // 3 deep
+  CHECK_FALSE(Spawner::waterAt(world, 2, 2, rng));
+  CHECK_FALSE(Spawner::waterAt(world, 3, 3, rng));
+  for (int i = 0; i < 20; ++i) {
+    auto c = Spawner::waterAt(world, 4, 4, rng);
+    REQUIRE(c);
+    CHECK(c->y >= kBase);
+    CHECK(c->y <= kBase + 2);
+  }
+  CHECK_FALSE(Spawner::waterAt(world, 1000, 1000, rng)); // unloaded
+}
+
+TEST_CASE("each fish spawns only in its own water") {
+  // Open water in each biome, 2 deep, high in the sky.
+  auto pond = [](World &world, BiomeType b) {
+    auto c = findBiomeChunk(b);
+    REQUIRE(c);
+    world.loadChunkSync(c->x, c->y);
+    glm::ivec3 cell{c->x * kChunkWidth + 5, 180, c->y * kChunkDepth + 5};
+    fill(world, cell - glm::ivec3(0, 1, 0), cell, BlockType::WATER);
+    return cell;
+  };
+  World world;
+  glm::ivec3 ocean = pond(world, BiomeType::OCEAN);
+  glm::ivec3 plains = pond(world, BiomeType::PLAINS);
+  glm::ivec3 desert = pond(world, BiomeType::DESERT);
+
+  CHECK(fishCanSpawn(EntityKind::Sunfin, world, ocean));
+  CHECK_FALSE(fishCanSpawn(EntityKind::Sunfin, world, plains));
+  CHECK(fishCanSpawn(EntityKind::Pebblefish, world, plains));
+  CHECK(fishCanSpawn(EntityKind::Pebblefish, world, desert));
+  CHECK_FALSE(fishCanSpawn(EntityKind::Pebblefish, world, ocean));
+  // Open sky: no Glowfin.
+  for (glm::ivec3 c : {ocean, plains, desert}) CHECK_FALSE(fishCanSpawn(EntityKind::Glowfin, world, c));
+
+  // Put a lid over the plains pond (with an air gap, like a cave): Glowfin
+  // only, and not Pebblefish.
+  fill(world, plains + glm::ivec3(-3, -2, -3), plains + glm::ivec3(3, 2, 3), BlockType::STONE);
+  fill(world, plains + glm::ivec3(-2, -1, -2), plains + glm::ivec3(2, 1, 2), BlockType::AIR);
+  fill(world, plains - glm::ivec3(0, 1, 0), plains, BlockType::WATER);
+  CHECK(fishCanSpawn(EntityKind::Glowfin, world, plains));
+  CHECK_FALSE(fishCanSpawn(EntityKind::Pebblefish, world, plains));
+
+  // Too shallow, or not water at all.
+  fill(world, ocean - glm::ivec3(0, 1, 0), ocean - glm::ivec3(0, 1, 0), BlockType::SAND);
+  CHECK_FALSE(fishCanSpawn(EntityKind::Sunfin, world, ocean));
+  CHECK_FALSE(fishCanSpawn(EntityKind::Sunfin, world, ocean + glm::ivec3(0, 1, 0)));
+  CHECK_FALSE(fishCanSpawn(EntityKind::Woolly, world, ocean));
+}
+
+TEST_CASE("on generated terrain, fish appear only in water where they live") {
+  auto sea = findBiomeChunk(BiomeType::OCEAN);
+  REQUIRE(sea);
+  World world;
+  for (int cx = sea->x - 5; cx <= sea->x + 5; ++cx)
+    for (int cz = sea->y - 5; cz <= sea->y + 5; ++cz) world.loadChunkSync(cx, cz);
+  EntityStore store;
+  Spawner spawner;
+  registerFishSpawns(spawner);
+  Rng rng{2024};
+  glm::vec3 player{sea->x * kChunkWidth + 8.0f, kSeaLevel + 1.0f, sea->y * kChunkDepth + 8.0f};
+  std::vector<glm::vec3> players{player};
+  for (int i = 0; i < 20 * 60; ++i) spawner.tick(store, world, rng, players, 0.0f);
+
+  REQUIRE(store.size() > 0); // the sea has fish, by night too
+  for (const auto &[id, e] : store.all()) {
+    REQUIRE(isFish(e.kind));
+    CAPTURE(entityType(e.kind).name);
+    CHECK(SwimBrain::waterAhead(e, world, glm::vec3(0.0f), 0.0f));
+    const FishDef &f = *entityType(e.kind).fish;
+    if (f.cave) continue;
+    int cx = static_cast<int>(std::floor(e.body.position.x / kChunkWidth));
+    int cz = static_cast<int>(std::floor(e.body.position.z / kChunkDepth));
+    BiomeType b = BiomeManager::getBiomeForChunk(cx, cz);
+    CHECK(std::find(f.biomes.begin(), f.biomes.end(), b) != f.biomes.end());
+  }
 }
