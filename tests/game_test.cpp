@@ -576,6 +576,89 @@ TEST_CASE_FIXTURE(EditGame, "creative knows every recipe") {
   CHECK(heldCount(inventory(), itemForBlock(BlockType::RED_BLOCK)) == 8);
 }
 
+// ─── Furnaces ──────────────────────────────────────────────────────────
+
+namespace {
+void runTicks(Game &game, int ticks) {
+  for (int i = 0; i < ticks; ++i) game.tick();
+}
+int dropped(const Game &game, ItemId id) {
+  int n = 0;
+  for (const auto &[eid, e] : game.entities().all())
+    if (e.kind == EntityKind::DroppedItem && e.item.id == id) n += e.item.count;
+  return n;
+}
+} // namespace
+
+TEST_CASE_FIXTURE(EditGame, "placing a furnace makes one; breaking it spills what's inside") {
+  glm::ivec3 at_{5, ground + 1, 5};
+  REQUIRE(changes(place(at_, BlockType::FURNACE)) == 1);
+  Furnace *f = game.furnaceAt(at_);
+  REQUIRE(f);
+  f->input = {ItemId::RAW_IRON, 3};
+  f->output = {ItemId::IRON_INGOT, 2};
+  run(BreakBlock{at_});
+  CHECK_FALSE(game.furnaceAt(at_));
+  CHECK(dropped(game, ItemId::RAW_IRON) == 3);
+  CHECK(dropped(game, ItemId::IRON_INGOT) == 2);
+}
+
+TEST_CASE_FIXTURE(EditGame, "a burning furnace glows, and goes dark when the fuel runs out") {
+  glm::ivec3 at_{5, ground + 1, 5};
+  place(at_, BlockType::FURNACE);
+  Furnace *f = game.furnaceAt(at_);
+  f->input = {itemForBlock(BlockType::SAND), 1};
+  f->fuel = {ItemId::STICKS, 1};
+  pollAll(conn);
+  runTicks(game, 1);
+  CHECK(at(at_) == BlockType::FURNACE_LIT);
+  CHECK(game.world().getBlockLightAt(at_ + glm::ivec3(0, 1, 0)) == 12);
+  bool told = false;
+  for (const Event &e : pollAll(other))
+    if (const auto *b = std::get_if<BlockChanged>(&e))
+      told |= b->pos == at_ && b->type == BlockType::FURNACE_LIT;
+  CHECK(told);
+
+  runTicks(game, kSmeltMs / Game::kTickMs);
+  CHECK(at(at_) == BlockType::FURNACE);
+  CHECK(game.world().getBlockLightAt(at_ + glm::ivec3(0, 1, 0)) == 0);
+  CHECK(game.furnaceAt(at_)->output.empty()); // half a stick isn't a whole item
+  // Breaking a lit furnace gives a furnace back.
+  game.furnaceAt(at_)->fuel = {ItemId::COAL, 1};
+  runTicks(game, 1);
+  REQUIRE(at(at_) == BlockType::FURNACE_LIT);
+  run(BreakBlock{at_});
+  CHECK(heldCount(inventory(), itemForBlock(BlockType::FURNACE)) == 1);
+}
+
+TEST_CASE_FIXTURE(EditGame, "furnaces are saved and keep cooking where nobody is") {
+  ScopedSeed seed;
+  TempDir dir;
+  CHECK_FALSE(game.load(dir.path.string()));
+  glm::ivec3 at_{5, ground + 1, 5};
+  place(at_, BlockType::FURNACE);
+  Furnace *f = game.furnaceAt(at_);
+  f->input = {ItemId::RAW_GOLD, 4};
+  f->fuel = {ItemId::COAL, 1};
+  runTicks(game, 1); // lit
+  run(Save{});
+
+  ScopedRenderDistance rd2{0};
+  Game loaded;
+  REQUIRE(loaded.load(dir.path.string()));
+  REQUIRE(loaded.furnaceAt(at_));
+  CHECK(loaded.furnaceAt(at_)->lit());
+  CHECK(loaded.world().getChunkCount() == 0); // nobody here: nothing loaded
+  runTicks(loaded, 5 * kSmeltMs / Game::kTickMs);
+  CHECK(loaded.furnaceAt(at_)->output == ItemStack{ItemId::GOLD_INGOT, 4});
+  CHECK(loaded.furnaceAt(at_)->input.empty());
+  // The coal burns out while still unloaded; the block shows it once loaded.
+  runTicks(loaded, 8 * kSmeltMs / Game::kTickMs);
+  loaded.world().loadChunkSync(0, 0);
+  loaded.world().flushPendingEdits();
+  CHECK(loaded.world().getBlockAt(glm::vec3(at_) + 0.5f) == BlockType::FURNACE);
+}
+
 TEST_CASE_FIXTURE(SmallGame, "save without a bound directory fails") {
   CHECK_FALSE(game.save());
 }

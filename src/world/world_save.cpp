@@ -40,6 +40,7 @@ constexpr char kEditMagic[4]   = {'V', 'X', 'E', 'D'};
 constexpr char kInvMagic[4]    = {'V', 'X', 'I', 'N'};
 constexpr char kGuestMagic[4]  = {'V', 'X', 'G', 'P'};
 constexpr char kKnownMagic[4]  = {'V', 'X', 'D', 'I'};
+constexpr char kFurnaceMagic[4] = {'V', 'X', 'F', 'U'};
 
 bool safeName(const std::string &name) {
   if (name.empty() || name.size() > 16) return false;
@@ -100,6 +101,20 @@ bool readIds(std::istream &in, std::vector<ItemId> &out) {
     if (!rd(in, v)) return false;
     if (isValidItem(static_cast<ItemId>(v))) out.push_back(static_cast<ItemId>(v));
   }
+  return true;
+}
+
+void writeStack(std::ostream &o, const ItemStack &s) {
+  wr(o, static_cast<uint16_t>(s.id));
+  wr(o, s.count);
+}
+
+bool readStack(std::istream &in, ItemStack &s) {
+  uint16_t id = 0, count = 0;
+  if (!rd(in, id) || !rd(in, count)) return false;
+  ItemId item = static_cast<ItemId>(id);
+  // Unknown items load as nothing rather than as something they aren't.
+  s = isValidItem(item) && count > 0 ? ItemStack{item, count} : ItemStack{};
   return true;
 }
 
@@ -244,6 +259,49 @@ bool saveDiscovered(const std::string &dir, std::span<const ItemId> ids) {
   if (!o) return false;
   writeHeader(o, kKnownMagic);
   writeIds(o, ids);
+  return static_cast<bool>(o);
+}
+
+// ─── furnaces.dat ───────────────────────────────────────────────────────────
+
+bool loadFurnaces(const std::string &dir, std::vector<FurnaceRecord> &out) {
+  std::ifstream in(dir + "/furnaces.dat", std::ios::binary);
+  if (!in || !checkHeader(in, kFurnaceMagic)) return false;
+  uint32_t n = 0;
+  if (!rd(in, n) || n > 1'000'000) return false;
+  out.clear();
+  for (uint32_t i = 0; i < n; ++i) {
+    FurnaceRecord r;
+    Furnace &f = r.furnace;
+    if (!rd(in, r.pos.x) || !rd(in, r.pos.y) || !rd(in, r.pos.z) || !readStack(in, f.input) ||
+        !readStack(in, f.fuel) || !readStack(in, f.output) || !rd(in, f.burn_ms) ||
+        !rd(in, f.burn_total_ms) || !rd(in, f.cook_ms))
+      return false;
+    out.push_back(r);
+  }
+  return true;
+}
+
+bool saveFurnaces(const std::string &dir, std::span<const FurnaceRecord> furnaces) {
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+  if (ec) return false;
+  std::ofstream o(dir + "/furnaces.dat", std::ios::binary | std::ios::trunc);
+  if (!o) return false;
+  writeHeader(o, kFurnaceMagic);
+  wr(o, static_cast<uint32_t>(furnaces.size()));
+  for (const FurnaceRecord &r : furnaces) {
+    const Furnace &f = r.furnace;
+    wr(o, r.pos.x);
+    wr(o, r.pos.y);
+    wr(o, r.pos.z);
+    writeStack(o, f.input);
+    writeStack(o, f.fuel);
+    writeStack(o, f.output);
+    wr(o, f.burn_ms);
+    wr(o, f.burn_total_ms);
+    wr(o, f.cook_ms);
+  }
   return static_cast<bool>(o);
 }
 

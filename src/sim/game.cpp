@@ -55,6 +55,9 @@ bool Game::load(const std::string &dir) {
   restore(level, std::move(edits), player, std::move(inventory));
   if (std::vector<ItemId> ids; WorldSave::loadDiscovered(dir, ids))
     saved_discovered = std::move(ids);
+  furnaces_.clear();
+  if (std::vector<WorldSave::FurnaceRecord> fs; WorldSave::loadFurnaces(dir, fs))
+    for (const auto &r : fs) furnaces_[r.pos] = r.furnace;
   WorldSave::loadGuests(dir, guest_records);
   return true;
 }
@@ -97,7 +100,11 @@ bool Game::save() {
   for (const auto &[name, rec] : guest_records)
     guests_ok &= WorldSave::saveGuest(save_dir, name, rec);
 
+  std::vector<WorldSave::FurnaceRecord> furnaces;
+  for (const auto &[pos, f] : furnaces_) furnaces.push_back({pos, f});
+
   if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits()) ||
+      !WorldSave::saveFurnaces(save_dir, furnaces) ||
       (inv && !WorldSave::saveInventory(save_dir, *inv)) ||
       (discovered && !WorldSave::saveDiscovered(save_dir, *discovered)) || !guests_ok) {
     std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";
@@ -308,6 +315,7 @@ void Game::tick() {
   spawner_.tick(entities_, world_, rng_, positions, clock_.fractionOfDay(),
                 g_settings.difficulty);
   releaseAnimalProducts();
+  tickFurnaces();
   mergeDroppedItems();
   pickUpDroppedItems();
 
@@ -383,6 +391,35 @@ void Game::rescueFromVoid(Client &client, PlayerState &ps) {
   ps.position = to;
   ++ps.respawn; // moves sent from down there are stale now
   client.link->deliver(Respawned{ps.position, ps.respawn});
+}
+
+// ─── Furnaces ──────────────────────────────────────────────────────────
+
+const Furnace *Game::furnaceAt(glm::ivec3 pos) const {
+  auto it = furnaces_.find(pos);
+  return it == furnaces_.end() ? nullptr : &it->second;
+}
+
+void Game::tickFurnaces() {
+  for (auto &[pos, furnace] : furnaces_)
+    if (tickFurnace(furnace, kTickMs).lit_changed) showFurnaceLit(pos, furnace.lit());
+}
+
+void Game::showFurnaceLit(glm::ivec3 pos, bool lit) {
+  BlockType look = lit ? BlockType::FURNACE_LIT : BlockType::FURNACE;
+  world_.applyEdit(pos, look); // recorded even if the chunk isn't loaded
+  broadcast(BlockChanged{pos, look});
+}
+
+void Game::spillFurnace(glm::ivec3 pos) {
+  auto it = furnaces_.find(pos);
+  if (it == furnaces_.end()) return;
+  std::uniform_real_distribution<float> side(-1.0f, 1.0f);
+  for (const ItemStack &s : {it->second.input, it->second.fuel, it->second.output})
+    if (!s.empty())
+      dropItem(s, glm::vec3(pos) + glm::vec3(0.5f, 0.3f, 0.5f), {side(rng_), 4.0f, side(rng_)},
+               kBreakDropDelayMs);
+  furnaces_.erase(it);
 }
 
 // ─── Commands ──────────────────────────────────────────────────────────
@@ -501,6 +538,7 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
 
   world_.setBlockAt(cmd.pos, BlockType::AIR);
   broadcast(BlockChanged{cmd.pos, BlockType::AIR});
+  spillFurnace(cmd.pos);
 
   // Survival: collect the drop.
   if (!rules().block_drops) return;
@@ -543,6 +581,7 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
 
   world_.setBlockAt(cmd.pos, *block);
   broadcast(BlockChanged{cmd.pos, *block});
+  if (*block == BlockType::FURNACE) furnaces_[cmd.pos] = Furnace{};
   if (rules().consume_blocks) {
     ps->inventory.take(ps->selected_slot, 1);
     sendInventory(client, *ps);

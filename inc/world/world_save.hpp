@@ -3,6 +3,7 @@
 #include "chunk/chunk.hpp" // ChunkKey, ChunkKeyHash
 #include "core/game_mode.hpp"
 #include "item/item_stack.hpp"
+#include "item/smelting.hpp"
 #include "robin_hood/robin_hood.h"
 #include "world/worldgen_version.hpp"
 #include <cstdint>
@@ -70,6 +71,15 @@ bool saveInventory(const std::string &dir, std::span<const ItemStack> slots);
 // Worlds from before crafting have none; the Game starts it from the inventory.
 bool loadDiscovered(const std::string &dir, std::vector<ItemId> &out);
 bool saveDiscovered(const std::string &dir, std::span<const ItemId> ids);
+
+// furnaces.dat — every furnace's slots and timers, by block position.
+// Worlds from before smelting have none.
+struct FurnaceRecord {
+  glm::ivec3 pos{0};
+  Furnace furnace;
+};
+bool loadFurnaces(const std::string &dir, std::vector<FurnaceRecord> &out);
+bool saveFurnaces(const std::string &dir, std::span<const FurnaceRecord> furnaces);
 
 // players/<name>.dat — a guest's state, kept in the host's world so they carry
 // on where they left off. The host's own record stays in player.dat and
