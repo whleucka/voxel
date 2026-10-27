@@ -112,7 +112,7 @@ TitleMenu::Choice TitleMenu::draw(double now, std::string &name, std::string &la
 void TitleMenu::drawTitle() {
   const ImGuiIO &io = ImGui::GetIO();
   ImDrawList *draw = ImGui::GetForegroundDrawList();
-  const char *title = "VOXEL";
+  const char *title = "GRUMBLEGROVE";
   float size = std::max(48.0f, io.DisplaySize.y * 0.11f);
   ImVec2 extent = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, title);
   ImVec2 at(io.DisplaySize.x * 0.5f - extent.x * 0.5f, io.DisplaySize.y * 0.12f);
@@ -130,7 +130,7 @@ void TitleMenu::drawTitle() {
 
 void TitleMenu::drawVersion() {
   const ImGuiIO &io = ImGui::GetIO();
-  const char *text = "voxel " VOXEL_VERSION;
+  const char *text = "Grumblegrove " VOXEL_VERSION;
   float size = 15.0f;
   ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
   ImGui::GetForegroundDrawList()->AddText(

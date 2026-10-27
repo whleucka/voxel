@@ -554,7 +554,7 @@ void Engine::debug() {
 
     ImGui::SetNextWindowSize(ImVec2(360, 0), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Voxel Engine", nullptr,
+    ImGui::Begin("Grumblegrove###Voxel Engine", nullptr,
                  ImGuiWindowFlags_NoNav | ImGuiWindowFlags_AlwaysAutoResize);
 
     if (ImGui::BeginTabBar("##tabs")) {
