@@ -89,8 +89,20 @@ def petals():
     return img
 
 
-# Animal products, after the shape-based materials, in ItemId order.
-DRAWN = [wool, berries, shell, petals]
+def sticks():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    for (x0, y0, x1, y1) in [(5, 24, 17, 5), (15, 28, 27, 10)]:  # two twigs, apart
+        d.line([(x0, y0), (x1, y1)], fill=(70, 48, 26, 255), width=4)
+        d.line([(x0, y0), (x1, y1)], fill=(160, 116, 70, 255), width=2)
+        d.point((x1, y1), fill=(210, 176, 124, 255))
+    d.line([(11, 15), (15, 15)], fill=(70, 48, 26, 255), width=2)  # a side twig
+    return img
+
+
+# Animal products and crafted items, after the shape-based materials, in
+# ItemId order.
+DRAWN = [wool, berries, shell, petals, sticks]
 
 
 def main():

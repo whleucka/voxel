@@ -385,6 +385,9 @@ void Engine::handleEvents() {
       game_mode = joined->mode;
       *player->getFlyModePtr() = joined->fly;
       player->setFlyAllowed(rulesFor(game_mode).fly);
+      known_items.reset();
+      known_baseline = true;
+      crafting_scroll = 0;
       menu.close();
     }
     else if (const auto *refused = std::get_if<JoinRefused>(&ev)) {
@@ -399,6 +402,22 @@ void Engine::handleEvents() {
     else if (const auto *contents = std::get_if<InventoryContents>(&ev)) {
       inventory_view = contents->slots;
       inventory_screen.sync(inventory_view);
+    }
+    else if (const auto *known = std::get_if<KnownItems>(&ev)) {
+      // Recipes this unlocks get a popup, except for the whole set on joining.
+      std::vector<uint16_t> unlocked;
+      SeenItems before = known_items;
+      for (ItemId id : known->ids) see(known_items, id);
+      for (size_t i = 0; i < recipes().size(); ++i)
+        if (!knows(recipes()[i], before) && knows(recipes()[i], known_items))
+          unlocked.push_back(static_cast<uint16_t>(i));
+      if (!known_baseline && !unlocked.empty() && game_mode != GameMode::Creative) {
+        std::string text = "New recipe: ";
+        text += itemDef(recipes()[unlocked.front()].makes.id).name;
+        if (unlocked.size() > 1) text += " (+" + std::to_string(unlocked.size() - 1) + " more)";
+        hud.notice(std::move(text), glfwGetTime());
+      }
+      known_baseline = false;
     }
     else if (const auto *vitals = std::get_if<VitalsChanged>(&ev)) {
       if (vitals->health < vitals_view.health) hud.flashDamage(glfwGetTime());
@@ -464,11 +483,18 @@ void Engine::render() {
                             {io.MousePos.x, io.MousePos.y});
     if (rulesFor(game_mode).palette)
       hud.drawPalette(layout, paletteItems(), {io.MousePos.x, io.MousePos.y});
+    std::vector<CraftRow> rows = craftingRowsNow();
+    int most = std::max(0, static_cast<int>(rows.size()) - layout.craftingVisibleRows());
+    crafting_scroll = std::clamp(crafting_scroll, 0, most);
+    Inventory inv;
+    for (int i = 0; i < kInventorySlots; ++i) inv.set(i, inventory_view[i]);
+    hud.drawCrafting(layout, rows, crafting_scroll, inv, {io.MousePos.x, io.MousePos.y});
   } else {
     hud.drawHotbar(layout, inventory_view, player->getSelectedHotbarSlot(),
                    glfwGetTime());
     hud.drawVitals(layout, vitals_view, glfwGetTime());
   }
+  hud.drawNotice(layout, glfwGetTime());
   if (vitals_view.dead) hud.drawDeathScreen();
   PauseMenu::Action action = pause.draw(session->mode() == Session::Mode::Single,
                                         session->isGuest(), glfwGetTime());
@@ -991,6 +1017,18 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     const Inventory::Slots &inv = engine->inventory_view;
     InventoryScreen &screen = engine->inventory_screen;
 
+    // Crafting: a click makes one, shift-click as many as fit. Rows the Game
+    // would refuse do nothing.
+    if (auto row = layout.hitTestCrafting(io.MousePos.x, io.MousePos.y)) {
+      std::vector<CraftRow> rows = engine->craftingRowsNow();
+      int index = engine->crafting_scroll + *row;
+      screen.close(); // drop any pick-up; nothing was moved yet
+      if (button == GLFW_MOUSE_BUTTON_LEFT && index < static_cast<int>(rows.size()) &&
+          rows[index].canCraft())
+        engine->connection().send(Craft{rows[index].recipe, (mods & GLFW_MOD_SHIFT) != 0});
+      return;
+    }
+
     // Creative palette: a click gives a full stack of that item.
     if (rulesFor(engine->game_mode).palette && !slot) {
       const std::vector<ItemId> &items = paletteItems();
@@ -1051,6 +1089,9 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     const ItemStack &held = engine->inventory_view[player->getSelectedHotbarSlot()];
     if (auto animal = aimedEntity(isAnimal))
       engine->connection().send(InteractEntity{*animal});
+    // Use a Crafting Table (crouch to place against it instead).
+    else if (ray.hit && ray.block_type == BlockType::CRAFTING_TABLE && !player->isCrouching())
+      engine->setInventoryOpen(true);
     else if (!held.empty() && itemDef(held.id).food_heal > 0)
       engine->connection().send(EatItem{});
     else if (ray.hit)
@@ -1065,6 +1106,16 @@ void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
   if (!engine->playing() || engine->paused()) return;
   auto& player = engine->player;
 
+  // Over the crafting panel the wheel scrolls its list (clamped when drawn).
+  if (player->isInventoryOpen()) {
+    const ImGuiIO &io = ImGui::GetIO();
+    HudLayout layout(io.DisplaySize.x, io.DisplaySize.y);
+    if (layout.craftingPanel().contains(io.MousePos.x, io.MousePos.y)) {
+      engine->crafting_scroll -= yoffset > 0 ? 1 : (yoffset < 0 ? -1 : 0);
+      return;
+    }
+  }
+
   int slot = player->getSelectedHotbarSlot();
   if (yoffset < 0) {
     slot = (slot + 1) % kHotbarSlots;
@@ -1072,6 +1123,13 @@ void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
     slot = (slot - 1 + kHotbarSlots) % kHotbarSlots;
   }
   engine->selectSlot(slot);
+}
+
+std::vector<CraftRow> Engine::craftingRowsNow() {
+  Inventory inv;
+  for (int i = 0; i < kInventorySlots; ++i) inv.set(i, inventory_view[i]);
+  bool table = player && Game::craftingTableWithinReach(world(), player->getEyePosition());
+  return craftingRows(known_items, game_mode == GameMode::Creative, inv, table);
 }
 
 void Engine::setInventoryOpen(bool open) {

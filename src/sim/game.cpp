@@ -8,6 +8,17 @@
 #include <cmath>
 #include <iostream>
 
+namespace {
+
+std::vector<ItemId> seenList(const SeenItems &seen) {
+  std::vector<ItemId> out;
+  for (size_t v = 0; v < seen.size(); ++v)
+    if (seen.test(v)) out.push_back(static_cast<ItemId>(v));
+  return out;
+}
+
+} // namespace
+
 // ─── Setup ─────────────────────────────────────────────────────────────
 
 Game::Game()
@@ -42,6 +53,8 @@ bool Game::load(const std::string &dir) {
     inventory = std::move(inv);
 
   restore(level, std::move(edits), player, std::move(inventory));
+  if (std::vector<ItemId> ids; WorldSave::loadDiscovered(dir, ids))
+    saved_discovered = std::move(ids);
   WorldSave::loadGuests(dir, guest_records);
   return true;
 }
@@ -74,6 +87,8 @@ bool Game::save() {
   // nothing to write, and the next join gets the starter kit.
   std::optional<std::vector<ItemStack>> inv = saved_inventory;
   if (host) inv.emplace(host->inventory.slots().begin(), host->inventory.slots().end());
+  std::optional<std::vector<ItemId>> discovered = saved_discovered;
+  if (host) discovered = seenList(host->seen);
 
   // Guests in the game now, then everyone who has ever played here.
   for (const Client &c : clients)
@@ -83,7 +98,8 @@ bool Game::save() {
     guests_ok &= WorldSave::saveGuest(save_dir, name, rec);
 
   if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits()) ||
-      (inv && !WorldSave::saveInventory(save_dir, *inv)) || !guests_ok) {
+      (inv && !WorldSave::saveInventory(save_dir, *inv)) ||
+      (discovered && !WorldSave::saveDiscovered(save_dir, *discovered)) || !guests_ok) {
     std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";
     return false;
   }
@@ -133,6 +149,7 @@ void Game::storeGuest(const PlayerState &ps) {
   rec.player = {ps.position, ps.yaw, ps.pitch, ps.selected_slot,
                 static_cast<uint8_t>(ps.fly ? 1 : 0)};
   rec.inventory.assign(ps.inventory.slots().begin(), ps.inventory.slots().end());
+  rec.discovered = seenList(ps.seen);
   guest_records[ps.name] = std::move(rec);
 }
 
@@ -169,8 +186,16 @@ void Game::broadcast(const Event &ev) {
   for (Client &client : clients) client.link->deliver(ev);
 }
 
-void Game::sendInventory(Client &client, const PlayerState &ps) {
+void Game::sendInventory(Client &client, PlayerState &ps) {
+  // Every way an item arrives (pickups, crafting, the palette, the kit, a
+  // loaded save) ends here, so this is where items count as seen.
+  for (const ItemStack &s : ps.inventory.slots()) see(ps.seen, s.id);
   client.link->deliver(InventoryContents{ps.inventory.slots()});
+  SeenItems fresh = ps.seen & ~ps.seen_sent;
+  if (fresh.any()) {
+    client.link->deliver(KnownItems{seenList(fresh)});
+    ps.seen_sent |= fresh;
+  }
 }
 
 Inventory Game::starterKit() {
@@ -178,6 +203,25 @@ Inventory Game::starterKit() {
   // Glowstone is the only light source and never generates naturally.
   kit.set(0, {itemForBlock(BlockType::GLOWSTONE), 8});
   return kit;
+}
+
+bool Game::tableInReach(const PlayerState &ps) const {
+  return craftingTableWithinReach(world_, ps.eyePosition());
+}
+
+bool Game::craftingTableWithinReach(const World &world, glm::vec3 eye) {
+  constexpr float kHalfBlockDiagonal = 0.8660254f; // as in inReach()
+  const glm::ivec3 at = glm::floor(eye);
+  const int r = static_cast<int>(std::ceil(kPlayerReach + 1.0f));
+  for (int dy = -r; dy <= r; ++dy)
+    for (int dz = -r; dz <= r; ++dz)
+      for (int dx = -r; dx <= r; ++dx) {
+        glm::ivec3 p = at + glm::ivec3(dx, dy, dz);
+        if (world.getBlockAt(glm::vec3(p) + 0.5f) == BlockType::CRAFTING_TABLE &&
+            glm::distance(eye, glm::vec3(p) + 0.5f) <= kPlayerReach + kHalfBlockDiagonal)
+          return true;
+      }
+  return false;
 }
 
 // The client's raycast measures reach to the face it hit; the block's centre
@@ -384,12 +428,18 @@ void Game::apply(Client &client, const Join &cmd) {
   if (rec) {
     for (int i = 0; i < kInventorySlots && i < static_cast<int>(rec->inventory.size()); ++i)
       ps.inventory.set(i, rec->inventory[i]);
+    for (ItemId id : rec->discovered) see(ps.seen, id);
   } else if (client.role == Role::Host && saved_inventory) {
     for (int i = 0; i < kInventorySlots && i < static_cast<int>(saved_inventory->size()); ++i)
       ps.inventory.set(i, (*saved_inventory)[i]);
     saved_inventory.reset();
   } else {
     ps.inventory = starterKit();
+  }
+
+  if (client.role == Role::Host && saved_discovered) {
+    for (ItemId id : *saved_discovered) see(ps.seen, id);
+    saved_discovered.reset();
   }
 
   // A guest builds its own copy of the world before it hears it has joined.
@@ -399,13 +449,13 @@ void Game::apply(Client &client, const Join &cmd) {
                                  world_.editList(), worldgen_});
   for (Client &other : clients)
     if (other.player) other.link->deliver(PlayerJoined{ps.id, ps.name});
-  players[ps.id] = ps;
-  client.player = ps.id;
+  PlayerState &joined = players[ps.id] = std::move(ps);
+  client.player = joined.id;
   // Flying from a creative visit doesn't carry into survival.
-  if (!rules().fly) ps.fly = false;
-  client.link->deliver(Joined{ps.id, ps.position, ps.yaw, ps.pitch,
-                              ps.selected_slot, ps.fly, mode_});
-  sendInventory(client, ps);
+  if (!rules().fly) joined.fly = false;
+  client.link->deliver(Joined{joined.id, joined.position, joined.yaw, joined.pitch,
+                              joined.selected_slot, joined.fly, mode_});
+  sendInventory(client, joined);
 }
 
 void Game::apply(Client &client, const MovePlayer &cmd) {
@@ -706,6 +756,28 @@ void Game::releaseAnimalProducts() {
   std::uniform_real_distribution<float> side(-1.0f, 1.0f);
   for (auto &[stack, at] : out)
     dropItem(stack, at, {side(rng_), 3.5f, side(rng_)}, kBreakDropDelayMs);
+}
+
+void Game::apply(Client &client, const Craft &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead()) return;
+  if (cmd.recipe >= recipes().size()) return reject(client, "craft: no such recipe");
+  const Recipe &recipe = recipes()[cmd.recipe];
+  if (mode_ != GameMode::Creative && !knows(recipe, ps->seen))
+    return reject(client, "craft: you haven't discovered that yet");
+  if (recipe.needs_table && !tableInReach(*ps))
+    return reject(client, "craft: needs a Crafting Table nearby");
+  if (timesAffordable(recipe, ps->inventory) < 1)
+    return reject(client, "craft: missing ingredients");
+
+  int made = 0;
+  while (auto after = craftOnce(recipe, ps->inventory)) {
+    ps->inventory = *after;
+    ++made;
+    if (!cmd.all) break;
+  }
+  if (made == 0) return reject(client, "craft: no room in your inventory");
+  sendInventory(client, *ps);
 }
 
 void Game::apply(Client &client, const EatItem &) {

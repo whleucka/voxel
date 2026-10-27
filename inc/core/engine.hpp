@@ -48,6 +48,11 @@ private:
   std::vector<EntityView> entity_views; // this frame's interpolated entities
   std::vector<PlayerView> player_views; // this frame's other players
   InventoryScreen inventory_screen;
+  SeenItems known_items;       // from KnownItems: what unlocks recipes
+  bool known_baseline = true;  // the first KnownItems after joining: no popup
+  int crafting_scroll = 0;     // first crafting row shown
+  // The crafting panel's rows right now (inventory, discoveries, a table near).
+  std::vector<CraftRow> craftingRowsNow();
   TitleMenu menu;
   MenuScene scene; // the live world behind the menu
   double join_started = 0.0; // a guest waiting for Joined since then

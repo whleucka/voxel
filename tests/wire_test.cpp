@@ -201,3 +201,11 @@ TEST_CASE("the hello frame carries the protocol version") {
   CHECK_FALSE(wire::readHello(wrong));
   CHECK_FALSE(wire::readHello(enc(Command{Join{}})));
 }
+
+TEST_CASE("crafting messages round-trip") {
+  roundTrip(Craft{15, true});
+  CHECK(std::get<Craft>(*wire::decodeCommand(enc(Command{Craft{7, false}}))).recipe == 7);
+  KnownItems k{{ItemId::STICKS, itemForBlock(BlockType::CRAFTING_TABLE), ItemId::RUBY}};
+  auto back = std::get<KnownItems>(*wire::decodeEvent(enc(Event{k})));
+  CHECK(back.ids == k.ids);
+}

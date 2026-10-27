@@ -177,3 +177,33 @@ TEST_CASE("unreadable guest files are skipped") {
   CHECK(loaded.size() == 1);
   CHECK(loaded.count("good") == 1);
 }
+
+TEST_CASE("guest discoveries round-trip; a record from before crafting has none") {
+  TempDir dir;
+  WorldSave::GuestRecord bea;
+  bea.inventory = {{ItemId::COAL, 5}};
+  bea.discovered = {ItemId::COAL, ItemId::RUBY, itemForBlock(BlockType::OAK_LOG)};
+  REQUIRE(WorldSave::saveGuest(dir.path.string(), "Bea", bea));
+  std::map<std::string, WorldSave::GuestRecord> loaded;
+  REQUIRE(WorldSave::loadGuests(dir.path.string(), loaded));
+  CHECK(loaded.at("Bea").discovered == bea.discovered);
+
+  // Drop the trailing section, as an older build wrote it.
+  auto file = dir.path / "players" / "Bea.dat";
+  std::filesystem::resize_file(file, std::filesystem::file_size(file) - (4 + 2 * 3));
+  loaded.clear();
+  REQUIRE(WorldSave::loadGuests(dir.path.string(), loaded));
+  CHECK(loaded.at("Bea").inventory == bea.inventory);
+  CHECK(loaded.at("Bea").discovered.empty());
+}
+
+TEST_CASE("discovered.dat round-trips and skips unknown ids") {
+  TempDir dir;
+  std::vector<ItemId> ids = {ItemId::STICKS, itemForBlock(BlockType::CRAFTING_TABLE),
+                             static_cast<ItemId>(499)};
+  REQUIRE(WorldSave::saveDiscovered(dir.path.string(), ids));
+  std::vector<ItemId> back;
+  REQUIRE(WorldSave::loadDiscovered(dir.path.string(), back));
+  CHECK(back == std::vector<ItemId>{ItemId::STICKS, itemForBlock(BlockType::CRAFTING_TABLE)});
+  CHECK_FALSE(WorldSave::loadDiscovered((dir.path / "nope").string(), back));
+}

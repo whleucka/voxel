@@ -13,6 +13,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 // The authoritative simulation. Owns the world, the clock and every player's
@@ -98,6 +99,13 @@ public:
   // Drives spawning, wandering and hops; tests reseed it for determinism.
   Rng &rng() { return rng_; }
   const PlayerState *findPlayer(PlayerId id) const;
+  PlayerState *findPlayer(PlayerId id) {
+    return const_cast<PlayerState *>(std::as_const(*this).findPlayer(id));
+  }
+
+  // A Crafting Table close enough to an eye at `eye` to use: the rule the
+  // Game checks crafts with, shared with the client's crafting panel.
+  static bool craftingTableWithinReach(const World &world, glm::vec3 eye);
   // A guest's saved state, if they've played here before.
   const WorldSave::GuestRecord *guestRecord(const std::string &name) const;
 
@@ -126,6 +134,7 @@ private:
   void apply(Client &client, const SpawnDebugEntity &cmd);
   void apply(Client &client, const InteractEntity &cmd);
   void apply(Client &client, const EatItem &cmd);
+  void apply(Client &client, const Craft &cmd);
   // Eye-to-box distance check shared by hitting and feeding.
   bool inReachOf(const PlayerState &ps, const Entity &e) const;
   void releaseAnimalProducts();
@@ -143,8 +152,12 @@ private:
   void reject(Client &client, std::string reason);
   bool hostOnly(Client &client, std::string_view what);
   void broadcast(const Event &ev);
-  void sendInventory(Client &client, const PlayerState &ps);
+  // Sends the inventory, and notes any item the player hasn't had before.
+  void sendInventory(Client &client, PlayerState &ps);
   bool inReach(const PlayerState &ps, const glm::ivec3 &block) const;
+  // A Crafting Table within the player's reach (the same rule as placing).
+  bool tableInReach(const PlayerState &ps) const;
+
   bool overlapsAnyPlayer(const glm::ivec3 &block) const;
   // Stream chunks around every player.
   void updateInterestPoints();
@@ -172,6 +185,7 @@ private:
   PlayerId next_player_id = 1;
   std::optional<WorldSave::PlayerData> saved_player;
   std::optional<std::vector<ItemStack>> saved_inventory;
+  std::optional<std::vector<ItemId>> saved_discovered; // the host's, like saved_inventory
   // Guests who have played in this world, by name (players/<name>.dat).
   std::map<std::string, WorldSave::GuestRecord> guest_records;
   void storeGuest(const PlayerState &ps);

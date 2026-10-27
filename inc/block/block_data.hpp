@@ -150,6 +150,7 @@ inline std::string_view blockName(BlockType type) {
     case BlockType::PURPLE_BLOCK:  return "Purple Block";
     case BlockType::PINK_BLOCK:    return "Pink Block";
     case BlockType::GLOW_CRYSTAL:  return "Glow Crystal";
+    case BlockType::CRAFTING_TABLE: return "Crafting Table";
     default:                      return "Unknown";
   }
 }
@@ -199,4 +200,6 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = {
     {BlockType::PINK_BLOCK, {glm::ivec2{14, 2}, glm::ivec2{14, 2}, glm::ivec2{14, 2}}},
     {BlockType::GLOWSTONE, {glm::ivec2{15, 2}, glm::ivec2{15, 2}, glm::ivec2{15, 2}}},
     {BlockType::GLOW_CRYSTAL, {glm::ivec2{0, 3}, glm::ivec2{0, 3}, glm::ivec2{0, 3}}},
+    // A worktop on top, a tool rack round the sides, and the worktop again below.
+    {BlockType::CRAFTING_TABLE, {glm::ivec2{1, 3}, glm::ivec2{1, 3}, glm::ivec2{2, 3}}},
 };

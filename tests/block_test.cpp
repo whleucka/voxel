@@ -109,3 +109,12 @@ TEST_CASE("the glow crystal glows softer than the lamp and drops itself") {
   CHECK(std::find(palette.begin(), palette.end(),
                   itemForBlock(BlockType::GLOW_CRYSTAL)) != palette.end());
 }
+
+TEST_CASE("the crafting table is a plain solid block that drops itself") {
+  CHECK(static_cast<int>(BlockType::CRAFTING_TABLE) == 44);
+  CHECK(blockName(BlockType::CRAFTING_TABLE) == "Crafting Table");
+  CHECK(blockLightEmission(BlockType::CRAFTING_TABLE) == 0);
+  CHECK(skyLightOpacity(BlockType::CRAFTING_TABLE) == 15);
+  CHECK_FALSE(isCutout(BlockType::CRAFTING_TABLE));
+  CHECK(dropFor(BlockType::CRAFTING_TABLE) == itemForBlock(BlockType::CRAFTING_TABLE));
+}

@@ -165,6 +165,41 @@ def crystal(rng):
     return img
 
 
+def table_top(rng):
+    """A worktop: oak boards inside a darker frame, with a square marked out."""
+    img = planks((150, 116, 74), rng)
+    px = pixels(img)
+    frame = (92, 64, 36)
+    for y in range(TILE):
+        for x in range(TILE):
+            if x < 3 or y < 3 or x > TILE - 4 or y > TILE - 4:
+                px[x, y] = shade(frame, rng.randint(-8, 8) + (14 if x == 0 or y == 0 else 0)) + (255,)
+    for i in range(9, 23):  # a marked-out square, scored into the wood
+        for x, y in ((i, 9), (i, 22), (9, i), (22, i)):
+            px[x, y] = (110, 80, 48, 255)
+    return img
+
+
+def table_side(rng):
+    """Boards with legs at the corners and a hammer and saw on a rack."""
+    img = planks((150, 116, 74), rng)
+    px = pixels(img)
+    frame = (92, 64, 36)
+    for y in range(TILE):
+        for x in range(TILE):
+            if y < 4 or x < 4 or x > TILE - 5:
+                px[x, y] = shade(frame, rng.randint(-8, 8)) + (255,)
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([8, 9, 9, 24], fill=(110, 76, 44, 255))      # hammer handle
+    draw.rectangle([5, 8, 13, 11], fill=(150, 150, 158, 255))   # hammer head
+    draw.rectangle([5, 8, 13, 8], fill=(200, 200, 208, 255))
+    draw.polygon([(17, 10), (26, 10), (26, 24), (17, 20)], fill=(180, 182, 190, 255))  # saw blade
+    for y in range(12, 22, 2):
+        draw.point((26, y), fill=(120, 122, 130, 255))
+    draw.rectangle([15, 9, 18, 13], fill=(110, 76, 44, 255))    # saw grip
+    return img
+
+
 def lamp(rng):
     """Four glowing panes in a dark iron frame, brightest in the middle."""
     img = new_tile()
@@ -208,6 +243,8 @@ TILES = [
     ("lamp",          lamp),
     # Row 3
     ("glow_crystal",  crystal),
+    ("crafting_table_top",  table_top),
+    ("crafting_table_side", table_side),
 ]
 
 

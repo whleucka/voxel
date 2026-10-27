@@ -32,10 +32,11 @@ Joined join(Game &game, LocalConnection &conn) {
   conn.send(Join{});
   game.pump();
   auto events = pollAll(conn);
-  REQUIRE(events.size() == 3);
+  REQUIRE(events.size() == 4);
   REQUIRE(std::holds_alternative<Joined>(events[0]));
   REQUIRE(std::holds_alternative<InventoryContents>(events[1]));
-  REQUIRE(std::holds_alternative<VitalsChanged>(events[2]));
+  REQUIRE(std::holds_alternative<KnownItems>(events[2])); // the starter kit, at least
+  REQUIRE(std::holds_alternative<VitalsChanged>(events[3]));
   return std::get<Joined>(events[0]);
 }
 
@@ -416,6 +417,163 @@ TEST_CASE_FIXTURE(EditGame, "a played game round-trips through save and load") {
   CHECK(j.slot == 7);
   CHECK(j.fly);
   CHECK(loaded.findPlayer(j.id)->inventory.slots() == saved_inv.slots());
+}
+
+// ─── Discovery (items seen) ────────────────────────────────────────────
+
+namespace {
+bool seen(const Game &game, PlayerId id, ItemId item) {
+  return game.findPlayer(id)->seen.test(static_cast<size_t>(item));
+}
+int heldCount(const Inventory &inv, ItemId id) {
+  int n = 0;
+  for (const ItemStack &s : inv.slots()) n += s.id == id ? s.count : 0;
+  return n;
+}
+} // namespace
+
+TEST_CASE_FIXTURE(EditGame, "items count as seen once they've been in the inventory") {
+  CHECK(seen(game, id, itemForBlock(BlockType::GLOWSTONE))); // the starter kit
+  CHECK_FALSE(seen(game, id, ItemId::RUBY));
+  run(GiveItem{ItemId::RUBY, 1});
+  CHECK(seen(game, id, ItemId::RUBY));
+
+  glm::ivec3 target{5, ground, 5};
+  ItemId drop = *dropFor(at(target));
+  run(BreakBlock{target});
+  CHECK(seen(game, id, drop));
+
+  // Still seen after it's gone.
+  for (int i = 0; i < kInventorySlots; ++i)
+    if (inventory().slot(i).id == ItemId::RUBY) {
+      run(SelectSlot{i});
+      run(DropItem{true});
+    }
+  REQUIRE(heldCount(inventory(), ItemId::RUBY) == 0);
+  CHECK(seen(game, id, ItemId::RUBY));
+}
+
+TEST_CASE_FIXTURE(EditGame, "the host's discoveries are saved, even for items they no longer have") {
+  ScopedSeed seed;
+  TempDir dir;
+  CHECK_FALSE(game.load(dir.path.string()));
+  run(GiveItem{ItemId::EMERALD, 1});
+  for (int i = 0; i < kHotbarSlots; ++i)
+    if (inventory().slot(i).id == ItemId::EMERALD) {
+      run(SelectSlot{i});
+      run(DropItem{true});
+    }
+  run(Save{});
+
+  ScopedRenderDistance rd2{0};
+  Game loaded;
+  REQUIRE(loaded.load(dir.path.string()));
+  LocalConnection c;
+  Joined j = join(loaded, c);
+  CHECK(seen(loaded, j.id, ItemId::EMERALD));
+  CHECK(heldCount(loaded.findPlayer(j.id)->inventory, ItemId::EMERALD) == 0);
+}
+
+TEST_CASE_FIXTURE(EditGame, "a world from before crafting starts discoveries from the inventory") {
+  ScopedSeed seed;
+  TempDir dir;
+  CHECK_FALSE(game.load(dir.path.string()));
+  run(GiveItem{ItemId::DIAMOND, 2});
+  run(Save{});
+  std::filesystem::remove(dir.path / "discovered.dat");
+
+  ScopedRenderDistance rd2{0};
+  Game loaded;
+  REQUIRE(loaded.load(dir.path.string()));
+  LocalConnection c;
+  Joined j = join(loaded, c);
+  CHECK(seen(loaded, j.id, ItemId::DIAMOND));
+  CHECK_FALSE(seen(loaded, j.id, ItemId::RUBY));
+}
+
+// ─── Crafting ──────────────────────────────────────────────────────────
+
+namespace {
+constexpr uint16_t kOakPlanksRecipe = 0, kTableRecipe = 5, kStoneBricksRecipe = 6,
+                   kRedRecipe = 8;
+
+std::string reason(const std::vector<Event> &evs) {
+  for (const Event &e : evs)
+    if (const auto *r = std::get_if<CommandRejected>(&e)) return r->reason;
+  return "";
+}
+} // namespace
+
+TEST_CASE_FIXTURE(EditGame, "planks can be made anywhere, and announce themselves") {
+  run(GiveItem{itemForBlock(BlockType::OAK_LOG), 2});
+  auto evs = run(Craft{kOakPlanksRecipe, false});
+  CHECK(heldCount(inventory(), itemForBlock(BlockType::OAK_LOG)) == 1);
+  CHECK(heldCount(inventory(), itemForBlock(BlockType::OAK_PLANKS)) == 4);
+  const KnownItems *known = nullptr;
+  for (const Event &e : evs)
+    if (const auto *k = std::get_if<KnownItems>(&e)) known = k;
+  REQUIRE(known);
+  CHECK(known->ids == std::vector<ItemId>{itemForBlock(BlockType::OAK_PLANKS)});
+}
+
+TEST_CASE_FIXTURE(EditGame, "\"all\" crafts as many as the ingredients allow") {
+  run(GiveItem{itemForBlock(BlockType::OAK_LOG), 3});
+  run(Craft{kOakPlanksRecipe, true});
+  CHECK(heldCount(inventory(), itemForBlock(BlockType::OAK_LOG)) == 0);
+  CHECK(heldCount(inventory(), itemForBlock(BlockType::OAK_PLANKS)) == 12);
+}
+
+TEST_CASE_FIXTURE(EditGame, "a recipe you haven't discovered is refused in survival") {
+  run(GiveItem{itemForBlock(BlockType::WHITE_BLOCK), 8});
+  place({5, ground + 1, 5}, BlockType::CRAFTING_TABLE);
+  auto evs = run(Craft{kRedRecipe, false}); // never seen a ruby
+  CHECK(reason(evs) == "craft: you haven't discovered that yet");
+  CHECK(heldCount(inventory(), itemForBlock(BlockType::WHITE_BLOCK)) == 8);
+}
+
+TEST_CASE_FIXTURE(EditGame, "table recipes need a Crafting Table in reach") {
+  run(GiveItem{itemForBlock(BlockType::COBBLESTONE), 4});
+  CHECK(reason(run(Craft{kStoneBricksRecipe, false})) == "craft: needs a Crafting Table nearby");
+
+  // One just out of reach doesn't count...
+  game.world().setBlockAt({5, ground + 1, 15}, BlockType::CRAFTING_TABLE);
+  CHECK(reason(run(Craft{kStoneBricksRecipe, false})) == "craft: needs a Crafting Table nearby");
+  CHECK(heldCount(inventory(), itemForBlock(BlockType::COBBLESTONE)) == 4);
+
+  // ...one close by does.
+  game.world().setBlockAt({5, ground + 1, 6}, BlockType::CRAFTING_TABLE);
+  run(Craft{kStoneBricksRecipe, false});
+  CHECK(heldCount(inventory(), itemForBlock(BlockType::STONE_BRICKS)) == 4);
+  CHECK(heldCount(inventory(), itemForBlock(BlockType::COBBLESTONE)) == 0);
+}
+
+TEST_CASE_FIXTURE(EditGame, "missing ingredients, unknown recipes and a full inventory change nothing") {
+  CHECK(reason(run(Craft{kTableRecipe, false})) == "craft: you haven't discovered that yet");
+  run(GiveItem{itemForBlock(BlockType::PINE_PLANKS), 3});
+  CHECK(reason(run(Craft{kTableRecipe, false})) == "craft: missing ingredients");
+  CHECK(reason(run(Craft{9999, false})) == "craft: no such recipe");
+
+  // Two logs in one slot (so it doesn't free up) and every other slot full.
+  PlayerState &me = *game.findPlayer(id);
+  for (int i = 0; i < kInventorySlots; ++i) me.inventory.set(i, {ItemId::COAL, 64});
+  me.inventory.set(3, {itemForBlock(BlockType::OAK_LOG), 2});
+  see(me.seen, itemForBlock(BlockType::OAK_LOG));
+  Inventory before = me.inventory;
+  CHECK(reason(run(Craft{kOakPlanksRecipe, false})) == "craft: no room in your inventory");
+  CHECK(me.inventory.slots() == before.slots());
+}
+
+TEST_CASE_FIXTURE(EditGame, "creative knows every recipe") {
+  // Put the ingredients straight in, so neither counts as seen.
+  PlayerState &me = *game.findPlayer(id);
+  me.inventory.set(20, {itemForBlock(BlockType::WHITE_BLOCK), 8});
+  me.inventory.set(21, {ItemId::RUBY, 1});
+  game.world().setBlockAt({5, ground + 1, 6}, BlockType::CRAFTING_TABLE);
+  CHECK(reason(run(Craft{kRedRecipe, false})) == "craft: you haven't discovered that yet");
+
+  game.setMode(GameMode::Creative);
+  run(Craft{kRedRecipe, false});
+  CHECK(heldCount(inventory(), itemForBlock(BlockType::RED_BLOCK)) == 8);
 }
 
 TEST_CASE_FIXTURE(SmallGame, "save without a bound directory fails") {
@@ -1822,4 +1980,18 @@ TEST_CASE_FIXTURE(SmallGame, "a saved flyer lands in a survival world") {
   creative.game.restore(level, {}, pd);
   LocalConnection c2;
   CHECK(join(creative.game, c2).fly);
+}
+
+TEST_CASE_FIXTURE(PartyGame, "a guest crafts at the host's table, checked the same way") {
+  game.world().loadChunkSync(0, 0);
+  PlayerId bea_id = find<Joined>(joinGuest("Bea"))->id;
+  PlayerState &bea = *game.findPlayer(bea_id);
+  bea.inventory.set(0, {itemForBlock(BlockType::COBBLESTONE), 4});
+  see(bea.seen, itemForBlock(BlockType::COBBLESTONE));
+  CHECK(reason(send(guest(), Craft{kStoneBricksRecipe, false})) ==
+        "craft: needs a Crafting Table nearby");
+  glm::ivec3 near = glm::ivec3(glm::floor(bea.position)) + glm::ivec3(1, 0, 0);
+  game.world().setBlockAt(near, BlockType::CRAFTING_TABLE);
+  send(guest(), Craft{kStoneBricksRecipe, false});
+  CHECK(heldCount(bea.inventory, itemForBlock(BlockType::STONE_BRICKS)) == 4);
 }

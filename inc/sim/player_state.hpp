@@ -2,6 +2,7 @@
 
 #include "core/constants.hpp"
 #include "inventory/inventory.hpp"
+#include "item/recipes.hpp"
 #include "vitals/vitals.hpp"
 #include "sim/protocol.hpp"
 #include <glm/glm.hpp>
@@ -20,6 +21,8 @@ struct PlayerState {
   bool fly = false;
   bool crouch = false;
   Inventory inventory;
+  SeenItems seen;          // every item they've ever had: unlocks recipes
+  SeenItems seen_sent;     // the part of `seen` their client has been told
 
   Vitals vitals;
   FallTracker fall;
