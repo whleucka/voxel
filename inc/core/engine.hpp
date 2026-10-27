@@ -27,7 +27,8 @@ private:
   GLFWwindow *window = nullptr;
   std::string win_title;
   int win_width, win_height;
-  int win_pos_x, win_pos_y;
+  int win_pos_x = 0, win_pos_y = 0;
+  bool shown_vsync = false, shown_fullscreen = false; // what the window has now
 
   // The game being played (single player, hosted or joined); null in the menu.
   std::unique_ptr<Session> session;
@@ -71,6 +72,7 @@ private:
   void endSession(std::string message = {});
   bool playing() const { return session && player; }
   void menuFrame();
+  void applyDisplaySettings();
   void startFromMenu(const TitleMenu::Choice &choice);
   void setCursorCaptured(bool captured);
   void debugMultiplayer();

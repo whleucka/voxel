@@ -1,4 +1,5 @@
 #include "core/engine.hpp"
+#include "ui/menu_style.hpp"
 #include "block/block_data.hpp"
 #include "core/config.hpp"
 #include "core/constants.hpp"
@@ -99,6 +100,8 @@ bool Engine::init() {
   glViewport(0, 0, win_width, win_height);
 
   glfwSwapInterval(g_settings.vsync ? 1 : 0);
+  shown_vsync = g_settings.vsync;
+  shown_fullscreen = g_settings.fullscreen;
 
   // ImGui
   IMGUI_CHECKVERSION();
@@ -107,6 +110,7 @@ bool Engine::init() {
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
   ImGui::StyleColorsDark();
+  applyMenuStyle();
 
   // Platform/Renderer bindings
   ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -127,6 +131,7 @@ void Engine::run() {
     float currentFrame = glfwGetTime();
     delta_time = currentFrame - last_frame;
     last_frame = currentFrame;
+    applyDisplaySettings();
 
     if (playing()) {
       processInput(window);
@@ -142,6 +147,28 @@ void Engine::run() {
 
   endSession(); // persist on quit
   scene.close(); // while the GL context is still alive
+}
+
+// ─── Display settings ──────────────────────────────────────────────────
+// F3, F11 and the settings page only change g_settings; the window follows
+// here, once per frame.
+
+void Engine::applyDisplaySettings() {
+  if (g_settings.vsync != shown_vsync) {
+    shown_vsync = g_settings.vsync;
+    glfwSwapInterval(shown_vsync ? 1 : 0);
+  }
+  if (g_settings.fullscreen == shown_fullscreen) return;
+  shown_fullscreen = g_settings.fullscreen;
+  if (shown_fullscreen) {
+    glfwGetWindowPos(window, &win_pos_x, &win_pos_y);
+    glfwGetWindowSize(window, &win_width, &win_height);
+    GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+    glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+  } else {
+    glfwSetWindowMonitor(window, nullptr, win_pos_x, win_pos_y, win_width, win_height, 0);
+  }
 }
 
 // ─── Title menu ────────────────────────────────────────────────────────
@@ -831,8 +858,7 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
       g_settings.wireframe = !g_settings.wireframe;
       break;
     case GLFW_KEY_F3:
-      g_settings.vsync = !g_settings.vsync;
-      glfwSwapInterval(g_settings.vsync ? 1 : 0);
+      g_settings.vsync = !g_settings.vsync; // applied next frame
       break;
 
     // Fly mode toggle
@@ -878,22 +904,9 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
     case GLFW_KEY_0: engine->selectSlot(9); break;
 
     // Fullscreen toggle
-    case GLFW_KEY_F11: {
-      g_settings.fullscreen = !g_settings.fullscreen;
-      if (g_settings.fullscreen) {
-        glfwGetWindowPos(window, &engine->win_pos_x, &engine->win_pos_y);
-        glfwGetWindowSize(window, &engine->win_width, &engine->win_height);
-        GLFWmonitor *primaryMonitor = glfwGetPrimaryMonitor();
-        const GLFWvidmode *mode = glfwGetVideoMode(primaryMonitor);
-        glfwSetWindowMonitor(window, primaryMonitor, 0, 0, mode->width,
-                             mode->height, mode->refreshRate);
-      } else {
-        glfwSetWindowMonitor(window, nullptr, engine->win_pos_x,
-                             engine->win_pos_y, engine->win_width,
-                             engine->win_height, 0);
-      }
+    case GLFW_KEY_F11:
+      g_settings.fullscreen = !g_settings.fullscreen; // applied next frame
       break;
-    }
 
     default:
       break;
