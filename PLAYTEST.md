@@ -4,6 +4,13 @@ What's waiting on a real play-test, newest first. Tick things off as they
 pass; anything that fails, note what happened (a screenshot plus the F12
 coordinates helps).
 
+## Block outline
+
+- [ ] Aiming at a block within reach shows a thin dark frame round it
+- [ ] No frame on water, or when nothing is in reach
+- [ ] The frame follows the crosshair smoothly, also on glass, leaves and crystals
+- [ ] It goes away while the inventory is open
+
 ## Fishing (PR #34)
 
 - [ ] Fish show up: Pebblefish in a lake, Sunfin in the sea, Glowfin in a cave pool (new worlds)
