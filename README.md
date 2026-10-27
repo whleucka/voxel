@@ -88,24 +88,38 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **W, A, S, D:** Move camera forward, left, backward, right.
 *   **Space:** Jump.
 *   **Mouse:** Look around.
-*   **ESC:** Close the inventory, or save and go back to the title menu.
+*   **ESC:** Close the inventory, or open the pause menu (Resume, Settings,
+    Save game, Return to title screen, Exit game). Single player pauses.
 *   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
-*   **T:** Toggle fly mode. **F5:** Save the world.
+*   **T:** Toggle fly mode (creative worlds only). **F5:** Save the world.
+*   **F11:** Toggle fullscreen.
+
+## Game modes
+
+Each world is **Survival** or **Creative**, chosen when you create it and
+changeable from the world list.
+
+*   **Survival:** break blocks to collect them, place them to use them up,
+    and watch your health, stamina and breath. No flying.
+*   **Creative:** fly, place without running out, pick any item from the
+    palette beside the inventory, and nothing can hurt you.
 
 ## Playing together (home network)
 
 The game opens on a title menu, with your last world slowly circling behind
 it. Type your name, then:
 
-*   **Single player:** pick a world from your list (or create, rename or
-    delete one), then **Play**, or **Host on network** to let others on your
+*   **Single player:** pick a world from your list (or create, rename,
+    change the mode of, or delete one), then **Play**, or **Host on network** to let others on your
     network join. F1 shows the address and port guests can use.
 *   **Multiplayer:** games on your network are listed automatically; if yours
     isn't, type the host's address (e.g. `192.168.1.20`).
+*   **Settings:** difficulty, render distance, field of view, mouse
+    sensitivity, fullscreen, vsync, clouds and shadows. Also in the pause menu.
 
 Up to 8 players. Guests keep their inventory in the host's world under their
 name. The host needs TCP port 47800 and UDP port 47801 open. Only the host
-can use the F1 cheats.
+can use the F1 cheats. Guests play in the host's world mode.
 
 
 ## Contributing
