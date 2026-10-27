@@ -46,6 +46,11 @@ Rect HudLayout::noticeArea() const {
   return {name.x, name.y - gap_ - name.h, name.w, name.h};
 }
 
+Rect HudLayout::bitePromptArea() const {
+  Rect notice = noticeArea();
+  return {notice.x, notice.y - gap_ - notice.h, notice.w, notice.h};
+}
+
 // ─── Inventory screen ──────────────────────────────────────────────────
 
 namespace {

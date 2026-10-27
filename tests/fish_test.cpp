@@ -7,6 +7,7 @@
 #include "item/smelting.hpp"
 #include "item/tools.hpp"
 #include "test_util.hpp"
+#include "ui/hud.hpp"
 #include "world/world.hpp"
 #include <algorithm>
 
@@ -322,4 +323,11 @@ TEST_CASE("each water gives its own fish, and treasure about 15% of the time") {
   CHECK(treasure < 0.18f);
   CHECK(boots > kCasts * 0.15f * 0.2f * 0.6f); // about 120
   CHECK(diamonds < kCasts * 0.15f * 0.01f * 4.0f); // rare: about 6
+}
+
+TEST_CASE("catch popups name the fish, with a or an") {
+  CHECK(caughtMessage(ItemId::RAW_SUNFIN) == "Caught a Sunfin!");
+  CHECK(caughtMessage(ItemId::RAW_GLOWFIN) == "Caught a Glowfin!");
+  CHECK(caughtMessage(ItemId::SOGGY_BOOT) == "Caught a Soggy Boot!");
+  CHECK(caughtMessage(ItemId::EMERALD) == "Caught an Emerald!");
 }

@@ -47,6 +47,12 @@ private:
   double last_snapshot_time = 0.0;
   std::vector<EntityView> entity_views; // this frame's interpolated entities
   std::vector<PlayerView> player_views; // this frame's other players
+  // Our own fishing bobber in this frame's entities, if a line is out.
+  const EntityView *myBobber() const {
+    for (const EntityView &v : entity_views)
+      if (v.kind == EntityKind::Bobber && v.owner == player_id) return &v;
+    return nullptr;
+  }
   InventoryScreen inventory_screen;
   SeenItems known_items;       // from KnownItems: what unlocks recipes
   bool known_baseline = true;  // the first KnownItems after joining: no popup

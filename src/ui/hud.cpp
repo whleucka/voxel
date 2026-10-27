@@ -407,6 +407,24 @@ void Hud::drawNotice(const HudLayout &layout, double now) {
              notice_text.c_str());
 }
 
+void Hud::drawBitePrompt(const HudLayout &layout, double now) {
+  constexpr const char *kText = "Bite! Right-click!";
+  float pulse = 0.75f + 0.25f * static_cast<float>(std::sin(now * 12.0));
+  Rect area = layout.bitePromptArea();
+  float size = area.h * 1.15f;
+  ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, kText);
+  shadowText(ImGui::GetForegroundDrawList(), size,
+             ImVec2(area.center().x - ext.x * 0.5f, area.y - (size - area.h)),
+             rgba(140, 235, 255, pulse), pulse, kText);
+}
+
+std::string caughtMessage(ItemId item) {
+  std::string name(itemDef(item).name);
+  if (name.rfind("Raw ", 0) == 0) name = name.substr(4);
+  bool vowel = !name.empty() && std::string_view("AEIOU").find(name[0]) != std::string_view::npos;
+  return std::string("Caught ") + (vowel ? "an " : "a ") + name + "!";
+}
+
 // ─── Title logo ────────────────────────────────────────────────────────
 
 void Hud::drawLogo(float display_w, float display_h) {

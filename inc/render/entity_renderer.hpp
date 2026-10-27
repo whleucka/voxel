@@ -24,9 +24,12 @@ public:
   bool init(); // needs a GL context
   void shutdown();
 
+  // `self` is the local player (not in `players`); their fishing line starts
+  // at `self_hand`.
   void draw(const std::vector<EntityView> &entities, const std::vector<PlayerView> &players,
             const World &world, const glm::mat4 &view, const glm::mat4 &projection,
-            glm::vec3 camera_pos, bool underwater, float time_of_day, double now);
+            glm::vec3 camera_pos, bool underwater, float time_of_day, double now,
+            PlayerId self = 0, glm::vec3 self_hand = glm::vec3(0.0f));
 
 private:
   std::unique_ptr<Shader> shader;
@@ -40,4 +43,6 @@ private:
   // `local` is applied before the box is placed (e.g. a leg's swing).
   void drawBox(const glm::mat4 &entity_model, glm::vec3 offset, glm::vec3 size,
                const glm::mat4 &local = glm::mat4(1.0f)) const;
+  // A fishing line from a hand to a bobber, sagging a little.
+  void drawLine(glm::vec3 from, glm::vec3 to, const World &world) const;
 };

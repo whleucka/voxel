@@ -37,6 +37,7 @@ public:
   Rect breathStrip() const;      // breath bubbles, above the bar strip
   Rect nameArea() const;         // held-item name popup, above the breath strip
   Rect noticeArea() const;       // "New recipe!" popup, above the name popup
+  Rect bitePromptArea() const;   // "Bite! Right-click!", above the notice
 
   // ─── Inventory screen ───────────────────────────────────────────────
   Rect screenPanel() const;
