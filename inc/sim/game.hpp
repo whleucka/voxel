@@ -110,6 +110,11 @@ public:
     return const_cast<Furnace *>(std::as_const(*this).furnaceAt(pos));
   }
   size_t furnaceCount() const { return furnaces_.size(); }
+  // The chest at a block, if there is one.
+  const Chest *chestAt(glm::ivec3 pos) const;
+  Chest *chestAt(glm::ivec3 pos) {
+    return const_cast<Chest *>(std::as_const(*this).chestAt(pos));
+  }
 
   // A Crafting Table close enough to an eye at `eye` to use: the rule the
   // Game checks crafts with, shared with the client's crafting panel.
@@ -165,6 +170,7 @@ private:
   template <class T> void apply(Client &, const T &) = delete;
   // The furnace the player has open, if it's still there and in reach.
   Furnace *openFurnace(const PlayerState &ps);
+  Chest *openChest(const PlayerState &ps);
   void sendContainer(Client &client, glm::ivec3 pos);
   // Every player looking into the furnace at `pos` gets its current state.
   void sendContainerToViewers(glm::ivec3 pos);
@@ -235,6 +241,11 @@ private:
   void tickFurnaces();
   // A furnace block went away: its contents pop out where it stood.
   void spillFurnace(glm::ivec3 pos);
+  std::map<glm::ivec3, Chest, BlockLess> chests_;
+  void spillChest(glm::ivec3 pos);
+  // A Treasure Key held: it's used up and the chest is filled with loot.
+  // False (nothing changed) without a key.
+  bool unlockTreasure(Client &client, PlayerState &ps, glm::ivec3 pos);
   // Swaps a furnace block for its lit or unlit look, loaded chunk or not.
   void showFurnaceLit(glm::ivec3 pos, bool lit);
   // Guests who have played in this world, by name (players/<name>.dat).

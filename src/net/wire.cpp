@@ -192,7 +192,10 @@ template <class IO> void fields(IO &io, KnownItems &m) { io(m.ids); }
 template <class IO> void fields(IO &io, ToolBroke &m) { io(m.item); }
 template <class IO> void fields(IO &io, Caught &m) { io(m.item); }
 template <class IO> void fields(IO &io, ContainerView &m) {
-  io(m.pos, m.open, m.input, m.fuel, m.output, m.burn, m.cook);
+  uint8_t kind = static_cast<uint8_t>(m.kind);
+  io(m.pos, m.open, kind, m.slots, m.input, m.fuel, m.output, m.burn, m.cook);
+  m.kind = kind == static_cast<uint8_t>(ContainerKind::Chest) ? ContainerKind::Chest
+                                                              : ContainerKind::Furnace;
 }
 template <class IO> void fields(IO &io, VitalsChanged &m) {
   int32_t h = m.health, s = m.stamina, b = m.breath;

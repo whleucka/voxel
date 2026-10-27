@@ -1,5 +1,6 @@
 #pragma once
 
+#include "item/chest.hpp"
 #include "chunk/chunk.hpp" // ChunkKey, ChunkKeyHash
 #include "core/game_mode.hpp"
 #include "item/item_stack.hpp"
@@ -80,6 +81,14 @@ struct FurnaceRecord {
 };
 bool loadFurnaces(const std::string &dir, std::vector<FurnaceRecord> &out);
 bool saveFurnaces(const std::string &dir, std::span<const FurnaceRecord> furnaces);
+
+// chests.dat — every chest's contents, by position.
+struct ChestRecord {
+  glm::ivec3 pos{0};
+  Chest chest{};
+};
+bool loadChests(const std::string &dir, std::vector<ChestRecord> &out);
+bool saveChests(const std::string &dir, std::span<const ChestRecord> chests);
 
 // players/<name>.dat — a guest's state, kept in the host's world so they carry
 // on where they left off. The host's own record stays in player.dat and

@@ -270,3 +270,15 @@ TEST_CASE("fishing messages round-trip") {
   CHECK(back.entities[0].owner == 7);
   CHECK(back.entities[0].biting);
 }
+
+TEST_CASE("chest views round-trip with their kind and slots") {
+  ContainerView v;
+  v.pos = {3, 40, -9};
+  v.kind = ContainerKind::Chest;
+  v.slots.assign(kChestSlots, ItemStack{});
+  v.slots[4] = {ItemId::TREASURE_KEY, 2};
+  v.slots[19] = {ItemId::RUBY_SWORD, 1, 12};
+  auto back = std::get<ContainerView>(*wire::decodeEvent(enc(Event{v})));
+  CHECK(back.kind == ContainerKind::Chest);
+  CHECK(back.slots == v.slots);
+}

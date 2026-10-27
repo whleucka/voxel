@@ -251,3 +251,24 @@ TEST_CASE("wear is saved with inventories and guests; older files load unworn") 
   REQUIRE(WorldSave::loadGuests(dir.path.string(), loaded));
   CHECK(loaded.at("Bea").inventory == slots);
 }
+
+TEST_CASE("chests.dat round-trips every slot, with wear; no file, no chests") {
+  TempDir dir;
+  std::vector<WorldSave::ChestRecord> out;
+  CHECK_FALSE(WorldSave::loadChests(dir.path.string(), out));
+
+  WorldSave::ChestRecord a;
+  a.pos = {-40, 30, 7};
+  a.chest[0] = {ItemId::DIAMOND, 2};
+  a.chest[kChestSlots - 1] = {ItemId::IRON_PICKAXE, 1, 37};
+  WorldSave::ChestRecord b;
+  b.pos = {1, 2, 3};
+  std::vector<WorldSave::ChestRecord> in = {a, b};
+  REQUIRE(WorldSave::saveChests(dir.path.string(), in));
+  REQUIRE(WorldSave::loadChests(dir.path.string(), out));
+  REQUIRE(out.size() == 2);
+  CHECK(out[0].pos == a.pos);
+  CHECK(out[0].chest == a.chest);
+  CHECK(out[0].chest[kChestSlots - 1].wear == 37);
+  CHECK(out[1].chest == Chest{});
+}

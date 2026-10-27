@@ -62,6 +62,9 @@ bool Game::load(const std::string &dir) {
   furnaces_.clear();
   if (std::vector<WorldSave::FurnaceRecord> fs; WorldSave::loadFurnaces(dir, fs))
     for (const auto &r : fs) furnaces_[r.pos] = r.furnace;
+  chests_.clear();
+  if (std::vector<WorldSave::ChestRecord> cs; WorldSave::loadChests(dir, cs))
+    for (const auto &r : cs) chests_[r.pos] = r.chest;
   WorldSave::loadGuests(dir, guest_records);
   return true;
 }
@@ -106,9 +109,12 @@ bool Game::save() {
 
   std::vector<WorldSave::FurnaceRecord> furnaces;
   for (const auto &[pos, f] : furnaces_) furnaces.push_back({pos, f});
+  std::vector<WorldSave::ChestRecord> chests;
+  for (const auto &[pos, c] : chests_) chests.push_back({pos, c});
 
   if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits()) ||
       !WorldSave::saveFurnaces(save_dir, furnaces) ||
+      !WorldSave::saveChests(save_dir, chests) ||
       (inv && !WorldSave::saveInventory(save_dir, *inv)) ||
       (discovered && !WorldSave::saveDiscovered(save_dir, *discovered)) || !guests_ok) {
     std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";
@@ -449,9 +455,10 @@ void Game::tickFurnaces() {
     if (step.slots_changed || step.lit_changed || (gauges && furnace.lit()))
       sendContainerToViewers(pos);
   }
-  // Walked away, or the furnace is gone: it closes for them.
+  // Walked away, or the furnace or chest is gone: it closes for them.
   for (Client &c : clients)
-    if (PlayerState *ps = playerFor(c); ps && ps->open_container && !openFurnace(*ps))
+    if (PlayerState *ps = playerFor(c);
+        ps && ps->open_container && !openFurnace(*ps) && !openChest(*ps))
       closeContainer(c, *ps);
 }
 
@@ -470,6 +477,34 @@ void Game::spillFurnace(glm::ivec3 pos) {
       dropItem(s, glm::vec3(pos) + glm::vec3(0.5f, 0.3f, 0.5f), {side(rng_), 4.0f, side(rng_)},
                kBreakDropDelayMs);
   furnaces_.erase(it);
+}
+
+// ─── Chests ────────────────────────────────────────────────────────────
+
+const Chest *Game::chestAt(glm::ivec3 pos) const {
+  auto it = chests_.find(pos);
+  return it == chests_.end() ? nullptr : &it->second;
+}
+
+void Game::spillChest(glm::ivec3 pos) {
+  auto it = chests_.find(pos);
+  if (it == chests_.end()) return;
+  std::uniform_real_distribution<float> side(-1.0f, 1.0f);
+  for (const ItemStack &s : it->second)
+    if (!s.empty())
+      dropItem(s, glm::vec3(pos) + glm::vec3(0.5f, 0.3f, 0.5f), {side(rng_), 4.0f, side(rng_)},
+               kBreakDropDelayMs);
+  chests_.erase(it);
+}
+
+bool Game::unlockTreasure(Client &client, PlayerState &ps, glm::ivec3 pos) {
+  if (ps.inventory.slot(ps.selected_slot).id != ItemId::TREASURE_KEY) return false;
+  ps.inventory.take(ps.selected_slot, 1);
+  sendInventory(client, ps);
+  world_.setBlockAt(pos, BlockType::CHEST);
+  broadcast(BlockChanged{pos, BlockType::CHEST});
+  chests_[pos] = rollTreasure(rng_);
+  return true;
 }
 
 // ─── Commands ──────────────────────────────────────────────────────────
@@ -601,6 +636,7 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
   world_.setBlockAt(cmd.pos, BlockType::AIR);
   broadcast(BlockChanged{cmd.pos, BlockType::AIR});
   spillFurnace(cmd.pos);
+  spillChest(cmd.pos);
 
   // Survival: collect the drop, if the tool was good enough for it.
   if (!rules().block_drops) return;
@@ -674,6 +710,7 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
   world_.setBlockAt(cmd.pos, *block);
   broadcast(BlockChanged{cmd.pos, *block});
   if (*block == BlockType::FURNACE) furnaces_[cmd.pos] = Furnace{};
+  if (*block == BlockType::CHEST) chests_[cmd.pos] = Chest{};
   if (rules().consume_blocks) {
     ps->inventory.take(ps->selected_slot, 1);
     sendInventory(client, *ps);
@@ -708,7 +745,10 @@ void Game::apply(Client &client, const GiveItem &cmd) {
 
 namespace {
 
-bool isContainerSlot(int slot) { return slot >= kFurnaceInput && slot <= kFurnaceOutput; }
+bool isContainerSlot(int slot) {
+  return slot >= kContainerSlot0 && slot < kContainerSlot0 + kChestSlots;
+}
+bool isFurnaceSlot(int slot) { return slot >= kFurnaceInput && slot <= kFurnaceOutput; }
 
 // What a slot will take: anything in the inventory; smeltables in the input,
 // fuel in the fuel slot, nothing put into the output.
@@ -737,23 +777,29 @@ void Game::apply(Client &client, const MoveItems &cmd) {
     return sendInventory(client, *ps);
   }
 
-  // To or from the open furnace.
+  // To or from the open furnace or chest. A chest's slots take anything.
   Furnace *f = openFurnace(*ps);
-  if (!f) return reject(client, "move: no furnace open");
-  auto valid = [](int s) { return Inventory::validSlot(s) || isContainerSlot(s); };
+  Chest *chest = f ? nullptr : openChest(*ps);
+  if (!f && !chest) return reject(client, "move: nothing open");
+  auto slotOf = [&](int s) -> ItemStack * {
+    if (f) return furnaceSlot(*f, s);
+    return &(*chest)[s - kContainerSlot0];
+  };
+  auto takes = [&](int s, ItemId id) { return !f || accepts(s, id); };
+  auto valid = [&](int s) {
+    return Inventory::validSlot(s) || (f ? isFurnaceSlot(s) : isContainerSlot(s));
+  };
   if (!valid(cmd.from) || !valid(cmd.to) || cmd.from == cmd.to)
     return reject(client, "move: not allowed");
-  ItemStack src = isContainerSlot(cmd.from) ? *furnaceSlot(*f, cmd.from)
-                                            : ps->inventory.slot(cmd.from);
-  ItemStack dst = isContainerSlot(cmd.to) ? *furnaceSlot(*f, cmd.to)
-                                          : ps->inventory.slot(cmd.to);
+  ItemStack src = isContainerSlot(cmd.from) ? *slotOf(cmd.from) : ps->inventory.slot(cmd.from);
+  ItemStack dst = isContainerSlot(cmd.to) ? *slotOf(cmd.to) : ps->inventory.slot(cmd.to);
   bool swapping = !dst.empty() && dst.id != src.id;
-  if (src.empty() || !accepts(cmd.to, src.id) || (swapping && !accepts(cmd.from, dst.id)) ||
+  if (src.empty() || !takes(cmd.to, src.id) || (swapping && !takes(cmd.from, dst.id)) ||
       !moveStack(src, dst, cmd.count))
     return reject(client, "move: not allowed");
 
   auto store = [&](int slot, const ItemStack &s) {
-    if (isContainerSlot(slot)) *furnaceSlot(*f, slot) = s;
+    if (isContainerSlot(slot)) *slotOf(slot) = s;
     else ps->inventory.set(slot, s);
   };
   store(cmd.from, src);
@@ -767,9 +813,16 @@ void Game::apply(Client &client, const OpenContainer &cmd) {
   if (!ps || ps->vitals.dead()) return;
   if (!inReach(*ps, cmd.pos)) return reject(client, "open: out of reach");
   BlockType b = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
-  if (b != BlockType::FURNACE && b != BlockType::FURNACE_LIT)
-    return reject(client, "open: that isn't a furnace");
-  furnaces_.try_emplace(cmd.pos); // a furnace block with no record yet starts empty
+  if (b == BlockType::TREASURE_CHEST) {
+    if (!unlockTreasure(client, *ps, cmd.pos))
+      return reject(client, "open: locked (needs a Treasure Key)");
+  } else if (b == BlockType::CHEST) {
+    chests_.try_emplace(cmd.pos); // a chest block with no record yet starts empty
+  } else if (b == BlockType::FURNACE || b == BlockType::FURNACE_LIT) {
+    furnaces_.try_emplace(cmd.pos); // a furnace block with no record yet starts empty
+  } else {
+    return reject(client, "open: that isn't a furnace or a chest");
+  }
   ps->open_container = cmd.pos;
   sendContainer(client, cmd.pos);
 }
@@ -783,10 +836,18 @@ Furnace *Game::openFurnace(const PlayerState &ps) {
   return furnaceAt(*ps.open_container);
 }
 
+Chest *Game::openChest(const PlayerState &ps) {
+  if (!ps.open_container || !inReach(ps, *ps.open_container)) return nullptr;
+  return chestAt(*ps.open_container);
+}
+
 void Game::sendContainer(Client &client, glm::ivec3 pos) {
   ContainerView view;
   view.pos = pos;
-  if (const Furnace *f = furnaceAt(pos)) {
+  if (const Chest *c = chestAt(pos)) {
+    view.kind = ContainerKind::Chest;
+    view.slots.assign(c->begin(), c->end());
+  } else if (const Furnace *f = furnaceAt(pos)) {
     view.input = f->input;
     view.fuel = f->fuel;
     view.output = f->output;
