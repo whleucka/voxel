@@ -1,6 +1,7 @@
 #include "sim/game.hpp"
 #include "block/block_data.hpp"
 #include "item/mining.hpp"
+#include "item/tools.hpp"
 #include "entity/animals.hpp"
 #include "entity/enemies.hpp"
 #include "core/settings.hpp"
@@ -316,6 +317,7 @@ void Game::tick() {
   spawner_.tick(entities_, world_, rng_, positions, clock_.fractionOfDay(),
                 g_settings.difficulty);
   releaseAnimalProducts();
+  burnEntities();
   tickFurnaces();
   mergeDroppedItems();
   pickUpDroppedItems();
@@ -338,7 +340,7 @@ void Game::sendEntitySnapshots() {
     for (const auto &[id, e] : entities_.all()) {
       if (glm::distance(e.body.position, ps->position) > kEntityViewRange) continue;
       snap.entities.push_back({id, e.kind, e.body.position, e.yaw, e.item.id,
-                               e.hurt_ms > 0, e.happy_ms > 0, false});
+                               e.hurt_ms > 0, e.happy_ms > 0, e.burning_ms > 0, false});
     }
     for (const auto &[pid, other] : players) {
       if (pid == ps->id || other.vitals.dead()) continue;
@@ -392,6 +394,38 @@ void Game::rescueFromVoid(Client &client, PlayerState &ps) {
   ps.position = to;
   ++ps.respawn; // moves sent from down there are stale now
   client.link->deliver(Respawned{ps.position, ps.respawn});
+}
+
+// ─── Deaths and burning ────────────────────────────────────────────────
+
+void Game::killEntity(EntityId id) {
+  Entity *e = entities_.find(id);
+  if (!e) return;
+  const EntityTypeDef &def = entityType(e->kind);
+  std::uniform_real_distribution<float> side(-1.0f, 1.0f);
+  std::uniform_real_distribution<float> roll(0.0f, 1.0f);
+  glm::vec3 at = e->body.position + glm::vec3(0.0f, 0.3f, 0.0f);
+  for (const ItemStack &drop : def.drops)
+    dropItem(drop, at, {side(rng_), 4.0f, side(rng_)}, kBreakDropDelayMs);
+  for (const ChanceDrop &drop : def.chance_drops)
+    if (roll(rng_) < drop.chance)
+      dropItem(drop.stack, at, {side(rng_), 4.0f, side(rng_)}, kBreakDropDelayMs);
+  entities_.remove(id);
+}
+
+void Game::burnEntities() {
+  std::vector<EntityId> dead;
+  for (auto &[id, e] : entities_.all()) {
+    if (e.burning_ms <= 0) continue;
+    e.burning_ms -= kTickMs;
+    e.burn_tick_ms += kTickMs;
+    if (e.burn_tick_ms < 1000) continue;
+    e.burn_tick_ms -= 1000;
+    e.health -= 1;
+    e.hurt_ms = kHurtFlashMs;
+    if (e.health <= 0) dead.push_back(id);
+  }
+  for (EntityId id : dead) killEntity(id);
 }
 
 // ─── Furnaces ──────────────────────────────────────────────────────────
@@ -588,16 +622,17 @@ void Game::apply(Client &client, const StartBreak &cmd) {
   ps->breaking = PlayerState::Breaking{cmd.pos, nowMs()};
 }
 
-void Game::wearHeldTool(Client &client, PlayerState &ps) {
+bool Game::wearHeldTool(Client &client, PlayerState &ps) {
   ItemStack held = ps.inventory.slot(ps.selected_slot);
   Tool tool = toolOf(held.id);
-  if (tool.kind == ToolKind::None) return;
+  if (tool.kind == ToolKind::None) return false;
   if (++held.wear >= maxUses(tool.tier)) {
     ps.inventory.set(ps.selected_slot, {});
     client.link->deliver(ToolBroke{held.id});
   } else {
     ps.inventory.set(ps.selected_slot, held);
   }
+  return true;
 }
 
 void Game::apply(Client &client, const PlaceBlock &cmd) {
@@ -856,8 +891,11 @@ void Game::apply(Client &client, const AttackEntity &cmd) {
   if (!inReachOf(*ps, *e)) return reject(client, "attack: out of reach");
 
   ps->attack_cooldown_ms = kAttackCooldownMs;
-  e->health -= kAttackDamage;
+  const ItemId held = ps->inventory.slot(ps->selected_slot).id;
+  e->health -= attackDamage(held);
   e->hurt_ms = kHurtFlashMs;
+  if (held == ItemId::RUBY_SWORD) e->burning_ms = kBurnMs; // and it catches fire
+  if (rules().timed_mining && wearHeldTool(client, *ps)) sendInventory(client, *ps);
 
   // Knock it away from the attacker (straight back if they overlap).
   glm::vec2 away(e->body.position.x - ps->position.x, e->body.position.z - ps->position.z);
@@ -869,17 +907,7 @@ void Game::apply(Client &client, const AttackEntity &cmd) {
   e->body.velocity = {away.x, kKnockUp, away.y};
   e->body.on_ground = false;
 
-  if (e->health <= 0) {
-    std::uniform_real_distribution<float> side(-1.0f, 1.0f);
-    glm::vec3 at = e->body.position + glm::vec3(0.0f, 0.3f, 0.0f);
-    std::uniform_real_distribution<float> roll(0.0f, 1.0f);
-    for (const ItemStack &drop : def.drops)
-      dropItem(drop, at, {side(rng_), 4.0f, side(rng_)}, kBreakDropDelayMs);
-    for (const ChanceDrop &drop : def.chance_drops)
-      if (roll(rng_) < drop.chance)
-        dropItem(drop.stack, at, {side(rng_), 4.0f, side(rng_)}, kBreakDropDelayMs);
-    entities_.remove(cmd.id);
-  }
+  if (e->health <= 0) killEntity(cmd.id);
 }
 
 void Game::apply(Client &client, const SpawnDebugEntity &cmd) {

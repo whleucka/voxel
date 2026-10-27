@@ -18,6 +18,8 @@ struct Entity {
   float yaw = 0.0f;
   int health = 0;
   int hurt_ms = 0;  // red flash time left
+  int burning_ms = 0;   // set alight (a ruby sword): time left
+  int burn_tick_ms = 0; // toward the next point of burn damage
   int age_ms = 0;
   int attack_cooldown_ms = 0; // enemies: until the next contact hit
   std::unique_ptr<Brain> brain;

@@ -135,7 +135,7 @@ struct Reader {
 template <class IO> void fields(IO &io, ItemStack &m) { io(m.id, m.count, m.wear); }
 template <class IO> void fields(IO &io, BlockEdit &m) { io(m.pos, m.type); }
 template <class IO> void fields(IO &io, EntityView &m) {
-  io(m.id, m.kind, m.position, m.yaw, m.item, m.hurt, m.happy);
+  io(m.id, m.kind, m.position, m.yaw, m.item, m.hurt, m.happy, m.burning);
 }
 template <class IO> void fields(IO &io, PlayerView &m) {
   io(m.id, m.name, m.position, m.yaw, m.pitch, m.crouch);

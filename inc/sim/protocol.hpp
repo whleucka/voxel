@@ -154,6 +154,7 @@ struct EntityView {
   ItemId item = ItemId::NONE; // dropped items: what to draw
   bool hurt = false;          // flash red
   bool happy = false;         // fed animal: show a heart
+  bool burning = false;       // set alight: glow orange
   bool moving = false;        // set client-side by the interpolator
 };
 

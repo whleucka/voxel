@@ -2,6 +2,7 @@
 // without a window: World::init() (shaders) is never called.
 #include "doctest/doctest.h"
 #include "item/mining.hpp"
+#include "item/tools.hpp"
 #include "core/settings.hpp"
 #include "entity/enemies.hpp"
 #include "sim/game.hpp"
@@ -1441,20 +1442,62 @@ struct FightGame : EditGame {
 TEST_CASE_FIXTURE(FightGame, "a hit hurts, flashes and knocks the creature away") {
   int max = entityType(EntityKind::TestCreature).max_health;
   CHECK(run(AttackEntity{target}).empty());
-  CHECK(creature()->health == max - Game::kAttackDamage);
+  CHECK(creature()->health == max - attackDamage(ItemId::NONE));
   CHECK(creature()->hurt_ms > 0);
   CHECK(creature()->body.velocity.z < -1.0f); // away from the player (-Z)
   CHECK(creature()->body.velocity.y > 0.0f);
+}
+
+TEST_CASE_FIXTURE(FightGame, "a sword hits harder than a fist, and wears with each hit") {
+  int max = entityType(EntityKind::TestCreature).max_health;
+  wield(ItemId::IRON_SWORD);
+  run(AttackEntity{target});
+  CHECK(creature()->health == max - 6);
+  PlayerState &me = *game.findPlayer(id);
+  CHECK(me.inventory.slot(me.selected_slot).wear == 1);
+}
+
+TEST_CASE_FIXTURE(FightGame, "a ruby sword sets the enemy alight") {
+  const int max = 30; // tougher than usual, to watch it burn
+  creature()->health = max;
+  wield(ItemId::RUBY_SWORD);
+  run(AttackEntity{target});
+  CHECK(creature()->health == max - 7);
+  CHECK(creature()->burning_ms > 0);
+  for (int i = 0; i < 3000 / Game::kTickMs; ++i) game.tick();
+  REQUIRE(creature());
+  CHECK(creature()->health == max - 7 - 3); // a point a second for three seconds
+  CHECK(creature()->burning_ms <= 0);
+  for (int i = 0; i < 2000 / Game::kTickMs; ++i) game.tick();
+  CHECK(creature()->health == max - 10); // and then it's out
+}
+
+TEST_CASE_FIXTURE(FightGame, "fire can finish an enemy off") {
+  wield(ItemId::RUBY_SWORD);
+  creature()->health = 8;
+  run(AttackEntity{target}); // 7: one left
+  REQUIRE(creature());
+  for (int i = 0; i < 1000 / Game::kTickMs; ++i) game.tick();
+  CHECK_FALSE(creature());
+}
+
+TEST_CASE_FIXTURE(FightGame, "creative hits don't wear the sword") {
+  game.setMode(GameMode::Creative);
+  wield(ItemId::WOOD_SWORD);
+  run(AttackEntity{target});
+  PlayerState &me = *game.findPlayer(id);
+  CHECK(me.inventory.slot(me.selected_slot).wear == 0);
 }
 
 TEST_CASE_FIXTURE(FightGame, "hits have a cooldown") {
   int max = entityType(EntityKind::TestCreature).max_health;
   run(AttackEntity{target});
   CHECK(rejected(run(AttackEntity{target})));
-  CHECK(creature()->health == max - 2);
+  int hit = attackDamage(ItemId::NONE);
+  CHECK(creature()->health == max - hit);
   wait(0.4f);
   run(AttackEntity{target});
-  CHECK(creature()->health == max - 4);
+  CHECK(creature()->health == max - 2 * hit);
 }
 
 TEST_CASE_FIXTURE(FightGame, "creatures out of reach can't be hit") {
@@ -1498,7 +1541,7 @@ TEST_CASE_FIXTURE(FightGame, "killing a creature removes it and drops its loot")
     wait(0.4f);
   }
   CHECK_FALSE(creature());
-  CHECK(hits == entityType(EntityKind::TestCreature).max_health / Game::kAttackDamage);
+  CHECK(hits == entityType(EntityKind::TestCreature).max_health / attackDamage(ItemId::NONE));
   bool loot = false;
   for (const auto &[eid, e] : game.entities().all())
     loot |= e.kind == EntityKind::DroppedItem && e.item.id == ItemId::COAL;

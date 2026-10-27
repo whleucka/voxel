@@ -36,7 +36,7 @@ public:
   static constexpr float kMergeRange = 1.0f;
   // Hitting entities
   static constexpr int kAttackCooldownMs = 400;
-  static constexpr int kAttackDamage = 2; // bare hands
+  static constexpr int kBurnMs = 3000;    // a ruby sword's fire: a point a second
   static constexpr int kHurtFlashMs = 300;
   static constexpr float kKnockback = 6.0f;
   static constexpr float kKnockUp = 4.0f;
@@ -150,7 +150,8 @@ private:
   static constexpr int kBreakSlackMs = 150;
   uint64_t nowMs() const { return static_cast<uint64_t>(tick_count) * kTickMs; }
   // Survival: the held tool spends a use, and breaks when it's used up.
-  void wearHeldTool(Client &client, PlayerState &ps);
+  // False if nothing tool-like was held (so nothing changed).
+  bool wearHeldTool(Client &client, PlayerState &ps);
   // Without this, an alternative with no overload above would convert back
   // to a Command and recurse forever; with it, that's a compile error.
   template <class T> void apply(Client &, const T &) = delete;
@@ -165,6 +166,9 @@ private:
   void releaseAnimalProducts();
   // Peaceful clears enemies; daylight clears surface enemies under the sky.
   void removeEnemies();
+  // Gone: its drops pop out and it's removed.
+  void killEntity(EntityId id);
+  void burnEntities();
   void enemyAttacks();
 
   // Puts a stack into the world as a dropped item. Returns false (the stack is

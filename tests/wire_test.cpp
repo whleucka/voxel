@@ -240,3 +240,14 @@ TEST_CASE("mining messages round-trip") {
   CHECK(std::get<ToolBroke>(*wire::decodeEvent(enc(Event{ToolBroke{ItemId::IRON_AXE}}))).item ==
         ItemId::IRON_AXE);
 }
+
+TEST_CASE("burning travels in entity snapshots") {
+  EntitySnapshot snap;
+  EntityView v;
+  v.id = 3;
+  v.burning = true;
+  snap.entities.push_back(v);
+  auto back = std::get<EntitySnapshot>(*wire::decodeEvent(enc(Event{snap})));
+  REQUIRE(back.entities.size() == 1);
+  CHECK(back.entities[0].burning);
+}
