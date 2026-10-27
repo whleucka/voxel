@@ -84,10 +84,16 @@ private:
   void populateChunk(Chunk &chunk, const ChunkKey &key);
   void rebuildChunk(int cx, int cz);
   // Cross-chunk block-light: recompute a 5x5 chunk box around (ccx,ccz) into a
-  // temp buffer and persist the inner 3x3, so torch light bleeds across borders.
+  // temp buffer and persist the inner 3x3. Correct when light must also go
+  // down (a torch placed, broken or walled in), but costly: for edits only.
   void relightBlockRegion(int ccx, int ccz);
-  // True if any loaded chunk within `radius` chunks of (ccx,ccz) has an emitter.
-  bool anyEmitterInRegion(int ccx, int ccz, int radius) const;
+  // Lets block light cross the borders between `origin` and its loaded
+  // neighbours, and on through any chunk that brightens. Cheap, and safe on
+  // any thread; light only rises. Returns the chunks other than `origin`
+  // whose light changed, which need remeshing.
+  std::vector<ChunkKey> spreadBorderLight(const ChunkKey &origin);
+  // True if some emitter is close enough to shine on `pos`.
+  bool emitterInReach(const glm::ivec3 &pos) const;
   void preloadChunks();
   bool isChunkInFrustum(const glm::vec4 planes[6], const glm::vec3 &min, const glm::vec3 &max);
   std::vector<glm::ivec2> generateSpiralOrder(int radius);
@@ -119,9 +125,4 @@ private:
   // these are checked again once it is loaded. Main thread only.
   std::vector<BlockEdit> pending_edits;
 
-  // Cross-chunk relight requests queued from generation, drained on the main
-  // thread in update(). Gated by emitters_exist so torch-free worlds pay nothing.
-  std::atomic<bool> emitters_exist{false};
-  std::mutex relight_mutex;
-  std::vector<glm::ivec2> relight_requests;
 };

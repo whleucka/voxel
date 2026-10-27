@@ -165,10 +165,11 @@ void World::loadChunkSync(int x, int z) {
   ChunkKey key{x, z};
   auto chunk = std::make_shared<Chunk>(x, z);
   populateChunk(*chunk, key);
-  if (chunk->hasEmitters())
-    emitters_exist.store(true, std::memory_order_relaxed);
-  WriteLock lock(chunks_mutex);
-  chunks.insert_or_assign(key, chunk);
+  {
+    WriteLock lock(chunks_mutex);
+    chunks.insert_or_assign(key, chunk);
+  }
+  spreadBorderLight(key);
 }
 
 void World::addChunk(int x, int z) {
@@ -177,56 +178,27 @@ void World::addChunk(int x, int z) {
 
   gen_pool.enqueue([this, chunk, key]() {
     populateChunk(*chunk, key);
-
-    // Once generation is done, queue for meshing
-    mesh_pool.enqueue([this, chunk]() {
-      chunk->buildMeshData(this, renderer->getTextureManager());
-      {
-        WriteLock lock(chunks_mutex);
-        upload_queue.push(chunk);
-      }
-    });
-
-    // Safely add the chunk to the world (even before meshing)
     {
       WriteLock lock(chunks_mutex);
       chunks.emplace(key, chunk);
     }
 
-    // If this chunk carries emitters (replayed torches), record that so the
-    // relight machinery activates.
-    if (chunk->hasEmitters())
-      emitters_exist.store(true, std::memory_order_relaxed);
+    // Light from loaded neighbours shines in (and this chunk's out) before it
+    // is meshed; neighbours that brighten are remeshed.
+    std::vector<ChunkKey> brighter = spreadBorderLight(key);
 
-    // If torches sit near this freshly streamed-in chunk, queue a cross-chunk
-    // relight (handled on the main thread) so light bleeds across the new border.
-    if (anyEmitterInRegion(key.x, key.z, 2)) {
-      std::lock_guard lk(relight_mutex);
-      relight_requests.push_back({key.x, key.z});
-    }
+    mesh_pool.enqueue([this, chunk]() {
+      chunk->buildMeshData(this, renderer->getTextureManager());
+      WriteLock lock(chunks_mutex);
+      upload_queue.push(chunk);
+    });
+    for (const ChunkKey &k : brighter) rebuildChunk(k.x, k.z);
   });
 }
 
 void World::update(float dt) {
   cloud_time += dt;
   flushPendingEdits();
-
-  // Drain cross-chunk relight requests queued as chunks stream in near torches.
-  if (emitters_exist.load(std::memory_order_relaxed)) {
-    std::vector<glm::ivec2> reqs;
-    {
-      std::lock_guard lk(relight_mutex);
-      reqs.swap(relight_requests);
-    }
-    if (!reqs.empty()) {
-      std::sort(reqs.begin(), reqs.end(),
-                [](auto &a, auto &b) { return a.x != b.x ? a.x < b.x : a.y < b.y; });
-      reqs.erase(std::unique(reqs.begin(), reqs.end(),
-                             [](auto &a, auto &b) { return a.x == b.x && a.y == b.y; }),
-                 reqs.end());
-      for (const auto &r : reqs) relightBlockRegion(r.x, r.y);
-    }
-  }
 
   int uploads_this_frame = 0;
   {
@@ -332,12 +304,74 @@ void World::rebuildChunk(int cx, int cz) {
   });
 }
 
-bool World::anyEmitterInRegion(int ccx, int ccz, int radius) const {
-  if (!emitters_exist.load(std::memory_order_relaxed)) return false;
-  for (int cx = ccx - radius; cx <= ccx + radius; ++cx)
-    for (int cz = ccz - radius; cz <= ccz + radius; ++cz) {
+std::vector<ChunkKey> World::spreadBorderLight(const ChunkKey &origin) {
+  std::vector<ChunkKey> changed;
+  auto self = getChunk(origin.x, origin.z);
+  if (!self) return changed;
+
+  // Moves light across one border. Only one chunk is locked at a time, so two
+  // workers spreading between the same chunks can't deadlock.
+  auto shine = [](Chunk &from, Chunk &to, int to_face) {
+    Chunk::BorderLight light;
+    {
+      std::lock_guard lock(from.data_mutex);
+      light = from.borderLight(to_face ^ 1);
+    }
+    std::lock_guard lock(to.data_mutex);
+    return to.acceptBorderLight(to_face, light);
+  };
+  auto neighbour = [&](const ChunkKey &k, int face) {
+    glm::ivec2 step = Chunk::kFaceStep[face];
+    return ChunkKey{k.x + step.x, k.z + step.y};
+  };
+
+  // What the neighbours already shine at the origin...
+  for (int face = 0; face < 4; ++face) {
+    ChunkKey nk = neighbour(origin, face);
+    if (auto n = getChunk(nk.x, nk.z)) shine(*n, *self, face);
+  }
+  // ...then outward from every chunk with something new to give. Light only
+  // rises and is bounded, so this ends; in practice it stops within a chunk
+  // or two, since light fades by one a block.
+  std::vector<ChunkKey> work{origin};
+  while (!work.empty()) {
+    ChunkKey k = work.back();
+    work.pop_back();
+    auto c = getChunk(k.x, k.z);
+    if (!c) continue;
+    for (int face = 0; face < 4; ++face) {
+      ChunkKey nk = neighbour(k, face);
+      auto n = getChunk(nk.x, nk.z);
+      if (!n || !shine(*c, *n, face ^ 1)) continue;
+      work.push_back(nk);
+      if (!(nk == origin) && std::find(changed.begin(), changed.end(), nk) == changed.end())
+        changed.push_back(nk);
+    }
+  }
+  return changed;
+}
+
+bool World::emitterInReach(const glm::ivec3 &pos) const {
+  constexpr int kReach = 14; // the brightest light (15) fades out within this
+  const int y0 = std::max(0, pos.y - kReach), y1 = std::min(kChunkHeight - 1, pos.y + kReach);
+  const int cx0 = static_cast<int>(std::floor(float(pos.x - kReach) / kChunkWidth));
+  const int cx1 = static_cast<int>(std::floor(float(pos.x + kReach) / kChunkWidth));
+  const int cz0 = static_cast<int>(std::floor(float(pos.z - kReach) / kChunkDepth));
+  const int cz1 = static_cast<int>(std::floor(float(pos.z + kReach) / kChunkDepth));
+  for (int cx = cx0; cx <= cx1; ++cx)
+    for (int cz = cz0; cz <= cz1; ++cz) {
       auto c = getChunk(cx, cz);
-      if (c && c->hasEmitters()) return true;
+      if (!c || !c->hasEmitters()) continue;
+      const int bx = cx * kChunkWidth, bz = cz * kChunkDepth;
+      const int x0 = std::max(0, pos.x - kReach - bx), x1 = std::min(kChunkWidth - 1, pos.x + kReach - bx);
+      const int z0 = std::max(0, pos.z - kReach - bz), z1 = std::min(kChunkDepth - 1, pos.z + kReach - bz);
+      for (int y = y0; y <= y1; ++y)
+        for (int z = z0; z <= z1; ++z)
+          for (int x = x0; x <= x1; ++x) {
+            uint8_t emit = blockLightEmission(c->at(x, y, z));
+            int d = std::abs(bx + x - pos.x) + std::abs(y - pos.y) + std::abs(bz + z - pos.z);
+            if (emit > d) return true;
+          }
     }
   return false;
 }
@@ -455,8 +489,6 @@ void World::setBlockAt(const glm::ivec3& worldPos, BlockType type) {
     chunk->adjustEmitterCount((blockLightEmission(type) > 0 ? 1 : 0) -
                               (blockLightEmission(oldType) > 0 ? 1 : 0));
   }
-  if (blockLightEmission(type) > 0)
-    emitters_exist.store(true, std::memory_order_relaxed);
 
   // Record the delta so it survives save/load (breaking a block records AIR).
   {
@@ -465,18 +497,21 @@ void World::setBlockAt(const glm::ivec3& worldPos, BlockType type) {
     edits[{cx, cz}][idx] = static_cast<uint8_t>(type);
   }
 
-  // Block light: if a torch is involved or nearby, run the cross-chunk relight
-  // (recomputes + remeshes the 3x3 around the edit). Otherwise take the cheap
-  // intra-chunk path and rebuild the edited chunk (+ edge neighbors).
+  // Block light: if a torch is involved or close enough to shine here, run the
+  // cross-chunk relight (recomputes + remeshes the 3x3 around the edit), since
+  // light may have to go down. Otherwise no light changes here: recompute the
+  // chunk, take back what its neighbours shine in, and rebuild the edited
+  // chunk (+ edge neighbors).
   bool emitterInvolved =
       blockLightEmission(type) > 0 || blockLightEmission(oldType) > 0;
-  if (emitterInvolved || anyEmitterInRegion(cx, cz, 2)) {
+  if (emitterInvolved || emitterInReach(worldPos)) {
     relightBlockRegion(cx, cz);
   } else {
     {
       std::lock_guard lock(chunk->data_mutex);
       chunk->computeBlockLight();
     }
+    for (const ChunkKey &k : spreadBorderLight({cx, cz})) rebuildChunk(k.x, k.z);
     rebuildChunk(cx, cz);
     if (lx == 0)              rebuildChunk(cx - 1, cz);
     if (lx == kChunkWidth-1)  rebuildChunk(cx + 1, cz);

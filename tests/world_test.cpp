@@ -6,8 +6,12 @@
 #include "doctest/doctest.h"
 #include "core/constants.hpp"
 #include "test_util.hpp"
+#include "block/block_data.hpp"
+#include "core/seed.hpp"
+#include "core/settings.hpp"
 #include "world/world.hpp"
 #include <chrono>
+#include <queue>
 #include <thread>
 
 namespace {
@@ -204,4 +208,138 @@ TEST_CASE("a guest world built from the host's edit list matches the host") {
           FAIL("block differs at " << x << "," << y << "," << z);
         }
       }
+}
+
+// ─── Block light across chunk borders ──────────────────────────────────
+
+namespace {
+
+// Block light flooded over a whole box of loaded chunks at once: the answer
+// chunk-by-chunk streaming has to reach, whatever order chunks arrive in.
+struct ReferenceLight {
+  int x0, z0, w, d;
+  std::vector<uint8_t> light;
+  uint8_t &at(int x, int y, int z) {
+    return light[(x - x0) + w * ((z - z0) + d * static_cast<size_t>(y))];
+  }
+
+  ReferenceLight(const World &world, int cx0, int cz0, int chunks)
+      : x0(cx0 * kChunkWidth), z0(cz0 * kChunkDepth), w(chunks * kChunkWidth),
+        d(chunks * kChunkDepth), light(static_cast<size_t>(w) * d * kChunkHeight, 0) {
+    auto block = [&](int x, int y, int z) {
+      return world.getBlockAt(glm::vec3(x + 0.5f, y + 0.5f, z + 0.5f));
+    };
+    std::queue<glm::ivec3> q;
+    for (int y = 0; y < kChunkHeight; ++y)
+      for (int z = z0; z < z0 + d; ++z)
+        for (int x = x0; x < x0 + w; ++x)
+          if (uint8_t e = blockLightEmission(block(x, y, z))) {
+            at(x, y, z) = e;
+            q.push({x, y, z});
+          }
+    const glm::ivec3 steps[] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    while (!q.empty()) {
+      glm::ivec3 p = q.front();
+      q.pop();
+      uint8_t l = at(p.x, p.y, p.z);
+      for (glm::ivec3 s : steps) {
+        glm::ivec3 n = p + s;
+        if (n.x < x0 || n.x >= x0 + w || n.z < z0 || n.z >= z0 + d || n.y < 0 ||
+            n.y >= kChunkHeight)
+          continue;
+        uint8_t op = skyLightOpacity(block(n.x, n.y, n.z));
+        if (op >= 15 || l <= 1 + op) continue;
+        uint8_t nl = static_cast<uint8_t>(l - 1 - op);
+        if (nl > at(n.x, n.y, n.z)) {
+          at(n.x, n.y, n.z) = nl;
+          q.push(n);
+        }
+      }
+    }
+  }
+};
+
+void checkInnerLightMatches(World &world, int cx0, int cz0, int chunks, int margin) {
+  ReferenceLight ref(world, cx0, cz0, chunks);
+  long lit = 0, wrong = 0;
+  for (int cx = cx0 + margin; cx < cx0 + chunks - margin; ++cx)
+    for (int cz = cz0 + margin; cz < cz0 + chunks - margin; ++cz)
+      for (int y = 0; y < kChunkHeight; ++y)
+        for (int lz = 0; lz < kChunkDepth; ++lz)
+          for (int lx = 0; lx < kChunkWidth; ++lx) {
+            glm::ivec3 p{cx * kChunkWidth + lx, y, cz * kChunkDepth + lz};
+            uint8_t want = ref.at(p.x, p.y, p.z);
+            lit += want > 0;
+            wrong += world.getBlockLightAt(p) != want;
+          }
+  CHECK(lit > 0);
+  CHECK(wrong == 0);
+}
+
+} // namespace
+
+TEST_CASE("a lamp's light crosses into a chunk that loads after it") {
+  World world;
+  // A lamp just inside chunk (0, 0)'s +x border, high in open air.
+  const glm::ivec3 lamp{kChunkWidth - 2, kChunkHeight - 4, 8};
+  WorldEdits edits;
+  edits[{0, 0}][linearIndex(lamp.x, lamp.y, lamp.z)] = static_cast<uint8_t>(BlockType::GLOWSTONE);
+  world.setLoadedEdits(std::move(edits));
+
+  world.loadChunkSync(0, 0);
+  world.loadChunkSync(1, 0); // arrives later
+  CHECK(world.getBlockLightAt(lamp + glm::ivec3(3, 0, 0)) == 12);
+  // And on round a corner, into the diagonal neighbour.
+  world.loadChunkSync(1, 1);
+  int dz = kChunkDepth - lamp.z; // to the first block of (1, 1)
+  CHECK(world.getBlockLightAt(lamp + glm::ivec3(3, 0, dz)) == 15 - 3 - dz);
+}
+
+TEST_CASE("streamed-in cave light matches one flood over the whole area") {
+  ScopedRenderDistance rd{0};
+  Settings saved = g_settings;
+  g_settings.world_seed = 12345;
+  g_settings.noise_offset = noiseOffsetFor(12345);
+  g_settings.worldgen = worldgen::kCaves;
+  {
+    // 7x7 chunks around a cave system with glow crystals, loaded in an
+    // awkward order (columns, alternating ends). The inner 3x3 is more than
+    // a light's reach from the edge, so it must match exactly.
+    World world;
+    const int cx0 = -43, cz0 = -43, n = 7;
+    for (int i = 0; i < n; ++i)
+      for (int j = 0; j < n; ++j) world.loadChunkSync(cx0 + i, cz0 + (i % 2 ? n - 1 - j : j));
+    checkInnerLightMatches(world, cx0, cz0, n, 2);
+  }
+  g_settings = saved;
+}
+
+TEST_CASE("walling a lamp in darkens the chunk next door too") {
+  World world;
+  world.loadChunkSync(0, 0);
+  world.loadChunkSync(1, 0);
+  const glm::ivec3 lamp{kChunkWidth - 2, kChunkHeight - 4, 8};
+  world.setBlockAt(lamp, BlockType::GLOWSTONE);
+  const glm::ivec3 next_door = lamp + glm::ivec3(3, 0, 0);
+  REQUIRE(world.getBlockLightAt(next_door) == 12);
+
+  const glm::ivec3 sides[] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+  for (glm::ivec3 s : sides) world.setBlockAt(lamp + s, BlockType::STONE);
+  CHECK(world.getBlockLightAt(next_door) == 0);
+}
+
+TEST_CASE("an edit far from any light leaves border light from neighbours in place") {
+  World world;
+  const glm::ivec3 lamp{kChunkWidth - 2, kChunkHeight - 4, 8};
+  WorldEdits edits;
+  edits[{0, 0}][linearIndex(lamp.x, lamp.y, lamp.z)] = static_cast<uint8_t>(BlockType::GLOWSTONE);
+  world.setLoadedEdits(std::move(edits));
+  world.loadChunkSync(0, 0);
+  world.loadChunkSync(1, 0);
+  const glm::ivec3 next_door = lamp + glm::ivec3(3, 0, 0);
+  REQUIRE(world.getBlockLightAt(next_door) == 12);
+
+  // Out of the lamp's reach, but in the chunk its light spills into.
+  world.setBlockAt({kChunkWidth + 14, kChunkHeight - 20, 8}, BlockType::STONE);
+  CHECK(world.getBlockLightAt(next_door) == 12);
 }

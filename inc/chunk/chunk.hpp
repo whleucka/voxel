@@ -2,9 +2,13 @@
 
 #include "block/block_type.hpp"
 #include "chunk/chunk_mesh.hpp"
+#include "core/constants.hpp"
+#include <array>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/glm.hpp>
 #include <mutex>
+#include <queue>
+#include <tuple>
 #include <vector>
 
 class World;
@@ -46,6 +50,17 @@ public:
   uint8_t getBlockLight(int x, int y, int z) const;
   uint8_t safeBlockLight(int x, int y, int z) const;
 
+  // Block light across a chunk border. Faces: 0 = -x, 1 = +x, 2 = -z, 3 = +z;
+  // the neighbour across face f faces back with f ^ 1.
+  static_assert(kChunkWidth == kChunkDepth, "faces are indexed along one length");
+  using BorderLight = std::array<uint8_t, kChunkWidth * kChunkHeight>;
+  static constexpr glm::ivec2 kFaceStep[4] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+  // The light in this chunk's layer of blocks on `face`.
+  BorderLight borderLight(int face) const;
+  // Lets in the light a neighbour shines across `face` and floods it on
+  // through this chunk. Light only rises. Returns true if anything changed.
+  bool acceptBorderLight(int face, const BorderLight &incoming);
+
   // Emitter bookkeeping (for the cross-chunk relight fast-path gate).
   bool hasEmitters() const { return emitter_count > 0; }
   int  emitterCount() const { return emitter_count; }
@@ -68,4 +83,10 @@ private:
   std::vector<uint8_t>   blocklight;
   int emitter_count = 0; // number of light-emitting blocks in this chunk
   ChunkMesh mesh;
+
+  using LightQueue = std::queue<std::tuple<int, int, int>>;
+  // Spreads block light outward from every queued block, within this chunk.
+  void floodBlockLight(LightQueue &queue);
+  // The (x, z) of the i-th block along `face`.
+  static glm::ivec2 faceCell(int face, int i);
 };
