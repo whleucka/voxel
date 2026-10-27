@@ -13,6 +13,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 // The authoritative simulation. Owns the world, the clock and every player's
@@ -98,6 +99,9 @@ public:
   // Drives spawning, wandering and hops; tests reseed it for determinism.
   Rng &rng() { return rng_; }
   const PlayerState *findPlayer(PlayerId id) const;
+  PlayerState *findPlayer(PlayerId id) {
+    return const_cast<PlayerState *>(std::as_const(*this).findPlayer(id));
+  }
   // A guest's saved state, if they've played here before.
   const WorldSave::GuestRecord *guestRecord(const std::string &name) const;
 
@@ -126,6 +130,7 @@ private:
   void apply(Client &client, const SpawnDebugEntity &cmd);
   void apply(Client &client, const InteractEntity &cmd);
   void apply(Client &client, const EatItem &cmd);
+  void apply(Client &client, const Craft &cmd);
   // Eye-to-box distance check shared by hitting and feeding.
   bool inReachOf(const PlayerState &ps, const Entity &e) const;
   void releaseAnimalProducts();
@@ -146,6 +151,8 @@ private:
   // Sends the inventory, and notes any item the player hasn't had before.
   void sendInventory(Client &client, PlayerState &ps);
   bool inReach(const PlayerState &ps, const glm::ivec3 &block) const;
+  // A Crafting Table within the player's reach (the same rule as placing).
+  bool tableInReach(const PlayerState &ps) const;
   bool overlapsAnyPlayer(const glm::ivec3 &block) const;
   // Stream chunks around every player.
   void updateInterestPoints();

@@ -191,6 +191,11 @@ void Game::sendInventory(Client &client, PlayerState &ps) {
   // loaded save) ends here, so this is where items count as seen.
   for (const ItemStack &s : ps.inventory.slots()) see(ps.seen, s.id);
   client.link->deliver(InventoryContents{ps.inventory.slots()});
+  SeenItems fresh = ps.seen & ~ps.seen_sent;
+  if (fresh.any()) {
+    client.link->deliver(KnownItems{seenList(fresh)});
+    ps.seen_sent |= fresh;
+  }
 }
 
 Inventory Game::starterKit() {
@@ -198,6 +203,20 @@ Inventory Game::starterKit() {
   // Glowstone is the only light source and never generates naturally.
   kit.set(0, {itemForBlock(BlockType::GLOWSTONE), 8});
   return kit;
+}
+
+bool Game::tableInReach(const PlayerState &ps) const {
+  const glm::ivec3 eye = glm::floor(ps.eyePosition());
+  const int r = static_cast<int>(std::ceil(kPlayerReach + 1.0f));
+  for (int dy = -r; dy <= r; ++dy)
+    for (int dz = -r; dz <= r; ++dz)
+      for (int dx = -r; dx <= r; ++dx) {
+        glm::ivec3 p = eye + glm::ivec3(dx, dy, dz);
+        if (world_.getBlockAt(glm::vec3(p) + 0.5f) == BlockType::CRAFTING_TABLE &&
+            inReach(ps, p))
+          return true;
+      }
+  return false;
 }
 
 // The client's raycast measures reach to the face it hit; the block's centre
@@ -732,6 +751,28 @@ void Game::releaseAnimalProducts() {
   std::uniform_real_distribution<float> side(-1.0f, 1.0f);
   for (auto &[stack, at] : out)
     dropItem(stack, at, {side(rng_), 3.5f, side(rng_)}, kBreakDropDelayMs);
+}
+
+void Game::apply(Client &client, const Craft &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead()) return;
+  if (cmd.recipe >= recipes().size()) return reject(client, "craft: no such recipe");
+  const Recipe &recipe = recipes()[cmd.recipe];
+  if (mode_ != GameMode::Creative && !knows(recipe, ps->seen))
+    return reject(client, "craft: you haven't discovered that yet");
+  if (recipe.needs_table && !tableInReach(*ps))
+    return reject(client, "craft: needs a Crafting Table nearby");
+  if (timesAffordable(recipe, ps->inventory) < 1)
+    return reject(client, "craft: missing ingredients");
+
+  int made = 0;
+  while (auto after = craftOnce(recipe, ps->inventory)) {
+    ps->inventory = *after;
+    ++made;
+    if (!cmd.all) break;
+  }
+  if (made == 0) return reject(client, "craft: no room in your inventory");
+  sendInventory(client, *ps);
 }
 
 void Game::apply(Client &client, const EatItem &) {

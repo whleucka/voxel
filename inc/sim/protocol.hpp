@@ -63,10 +63,15 @@ struct DropItem { bool whole_stack = false; };
 // Inventory::move for the merge/swap rules.
 struct MoveItems { int from = 0; int to = 0; uint16_t count = 0; };
 
+// Make a recipe (its index in recipes()) once, or as many times as fit.
+// The Game checks it's discovered, the ingredients, room for the result,
+// and a Crafting Table in reach when the recipe needs one.
+struct Craft { uint16_t recipe = 0; bool all = false; };
+
 using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SelectSlot, Save, SetTimeOfDay, GiveItem,
                              MoveItems, DropItem, AttackEntity,
-                             SpawnDebugEntity, InteractEntity, EatItem>;
+                             SpawnDebugEntity, InteractEntity, EatItem, Craft>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 
@@ -158,7 +163,11 @@ struct EntitySnapshot {
   std::vector<PlayerView> players = {};
 };
 
+// Items the owner has now had for the first time (all of them, on joining):
+// they unlock recipes. The client keeps the running set.
+struct KnownItems { std::vector<ItemId> ids; };
+
 using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            CommandRejected, InventoryContents, VitalsChanged,
                            Respawned, EntitySnapshot, KnockedBack, JoinRefused,
-                           Welcome, TimeSync, Disconnected>;
+                           Welcome, TimeSync, Disconnected, KnownItems>;
