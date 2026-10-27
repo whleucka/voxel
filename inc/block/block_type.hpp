@@ -50,8 +50,9 @@ enum class BlockType : uint8_t {
   PURPLE_BLOCK,
   PINK_BLOCK,
   GLOW_CRYSTAL, // grows in caves (worldgen v2)
+  CRAFTING_TABLE,
 };
 
 // The highest BlockType value. Update it when appending a type; a test in
 // tests/item_test.cpp fails if a named type exists past it.
-constexpr BlockType kLastBlockType = BlockType::GLOW_CRYSTAL;
+constexpr BlockType kLastBlockType = BlockType::CRAFTING_TABLE;

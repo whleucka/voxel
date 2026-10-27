@@ -18,6 +18,7 @@ constexpr std::array<Material, kMaterialCount> kMaterials = {{
     {"Coal", 0},     {"Diamond", 0},  {"Emerald", 0},   {"Ruby", 0},
     {"Raw Iron", 0}, {"Raw Gold", 0}, {"Raw Copper", 0},
     {"Wool", 0},     {"Berries", 4},  {"Sea Shell", 0}, {"Sweet Petals", 6},
+    {"Sticks", 0},
 }};
 constexpr int kItemAtlasCols = 8;
 

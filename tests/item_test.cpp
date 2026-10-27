@@ -44,7 +44,7 @@ TEST_CASE("every placeable block has an item that places it") {
 
 TEST_CASE("the material items are defined with unique item-atlas tiles") {
   auto mats = materials();
-  CHECK(mats.size() == 11);
+  CHECK(mats.size() == 12);
 
   std::set<std::pair<int, int>> tiles;
   for (ItemId id : mats) {
@@ -73,6 +73,7 @@ TEST_CASE("material item ids are stable") {
   CHECK(static_cast<uint16_t>(ItemId::BERRIES) == 264);
   CHECK(static_cast<uint16_t>(ItemId::SEA_SHELL) == 265);
   CHECK(static_cast<uint16_t>(ItemId::SWEET_PETALS) == 266);
+  CHECK(static_cast<uint16_t>(ItemId::STICKS) == 267);
 }
 
 TEST_CASE("isValidItem rejects the empty item, water and unknown ids") {
