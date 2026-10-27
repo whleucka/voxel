@@ -29,7 +29,7 @@ TEST_CASE("kLastBlockType is the last named block type") {
 TEST_CASE("every placeable block has an item that places it") {
   for (uint16_t v = 1; v <= kLastBlock; ++v) {
     BlockType b = static_cast<BlockType>(v);
-    if (b == BlockType::WATER) continue;
+    if (b == BlockType::WATER || b == BlockType::FURNACE_LIT) continue;
     ItemId id = itemForBlock(b);
     CAPTURE(blockName(b));
     REQUIRE(isValidItem(id));
@@ -44,7 +44,7 @@ TEST_CASE("every placeable block has an item that places it") {
 
 TEST_CASE("the material items are defined with unique item-atlas tiles") {
   auto mats = materials();
-  CHECK(mats.size() == 12);
+  CHECK(mats.size() == 16);
 
   std::set<std::pair<int, int>> tiles;
   for (ItemId id : mats) {
@@ -74,6 +74,8 @@ TEST_CASE("material item ids are stable") {
   CHECK(static_cast<uint16_t>(ItemId::SEA_SHELL) == 265);
   CHECK(static_cast<uint16_t>(ItemId::SWEET_PETALS) == 266);
   CHECK(static_cast<uint16_t>(ItemId::STICKS) == 267);
+  CHECK(static_cast<uint16_t>(ItemId::IRON_INGOT) == 268);
+  CHECK(static_cast<uint16_t>(ItemId::CHARCOAL) == 271);
 }
 
 TEST_CASE("isValidItem rejects the empty item, water and unknown ids") {
@@ -116,7 +118,7 @@ TEST_CASE("every other block drops itself, and every drop is a valid item") {
       BlockType::GRASS,       BlockType::SNOW_DIRT,   BlockType::STONE,
       BlockType::COAL_ORE,    BlockType::DIAMOND_ORE, BlockType::EMERALD_ORE,
       BlockType::RUBY_ORE,    BlockType::IRON_ORE,    BlockType::GOLD_ORE,
-      BlockType::COPPER_ORE,
+      BlockType::COPPER_ORE,  BlockType::FURNACE_LIT,
   };
   for (uint16_t v = 0; v <= kLastBlock; ++v) {
     BlockType b = static_cast<BlockType>(v);

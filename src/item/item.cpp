@@ -19,12 +19,15 @@ constexpr std::array<Material, kMaterialCount> kMaterials = {{
     {"Raw Iron", 0}, {"Raw Gold", 0}, {"Raw Copper", 0},
     {"Wool", 0},     {"Berries", 4},  {"Sea Shell", 0}, {"Sweet Petals", 6},
     {"Sticks", 0},
+    {"Iron Ingot", 0}, {"Copper Ingot", 0}, {"Gold Ingot", 0}, {"Charcoal", 0},
 }};
 constexpr int kItemAtlasCols = 8;
 
 bool isPlaceableBlock(uint16_t v) {
   if (v == 0 || v > static_cast<uint16_t>(kLastBlockType)) return false;
-  return static_cast<BlockType>(v) != BlockType::WATER;
+  // Water is never held, and a lit furnace is a furnace that's burning.
+  BlockType b = static_cast<BlockType>(v);
+  return b != BlockType::WATER && b != BlockType::FURNACE_LIT;
 }
 
 bool isMaterial(uint16_t v) {
@@ -92,6 +95,7 @@ std::optional<ItemId> dropFor(BlockType b) {
     case BlockType::IRON_ORE:    return ItemId::RAW_IRON;
     case BlockType::GOLD_ORE:    return ItemId::RAW_GOLD;
     case BlockType::COPPER_ORE:  return ItemId::RAW_COPPER;
+    case BlockType::FURNACE_LIT: return itemForBlock(BlockType::FURNACE);
     default:                     return itemForBlock(b);
   }
 }

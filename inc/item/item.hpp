@@ -24,11 +24,15 @@ enum class ItemId : uint16_t {
   SEA_SHELL,
   SWEET_PETALS,
   STICKS,        // crafting
+  IRON_INGOT,    // smelting
+  COPPER_INGOT,
+  GOLD_INGOT,
+  CHARCOAL,
   // Append only: the numeric value is persisted in inventory saves.
 };
 
 constexpr ItemId kFirstMaterialItem = ItemId::COAL;
-constexpr ItemId kLastMaterialItem = ItemId::STICKS;
+constexpr ItemId kLastMaterialItem = ItemId::CHARCOAL;
 
 struct ItemIcon {
   enum class Atlas : uint8_t { Block, Item };
