@@ -1,4 +1,5 @@
 #include "core/engine.hpp"
+#include "ui/cursor.hpp"
 #include "ui/menu_style.hpp"
 #include "block/block_data.hpp"
 #include "core/config.hpp"
@@ -78,9 +79,6 @@ bool Engine::init() {
   glfwSetMouseButtonCallback(window, mouseButtonCallback);
   glfwSetScrollCallback(window, scrollCallback);
   glfwSetFramebufferSizeCallback(window, windowResize);
-  glfwSetInputMode(window, GLFW_CURSOR,
-                   g_settings.show_cursor ? GLFW_CURSOR_NORMAL
-                                          : GLFW_CURSOR_DISABLED);
 
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
     std::cerr << "Failed to initialize GLAD\n";
@@ -125,13 +123,13 @@ bool Engine::init() {
 }
 
 void Engine::run() {
-  setCursorCaptured(false);
   menu.open();
   while (!glfwWindowShouldClose(window)) {
     float currentFrame = glfwGetTime();
     delta_time = currentFrame - last_frame;
     last_frame = currentFrame;
     applyDisplaySettings();
+    updateCursor();
 
     if (playing()) {
       processInput(window);
@@ -251,10 +249,22 @@ void Engine::startFromMenu(const TitleMenu::Choice &choice) {
   startSession(std::move(s));
 }
 
-void Engine::setCursorCaptured(bool captured) {
-  glfwSetInputMode(window, GLFW_CURSOR,
-                   captured && !g_settings.show_cursor ? GLFW_CURSOR_DISABLED
-                                                       : GLFW_CURSOR_NORMAL);
+void Engine::updateCursor() {
+  CursorState state;
+  state.playing = playing();
+  state.paused = paused();
+  state.debug = g_settings.show_debug;
+  state.inventory = player && player->isInventoryOpen();
+  bool free = cursorFree(state) || g_settings.show_cursor;
+
+  // While captured, ImGui must not set its own cursor (it would show it).
+  ImGuiIO &io = ImGui::GetIO();
+  if (free) io.ConfigFlags &= ~ImGuiConfigFlags_NoMouseCursorChange;
+  else io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
+
+  int want = free ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED;
+  if (glfwGetInputMode(window, GLFW_CURSOR) == want) return;
+  glfwSetInputMode(window, GLFW_CURSOR, want);
   first_mouse = true; // no camera jump when it's captured again
 }
 
@@ -284,7 +294,6 @@ void Engine::endSession(std::string message) {
   player.reset();
   pause.close();
   g_settings.show_debug = false;
-  setCursorCaptured(false);
   menu.open(std::move(message));
 }
 
@@ -367,7 +376,6 @@ void Engine::handleEvents() {
       *player->getFlyModePtr() = joined->fly;
       player->setFlyAllowed(rulesFor(game_mode).fly);
       menu.close();
-      setCursorCaptured(true);
     }
     else if (const auto *refused = std::get_if<JoinRefused>(&ev)) {
       return endSession(refused->reason);
@@ -452,10 +460,8 @@ void Engine::render() {
     hud.drawVitals(layout, vitals_view, glfwGetTime());
   }
   if (vitals_view.dead) hud.drawDeathScreen();
-  bool was_paused = paused();
   PauseMenu::Action action = pause.draw(session->mode() == Session::Mode::Single,
                                         session->isGuest(), glfwGetTime());
-  if (was_paused && !paused()) setCursorCaptured(true); // Resume
 
   debug();
   pauseAction(action); // after the frame: it may end the game
@@ -869,15 +875,9 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
   if (engine->paused() && key != GLFW_KEY_ESCAPE) return;
 
   switch (key) {
-    // Debug panel toggle – release/recapture cursor so ImGui is usable
+    // Debug panel toggle (the cursor follows in updateCursor)
     case GLFW_KEY_F1:
       g_settings.show_debug = !g_settings.show_debug;
-      if (g_settings.show_debug) {
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-      } else {
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-        engine->first_mouse = true; // prevent camera jump on close
-      }
       break;
     case GLFW_KEY_F2:
       g_settings.wireframe = !g_settings.wireframe;
@@ -914,7 +914,6 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
         engine->setInventoryOpen(false);
       } else {
         engine->pause.escape();
-        engine->setCursorCaptured(!engine->paused());
       }
       break;
 
@@ -1067,13 +1066,7 @@ void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
 void Engine::setInventoryOpen(bool open) {
   if (player->isInventoryOpen() == open) return;
   player->toggleInventory();
-  if (open) {
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-  } else {
-    inventory_screen.close(); // drop any pick-up; nothing was moved yet
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-    first_mouse = true; // prevent mouse jump when closing inventory
-  }
+  if (!open) inventory_screen.close(); // drop any pick-up; nothing was moved yet
 }
 
 // The local Player mirrors the selection immediately (it picks the block to
