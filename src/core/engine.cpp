@@ -387,6 +387,8 @@ void Engine::handleEvents() {
       player->setFlyAllowed(rulesFor(game_mode).fly);
       known_items.reset();
       known_baseline = true;
+      container_view.reset();
+      inventory_screen.setContainer(std::nullopt);
       crafting_scroll = 0;
       menu.close();
     }
@@ -402,6 +404,17 @@ void Engine::handleEvents() {
     else if (const auto *contents = std::get_if<InventoryContents>(&ev)) {
       inventory_view = contents->slots;
       inventory_screen.sync(inventory_view);
+    }
+    else if (const auto *view = std::get_if<ContainerView>(&ev)) {
+      if (view->open) {
+        container_view = *view;
+        inventory_screen.setContainer(
+            InventoryScreen::Container{view->input, view->fuel, view->output});
+        inventory_screen.sync(inventory_view);
+      } else if (container_view && container_view->pos == view->pos) {
+        container_view.reset(); // walked away, or it's gone: back to crafting
+        inventory_screen.setContainer(std::nullopt);
+      }
     }
     else if (const auto *known = std::get_if<KnownItems>(&ev)) {
       // Recipes this unlocks get a popup, except for the whole set on joining.
@@ -483,12 +496,16 @@ void Engine::render() {
                             {io.MousePos.x, io.MousePos.y});
     if (rulesFor(game_mode).palette)
       hud.drawPalette(layout, paletteItems(), {io.MousePos.x, io.MousePos.y});
-    std::vector<CraftRow> rows = craftingRowsNow();
-    int most = std::max(0, static_cast<int>(rows.size()) - layout.craftingVisibleRows());
-    crafting_scroll = std::clamp(crafting_scroll, 0, most);
-    Inventory inv;
-    for (int i = 0; i < kInventorySlots; ++i) inv.set(i, inventory_view[i]);
-    hud.drawCrafting(layout, rows, crafting_scroll, inv, {io.MousePos.x, io.MousePos.y});
+    if (container_view) {
+      hud.drawFurnace(layout, *container_view, inventory_screen, {io.MousePos.x, io.MousePos.y});
+    } else {
+      std::vector<CraftRow> rows = craftingRowsNow();
+      int most = std::max(0, static_cast<int>(rows.size()) - layout.craftingVisibleRows());
+      crafting_scroll = std::clamp(crafting_scroll, 0, most);
+      Inventory inv;
+      for (int i = 0; i < kInventorySlots; ++i) inv.set(i, inventory_view[i]);
+      hud.drawCrafting(layout, rows, crafting_scroll, inv, {io.MousePos.x, io.MousePos.y});
+    }
   } else {
     hud.drawHotbar(layout, inventory_view, player->getSelectedHotbarSlot(),
                    glfwGetTime());
@@ -1011,10 +1028,13 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     std::optional<int> slot = layout.hitTestScreen(io.MousePos.x, io.MousePos.y);
     const Inventory::Slots &inv = engine->inventory_view;
     InventoryScreen &screen = engine->inventory_screen;
+    if (engine->container_view && !slot)
+      if (auto f = layout.hitTestFurnace(io.MousePos.x, io.MousePos.y)) slot = kFurnaceInput + *f;
 
     // Crafting: a click makes one, shift-click as many as fit. Rows the Game
-    // would refuse do nothing.
-    if (auto row = layout.hitTestCrafting(io.MousePos.x, io.MousePos.y)) {
+    // would refuse do nothing. (Not while a furnace takes its place.)
+    if (auto row = engine->container_view ? std::nullopt
+                                          : layout.hitTestCrafting(io.MousePos.x, io.MousePos.y)) {
       std::vector<CraftRow> rows = engine->craftingRowsNow();
       int index = engine->crafting_scroll + *row;
       screen.close(); // drop any pick-up; nothing was moved yet
@@ -1084,9 +1104,14 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     const ItemStack &held = engine->inventory_view[player->getSelectedHotbarSlot()];
     if (auto animal = aimedEntity(isAnimal))
       engine->connection().send(InteractEntity{*animal});
-    // Use a Crafting Table (crouch to place against it instead).
+    // Use a Crafting Table or a furnace (crouch to place against it instead).
     else if (ray.hit && ray.block_type == BlockType::CRAFTING_TABLE && !player->isCrouching())
       engine->setInventoryOpen(true);
+    else if (ray.hit && !player->isCrouching() &&
+             (ray.block_type == BlockType::FURNACE || ray.block_type == BlockType::FURNACE_LIT)) {
+      engine->connection().send(OpenContainer{ray.block_pos});
+      engine->setInventoryOpen(true);
+    }
     else if (!held.empty() && itemDef(held.id).food_heal > 0)
       engine->connection().send(EatItem{});
     else if (ray.hit)
@@ -1130,7 +1155,14 @@ std::vector<CraftRow> Engine::craftingRowsNow() {
 void Engine::setInventoryOpen(bool open) {
   if (player->isInventoryOpen() == open) return;
   player->toggleInventory();
-  if (!open) inventory_screen.close(); // drop any pick-up; nothing was moved yet
+  if (!open) {
+    inventory_screen.close(); // drop any pick-up; nothing was moved yet
+    if (container_view) {
+      connection().send(CloseContainer{});
+      container_view.reset();
+      inventory_screen.setContainer(std::nullopt);
+    }
+  }
 }
 
 // The local Player mirrors the selection immediately (it picks the block to

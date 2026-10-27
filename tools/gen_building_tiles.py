@@ -200,6 +200,43 @@ def table_side(rng):
     return img
 
 
+def furnace_body(rng):
+    """Rough stone blocks: the furnace's top and the frame round its mouth."""
+    img = bricks((122, 122, 126), (78, 78, 82), rng, w=8, h=8, bevel=True)
+    return img
+
+
+def furnace_top(rng):
+    img = furnace_body(rng)
+    px = pixels(img)
+    for y in range(10, 22):  # a grate over the fire
+        for x in range(10, 22):
+            px[x, y] = (40, 38, 40, 255) if (x + y) % 3 else (70, 66, 64, 255)
+    return img
+
+
+def furnace_side(rng, lit):
+    img = furnace_body(rng)
+    px = pixels(img)
+    # The mouth: an arch in the lower half, dark inside, embers when lit.
+    for y in range(14, 28):
+        for x in range(7, 25):
+            dx = (x - 15.5) / 9.0
+            if y < 20 and dx * dx + ((y - 20) / 6.0) ** 2 > 1.0:
+                continue
+            edge = y == 14 or x in (7, 24) or y == 27
+            if edge:
+                px[x, y] = (60, 58, 60, 255)
+            elif not lit:
+                px[x, y] = shade((24, 22, 24), rng.randint(-4, 4)) + (255,)
+            else:
+                heat = (y - 14) / 13.0  # hotter at the bottom
+                flick = rng.randint(-20, 20)
+                px[x, y] = (clamp(230 + flick * 0.3), clamp(90 + 140 * heat + flick),
+                            clamp(20 + 40 * heat), 255)
+    return img
+
+
 def lamp(rng):
     """Four glowing panes in a dark iron frame, brightest in the middle."""
     img = new_tile()
@@ -245,6 +282,9 @@ TILES = [
     ("glow_crystal",  crystal),
     ("crafting_table_top",  table_top),
     ("crafting_table_side", table_side),
+    ("furnace_top",         furnace_top),
+    ("furnace_side",        lambda r: furnace_side(r, False)),
+    ("furnace_lit_side",    lambda r: furnace_side(r, True)),
 ]
 
 

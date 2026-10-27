@@ -100,6 +100,7 @@ inline uint8_t blockLightEmission(BlockType type) {
   switch (type) {
     case BlockType::GLOWSTONE:    return 15;
     case BlockType::GLOW_CRYSTAL: return 10; // softer than the lamp
+    case BlockType::FURNACE_LIT:  return 13;
     default:                   return 0;
   }
 }
@@ -151,6 +152,8 @@ inline std::string_view blockName(BlockType type) {
     case BlockType::PINK_BLOCK:    return "Pink Block";
     case BlockType::GLOW_CRYSTAL:  return "Glow Crystal";
     case BlockType::CRAFTING_TABLE: return "Crafting Table";
+    case BlockType::FURNACE:       return "Furnace";
+    case BlockType::FURNACE_LIT:   return "Lit Furnace";
     default:                      return "Unknown";
   }
 }
@@ -202,4 +205,7 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = {
     {BlockType::GLOW_CRYSTAL, {glm::ivec2{0, 3}, glm::ivec2{0, 3}, glm::ivec2{0, 3}}},
     // A worktop on top, a tool rack round the sides, and the worktop again below.
     {BlockType::CRAFTING_TABLE, {glm::ivec2{1, 3}, glm::ivec2{1, 3}, glm::ivec2{2, 3}}},
+    // A stone top and a mouth on every side; flames in it while lit.
+    {BlockType::FURNACE, {glm::ivec2{3, 3}, glm::ivec2{3, 3}, glm::ivec2{4, 3}}},
+    {BlockType::FURNACE_LIT, {glm::ivec2{3, 3}, glm::ivec2{3, 3}, glm::ivec2{5, 3}}},
 };

@@ -23,6 +23,7 @@ struct PlayerState {
   Inventory inventory;
   SeenItems seen;          // every item they've ever had: unlocks recipes
   SeenItems seen_sent;     // the part of `seen` their client has been told
+  std::optional<glm::ivec3> open_container; // the furnace they're looking in
 
   Vitals vitals;
   FallTracker fall;

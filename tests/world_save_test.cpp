@@ -207,3 +207,27 @@ TEST_CASE("discovered.dat round-trips and skips unknown ids") {
   CHECK(back == std::vector<ItemId>{ItemId::STICKS, itemForBlock(BlockType::CRAFTING_TABLE)});
   CHECK_FALSE(WorldSave::loadDiscovered((dir.path / "nope").string(), back));
 }
+
+TEST_CASE("furnaces.dat round-trips slots and timers; no file, no furnaces") {
+  TempDir dir;
+  std::vector<WorldSave::FurnaceRecord> out;
+  CHECK_FALSE(WorldSave::loadFurnaces(dir.path.string(), out));
+
+  WorldSave::FurnaceRecord a;
+  a.pos = {-12, 70, 300};
+  a.furnace.input = {ItemId::RAW_IRON, 5};
+  a.furnace.fuel = {ItemId::COAL, 2};
+  a.furnace.output = {ItemId::IRON_INGOT, 1};
+  a.furnace.burn_ms = 1234;
+  a.furnace.burn_total_ms = 40000;
+  a.furnace.cook_ms = 4321;
+  WorldSave::FurnaceRecord b;
+  b.pos = {0, 1, 2};
+  std::vector<WorldSave::FurnaceRecord> in = {a, b};
+  REQUIRE(WorldSave::saveFurnaces(dir.path.string(), in));
+  REQUIRE(WorldSave::loadFurnaces(dir.path.string(), out));
+  REQUIRE(out.size() == 2);
+  CHECK(out[0].pos == a.pos);
+  CHECK(out[0].furnace == a.furnace);
+  CHECK(out[1].furnace == Furnace{});
+}

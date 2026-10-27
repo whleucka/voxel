@@ -50,6 +50,11 @@ public:
   void drawPalette(const HudLayout &layout, const std::vector<ItemId> &items,
                    glm::vec2 mouse);
 
+  // An open furnace, in the crafting panel's place: its slots, the cooking
+  // arrow and the flame, plus the stack carried from one of its slots.
+  void drawFurnace(const HudLayout &layout, const ContainerView &view,
+                   const InventoryScreen &screen, glm::vec2 mouse);
+
   // The crafting panel left of it, from row `first` down.
   void drawCrafting(const HudLayout &layout, const std::vector<CraftRow> &rows, int first,
                     const Inventory &inventory, glm::vec2 mouse);

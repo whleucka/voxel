@@ -146,3 +146,52 @@ std::optional<int> HudLayout::hitTestCrafting(float px, float py) const {
     if (craftingRow(i).contains(px, py)) return i;
   return std::nullopt;
 }
+
+// ─── Furnace ───────────────────────────────────────────────────────────
+
+Rect HudLayout::furnacePanel() const {
+  Rect left = craftingPanel();
+  Rect inv = screenPanel();
+  float pad = padding(slot);
+  float ph = std::round(slot * 3.0f + 3 * gap_ + 2 * pad + slot * 0.45f);
+  return {left.x, std::round(inv.center().y - ph * 0.5f), left.w, ph};
+}
+
+Rect HudLayout::furnaceTitle() const {
+  Rect panel = furnacePanel();
+  float pad = padding(slot);
+  return {panel.x + pad, panel.y + pad, panel.w - 2 * pad, std::round(slot * 0.45f)};
+}
+
+Rect HudLayout::furnaceSlot(int i) const {
+  Rect panel = furnacePanel();
+  Rect title = furnaceTitle();
+  // Input and output on one row with the arrow between; fuel under the input.
+  float row1 = title.bottom() + gap_ * 2;
+  float row2 = row1 + slot + std::round(slot * 0.6f);
+  float span = std::min(panel.w - 2 * padding(slot), slot * 4.0f);
+  float x0 = std::round(panel.center().x - span * 0.5f);
+  if (i == 0) return {x0, row1, slot, slot};
+  if (i == 1) return {x0, row2, slot, slot};
+  return {x0 + span - slot, row1, slot, slot};
+}
+
+Rect HudLayout::furnaceArrow() const {
+  Rect in = furnaceSlot(0), out = furnaceSlot(2);
+  float h_ = std::round(slot * 0.3f);
+  float x = in.right() + gap_ * 2;
+  float point = h_ * 0.8f; // the arrowhead drawn past the track's end
+  return {x, std::round(in.center().y - h_ * 0.5f), std::max(0.0f, out.x - gap_ * 2 - point - x), h_};
+}
+
+Rect HudLayout::furnaceFlame() const {
+  Rect fuel = furnaceSlot(1);
+  float s = std::round(slot * 0.6f);
+  return {fuel.right() + gap_ * 2, std::round(fuel.center().y - s * 0.5f), s, s};
+}
+
+std::optional<int> HudLayout::hitTestFurnace(float px, float py) const {
+  for (int i = 0; i < 3; ++i)
+    if (furnaceSlot(i).contains(px, py)) return i;
+  return std::nullopt;
+}

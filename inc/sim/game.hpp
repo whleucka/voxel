@@ -12,6 +12,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -103,6 +104,13 @@ public:
     return const_cast<PlayerState *>(std::as_const(*this).findPlayer(id));
   }
 
+  // The furnace at a block, if there is one.
+  const Furnace *furnaceAt(glm::ivec3 pos) const;
+  Furnace *furnaceAt(glm::ivec3 pos) {
+    return const_cast<Furnace *>(std::as_const(*this).furnaceAt(pos));
+  }
+  size_t furnaceCount() const { return furnaces_.size(); }
+
   // A Crafting Table close enough to an eye at `eye` to use: the rule the
   // Game checks crafts with, shared with the client's crafting panel.
   static bool craftingTableWithinReach(const World &world, glm::vec3 eye);
@@ -135,6 +143,17 @@ private:
   void apply(Client &client, const InteractEntity &cmd);
   void apply(Client &client, const EatItem &cmd);
   void apply(Client &client, const Craft &cmd);
+  void apply(Client &client, const OpenContainer &cmd);
+  void apply(Client &client, const CloseContainer &cmd);
+  // Without this, an alternative with no overload above would convert back
+  // to a Command and recurse forever; with it, that's a compile error.
+  template <class T> void apply(Client &, const T &) = delete;
+  // The furnace the player has open, if it's still there and in reach.
+  Furnace *openFurnace(const PlayerState &ps);
+  void sendContainer(Client &client, glm::ivec3 pos);
+  // Every player looking into the furnace at `pos` gets its current state.
+  void sendContainerToViewers(glm::ivec3 pos);
+  void closeContainer(Client &client, PlayerState &ps);
   // Eye-to-box distance check shared by hitting and feeding.
   bool inReachOf(const PlayerState &ps, const Entity &e) const;
   void releaseAnimalProducts();
@@ -186,6 +205,20 @@ private:
   std::optional<WorldSave::PlayerData> saved_player;
   std::optional<std::vector<ItemStack>> saved_inventory;
   std::optional<std::vector<ItemId>> saved_discovered; // the host's, like saved_inventory
+
+  // Every furnace in the world, by block, ticking whether or not its chunk
+  // is loaded.
+  struct BlockLess {
+    bool operator()(const glm::ivec3 &a, const glm::ivec3 &b) const {
+      return std::tie(a.x, a.y, a.z) < std::tie(b.x, b.y, b.z);
+    }
+  };
+  std::map<glm::ivec3, Furnace, BlockLess> furnaces_;
+  void tickFurnaces();
+  // A furnace block went away: its contents pop out where it stood.
+  void spillFurnace(glm::ivec3 pos);
+  // Swaps a furnace block for its lit or unlit look, loaded chunk or not.
+  void showFurnaceLit(glm::ivec3 pos, bool lit);
   // Guests who have played in this world, by name (players/<name>.dat).
   std::map<std::string, WorldSave::GuestRecord> guest_records;
   void storeGuest(const PlayerState &ps);

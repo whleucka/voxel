@@ -61,7 +61,15 @@ struct AttackEntity { EntityId id = 0; };
 struct DropItem { bool whole_stack = false; };
 // Move count items (0 = the whole stack) between inventory slots; see
 // Inventory::move for the merge/swap rules.
+// Slots are inventory slots, or these for the container the mover has open.
+constexpr int kContainerSlot0 = 1000;
+constexpr int kFurnaceInput = kContainerSlot0, kFurnaceFuel = kContainerSlot0 + 1,
+              kFurnaceOutput = kContainerSlot0 + 2;
 struct MoveItems { int from = 0; int to = 0; uint16_t count = 0; };
+
+// Look inside a furnace (in reach) until CloseContainer or walking away.
+struct OpenContainer { glm::ivec3 pos{0}; };
+struct CloseContainer {};
 
 // Make a recipe (its index in recipes()) once, or as many times as fit.
 // The Game checks it's discovered, the ingredients, room for the result,
@@ -71,7 +79,8 @@ struct Craft { uint16_t recipe = 0; bool all = false; };
 using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SelectSlot, Save, SetTimeOfDay, GiveItem,
                              MoveItems, DropItem, AttackEntity,
-                             SpawnDebugEntity, InteractEntity, EatItem, Craft>;
+                             SpawnDebugEntity, InteractEntity, EatItem, Craft,
+                             OpenContainer, CloseContainer>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 
@@ -167,7 +176,19 @@ struct EntitySnapshot {
 // they unlock recipes. The client keeps the running set.
 struct KnownItems { std::vector<ItemId> ids; };
 
+// The open furnace, to everyone looking in: when they open it, when its
+// slots change, and a few times a second while it burns. `open` false: it's
+// closed for them (out of reach, or the furnace is gone).
+struct ContainerView {
+  glm::ivec3 pos{0};
+  bool open = true;
+  ItemStack input, fuel, output;
+  uint8_t burn = 0; // fuel left in the current burn, 0-255
+  uint8_t cook = 0; // progress on the item cooking, 0-255
+};
+
 using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            CommandRejected, InventoryContents, VitalsChanged,
                            Respawned, EntitySnapshot, KnockedBack, JoinRefused,
-                           Welcome, TimeSync, Disconnected, KnownItems>;
+                           Welcome, TimeSync, Disconnected, KnownItems,
+                           ContainerView>;

@@ -43,13 +43,14 @@ TEST_CASE("every recipe is made of real items in sensible amounts") {
 
 TEST_CASE("recipe ids are stable: they travel on the wire") {
   const auto &all = recipes();
-  REQUIRE(all.size() >= 16);
+  REQUIRE(all.size() >= 17);
   CHECK(all[0].makes.id == block(BlockType::OAK_PLANKS));
   CHECK(all[4].makes.id == ItemId::STICKS);
   CHECK(all[5].makes.id == block(BlockType::CRAFTING_TABLE));
   CHECK(all[6].makes.id == block(BlockType::STONE_BRICKS));
   CHECK(all[8].makes.id == block(BlockType::RED_BLOCK));
   CHECK(all[15].makes.id == block(BlockType::GLOWSTONE));
+  CHECK(all[16].makes.id == block(BlockType::FURNACE));
 }
 
 TEST_CASE("only planks, sticks and the table can be made without a table") {

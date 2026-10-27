@@ -100,9 +100,30 @@ def sticks():
     return img
 
 
-# Animal products and crafted items, after the shape-based materials, in
-# ItemId order.
-DRAWN = [wool, berries, shell, petals, sticks]
+def ingot(fill, dark, light):
+    def draw():
+        img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        # A bar seen from above at an angle: a top face and a darker front.
+        d.polygon([(6, 14), (12, 9), (27, 9), (21, 14)], fill=light + (255,), outline=dark + (255,))
+        d.polygon([(6, 14), (21, 14), (21, 22), (6, 22)], fill=fill + (255,), outline=dark + (255,))
+        d.polygon([(21, 14), (27, 9), (27, 17), (21, 22)], fill=dark + (255,), outline=dark + (255,))
+        d.line([(8, 16), (14, 16)], fill=light + (255,))
+        return img
+    return draw
+
+
+def charcoal():
+    return tile_image(LUMP, (58, 44, 36), (20, 14, 10), (110, 90, 74))
+
+
+# Animal products, crafted and smelted items, after the shape-based
+# materials, in ItemId order.
+DRAWN = [wool, berries, shell, petals, sticks,
+         ingot((200, 200, 206), (110, 110, 118), (236, 236, 242)),   # iron
+         ingot((214, 120, 64), (120, 60, 28), (246, 170, 120)),     # copper
+         ingot((240, 200, 60), (150, 110, 20), (255, 236, 140)),    # gold
+         charcoal]
 
 
 def main():

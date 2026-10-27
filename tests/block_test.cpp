@@ -36,7 +36,7 @@ TEST_CASE("every block but air has an atlas entry") {
   }
 }
 
-TEST_CASE("no two blocks share a tile, apart from snow and dirt bottoms") {
+TEST_CASE("no two blocks share a tile, apart from snow, dirt bottoms and furnace tops") {
   std::map<std::pair<int, int>, std::set<BlockType>> users;
   for (const auto &[type, tex] : block_data)
     for (glm::ivec2 t : {tex.top, tex.bottom, tex.side})
@@ -46,10 +46,11 @@ TEST_CASE("no two blocks share a tile, apart from snow and dirt bottoms") {
   const std::set<BlockType> snow = {BlockType::SNOW, BlockType::SNOW_STONE,
                                     BlockType::SNOW_DIRT};
   const std::set<BlockType> dirt = {BlockType::GRASS, BlockType::DIRT};
+  const std::set<BlockType> furnace = {BlockType::FURNACE, BlockType::FURNACE_LIT};
   for (const auto &[tile, types] : users) {
     CAPTURE(tile.first);
     CAPTURE(tile.second);
-    if (types.size() > 1) CHECK((types == snow || types == dirt));
+    if (types.size() > 1) CHECK((types == snow || types == dirt || types == furnace));
   }
 }
 
@@ -117,4 +118,18 @@ TEST_CASE("the crafting table is a plain solid block that drops itself") {
   CHECK(skyLightOpacity(BlockType::CRAFTING_TABLE) == 15);
   CHECK_FALSE(isCutout(BlockType::CRAFTING_TABLE));
   CHECK(dropFor(BlockType::CRAFTING_TABLE) == itemForBlock(BlockType::CRAFTING_TABLE));
+}
+
+TEST_CASE("a lit furnace glows, drops a furnace and is never an item") {
+  CHECK(static_cast<int>(BlockType::FURNACE) == 45);
+  CHECK(static_cast<int>(BlockType::FURNACE_LIT) == 46);
+  CHECK(blockLightEmission(BlockType::FURNACE_LIT) == 13);
+  CHECK(blockLightEmission(BlockType::FURNACE) == 0);
+  CHECK(dropFor(BlockType::FURNACE) == itemForBlock(BlockType::FURNACE));
+  CHECK(dropFor(BlockType::FURNACE_LIT) == itemForBlock(BlockType::FURNACE));
+  CHECK(isValidItem(itemForBlock(BlockType::FURNACE)));
+  CHECK_FALSE(isValidItem(itemForBlock(BlockType::FURNACE_LIT)));
+  const auto &palette = paletteItems();
+  CHECK(std::find(palette.begin(), palette.end(), itemForBlock(BlockType::FURNACE_LIT)) ==
+        palette.end());
 }
