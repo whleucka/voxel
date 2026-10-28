@@ -1,5 +1,6 @@
 #include "item/mining.hpp"
 #include "block/bed.hpp"
+#include "block/crop.hpp"
 #include "block/door.hpp"
 
 Toughness toughness(BlockType b) {
@@ -19,6 +20,7 @@ Toughness toughness(BlockType b) {
       return {true, 600, ToolKind::Pickaxe};
 
     case DIRT: case GRASS: case SAND: case SNOW: case SNOW_DIRT:
+    case FARMLAND_DRY: case FARMLAND_WET:
       return {true, 750, ToolKind::Shovel};
 
     case WHITE_BLOCK: case RED_BLOCK: case ORANGE_BLOCK: case YELLOW_BLOCK:
@@ -44,6 +46,7 @@ Toughness toughness(BlockType b) {
 
     default:
       if (isDoor(b) || isBed(b)) return {true, 3000, ToolKind::Axe}; // like planks
+      if (isCrop(b)) return {true, 0}; // picked at once
       return {true, 1000};
   }
 }

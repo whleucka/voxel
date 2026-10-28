@@ -15,7 +15,6 @@ TEST_CASE("bed block ids are pinned") {
   CHECK(static_cast<int>(BlockType::BED_WHITE_FOOT_N) == 65);
   CHECK(static_cast<int>(BlockType::BED_RED_FOOT_N) == 73);
   CHECK(static_cast<int>(BlockType::BED_PINK_HEAD_W) == 128);
-  CHECK(kLastBlockType == BlockType::BED_PINK_HEAD_W);
 }
 
 TEST_CASE("every bed state round-trips through its block type") {

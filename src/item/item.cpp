@@ -1,5 +1,6 @@
 #include "item/item.hpp"
 #include "block/block_data.hpp"
+#include "block/crop.hpp"
 #include <array>
 
 namespace {
@@ -75,11 +76,12 @@ constexpr int kItemAtlasCols = 8;
 bool isPlaceableBlock(uint16_t v) {
   if (v == 0 || v > static_cast<uint16_t>(kLastBlockType)) return false;
   // Water is never held, a lit furnace is a furnace that's burning, a
-  // treasure chest is only ever found, and door and bed halves come from a
-  // door or a bed.
+  // treasure chest is only ever found, door and bed halves come from a door
+  // or a bed, farmland from a hoe and crops from seeds.
   BlockType b = static_cast<BlockType>(v);
   return b != BlockType::WATER && b != BlockType::FURNACE_LIT &&
-         b != BlockType::TREASURE_CHEST && !isDoor(b) && !isBed(b);
+         b != BlockType::TREASURE_CHEST && !isDoor(b) && !isBed(b) && !isFarmland(b) &&
+         !isCrop(b);
 }
 
 bool isMaterial(uint16_t v) {
@@ -139,7 +141,9 @@ std::optional<ItemId> dropFor(BlockType b) {
     case BlockType::BEDROCK:
     case BlockType::TREASURE_CHEST: return std::nullopt;
     case BlockType::GRASS:
-    case BlockType::SNOW_DIRT:   return itemForBlock(BlockType::DIRT);
+    case BlockType::SNOW_DIRT:
+    case BlockType::FARMLAND_DRY:
+    case BlockType::FARMLAND_WET: return itemForBlock(BlockType::DIRT);
     case BlockType::STONE:       return itemForBlock(BlockType::COBBLESTONE);
     case BlockType::COAL_ORE:    return ItemId::COAL;
     case BlockType::DIAMOND_ORE: return ItemId::DIAMOND;
@@ -154,6 +158,8 @@ std::optional<ItemId> dropFor(BlockType b) {
       if (isDoor(b)) return doorTop(b) ? std::nullopt : std::optional(ItemId::WOODEN_DOOR);
       // Likewise one bed, of its colour, from its foot.
       if (isBed(b)) return bedHead(b) ? std::nullopt : std::optional(bedItem(bedColour(b)));
+      // A crop's harvest is the Game's (item/farming.hpp).
+      if (isCrop(b)) return std::nullopt;
       return itemForBlock(b);
   }
 }
