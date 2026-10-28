@@ -65,6 +65,7 @@ void Biome::fillWater(Chunk &chunk) {
 
 void Biome::generateMinerals(Chunk &chunk) {
   glm::vec2 pos = chunk.getPos();
+  const bool pockets = g_settings.worldgen >= worldgen::kPockets;
 
   for (int x = 0; x < kChunkWidth; ++x) {
     for (int z = 0; z < kChunkDepth; ++z) {
@@ -78,10 +79,12 @@ void Biome::generateMinerals(Chunk &chunk) {
             (pos.y * kChunkDepth + z + g_settings.noise_offset.y) * 0.05f
           ));
 
-          // RARE ORES
+          // RARE ORES (from version 4, gems come in caves::placeGemPockets)
           if (n >= 0.8f) {
             int gem_chance = worldgen::rand() % 10 + 1;
-            if (gem_chance == 1)
+            if (pockets && gem_chance <= 6)
+              block = BlockType::IRON_ORE;
+            else if (gem_chance == 1)
               block = BlockType::DIAMOND_ORE;
             else if (gem_chance <= 4)
               block = BlockType::EMERALD_ORE;
@@ -102,8 +105,20 @@ void Biome::generateMinerals(Chunk &chunk) {
   }
 }
 
+namespace {
+// Version 4 floor: the chance in 10 that a block is bedrock, by y.
+constexpr int kFloorBedrock[4] = {10, 7, 4, 2};
+} // namespace
+
 BlockType Biome::generateInternalBlock(int, int y, int) {
   int rando = worldgen::rand() % 10 + 1;
+
+  // From version 4, bedrock is only the floor: solid at y 0, thinning out
+  // by y 3, so deep caves aren't speckled with blocks nobody can break.
+  if (g_settings.worldgen >= worldgen::kPockets) {
+    if (y < 4) return rando <= kFloorBedrock[y] ? BlockType::BEDROCK : BlockType::STONE;
+    if (y < kSeaLevel - 20) return BlockType::STONE;
+  }
 
   // Always bedrock at the bottom few layers
   if (y <= 5) {
