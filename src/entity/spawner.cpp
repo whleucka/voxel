@@ -44,7 +44,7 @@ std::optional<glm::ivec3> Spawner::caveAt(const World &world, int x, int z, Rng 
 
   std::vector<int> floors;
   for (int y = top - 3; y >= 0; --y)
-    if (world.isSolidBlock(x, y, z) && block(y + 1) == BlockType::AIR &&
+    if (world.isSolidBlock(x, y, z) && !isBed(block(y)) && block(y + 1) == BlockType::AIR &&
         block(y + 2) == BlockType::AIR)
       floors.push_back(y);
   if (floors.empty()) return std::nullopt;

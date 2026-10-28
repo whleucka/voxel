@@ -27,10 +27,15 @@ inline bool isLiquid(BlockType type) {
 }
 
 // Whether a block stops bodies and creatures: anything but air, water and an
-// open door. A closed door fills its whole cell.
+// open door. A closed door fills its whole cell; a bed only its lower part
+// (blockHeight).
 inline bool blocksMovement(BlockType type) {
   return type != BlockType::AIR && !isLiquid(type) && !(isDoor(type) && doorOpen(type));
 }
+
+// How high up its cell a block that blocksMovement stops bodies: the top a
+// foot lands on.
+inline float blockHeight(BlockType type) { return isBed(type) ? kBedHeight : 1.0f; }
 
 // Cutout blocks discard the faint texels of their tile instead of drawing them,
 // which turns the soft edges of the leaf art into see-through holes.  They stay
