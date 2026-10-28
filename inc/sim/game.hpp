@@ -8,6 +8,7 @@
 #include "world/world.hpp"
 #include "world/world_save.hpp"
 #include <cstdint>
+#include <deque>
 #include <map>
 #include <optional>
 #include <string>
@@ -92,6 +93,11 @@ public:
   void tick();
 
   World &world() { return world_; }
+  const std::deque<ChatMessage> &chatHistory() const { return chat_history; }
+  // The host's clock for chat times, in minutes since midnight. Tests can
+  // swap it for a fixed one.
+  uint16_t (*chat_minute)() = localMinute;
+  static uint16_t localMinute();
   const World &world() const { return world_; }
   const GameClock &clock() const { return clock_; }
   GameMode mode() const { return mode_; }
@@ -169,6 +175,7 @@ private:
   void apply(Client &client, const UseBed &cmd);
   void apply(Client &client, const LeaveBed &cmd);
   void apply(Client &client, const UseItemOn &cmd);
+  void apply(Client &client, const Chat &cmd);
   // Bobbers float, bites come and go, and lines break.
   void tickFishing();
   // Takes the player's bobber out of the world and ends their fishing.
@@ -211,6 +218,10 @@ private:
   void reject(Client &client, std::string reason);
   bool hostOnly(Client &client, std::string_view what);
   void broadcast(const Event &ev);
+  // A chat line to every joined player, kept in the history. from 0: news.
+  void postChat(PlayerId from, const std::string &name, const std::string &text);
+  // "Alex was beaten by a Zombie": once per death, for anyone newly dead.
+  void announceDeaths();
   // Sends the inventory, and notes any item the player hasn't had before.
   void sendInventory(Client &client, PlayerState &ps);
   bool inReach(const PlayerState &ps, const glm::ivec3 &block) const;
@@ -241,6 +252,7 @@ private:
 
   std::vector<Client> clients;
   std::unordered_map<PlayerId, PlayerState> players;
+  std::deque<ChatMessage> chat_history; // the last kChatHistory lines
   PlayerId next_player_id = 1;
   std::optional<WorldSave::PlayerData> saved_player;
   std::optional<std::vector<ItemStack>> saved_inventory;

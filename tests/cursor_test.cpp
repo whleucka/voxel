@@ -7,4 +7,5 @@ TEST_CASE("the cursor is captured in game, and free only for menus") {
   CHECK(cursorFree({true, true, false, false}));     // pause menu
   CHECK(cursorFree({true, false, true, false}));     // F12 panel
   CHECK(cursorFree({true, false, false, true}));     // inventory
+  CHECK(cursorFree({true, false, false, false, true})); // chat
 }

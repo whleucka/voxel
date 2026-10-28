@@ -35,6 +35,21 @@ Rect HudLayout::breathStrip() const {
   return {strip.x, strip.y - gap_ - strip.h, strip.w, strip.h};
 }
 
+Rect HudLayout::chatArea() const {
+  float margin = gap_ * 3;
+  float beside = std::round((w - rowWidth()) * 0.5f) - 2 * margin;
+  float width = std::min(beside, slot * 9);
+  float bottom = hotbarSlot(0).bottom();
+  float height = std::round(slot * 5);
+  return {margin, bottom - height, width, height};
+}
+
+Rect HudLayout::chatPanel() const {
+  Rect area = chatArea();
+  float top = std::round(h * 0.3f);
+  return {area.x, top, area.w, area.bottom() - top};
+}
+
 Rect HudLayout::nameArea() const {
   Rect strip = breathStrip();
   float name_h = std::round(slot * 0.4f);

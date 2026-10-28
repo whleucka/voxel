@@ -261,6 +261,7 @@ void Engine::updateCursor() {
   state.paused = paused();
   state.debug = g_settings.show_debug;
   state.inventory = player && player->isInventoryOpen();
+  state.chat = chat_open;
   bool free = cursorFree(state) || g_settings.show_cursor;
 
   // While captured, ImGui must not set its own cursor (it would show it).
@@ -292,6 +293,8 @@ void Engine::startSession(std::unique_ptr<Session> s) {
   inventory_view = {};
   vitals_view = {Vitals::kMax, Vitals::kMax, Vitals::kMax, true, false};
   sleep_view.reset();
+  chat_log.clear();
+  setChatOpen(false);
   entity_interp = EntityInterpolator{};
   entity_views.clear();
   player_views.clear();
@@ -314,8 +317,8 @@ void Engine::endSession(std::string message) {
 // ─── Input Processing (polled every frame) ─────────────────────────────
 
 void Engine::processInput(GLFWwindow *window) {
-  // Don't process movement when inventory is open or while dead
-  if (player->isInventoryOpen() || vitals_view.dead || paused()) return;
+  // Don't process movement when inventory or chat is open or while dead
+  if (player->isInventoryOpen() || chat_open || vitals_view.dead || paused()) return;
 
   // In bed: a movement key or jump (pressed afresh) gets us up.
   if (inBed()) {
@@ -436,6 +439,11 @@ void Engine::handleEvents() {
     }
     else if (const auto *note = std::get_if<Notice>(&ev)) {
       hud.notice(note->text, glfwGetTime());
+    }
+    else if (const auto *chat = std::get_if<ChatMessage>(&ev)) {
+      // The backlog from joining is in the panel, but doesn't pop up.
+      chat_log.add({chat->minute, chat->from, chat->name, chat->text,
+                    chat->history ? -kChatLineSeconds : glfwGetTime()});
     }
     else if (const auto *sleep = std::get_if<SleepState>(&ev)) {
       if (sleep->in_bed && !inBed()) {
@@ -569,6 +577,14 @@ void Engine::render() {
     hud.drawHotbar(layout, inventory_view, player->getSelectedHotbarSlot(),
                    glfwGetTime());
     hud.drawVitals(layout, vitals_view, glfwGetTime());
+    if (chat_open) {
+      ChatPanelResult said = drawChatPanel(layout.chatPanel(), chat_log, chat_buf, chat_opening);
+      chat_opening = false;
+      if (said.sent) connection().send(Chat{*said.sent});
+      if (said.close) setChatOpen(false);
+    } else {
+      drawChatLines(layout.chatArea(), chat_log, glfwGetTime());
+    }
   }
   hud.drawNotice(layout, glfwGetTime());
   if (!player->isInventoryOpen() && myBobber() && myBobber()->biting)
@@ -641,8 +657,8 @@ void Engine::renderCrosshair() {
     }
   }
 
-  // No crosshair over the inventory screen or the pause menu.
-  if (player->isInventoryOpen() || paused()) return;
+  // No crosshair over the inventory screen, chat or the pause menu.
+  if (player->isInventoryOpen() || chat_open || paused()) return;
 
   // Draw crosshair at screen center using ImGui overlay
   ImDrawList* draw = ImGui::GetForegroundDrawList();
@@ -998,6 +1014,11 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
   if (!engine->playing()) return;
   // Paused, only Esc counts; ImGui has the rest for moving around the menu.
   if (engine->paused() && key != GLFW_KEY_ESCAPE) return;
+  // Chat open: keys type into it, and Esc closes it without sending.
+  if (engine->chat_open) {
+    if (key == GLFW_KEY_ESCAPE) engine->setChatOpen(false);
+    return;
+  }
 
   switch (key) {
     // Debug panel toggle (the cursor follows in updateCursor). Wireframe and
@@ -1006,9 +1027,14 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
       g_settings.show_debug = !g_settings.show_debug;
       break;
 
-    // Fly mode toggle (T is kept free for chat)
+    // Fly mode toggle
     case GLFW_KEY_F:
       engine->player->toggleFlyMode();
+      break;
+
+    // Chat, while playing (not over the inventory or in bed)
+    case GLFW_KEY_T:
+      if (!engine->player->isInventoryOpen() && !engine->inBed()) engine->setChatOpen(true);
       break;
 
     // Quick-save the world
@@ -1066,7 +1092,7 @@ void Engine::mouseCallback(GLFWwindow *window, double xpos, double ypos) {
 
   // Don't process mouse look in the menu, or when inventory or debug panel is open
   if (!engine->playing() || engine->player->isInventoryOpen() || engine->paused()) return;
-  if (g_settings.show_debug) return;
+  if (g_settings.show_debug || engine->chat_open) return;
 
   if (engine->first_mouse) {
     engine->last_x = xpos;
@@ -1089,6 +1115,7 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
 
   if (action != GLFW_PRESS || !engine->playing() || engine->paused()) return;
+  if (engine->chat_open) return; // clicks belong to the chat panel
 
   // Inventory screen: clicks move items instead of breaking/placing. Clicks
   // on an ImGui window (the F12 panel) belong to that window.
@@ -1240,7 +1267,7 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
 
 void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
   Engine *engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
-  if (!engine->playing() || engine->paused()) return;
+  if (!engine->playing() || engine->paused() || engine->chat_open) return; // chat scrolls itself
   auto& player = engine->player;
 
   // Over the crafting panel the wheel scrolls its list (clamped when drawn).
@@ -1268,7 +1295,7 @@ void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
 void Engine::updateMining(float dt) {
   bool holding = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS &&
                  rulesFor(game_mode).timed_mining && !player->isInventoryOpen() &&
-                 !vitals_view.dead && !inBed() && !ImGui::GetIO().WantCaptureMouse;
+                 !chat_open && !vitals_view.dead && !inBed() && !ImGui::GetIO().WantCaptureMouse;
   if (!holding || swinging) {
     mining.reset();
     if (!holding) swinging = false;
@@ -1314,6 +1341,14 @@ std::vector<CraftRow> Engine::craftingRowsNow() {
   for (int i = 0; i < kInventorySlots; ++i) inv.set(i, inventory_view[i]);
   bool table = player && Game::craftingTableWithinReach(world(), player->getEyePosition());
   return craftingRows(known_items, game_mode == GameMode::Creative, inv, table);
+}
+
+void Engine::setChatOpen(bool open) {
+  if (chat_open == open) return;
+  chat_open = open;
+  chat_opening = open;
+  chat_buf[0] = '\0';
+  first_mouse = true; // no jump in the view when looking resumes
 }
 
 void Engine::setInventoryOpen(bool open) {

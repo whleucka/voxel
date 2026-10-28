@@ -169,3 +169,21 @@ TEST_CASE("the chest panel's 20 slots fit beside the inventory without overlappi
     CHECK_FALSE(l.hitTestChest(inv.center().x, inv.center().y));
   }
 }
+
+TEST_CASE("chat sits bottom-left beside the hotbar, clear of the rest of the HUD") {
+  for (auto [w, h] : kSizes) {
+    CAPTURE(w);
+    HudLayout l(w, h);
+    for (Rect r : {l.chatArea(), l.chatPanel()}) {
+      CHECK(inside(r, w, h));
+      CHECK(r.w >= 250.0f); // room for a readable line
+      for (int i = 0; i < kHotbarSlots; ++i) CHECK_FALSE(overlaps(r, l.hotbarSlot(i)));
+      CHECK_FALSE(overlaps(r, l.barStrip()));
+      CHECK_FALSE(overlaps(r, l.breathStrip()));
+      CHECK_FALSE(overlaps(r, l.nameArea()));
+      CHECK_FALSE(overlaps(r, l.noticeArea()));
+    }
+    CHECK(l.chatPanel().h > l.chatArea().h);
+    CHECK(l.chatPanel().bottom() == l.chatArea().bottom());
+  }
+}

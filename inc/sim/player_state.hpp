@@ -4,6 +4,7 @@
 #include "inventory/inventory.hpp"
 #include "item/recipes.hpp"
 #include "vitals/vitals.hpp"
+#include "sim/chat.hpp"
 #include "sim/protocol.hpp"
 #include <glm/glm.hpp>
 #include <optional>
@@ -43,6 +44,11 @@ struct PlayerState {
   int dead_ms = 0;         // time spent dead, toward respawn
   int attack_cooldown_ms = 0;
   std::optional<VitalsChanged> vitals_sent; // last snapshot sent to the owner
+  // For the death line in chat: what last hurt them ("fell too far",
+  // "was beaten by a Zombie"), and whether this death has been told.
+  std::string hurt_by;
+  bool death_told = false;
+  ChatLimiter chat_limit;
 
   float height() const { return crouch ? kPlayerCrouchHeight : kPlayerHeight; }
   glm::vec3 eyePosition() const {

@@ -4,6 +4,16 @@ What's waiting on a real play-test, newest first. Tick things off as they
 pass; anything that fails, note what happened (a screenshot plus the F12
 coordinates helps).
 
+## Chat
+
+- [ ] T opens chat; typing doesn't walk you around, and the T isn't typed into the box
+- [ ] Enter (or Send) sends and closes; Esc closes without sending, and doesn't open the pause menu
+- [ ] Alex and Aria chat across two computers: names are coloured, and the time matches the host's clock
+- [ ] News shows for joining and leaving, dying (fall, drowning, an enemy) and getting into bed
+- [ ] Lines fade after about 10 seconds; T shows the last 50 and you can scroll up
+- [ ] Someone who joins late sees what was just said
+- [ ] Try to break it: very long messages, spamming ("Slow down!"), pasting, typing with the inventory open
+
 ## Zombies and mummies (Alex's idea)
 
 - [ ] Zombies come out at night on grass (not in the desert), and vanish at sunrise

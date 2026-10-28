@@ -39,6 +39,10 @@ public:
   Rect nameArea() const;         // held-item name popup, above the breath strip
   Rect noticeArea() const;       // "New recipe!" popup, above the name popup
   Rect bitePromptArea() const;   // "Bite! Right-click!", above the notice
+  // Chat, bottom-left beside the hotbar: recent lines while closed, and
+  // the taller panel with the text box while open.
+  Rect chatArea() const;
+  Rect chatPanel() const;
 
   // ─── Inventory screen ───────────────────────────────────────────────
   Rect screenPanel() const;
