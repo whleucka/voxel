@@ -2,6 +2,7 @@
 
 #include "block/block_type.hpp"
 #include "block/bed.hpp"
+#include "block/crop.hpp"
 #include "block/door.hpp"
 #include "robin_hood/robin_hood.h"
 #include <glm/glm.hpp>
@@ -26,11 +27,12 @@ inline bool isLiquid(BlockType type) {
   return type == BlockType::WATER;
 }
 
-// Whether a block stops bodies and creatures: anything but air, water and an
-// open door. A closed door fills its whole cell; a bed only its lower part
+// Whether a block stops bodies and creatures: anything but air, water, an
+// open door and a crop. A closed door fills its whole cell; a bed only its lower part
 // (blockHeight).
 inline bool blocksMovement(BlockType type) {
-  return type != BlockType::AIR && !isLiquid(type) && !(isDoor(type) && doorOpen(type));
+  return type != BlockType::AIR && !isLiquid(type) && !(isDoor(type) && doorOpen(type)) &&
+         !isCrop(type);
 }
 
 // How high up its cell a block that blocksMovement stops bodies: the top a
@@ -67,8 +69,8 @@ inline uint8_t cutoutClass(BlockType type) {
     case BlockType::CHERRY_LEAF: return kCutoutMid;
     case BlockType::PINE_LEAF:   return kCutoutHigh;
     default:
-      // A door's top half has a window in it.
-      return isDoor(type) && doorTop(type) ? kCutoutLow : kCutoutNone;
+      // A door's top half has a window in it, and a crop is leaves on air.
+      return (isDoor(type) && doorTop(type)) || isCrop(type) ? kCutoutLow : kCutoutNone;
   }
 }
 
@@ -109,7 +111,8 @@ inline uint8_t skyLightOpacity(BlockType type) {
     case BlockType::PINE_LEAF:
     case BlockType::PALM_LEAF:
     case BlockType::CHERRY_LEAF: return 1;
-    default:                   return isDoor(type) || isBed(type) ? 0 : 15; // light gets round them
+    default: // light gets round these
+      return isDoor(type) || isBed(type) || isCrop(type) ? 0 : 15;
   }
 }
 
@@ -179,6 +182,14 @@ inline std::string_view blockName(BlockType type) {
     case BlockType::FURNACE_LIT:   return "Lit Furnace";
     case BlockType::CHEST:         return "Chest";
     case BlockType::TREASURE_CHEST: return "Treasure Chest";
+    case BlockType::FARMLAND_DRY:  return "Farmland";
+    case BlockType::FARMLAND_WET:  return "Wet Farmland";
+    case BlockType::WHEAT_0: case BlockType::WHEAT_1:
+    case BlockType::WHEAT_2: case BlockType::WHEAT_3: return "Wheat";
+    case BlockType::CARROT_0: case BlockType::CARROT_1:
+    case BlockType::CARROT_2: case BlockType::CARROT_3: return "Carrots";
+    case BlockType::STRAWBERRY_0: case BlockType::STRAWBERRY_1:
+    case BlockType::STRAWBERRY_2: case BlockType::STRAWBERRY_3: return "Strawberries";
     default:
       if (isDoor(type)) return "Wooden Door";
       if (isBed(type)) return kBedNames[static_cast<int>(bedColour(type))];
@@ -268,6 +279,15 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = [] {
     BlockType b = static_cast<BlockType>(v);
     d[b] = {bedHead(b) ? kBedPillowTile : bedBlanketTile(bedColour(b)), kBedFrameTile,
             kBedFrameTile};
+  }
+  // Farmland: furrows on top, dirt below; darker once watered.
+  d[BlockType::FARMLAND_DRY] = {kFarmlandDryTop, glm::ivec2{2, 0}, kFarmlandDrySide};
+  d[BlockType::FARMLAND_WET] = {kFarmlandWetTop, glm::ivec2{2, 0}, kFarmlandWetSide};
+  // Crops: the plant round the sides, nothing on top or below.
+  for (int v = static_cast<int>(BlockType::WHEAT_0);
+       v <= static_cast<int>(BlockType::STRAWBERRY_3); ++v) {
+    BlockType b = static_cast<BlockType>(v);
+    d[b] = {kCropTopTile, kCropTopTile, cropTile(b)};
   }
   return d;
 }();

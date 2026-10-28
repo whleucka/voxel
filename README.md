@@ -21,7 +21,8 @@
 - **Beds:** craft a bed in one of 8 colours, sleep through the night, and wake up there after you die ([more below](#beds)).
 - **Chests:** craft chests to keep your things in, and hunt deep caves for locked treasure chests ([more below](#chests-and-treasure)).
 - **Fishing:** make a rod, cast it, and reel in when the bobber dips. Cook your catch, or find treasure ([more below](#fishing)).
-- **Tools and weapons:** pickaxes, axes, shovels and swords from wood to diamond; mining takes time and the best ore needs the best picks ([more below](#tools-and-weapons)).
+- **Farming:** till soil with a hoe, plant wheat, carrots and strawberries, keep them watered, and harvest them for food ([more below](#farming)).
+- **Tools and weapons:** pickaxes, axes, shovels, swords and hoes from wood to diamond; mining takes time and the best ore needs the best picks ([more below](#tools-and-weapons)).
 - **Creative mode:** fly, build without running out, and pick from every block, including planks, bricks, glass, eight bright colors and lamps.
 - **Play together:** host a world on your home network, and up to 8 players can join from the title screen.
 - **Your own worlds:** create, rename and delete worlds. Each one saves its edits, inventories and mode.
@@ -100,7 +101,7 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **W, A, S, D:** Move. **Space:** Jump. **Mouse:** Look around.
 *   **Left Ctrl:** Sprint (uses stamina). **Left Shift:** Crouch.
 *   **Left click:** Hit a creature, or break a block (hold it in survival).
-*   **Right click:** Place a block, feed an animal, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, open and shut a door, or sleep in a bed.
+*   **Right click:** Place a block, feed an animal, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, open and shut a door, sleep in a bed, or till, plant and water with a hoe, seeds or a watering can.
 *   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
 *   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
 *   **ESC:** Close the inventory, or open the pause menu (Resume, Settings,
@@ -252,6 +253,32 @@ You'll mostly catch the fish that lives in that water, but now and then
 something else: a shell, some sticks, a soggy boot, or, if you're lucky,
 gold, an emerald or a diamond. Raw fish heal a little. Cook them in a
 furnace and they heal a lot more. A rod lasts 64 catches.
+
+## Farming
+
+Aria's idea. Make a **hoe** at a Crafting Table from 2 of a tier's material
+(planks, cobblestone, an ingot or a gem) and 2 sticks. Right-click **grass
+or dirt** with it to till it into **farmland**. Tilling grass sometimes turns
+up **Wheat Seeds** or **Carrot Seeds**; for **Strawberry Seeds**, take 1
+Berries (from an animal that eats Cherry Blossom) to a table for 2 seeds.
+Right-click farmland with seeds to plant them.
+
+Crops only grow on **wet** soil, which is dark brown; dry soil is light
+brown, and crops on it just wait. Farmland within **4 blocks of water** stays
+wet by itself. Anywhere else, use a **Watering Can** (3 copper ingots at a
+table): right-click water to fill it, then right-click farmland or a crop to
+wet the 3×3 patch round it. A full can holds 10 splashes, and watered soil
+stays wet for a day (20 minutes).
+
+On wet soil a crop goes from sprout to ripe in about a day, and keeps growing
+while you're away, as long as the world is open. Break a **ripe** crop to
+harvest it: **wheat** gives 1 Wheat and 1–2 seeds (3 Wheat make **Bread** at a
+table), **carrots** and **strawberries** give 2–3 to eat and a seed. Break one
+before it's ripe and you just get the seed back. A block put on farmland
+packs it back into dirt.
+
+The crop and soil tiles are placeholders with GIMP sources in `assets/blocks/`,
+for repainting.
 
 ## Caves
 

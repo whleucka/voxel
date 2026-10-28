@@ -89,6 +89,14 @@ const std::vector<Recipe> &recipes() {
         {BedColour::Pink, ItemId::SWEET_PETALS}};
     for (const auto &[colour, dye] : dyes)
       list.push_back(atTable({bedItem(colour), 1}, {{{ItemId::WHITE_BED}, 1}, {{dye}, 1}}));
+    // Farming: hoes like the other tools, bread from wheat, strawberry seeds
+    // from the berries animals give, and a can of copper.
+    for (const auto &[tier, material] : materials)
+      list.push_back(atTable({toolItem(ToolKind::Hoe, tier), 1},
+                             {{material, 2}, {{ItemId::STICKS}, 2}}));
+    list.push_back(atTable({ItemId::BREAD, 1}, {{{ItemId::WHEAT}, 3}}));
+    list.push_back(atTable({ItemId::STRAWBERRY_SEEDS, 2}, {{{ItemId::BERRIES}, 1}}));
+    list.push_back(atTable({ItemId::WATERING_CAN, 1}, {{{ItemId::COPPER_INGOT}, 3}}));
     return list;
   }();
   return all;

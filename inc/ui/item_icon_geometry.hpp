@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 
 constexpr int kBlockAtlasTiles = 16; // 512 px / 32 px tiles
-constexpr int kItemAtlasTiles = 8;   // 256 px / 32 px tiles
+constexpr int kItemAtlasTiles = 16;  // 512 px / 32 px tiles (items use the left 8 columns)
 
 // Texture coordinates of one atlas tile: uv0 top-left, uv1 bottom-right.
 // The atlases are uploaded unflipped, so row 0 is at v = 0.

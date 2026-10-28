@@ -5,7 +5,7 @@
 // Tools and weapons: what kind, how good, how long they last and how hard
 // they hit. Pure data; the mining rules are in item/mining.hpp.
 
-enum class ToolKind : uint8_t { None, Pickaxe, Axe, Shovel, Sword };
+enum class ToolKind : uint8_t { None, Pickaxe, Axe, Shovel, Sword, Hoe };
 
 // In order of strength: a tool meets a "needs at least" when tier >= it.
 enum class Tier : uint8_t { Hand, Wood, Stone, Copper, Iron, Ruby, Emerald, Diamond };
@@ -23,10 +23,12 @@ ItemId toolItem(ToolKind kind, Tier tier);
 int miningSpeed(Tier tier); // how many times faster than a bare hand
 int maxUses(Tier tier);     // before it breaks
 // Uses before this item breaks: a tool's tier uses, the fishing rod's, or 0
-// for anything that doesn't wear.
+// for anything that doesn't wear. The watering can's is the splashes a full
+// can holds; it empties instead of breaking.
+constexpr int kCanSplashes = 10;
 int usesOf(ItemId id);
 int swordDamage(Tier tier); // hand: 1
 
 // Damage a hit does with this held (or NONE): swords their tier's damage,
-// axes one less, pickaxes and shovels 2, a bare hand or anything else 1.
+// axes one less, pickaxes, shovels and hoes 2, a bare hand or anything else 1.
 int attackDamage(ItemId held);

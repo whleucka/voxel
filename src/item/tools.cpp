@@ -13,6 +13,9 @@ constexpr std::array<ToolKind, 4> kKinds = {ToolKind::Pickaxe, ToolKind::Axe, To
 
 Tool toolOf(ItemId id) {
   auto v = static_cast<uint16_t>(id);
+  // Hoes came later, so they follow the beds rather than the swords.
+  if (id >= ItemId::WOOD_HOE && id <= ItemId::DIAMOND_HOE)
+    return {ToolKind::Hoe, static_cast<Tier>(1 + v - static_cast<uint16_t>(ItemId::WOOD_HOE))};
   if (v < kFirstTool || v > static_cast<uint16_t>(ItemId::DIAMOND_SWORD)) return {};
   int i = v - kFirstTool;
   return {kKinds[i / kTiers], static_cast<Tier>(1 + i % kTiers)};
@@ -20,6 +23,9 @@ Tool toolOf(ItemId id) {
 
 ItemId toolItem(ToolKind kind, Tier tier) {
   if (kind == ToolKind::None || tier == Tier::Hand) return ItemId::NONE;
+  if (kind == ToolKind::Hoe)
+    return static_cast<ItemId>(static_cast<uint16_t>(ItemId::WOOD_HOE) +
+                               static_cast<int>(tier) - 1);
   int k = static_cast<int>(kind) - 1;
   int t = static_cast<int>(tier) - 1;
   return static_cast<ItemId>(kFirstTool + k * kTiers + t);
@@ -37,6 +43,7 @@ int maxUses(Tier tier) {
 
 int usesOf(ItemId id) {
   if (id == ItemId::FISHING_ROD) return 64;
+  if (id == ItemId::WATERING_CAN) return kCanSplashes;
   Tool t = toolOf(id);
   return t.kind == ToolKind::None ? 0 : maxUses(t.tier);
 }
@@ -52,7 +59,8 @@ int attackDamage(ItemId held) {
     case ToolKind::Sword:   return swordDamage(t.tier);
     case ToolKind::Axe:     return swordDamage(t.tier) - 1;
     case ToolKind::Pickaxe:
-    case ToolKind::Shovel:  return 2;
+    case ToolKind::Shovel:
+    case ToolKind::Hoe:     return 2;
     default:                return 1;
   }
 }

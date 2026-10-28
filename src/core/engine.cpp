@@ -1,3 +1,4 @@
+#include "item/farming.hpp"
 #include "item/mining.hpp"
 #include "core/engine.hpp"
 #include "ui/cursor.hpp"
@@ -1216,6 +1217,18 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
         engine->hud.notice("Locked! You need a Treasure Key.", glfwGetTime());
       }
     }
+    // Farm: a hoe tills, seeds plant, and the watering can fills at water or
+    // waters the soil.
+    else if (held.id == ItemId::WATERING_CAN) {
+      RaycastResult wet = engine->world().raycast(cam.position, cam.front, kPlayerReach, true);
+      if (wet.hit && wet.block_type != BlockType::WATER && held.wear >= kCanSplashes &&
+          rulesFor(engine->game_mode).timed_mining)
+        engine->hud.notice("The watering can is empty. Fill it at some water!", glfwGetTime());
+      else if (wet.hit)
+        engine->connection().send(UseItemOn{wet.block_pos});
+    }
+    else if (ray.hit && (toolOf(held.id).kind == ToolKind::Hoe || cropForSeed(held.id)))
+      engine->connection().send(UseItemOn{ray.block_pos});
     else if (!held.empty() && itemDef(held.id).food_heal > 0)
       engine->connection().send(EatItem{});
     else if (ray.hit)

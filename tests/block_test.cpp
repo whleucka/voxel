@@ -36,7 +36,7 @@ TEST_CASE("every block but air has an atlas entry") {
   }
 }
 
-TEST_CASE("no two blocks share a tile, apart from snow, dirt bottoms, furnace tops and doors") {
+TEST_CASE("no two blocks share a tile, apart from snow, dirt bottoms, furnace tops, doors and crop tops") {
   std::map<std::pair<int, int>, std::set<BlockType>> users;
   for (const auto &[type, tex] : block_data)
     for (glm::ivec2 t : {tex.top, tex.bottom, tex.side})
@@ -45,12 +45,15 @@ TEST_CASE("no two blocks share a tile, apart from snow, dirt bottoms, furnace to
   // on a dirt bottom.
   const std::set<BlockType> snow = {BlockType::SNOW, BlockType::SNOW_STONE,
                                     BlockType::SNOW_DIRT};
-  const std::set<BlockType> dirt = {BlockType::GRASS, BlockType::DIRT};
+  const std::set<BlockType> dirt = {BlockType::GRASS, BlockType::DIRT, BlockType::FARMLAND_DRY,
+                                    BlockType::FARMLAND_WET};
   const std::set<BlockType> furnace = {BlockType::FURNACE, BlockType::FURNACE_LIT};
-  // And a door's or a bed's states all wear the same few tiles.
+  // And a door's or a bed's states all wear the same few tiles, as crops
+  // share their clear top.
   auto doors = [](const std::set<BlockType> &types) {
     return std::all_of(types.begin(), types.end(), isDoor) ||
-           std::all_of(types.begin(), types.end(), isBed);
+           std::all_of(types.begin(), types.end(), isBed) ||
+           std::all_of(types.begin(), types.end(), isCrop);
   };
   for (const auto &[tile, types] : users) {
     CAPTURE(tile.first);

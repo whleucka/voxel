@@ -2,6 +2,7 @@
 // without a window: World::init() (shaders) is never called.
 #include "doctest/doctest.h"
 #include "block/door.hpp"
+#include "item/farming.hpp"
 #include "item/mining.hpp"
 #include "item/tools.hpp"
 #include "core/settings.hpp"
@@ -3224,4 +3225,298 @@ TEST_CASE_FIXTURE(SleepGame, "the respawn bed is saved, for the host and for a g
   std::map<std::string, WorldSave::GuestRecord> guests;
   REQUIRE(WorldSave::loadGuests(dir.path.string(), guests));
   CHECK(guests.at("Aria").player.bed == glm::ivec3(-3, 70, 12));
+}
+
+// ─── Farming ───────────────────────────────────────────────────────────
+
+namespace {
+// Runs the farms for `ms`, a second at a time as tick() does.
+void growFor(Game &game, int ms) {
+  for (int t = 0; t < ms; t += 1000) game.growFarms(1000);
+}
+
+// A patch of grass by the player at column (5,5), with no water near it.
+struct FarmGame : EditGame {
+  glm::ivec3 soil{5, ground, 5};
+  glm::ivec3 crop() const { return soil + glm::ivec3(0, 1, 0); }
+
+  FarmGame() {
+    for (int dz = -5; dz <= 5; ++dz)
+      for (int dx = -5; dx <= 5; ++dx) {
+        game.world().setBlockAt(soil + glm::ivec3(dx, 0, dz), BlockType::GRASS);
+        game.world().setBlockAt(soil + glm::ivec3(dx, -1, dz), BlockType::DIRT);
+        for (int dy = 1; dy <= 2; ++dy)
+          game.world().setBlockAt(soil + glm::ivec3(dx, dy, dz), BlockType::AIR);
+      }
+    pollAll(conn);
+    pollAll(other);
+  }
+
+  void holding(ItemId item, uint16_t n = 1, uint16_t wear = 0) {
+    PlayerState &me = *game.findPlayer(id);
+    me.inventory.set(me.selected_slot, {item, n, wear});
+  }
+  ItemStack held() const {
+    const PlayerState &me = *game.findPlayer(id);
+    return me.inventory.slot(me.selected_slot);
+  }
+  int have(ItemId item) const {
+    int n = 0;
+    for (const ItemStack &s : inventory().slots())
+      if (s.id == item) n += s.count;
+    return n;
+  }
+
+  // Tills, then plants `seed` on the soil.
+  void sow(ItemId seed, glm::ivec3 at_soil) {
+    holding(ItemId::WOOD_HOE);
+    run(UseItemOn{at_soil});
+    holding(seed);
+    run(UseItemOn{at_soil});
+  }
+};
+} // namespace
+
+TEST_CASE_FIXTURE(FarmGame, "a hoe tills grass or dirt into dry farmland and wears") {
+  holding(ItemId::STONE_HOE);
+  CHECK(changes(run(UseItemOn{soil})) == 1);
+  CHECK(at(soil) == BlockType::FARMLAND_DRY);
+  CHECK(changes(pollAll(other)) == 1);
+  CHECK(held() == ItemStack{ItemId::STONE_HOE, 1, 1});
+  CHECK(game.tracksSoil(soil));
+
+  glm::ivec3 dirt = soil + glm::ivec3(1, 0, 0);
+  game.world().setBlockAt(dirt, BlockType::DIRT);
+  run(UseItemOn{dirt});
+  CHECK(at(dirt) == BlockType::FARMLAND_DRY);
+
+  // Not stone, not farmland again, and not under something.
+  glm::ivec3 stone = soil + glm::ivec3(-1, 0, 0);
+  game.world().setBlockAt(stone, BlockType::STONE);
+  CHECK(reason(run(UseItemOn{stone})) == "till: only grass and dirt");
+  CHECK(reason(run(UseItemOn{soil})) == "till: only grass and dirt");
+  glm::ivec3 covered = soil + glm::ivec3(0, 0, -1);
+  game.world().setBlockAt(covered + glm::ivec3(0, 1, 0), BlockType::COBBLESTONE);
+  CHECK(reason(run(UseItemOn{covered})) == "till: something's on it");
+  CHECK(at(covered) == BlockType::GRASS);
+
+  // A worn-out hoe breaks like any tool.
+  glm::ivec3 last = soil + glm::ivec3(0, 0, 1);
+  holding(ItemId::WOOD_HOE, 1, static_cast<uint16_t>(usesOf(ItemId::WOOD_HOE) - 1));
+  run(UseItemOn{last});
+  CHECK(held().empty());
+
+  // Nothing farming in hand.
+  holding(ItemId::COAL);
+  CHECK(reason(run(UseItemOn{last})) == "use: nothing to use");
+  moveTo({5.5f, ground + 1.0f, 5.5f + 9.0f});
+  holding(ItemId::WOOD_HOE);
+  CHECK(reason(run(UseItemOn{soil + glm::ivec3(2, 0, 0)})) == "use: out of reach");
+}
+
+TEST_CASE_FIXTURE(FarmGame, "tilling grass sometimes turns up seeds; dirt never does") {
+  int tills = 0;
+  for (int i = 0; i < 120; ++i) {
+    game.world().setBlockAt(soil, BlockType::GRASS);
+    holding(ItemId::DIAMOND_HOE);
+    run(UseItemOn{soil});
+    ++tills;
+  }
+  int seeds = dropped(game, ItemId::WHEAT_SEEDS) + dropped(game, ItemId::CARROT_SEEDS);
+  CHECK(seeds > 0);
+  CHECK(seeds < tills / 2);
+
+  // Creative tills but turns up nothing, and the hoe doesn't wear.
+  game.setMode(GameMode::Creative);
+  int before = seeds;
+  for (int i = 0; i < 60; ++i) {
+    game.world().setBlockAt(soil, BlockType::GRASS);
+    holding(ItemId::WOOD_HOE);
+    run(UseItemOn{soil});
+    CHECK(held().wear == 0);
+  }
+  CHECK(dropped(game, ItemId::WHEAT_SEEDS) + dropped(game, ItemId::CARROT_SEEDS) == before);
+}
+
+TEST_CASE_FIXTURE(FarmGame, "seeds plant on farmland only, and are used up") {
+  holding(ItemId::CARROT_SEEDS, 3);
+  CHECK(reason(run(UseItemOn{soil})) == "plant: seeds go on farmland");
+  holding(ItemId::WOOD_HOE);
+  run(UseItemOn{soil});
+  holding(ItemId::CARROT_SEEDS, 3);
+  CHECK(changes(run(UseItemOn{soil})) == 1);
+  CHECK(at(crop()) == BlockType::CARROT_0);
+  CHECK(held() == ItemStack{ItemId::CARROT_SEEDS, 2});
+  CHECK(game.cropTimeLeft(crop()).has_value());
+  CHECK(reason(run(UseItemOn{soil})) == "plant: something's there");
+}
+
+TEST_CASE_FIXTURE(FarmGame, "crops grow only on wet soil, sprout to ripe in about a day") {
+  sow(ItemId::WHEAT_SEEDS, soil);
+  REQUIRE(at(soil) == BlockType::FARMLAND_DRY);
+  game.growFarms(kWetMs * 2);
+  CHECK(at(crop()) == BlockType::WHEAT_0); // dry: it waits
+
+  holding(ItemId::WATERING_CAN);
+  run(UseItemOn{crop()}); // poured on the crop, it waters its soil
+  CHECK(at(soil) == BlockType::FARMLAND_WET);
+  // A pond by the field keeps it wet past the can's day.
+  game.world().setBlockAt(soil + glm::ivec3(3, 0, 0), BlockType::WATER);
+  pollAll(other);
+  int seconds = 0;
+  while (at(crop()) != BlockType::WHEAT_3 && seconds < 3 * (kStageMs + kStageJitterMs) / 1000) {
+    game.growFarms(1000);
+    ++seconds;
+  }
+  CHECK(at(crop()) == BlockType::WHEAT_3);
+  CHECK(seconds >= 3 * (kStageMs - kStageJitterMs) / 1000);
+  CHECK(changes(pollAll(other)) >= 3); // everyone saw it grow
+  CHECK_FALSE(game.cropTimeLeft(crop()).has_value()); // ripe: done growing
+}
+
+TEST_CASE_FIXTURE(FarmGame, "watered soil dries after a day; soil by water never does") {
+  holding(ItemId::WOOD_HOE);
+  run(UseItemOn{soil});
+  holding(ItemId::WATERING_CAN);
+  run(UseItemOn{soil});
+  CHECK(at(soil) == BlockType::FARMLAND_WET);
+  game.growFarms(kWetMs - 1000);
+  CHECK(at(soil) == BlockType::FARMLAND_WET);
+  game.growFarms(1000);
+  CHECK(at(soil) == BlockType::FARMLAND_DRY);
+
+  // Water four blocks off keeps it wet from the start.
+  glm::ivec3 pond = soil + glm::ivec3(4, 0, 0);
+  game.world().setBlockAt(pond, BlockType::WATER);
+  glm::ivec3 next = soil + glm::ivec3(0, 0, 1);
+  holding(ItemId::WOOD_HOE);
+  run(UseItemOn{next});
+  CHECK(at(next) == BlockType::FARMLAND_WET);
+  game.growFarms(kWetMs * 3);
+  CHECK(at(next) == BlockType::FARMLAND_WET);
+  CHECK(at(soil) == BlockType::FARMLAND_WET); // the pond reaches it now too
+  // Take the water away and it dries.
+  game.world().setBlockAt(pond, BlockType::GRASS);
+  game.growFarms(1000);
+  CHECK(at(next) == BlockType::FARMLAND_DRY);
+}
+
+TEST_CASE_FIXTURE(FarmGame, "the watering can wets a 3x3 patch, empties, and fills at water") {
+  for (int dz = -2; dz <= 2; ++dz)
+    for (int dx = -2; dx <= 2; ++dx) {
+      holding(ItemId::WOOD_HOE);
+      run(UseItemOn{soil + glm::ivec3(dx, 0, dz)});
+    }
+  holding(ItemId::WATERING_CAN);
+  run(UseItemOn{soil});
+  CHECK(held() == ItemStack{ItemId::WATERING_CAN, 1, 1});
+  for (int dz = -2; dz <= 2; ++dz)
+    for (int dx = -2; dx <= 2; ++dx) {
+      CAPTURE(dx);
+      CAPTURE(dz);
+      bool inside = std::abs(dx) <= 1 && std::abs(dz) <= 1;
+      CHECK(at(soil + glm::ivec3(dx, 0, dz)) ==
+            (inside ? BlockType::FARMLAND_WET : BlockType::FARMLAND_DRY));
+    }
+  CHECK(reason(run(UseItemOn{soil + glm::ivec3(3, 0, 0)})) == "water: only on farmland");
+
+  for (int i = 1; i < kCanSplashes; ++i) run(UseItemOn{soil});
+  CHECK(held() == ItemStack{ItemId::WATERING_CAN, 1, kCanSplashes}); // empty, not broken
+  CHECK(reason(run(UseItemOn{soil})) == "water: the can is empty");
+
+  glm::ivec3 pond = soil + glm::ivec3(0, 0, 3);
+  game.world().setBlockAt(pond, BlockType::WATER);
+  run(UseItemOn{pond});
+  CHECK(held() == ItemStack{ItemId::WATERING_CAN, 1, 0});
+
+  // Creative: it never runs dry.
+  game.setMode(GameMode::Creative);
+  for (int i = 0; i < kCanSplashes + 2; ++i) run(UseItemOn{soil});
+  CHECK(held() == ItemStack{ItemId::WATERING_CAN, 1, 0});
+}
+
+TEST_CASE_FIXTURE(FarmGame, "a ripe crop gives its harvest, an unripe one its seed back") {
+  sow(ItemId::STRAWBERRY_SEEDS, soil);
+  wield(ItemId::NONE);
+  mine(crop());
+  CHECK(at(crop()) == BlockType::AIR);
+  CHECK(have(ItemId::STRAWBERRY_SEEDS) == 1);
+  CHECK_FALSE(game.cropTimeLeft(crop()).has_value());
+
+  holding(ItemId::STRAWBERRY_SEEDS);
+  run(UseItemOn{soil});
+  game.world().setBlockAt(soil + glm::ivec3(3, 0, 0), BlockType::WATER);
+  growFor(game, 3 * (kStageMs + kStageJitterMs));
+  REQUIRE(at(crop()) == BlockType::STRAWBERRY_3);
+  wield(ItemId::DIAMOND_SWORD);
+  mine(crop());
+  CHECK(have(ItemId::STRAWBERRY) >= 2);
+  CHECK(have(ItemId::STRAWBERRY_SEEDS) == 1); // the one planted comes back
+  CHECK(held().wear == 0); // picking doesn't wear what's in hand
+  CHECK(at(soil) == BlockType::FARMLAND_WET); // the soil stays
+}
+
+TEST_CASE_FIXTURE(FarmGame, "a crop pops off as its seed when its soil goes or is packed down") {
+  sow(ItemId::WHEAT_SEEDS, soil);
+  wield(ItemId::WOOD_SHOVEL);
+  mine(soil);
+  CHECK(at(crop()) == BlockType::AIR);
+  CHECK(dropped(game, ItemId::WHEAT_SEEDS) == 1);
+  CHECK(have(itemForBlock(BlockType::DIRT)) == 1); // farmland digs up as dirt
+  CHECK_FALSE(game.tracksSoil(soil));
+
+  // A block put on farmland packs it back into dirt.
+  glm::ivec3 next = soil + glm::ivec3(1, 0, 0);
+  holding(ItemId::WOOD_HOE);
+  run(UseItemOn{next});
+  place(next + glm::ivec3(0, 1, 0), BlockType::COBBLESTONE);
+  CHECK(at(next) == BlockType::DIRT);
+  CHECK_FALSE(game.tracksSoil(next));
+}
+
+TEST_CASE_FIXTURE(FarmGame, "farms are saved and keep growing where nobody is") {
+  ScopedSeed seed;
+  TempDir dir;
+  CHECK_FALSE(game.load(dir.path.string()));
+  sow(ItemId::CARROT_SEEDS, soil);
+  holding(ItemId::WATERING_CAN);
+  run(UseItemOn{soil});
+  game.growFarms(1000);
+  const int left = *game.cropTimeLeft(crop());
+  run(Save{});
+
+  ScopedRenderDistance rd2{0};
+  Game loaded;
+  REQUIRE(loaded.load(dir.path.string()));
+  CHECK(loaded.world().getChunkCount() == 0); // nobody here: nothing loaded
+  CHECK(loaded.cropTimeLeft(crop()) == left);
+  CHECK(loaded.tracksSoil(soil));
+  // It grows unloaded while the soil is still wet from the can, then the
+  // soil dries out and it waits, a stage or two along.
+  growFor(loaded, 2 * kWetMs);
+  CHECK(loaded.cropTimeLeft(crop()).has_value());
+  loaded.world().loadChunkSync(0, 0);
+  loaded.world().flushPendingEdits();
+  BlockType grown = loaded.world().getBlockAt(glm::vec3(crop()) + 0.5f);
+  CHECK(isCrop(grown));
+  CHECK(cropStage(grown) >= 2);
+  CHECK(loaded.world().getBlockAt(glm::vec3(soil) + 0.5f) == BlockType::FARMLAND_DRY);
+}
+
+TEST_CASE("farms.dat round-trips crops and soil") {
+  TempDir dir;
+  WorldSave::Farms farms;
+  farms.crops = {{{1, 70, -2}, 12345}, {{-8, 64, 3}, 1}};
+  farms.soil = {{{1, 69, -2}, 600000, false}, {{4, 69, 4}, 0, true}};
+  REQUIRE(WorldSave::saveFarms(dir.path.string(), farms));
+  WorldSave::Farms back;
+  REQUIRE(WorldSave::loadFarms(dir.path.string(), back));
+  REQUIRE(back.crops.size() == 2);
+  CHECK(back.crops[0].pos == glm::ivec3(1, 70, -2));
+  CHECK(back.crops[0].left_ms == 12345);
+  REQUIRE(back.soil.size() == 2);
+  CHECK(back.soil[0].wet_ms == 600000);
+  CHECK_FALSE(back.soil[0].by_water);
+  CHECK(back.soil[1].by_water);
+  CHECK_FALSE(WorldSave::loadFarms((dir.path / "nope").string(), back));
 }

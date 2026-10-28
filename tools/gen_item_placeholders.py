@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate placeholder icons for non-block items into res/item_atlas.png.
 
-The atlas is 256x256 with 32 px tiles (8x8). Material items fill it row by
-row in ItemId order, tile (i % 8, i // 8) (see src/item/item.cpp). Shapes and colours are fixed, so running
+The atlas is 512x512 with 32 px tiles (16x16). Material items fill its left
+half, eight to a row, in ItemId order: tile (i % 8, i // 8) (see src/item/item.cpp). Shapes and colours are fixed, so running
 this again produces the same image. Replace tiles with real art at any time;
 nothing in the code depends on what they look like.
 
@@ -14,7 +14,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 TILE = 32
-SIZE = 256
+SIZE = 512
+COLS = 8  # tiles to a row: the atlas grew taller, so items kept their tiles
 OUT = Path(__file__).resolve().parent.parent / "res" / "item_atlas.png"
 
 # Outline points on a 32x32 tile.
@@ -186,6 +187,87 @@ def sword(fill, dark):
 TOOLS = [make(*t) for make in (pickaxe, axe, shovel, sword) for t in TIERS]
 
 
+# ─── Farming ─────────────────────────────────────────────────────────────
+
+def hoe(fill, dark):
+    def draw():
+        img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        handle(d, (6, 27), (22, 9))
+        blade = [(18, 6), (26, 6), (29, 9), (28, 13), (25, 10), (19, 10)]  # bent down at the end
+        d.polygon(blade, fill=fill + (255,), outline=dark + (255,))
+        return img
+    return draw
+
+
+def seeds(colour, dark):
+    def draw():
+        img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        for x, y in [(10, 12), (18, 9), (22, 17), (13, 20), (19, 24), (8, 22)]:
+            d.ellipse([x - 3, y - 2, x + 3, y + 2], fill=colour + (255,), outline=dark + (255,))
+        return img
+    return draw
+
+
+def wheat_bundle():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    for x in (10, 14, 18, 22):  # stalks, fanned out and tied
+        d.line([(16, 28), (x, 8)], fill=(196, 160, 60, 255), width=2)
+        d.ellipse([x - 3, 3, x + 3, 12], fill=(226, 190, 80, 255), outline=(160, 120, 30, 255))
+    d.line([(12, 21), (20, 21)], fill=(120, 80, 30, 255), width=2)
+    return img
+
+
+def bread():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.ellipse([3, 9, 29, 25], fill=(200, 130, 56, 255), outline=(120, 70, 24, 255))
+    for x in (10, 16, 22):  # scores across the crust
+        d.line([(x - 2, 13), (x + 2, 20)], fill=(236, 190, 120, 255), width=2)
+    return img
+
+
+def carrot():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.polygon([(6, 28), (12, 11), (21, 14)], fill=(236, 122, 36, 255), outline=(176, 80, 20, 255))
+    for dx in (-3, 0, 3):
+        d.line([(16, 12), (22 + dx, 3)], fill=(70, 160, 60, 255), width=2)
+    return img
+
+
+def strawberry():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.polygon([(6, 12), (26, 12), (16, 29)], fill=(220, 34, 50, 255), outline=(140, 16, 30, 255))
+    d.ellipse([6, 9, 26, 19], fill=(220, 34, 50, 255))
+    for x, y in [(11, 14), (16, 16), (21, 14), (14, 21), (18, 21), (16, 25)]:
+        d.point((x, y), fill=(255, 220, 120, 255))
+    d.polygon([(10, 9), (16, 4), (22, 9), (16, 12)], fill=(70, 160, 60, 255))
+    return img
+
+
+def watering_can():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    copper, dark = (214, 120, 64), (118, 58, 26)
+    d.line([(20, 18), (29, 9)], fill=dark + (255,), width=3)       # spout
+    d.rectangle([27, 6, 30, 10], fill=dark + (255,))               # rose
+    d.rectangle([5, 12, 21, 27], fill=copper + (255,), outline=dark + (255,))
+    d.arc([7, 4, 19, 18], 180, 360, fill=dark + (255,), width=2)    # handle
+    d.line([(7, 16), (19, 16)], fill=(246, 170, 120, 255))
+    return img
+
+
+FARMING = ([hoe(*t) for t in TIERS] +
+           [seeds((214, 196, 120), (130, 110, 50)),   # wheat
+            seeds((236, 150, 70), (150, 80, 30)),     # carrot
+            seeds((240, 220, 160), (190, 60, 60)),    # strawberry
+            wheat_bundle, bread, carrot, strawberry, watering_can])
+
+
 def fishing_rod():
     img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
@@ -297,13 +379,13 @@ DRAWN = [wool, berries, shell, petals, sticks,
          ingot((200, 200, 206), (110, 110, 118), (236, 236, 242)),   # iron
          ingot((214, 120, 64), (120, 60, 28), (246, 170, 120)),     # copper
          ingot((240, 200, 60), (150, 110, 20), (255, 236, 140)),    # gold
-         charcoal] + TOOLS + FISHING + [treasure_key, wooden_door] + [bed(c) for c in BED_COLOURS]
+         charcoal] + TOOLS + FISHING + [treasure_key, wooden_door] + [bed(c) for c in BED_COLOURS] + FARMING
 
 
 def main():
     atlas = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     tiles = [tile_image(*spec) for spec in MATERIALS] + [draw() for draw in DRAWN]
-    cols = SIZE // TILE
+    cols = COLS
     for i, tile in enumerate(tiles):
         atlas.paste(tile, ((i % cols) * TILE, (i // cols) * TILE))
     atlas.save(OUT)

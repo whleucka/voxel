@@ -42,6 +42,7 @@ constexpr char kGuestMagic[4]  = {'V', 'X', 'G', 'P'};
 constexpr char kKnownMagic[4]  = {'V', 'X', 'D', 'I'};
 constexpr char kFurnaceMagic[4] = {'V', 'X', 'F', 'U'};
 constexpr char kChestMagic[4]   = {'V', 'X', 'C', 'H'};
+constexpr char kFarmMagic[4]    = {'V', 'X', 'F', 'A'};
 
 bool safeName(const std::string &name) {
   if (name.empty() || name.size() > 16) return false;
@@ -428,6 +429,60 @@ bool loadGuests(const std::string &dir, std::map<std::string, GuestRecord> &out)
     out[name] = std::move(rec);
   }
   return !ec;
+}
+
+
+// ─── farms.dat ──────────────────────────────────────────────────────────────
+
+bool loadFarms(const std::string &dir, Farms &out) {
+  std::ifstream in(dir + "/farms.dat", std::ios::binary);
+  if (!in || !checkHeader(in, kFarmMagic)) return false;
+  Farms farms;
+  uint32_t n = 0;
+  if (!rd(in, n) || n > 1'000'000) return false;
+  for (uint32_t i = 0; i < n; ++i) {
+    CropRecord r;
+    if (!rd(in, r.pos.x) || !rd(in, r.pos.y) || !rd(in, r.pos.z) || !rd(in, r.left_ms))
+      return false;
+    farms.crops.push_back(r);
+  }
+  if (!rd(in, n) || n > 1'000'000) return false;
+  for (uint32_t i = 0; i < n; ++i) {
+    SoilRecord r;
+    uint8_t by_water = 0;
+    if (!rd(in, r.pos.x) || !rd(in, r.pos.y) || !rd(in, r.pos.z) || !rd(in, r.wet_ms) ||
+        !rd(in, by_water))
+      return false;
+    r.by_water = by_water != 0;
+    farms.soil.push_back(r);
+  }
+  out = std::move(farms);
+  return true;
+}
+
+bool saveFarms(const std::string &dir, const Farms &farms) {
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+  if (ec) return false;
+  std::ofstream o(dir + "/farms.dat", std::ios::binary | std::ios::trunc);
+  if (!o) return false;
+  writeHeader(o, kFarmMagic);
+  wr(o, static_cast<uint32_t>(farms.crops.size()));
+  for (const CropRecord &r : farms.crops) {
+    wr(o, r.pos.x);
+    wr(o, r.pos.y);
+    wr(o, r.pos.z);
+    wr(o, r.left_ms);
+  }
+  wr(o, static_cast<uint32_t>(farms.soil.size()));
+  for (const SoilRecord &r : farms.soil) {
+    wr(o, r.pos.x);
+    wr(o, r.pos.y);
+    wr(o, r.pos.z);
+    wr(o, r.wet_ms);
+    wr(o, static_cast<uint8_t>(r.by_water ? 1 : 0));
+  }
+  return static_cast<bool>(o);
 }
 
 } // namespace WorldSave

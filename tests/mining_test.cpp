@@ -1,4 +1,5 @@
 #include "doctest/doctest.h"
+#include "block/crop.hpp"
 #include "item/mining.hpp"
 
 TEST_CASE("bare hands: slow, and stone and ore give nothing") {
@@ -68,6 +69,10 @@ TEST_CASE("every breakable block breaks in a sensible time") {
     CAPTURE(v);
     int ms = breakMs(b, ItemId::NONE);
     if (ms < 0) continue;
+    if (isCrop(b)) { // picked at once
+      CHECK(ms == 0);
+      continue;
+    }
     CHECK(ms >= 300);
     CHECK(ms <= 12000);
     CHECK(breakMs(b, ItemId::DIAMOND_PICKAXE) <= ms);

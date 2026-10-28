@@ -4,6 +4,19 @@ What's waiting on a real play-test, newest first. Tick things off as they
 pass; anything that fails, note what happened (a screenshot plus the F12
 coordinates helps).
 
+## Farming (Aria's idea)
+
+- [ ] Make a hoe at a table and till grass and dirt: the soil turns light brown, and grass sometimes pops out a seed
+- [ ] Plant wheat, carrot and strawberry seeds (strawberry seeds: 1 Berries at a table)
+- [ ] A field next to water is dark brown (wet) without watering; one away from water stays light brown and its crops don't grow
+- [ ] Watering can: fill it at water, splash a field (a 3×3 patch goes dark), it runs out after 10 splashes and says so
+- [ ] Crops grow through four stages in about 20 minutes on wet soil, and the stages are easy to tell apart
+- [ ] Ripe crops give food and seeds; unripe ones give the seed back; bread from 3 wheat
+- [ ] Watered soil dries after about 20 minutes: is having to water twice per crop too fiddly?
+- [ ] Crops keep growing while you're somewhere else in the world, and after saving and loading
+- [ ] A friend on the network sees the field grow
+- [ ] Aria's verdict on the art (GIMP sources: `assets/blocks/wheat_*.xcf`, `carrot_*`, `strawberry_*`, `farmland_*`)
+
 ## Dark water stays dark
 
 - [x] At midday, a cave pool in the dark is dark too: no flat teal glow

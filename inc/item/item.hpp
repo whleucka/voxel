@@ -76,11 +76,26 @@ enum class ItemId : uint16_t {
   BLUE_BED,
   PURPLE_BED,
   PINK_BED,
+  WOOD_HOE,          // farming: hoes in tier order (see item/tools.hpp),
+  STONE_HOE,
+  COPPER_HOE,
+  IRON_HOE,
+  RUBY_HOE,
+  EMERALD_HOE,
+  DIAMOND_HOE,
+  WHEAT_SEEDS,       // seeds in CropKind order (see item/farming.hpp),
+  CARROT_SEEDS,
+  STRAWBERRY_SEEDS,
+  WHEAT,             // and what grows
+  BREAD,
+  CARROT,
+  STRAWBERRY,
+  WATERING_CAN,
   // Append only: the numeric value is persisted in inventory saves.
 };
 
 constexpr ItemId kFirstMaterialItem = ItemId::COAL;
-constexpr ItemId kLastMaterialItem = ItemId::PINK_BED;
+constexpr ItemId kLastMaterialItem = ItemId::WATERING_CAN;
 
 struct ItemIcon {
   enum class Atlas : uint8_t { Block, Item };

@@ -120,6 +120,14 @@ public:
     return const_cast<Chest *>(std::as_const(*this).chestAt(pos));
   }
 
+  // Grows every crop and dries every patch of farmland by `ms`, as tick()
+  // does once a second; tests call it to skip ahead.
+  void growFarms(int ms);
+  // Time until a growing crop's next stage (nothing if it isn't growing),
+  // and whether farmland is known to the Game.
+  std::optional<int> cropTimeLeft(glm::ivec3 pos) const;
+  bool tracksSoil(glm::ivec3 pos) const { return soil_.count(pos) > 0; }
+
   // A Crafting Table close enough to an eye at `eye` to use: the rule the
   // Game checks crafts with, shared with the client's crafting panel.
   static bool craftingTableWithinReach(const World &world, glm::vec3 eye);
@@ -160,6 +168,7 @@ private:
   void apply(Client &client, const UseDoor &cmd);
   void apply(Client &client, const UseBed &cmd);
   void apply(Client &client, const LeaveBed &cmd);
+  void apply(Client &client, const UseItemOn &cmd);
   // Bobbers float, bites come and go, and lines break.
   void tickFishing();
   // Takes the player's bobber out of the world and ends their fishing.
@@ -250,6 +259,29 @@ private:
   void spillFurnace(glm::ivec3 pos);
   std::map<glm::ivec3, Chest, BlockLess> chests_;
   void spillChest(glm::ivec3 pos);
+
+  // Farms: every growing crop's time to its next stage, and every patch of
+  // farmland's water, by block, growing whether or not their chunk is loaded.
+  struct GrowingCrop { int left_ms = 0; };
+  struct Soil {
+    int wet_ms = 0;        // left before watered soil dries
+    bool by_water = false; // water close by: as of when its chunk was last loaded
+  };
+  std::map<glm::ivec3, GrowingCrop, BlockLess> crops_;
+  std::map<glm::ivec3, Soil, BlockLess> soil_;
+  void till(Client &client, PlayerState &ps, glm::ivec3 pos);
+  void plant(Client &client, PlayerState &ps, glm::ivec3 pos);
+  void water(Client &client, PlayerState &ps, glm::ivec3 pos);
+  // The block at a farm cell, loaded or not: an unloaded one is its edit,
+  // since farms are only ever made by players (nothing if it's unedited).
+  std::optional<BlockType> farmBlockAt(glm::ivec3 pos) const;
+  void setFarmBlock(glm::ivec3 pos, BlockType type);
+  // Something went from under a crop: it pops off as its seed.
+  void popCropAbove(glm::ivec3 below);
+  // A block placed on farmland packs it back into dirt.
+  void packSoilUnder(glm::ivec3 placed);
+  // Gives a player items, popping out at `pos` what doesn't fit.
+  void giveOrDrop(PlayerState &ps, ItemStack stack, glm::ivec3 pos);
   // Doors: setting both halves at once, placing one, and popping one whose
   // support at `below` has gone (it drops, in survival).
   void setDoor(glm::ivec3 bottom, BlockType bottom_half);
