@@ -104,6 +104,7 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **Right click:** Place a block, feed an animal, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, open and shut a door, sleep in a bed, or till, plant and water with a hoe, seeds or a watering can.
 *   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
 *   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
+*   **T:** Chat. Type and press Enter (or click Send); Esc closes it.
 *   **ESC:** Close the inventory, or open the pause menu (Resume, Settings,
     Save game, Return to title screen, Exit game). Single player pauses.
 *   **F5:** Save the world. **F11:** Toggle fullscreen.
@@ -328,8 +329,10 @@ it. Type your name, then:
 *   **Settings:** difficulty, render distance, field of view, mouse
     sensitivity, fullscreen, vsync, clouds and shadows. Also in the pause menu.
 
-Up to 8 players. Guests keep their inventory in the host's world under their
-name. The host needs TCP port 47800 and UDP port 47801 open. Only the host
+Up to 8 players. Press **T** to chat: messages show bottom-left with the
+time and who said them, along with news like who joined, who's sleeping
+and who was beaten by a Zombie. Guests keep their inventory in the host's
+world under their name. The host needs TCP port 47800 and UDP port 47801 open. Only the host
 can use the F12 cheats. Guests play in the host's world mode.
 
 
