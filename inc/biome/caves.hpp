@@ -44,6 +44,20 @@ constexpr unsigned kPocketOneOdds = 40;    // ...one, and the rest two
 constexpr unsigned kPocketInWallOdds = 75; // in 100 pockets, where a cave shows it
 void placeGemPockets(Chunk &chunk, const Surfaces &surfaces);
 
+// Pools (worldgen v6): cave water only where it fills a hollow in the floor,
+// 2-3 deep, with rock under it and round it; the only open face is its flat
+// surface. Deep enough hollows are rare, so each chunk also digs up to two
+// bowls into low spots of floor where it finds room. Clears decorate()'s
+// one-block pools first, which still run so every other block comes out as
+// in v5. Inside the chunk, never on a border. Its own random stream.
+constexpr int kPoolDepth = 25;                 // below sea level, as before
+constexpr int kPoolMinDepth = 2, kPoolMaxDepth = 3;
+constexpr int kPoolMinSurface = 4, kPoolMaxSurface = 60;
+constexpr int kBowlsPerChunk = 2;              // at most
+constexpr int kBowlTries = 80;                 // floor spots tried for them
+constexpr int kBowlMinRadius = 2, kBowlMaxRadius = 3;
+void placePools(Chunk &chunk, const Surfaces &surfaces);
+
 // Rooms (worldgen v5): now and then a tunnel opens into a room, 10-20
 // blocks across and 6-10 high, with a flattish floor. At most one in each
 // kRoomCell x kRoomCell square of the world, centred on a tunnel so it

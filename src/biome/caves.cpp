@@ -30,7 +30,6 @@ const glm::vec2 kRegionOffset{71.3f, 19.7f};
 constexpr float kRegionEdge = 0.05f, kRegionCore = 0.25f;
 
 // What grows inside: depths are below sea level, odds are one in N.
-constexpr int kPoolDepth = 25;
 constexpr float kPoolFrequency = 0.12f;
 constexpr float kPoolThreshold = 0.42f;
 constexpr int kCrystalDepth = 15;
@@ -445,6 +444,150 @@ void placeGemPockets(Chunk &chunk, const Surfaces &surface) {
     // Too cramped to make a pocket: leave the rock as it was.
     if (static_cast<int>(cells.size()) < kPocketMin)
       for (const auto &[p, was] : cells) chunk.at(p.x, p.y, p.z) = was;
+  }
+}
+
+void placePools(Chunk &chunk, const Surfaces &surface) {
+  auto ground = [&](int x, int z) { return surface[x + kChunkWidth * z]; };
+  // decorate()'s pools go: any water under the ground is cave water.
+  for (int z = 0; z < kChunkDepth; ++z)
+    for (int x = 0; x < kChunkWidth; ++x)
+      for (int y = 0; y < ground(x, z); ++y)
+        if (chunk.at(x, y, z) == BlockType::WATER) chunk.at(x, y, z) = BlockType::AIR;
+
+  uint64_t h = worldgen::mix(g_settings.world_seed ^ 0x9001u);
+  h = worldgen::mix(h ^ static_cast<uint32_t>(chunk.getPos().x));
+  h = worldgen::mix(h ^ static_cast<uint32_t>(chunk.getPos().y));
+  std::mt19937 rng(static_cast<uint32_t>(h ^ (h >> 32)));
+
+  const int highest = kSeaLevel - kPoolDepth - 1; // the highest surface a pool may have
+  auto edge = [](glm::ivec3 p) {
+    return p.x <= 0 || p.x >= kChunkWidth - 1 || p.z <= 0 || p.z >= kChunkDepth - 1;
+  };
+  auto caveAir = [&](glm::ivec3 p) {
+    return chunk.at(p.x, p.y, p.z) == BlockType::AIR && p.y < ground(p.x, p.z);
+  };
+  // What may hold water in: plain rock, not a crystal, chest or gem.
+  auto bank = [&](glm::ivec3 p) {
+    BlockType b = chunk.at(p.x, p.y, p.z);
+    return b != BlockType::AIR && !isLiquid(b) && b != BlockType::GLOW_CRYSTAL &&
+           b != BlockType::TREASURE_CHEST && b != BlockType::DIAMOND_ORE &&
+           b != BlockType::EMERALD_ORE && b != BlockType::RUBY_ORE;
+  };
+  const glm::ivec3 kSides[] = {{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}, {0, -1, 0}};
+  const glm::ivec3 kUp{0, 1, 0};
+  auto index = [](glm::ivec3 p) { return p.x + kChunkWidth * (p.z + kChunkDepth * p.y); };
+  std::vector<uint8_t> in(kChunkWidth * kChunkHeight * kChunkDepth, 0);
+
+  // Whether `body`, marked in `in`, holds water with its surface at `level`:
+  // inside the chunk, 2-3 deep, rock below and round it, and above it only
+  // more of the pool or, over the surface, open cave air or rock.
+  auto holds = [&](const std::vector<glm::ivec3> &body, int level) {
+    int bottom = level;
+    for (glm::ivec3 p : body) {
+      if (edge(p)) return false;
+      bottom = std::min(bottom, p.y);
+      for (glm::ivec3 d : kSides)
+        if (!in[index(p + d)] && !bank(p + d)) return false;
+      glm::ivec3 q = p + kUp;
+      if (!in[index(q)] && (p.y < level ? !bank(q) : !(caveAir(q) || bank(q)))) return false;
+    }
+    const int depth = level - bottom + 1;
+    return depth >= kPoolMinDepth && depth <= kPoolMaxDepth;
+  };
+  auto fill = [&](const std::vector<glm::ivec3> &body) {
+    for (glm::ivec3 p : body) chunk.at(p.x, p.y, p.z) = BlockType::WATER;
+  };
+  auto unmark = [&](const std::vector<glm::ivec3> &body) {
+    for (glm::ivec3 p : body) in[index(p)] = 0;
+  };
+
+  // Hollows the caves left: work down from the highest surface, so a hollow
+  // fills from as near its brim as the depth limit allows.
+  std::vector<glm::ivec3> body;
+  for (int level = highest; level > kFloor; --level) {
+    std::array<bool, kChunkWidth * kChunkDepth> seen{};
+    for (int z = 1; z < kChunkDepth - 1; ++z)
+      for (int x = 1; x < kChunkWidth - 1; ++x) {
+        if (seen[x + kChunkWidth * z] || !caveAir({x, level, z})) continue;
+        // The surface: one patch of cave air at this level.
+        body.assign(1, {x, level, z});
+        seen[x + kChunkWidth * z] = true;
+        for (size_t i = 0; i < body.size(); ++i)
+          for (int k = 0; k < 4; ++k) {
+            glm::ivec3 q = body[i] + kSides[k];
+            if (q.x < 0 || q.x >= kChunkWidth || q.z < 0 || q.z >= kChunkDepth) continue;
+            if (!seen[q.x + kChunkWidth * q.z] && caveAir(q)) {
+              seen[q.x + kChunkWidth * q.z] = true;
+              body.push_back(q);
+            }
+          }
+        const int area = static_cast<int>(body.size());
+        if (area < kPoolMinSurface || area > kPoolMaxSurface) continue;
+        // Then all the air under it the water would run into, sideways or
+        // down, giving up once that is too much for a pool.
+        for (glm::ivec3 p : body) in[index(p)] = 1;
+        bool small = true;
+        for (size_t i = 0; small && i < body.size(); ++i)
+          for (glm::ivec3 d : kSides) {
+            glm::ivec3 q = body[i] + d;
+            if (edge(body[i]) || level - q.y >= kPoolMaxDepth) {
+              small = false;
+              break;
+            }
+            if (!in[index(q)] && caveAir(q)) {
+              in[index(q)] = 1;
+              body.push_back(q);
+            }
+          }
+        if (small && holds(body, level)) fill(body);
+        unmark(body);
+      }
+  }
+
+  // Too few hollows are deep enough, so dig bowls into low spots of floor:
+  // a round dish, deepest in the middle, its surface level with the floor
+  // round it.
+  std::vector<glm::ivec3> floors; // the top rock of a cave floor
+  for (int z = 1; z < kChunkDepth - 1; ++z)
+    for (int x = 1; x < kChunkWidth - 1; ++x)
+      for (int y = kFloor + kPoolMaxDepth; y <= highest; ++y)
+        if (bank({x, y, z}) && caveAir({x, y + 1, z})) floors.push_back({x, y, z});
+  int dug = 0;
+  for (int tries = 0; tries < kBowlTries && !floors.empty(); ++tries) {
+    const glm::ivec3 c = floors[rng() % floors.size()];
+    const int radius = kBowlMinRadius + static_cast<int>(rng() % (kBowlMaxRadius - kBowlMinRadius + 1));
+    const int deepest = kPoolMinDepth + static_cast<int>(rng() % (kPoolMaxDepth - kPoolMinDepth + 1));
+    const float r = radius + 0.5f;
+    body.clear();
+    bool rock = true;
+    int open = 0;
+    for (int dz = -radius; dz <= radius; ++dz)
+      for (int dx = -radius; dx <= radius; ++dx) {
+        const float t = (dx * dx + dz * dz) / (r * r);
+        const glm::ivec3 top = c + glm::ivec3(dx, 0, dz);
+        if (t > 1.0f) continue;
+        if (edge(top) || !bank(top)) rock = false;
+        // Where the floor rises, its rock is the bank: dig only under open air.
+        if (!rock || !caveAir(top + kUp)) continue;
+        ++open;
+        // Full depth across the middle, shelving to one block at the rim.
+        const int depth = std::max(1, static_cast<int>(std::lround(deepest * (1.0f - t * t))));
+        for (int k = 0; k < depth; ++k) {
+          glm::ivec3 p = top + glm::ivec3(0, -k, 0);
+          if (bank(p)) body.push_back(p);
+          else rock = false;
+        }
+      }
+    if (open < kPoolMinSurface) continue;
+    if (!rock) continue;
+    for (glm::ivec3 p : body) in[index(p)] = 1;
+    const bool ok = holds(body, c.y);
+    unmark(body);
+    if (ok) {
+      fill(body);
+      if (++dug == kBowlsPerChunk) return;
+    }
   }
 }
 

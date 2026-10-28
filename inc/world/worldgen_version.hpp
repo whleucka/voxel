@@ -13,6 +13,7 @@ constexpr uint8_t kCaves = 2;    // natural caves, crystals, pools
 constexpr uint8_t kChests = 3;   // treasure chests in deep caves; v2 otherwise
 constexpr uint8_t kPockets = 4;  // bedrock only as the floor; gems in rare pockets
 constexpr uint8_t kRooms = 5;    // rooms where tunnels open out
-constexpr uint8_t kLatest = kRooms;
+constexpr uint8_t kPools = 6;    // cave pools fill hollows; v5 otherwise
+constexpr uint8_t kLatest = kPools;
 
 } // namespace worldgen
