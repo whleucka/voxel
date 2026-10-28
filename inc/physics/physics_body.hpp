@@ -46,5 +46,7 @@ struct PhysicsBody {
 
 private:
   void applyGravity(float dt);
+  // One sub-step of move(): gravity, then each axis with collision.
+  void moveOnce(float dt, const World *world);
   bool tryAutoStep(const World *world, glm::vec3 &pos) const;
 };

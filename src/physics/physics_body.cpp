@@ -54,6 +54,29 @@ void PhysicsBody::applyGravity(float dt) {
 }
 
 void PhysicsBody::move(float dt, const World *world) {
+  // A long frame or tick moves in sub-steps of at most half a block, so a fast
+  // body can't pass through a floor or a wall between one check and the next
+  // (the smallest creature is a quarter block). Gravity is applied per
+  // sub-step, so a body that landed keeps pressing on the ground.
+  constexpr float kMaxSubStep = 0.5f;
+  // The fastest it can go this step, counting what gravity adds.
+  const float fastest = std::max({std::abs(velocity.x), std::abs(velocity.z),
+                                  std::abs(velocity.y) + std::abs(kGravityForce) * dt});
+  const int n = std::max(1, static_cast<int>(std::ceil(fastest * dt / kMaxSubStep)));
+  for (int i = 0; i < n; ++i) moveOnce(dt / static_cast<float>(n), world);
+
+  // Apply horizontal friction (stop quickly when keys released)
+  if (glides && !on_ground && !inWater()) return;
+  float friction = underwater ? kWaterDrag : 0.85f;
+  velocity.x *= friction;
+  velocity.z *= friction;
+
+  // Clamp tiny velocities to zero
+  if (std::abs(velocity.x) < 0.01f) velocity.x = 0.0f;
+  if (std::abs(velocity.z) < 0.01f) velocity.z = 0.0f;
+}
+
+void PhysicsBody::moveOnce(float dt, const World *world) {
   applyGravity(dt);
 
   // Move along each axis independently and resolve collisions.
@@ -92,16 +115,6 @@ void PhysicsBody::move(float dt, const World *world) {
       velocity.z = 0.0f;
     }
   }
-
-  // Apply horizontal friction (stop quickly when keys released)
-  if (glides && !on_ground && !inWater()) return;
-  float friction = underwater ? kWaterDrag : 0.85f;
-  velocity.x *= friction;
-  velocity.z *= friction;
-
-  // Clamp tiny velocities to zero
-  if (std::abs(velocity.x) < 0.01f) velocity.x = 0.0f;
-  if (std::abs(velocity.z) < 0.01f) velocity.z = 0.0f;
 }
 
 void PhysicsBody::glide(float dt, const World *world) {
