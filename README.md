@@ -12,7 +12,7 @@
 - **Caves:** new worlds have winding tunnels with glow crystals, shallow pools and gems in the walls ([more below](#caves)).
 - **Survival:** break blocks to collect them and place them to build. Watch your health, stamina and breath, and dig for coal, iron, copper, gold, emerald, ruby and diamond.
 - **Creatures:**
-  - Friendly Woollies, Bunnies, Shell Turtles and Blossom Deer. Feed them and they give you something back.
+  - Friendly Woollies, Bunnies, Shell Turtles and Blossom Deer. Feed them and they give you something back: a Woolly eats any leaves and gives you wool.
   - At night, Gloomlings and Thorn Crawlers come out, and Cave Grumbles lurk in the dark underground.
   - Pebblefish, Sunfin and glowing Glowfin swim in lakes, the sea and cave pools.
 - **Crafting:** discover recipes as you collect things, and build a Crafting Table for the bigger ones ([more below](#crafting)).
@@ -216,8 +216,8 @@ in. Breaking either half gives the door back.
 
 ## Beds
 
-Make a **White Bed** from 3 wool and 3 planks (any wood) at a Crafting
-Table, then dye it with one of the coloured blocks' dyes for a **red**
+Make a **White Bed** from 3 wool (feed a Woolly some leaves) and 3 planks
+(any wood) at a Crafting Table, then dye it with one of the coloured blocks' dyes for a **red**
 (ruby), **orange** (raw copper), **yellow** (raw gold), **green** (emerald),
 **blue** (sea shell), **purple** (berries) or **pink** (sweet petals) one.
 Place it on the floor: its head goes the way you're looking. A bed is low,

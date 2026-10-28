@@ -6,6 +6,8 @@ coordinates helps).
 
 ## Beds
 
+- [ ] Survival: punch some leaves off a tree, feed them to a Woolly, and get wool (any kind of leaves works)
+
 - [ ] Craft a White Bed (3 wool + 3 planks at a table), then dye one of each colour
 - [ ] Place beds facing each way: head goes the way you look; needs floor under both halves
 - [ ] Beds look right by day and at night, from every side, in each colour; you can jump on one

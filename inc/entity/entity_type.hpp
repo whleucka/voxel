@@ -42,7 +42,7 @@ struct ModelBox {
 
 // Friendly animals: fed, never hurt.
 struct AnimalDef {
-  ItemId favourite = ItemId::NONE; // block item it eats
+  std::vector<ItemId> eats;        // block items it takes as food
   ItemStack product;               // what it gives when fed
   std::vector<BiomeType> biomes;   // where it spawns
   std::vector<BlockType> ground;   // what it spawns standing on

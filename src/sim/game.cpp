@@ -1333,7 +1333,8 @@ void Game::apply(Client &client, const InteractEntity &cmd) {
 
   const AnimalDef &animal = *entityType(e->kind).animal;
   const ItemStack &held = ps->inventory.slot(ps->selected_slot);
-  if (held.empty() || held.id != animal.favourite)
+  if (held.empty() ||
+      std::find(animal.eats.begin(), animal.eats.end(), held.id) == animal.eats.end())
     return reject(client, "feed: it doesn't want that");
   if (e->fed_cooldown_ms > 0) return reject(client, "feed: not hungry yet");
 

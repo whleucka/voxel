@@ -1620,8 +1620,8 @@ TEST_CASE("the natural spawner has a rule per animal and enemy") {
 }
 
 TEST_CASE_FIXTURE(FeedGame, "feeding an animal its favourite makes it happy and it gives back") {
-  hold(BlockType::GRASS);
-  run(GiveItem{itemForBlock(BlockType::GRASS), 2}); // 3 grass in hand
+  hold(BlockType::OAK_LEAF);
+  run(GiveItem{itemForBlock(BlockType::OAK_LEAF), 2}); // 3 leaves in hand
   REQUIRE(held() == 3);
 
   auto evs = run(InteractEntity{woolly});
@@ -1642,24 +1642,36 @@ TEST_CASE_FIXTURE(FeedGame, "feeding an animal its favourite makes it happy and 
 }
 
 TEST_CASE_FIXTURE(FeedGame, "a fed animal isn't hungry for a while") {
-  hold(BlockType::GRASS);
-  run(GiveItem{itemForBlock(BlockType::GRASS), 1});
+  hold(BlockType::OAK_LEAF);
+  run(GiveItem{itemForBlock(BlockType::OAK_LEAF), 1});
   run(InteractEntity{woolly});
   CHECK(rejected(run(InteractEntity{woolly})));
-  CHECK(held() == 1); // the refused grass wasn't eaten
+  CHECK(held() == 1); // the refused leaves weren't eaten
+}
+
+TEST_CASE_FIXTURE(FeedGame, "a woolly eats any leaves") {
+  for (BlockType leaf : {BlockType::OAK_LEAF, BlockType::PINE_LEAF, BlockType::PALM_LEAF,
+                         BlockType::CHERRY_LEAF}) {
+    CAPTURE(static_cast<int>(leaf));
+    hold(leaf);
+    CHECK_FALSE(rejected(run(InteractEntity{woolly})));
+    animal()->fed_cooldown_ms = 0; // hungry again for the next one
+  }
 }
 
 TEST_CASE_FIXTURE(FeedGame, "animals refuse the wrong food or an empty hand") {
   hold(BlockType::STONE);
   CHECK(rejected(run(InteractEntity{woolly})));
   CHECK(held() == 1);
+  hold(BlockType::GRASS); // no longer a woolly's food
+  CHECK(rejected(run(InteractEntity{woolly})));
   run(SelectSlot{9}); // empty
   CHECK(rejected(run(InteractEntity{woolly})));
   CHECK(animal()->fed_cooldown_ms == 0);
 }
 
 TEST_CASE_FIXTURE(FeedGame, "feeding needs reach and an animal") {
-  hold(BlockType::GRASS);
+  hold(BlockType::OAK_LEAF);
   animal()->body.position = spot + glm::vec3(0, 0, -6);
   CHECK(rejected(run(InteractEntity{woolly})));
   CHECK(held() == 1);
@@ -1675,7 +1687,7 @@ TEST_CASE_FIXTURE(FeedGame, "animals can't be hurt") {
 }
 
 TEST_CASE_FIXTURE(FeedGame, "snapshots show a happy animal") {
-  hold(BlockType::GRASS);
+  hold(BlockType::OAK_LEAF);
   run(InteractEntity{woolly});
   game.advance(0.05f);
   auto snap = lastSnapshot(pollAll(conn));
