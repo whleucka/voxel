@@ -1,5 +1,6 @@
 #include "doctest/doctest.h"
 #include "chunk/chunk.hpp"
+#include "block/block_data.hpp"
 #include "chunk/chunk_mesh.hpp"
 #include "test_util.hpp"
 #include "world/world.hpp"
@@ -19,10 +20,10 @@ std::multiset<int> waterFacesAt(World &world, glm::ivec3 cell) {
   const auto &v = mesh.transparentVertexData();
   std::multiset<int> faces;
   for (size_t i = 0; i + 3 < v.size(); i += 4) {
-    // A face's four corners, positions doubled; its cell is their minimum.
+    // A face's four corners, positions scaled; its cell is their minimum.
     glm::ivec3 lo(1 << 30);
     for (size_t k = i; k < i + 4; ++k)
-      lo = glm::min(lo, glm::ivec3(v[k].posX, v[k].posY, v[k].posZ) / 2);
+      lo = glm::min(lo, glm::ivec3(v[k].posX, v[k].posY, v[k].posZ) / int(kPosScale));
     // Top faces sit at y + 1, +X at x + 1, +Z at z + 1.
     int f = v[i].faceId;
     glm::ivec3 c = lo - glm::ivec3(f == 3 ? 1 : 0, f == 0 ? 1 : 0, f == 4 ? 1 : 0);
@@ -70,4 +71,44 @@ TEST_CASE("water at the edge of the loaded world doesn't wall itself off") {
   std::multiset<int> faces = waterFacesAt(world, edge);
   CHECK(faces.count(Face::Right) == 0); // toward the unloaded chunk
   CHECK(faces.count(Face::Front) == 1); // toward the air beside it
+}
+
+TEST_CASE("a door is drawn as its thin panel, and its neighbours keep their faces") {
+  World world;
+  world.loadChunkSync(0, 0);
+  fill(world, {0, kBase - 2, 0}, {15, kBase + 4, 15}, BlockType::AIR);
+  fill(world, {2, kBase - 1, 2}, {12, kBase - 1, 12}, BlockType::STONE);
+  const glm::ivec3 cell{5, kBase, 5};
+  for (bool open : {false, true}) {
+    CAPTURE(open);
+    BlockType door = doorBlock(false, DoorFacing::North, open);
+    fill(world, cell, cell, door);
+    fill(world, cell + glm::ivec3(1, 0, 0), cell + glm::ivec3(1, 0, 0), BlockType::STONE);
+
+    auto chunk = world.getChunk(0, 0);
+    ChunkMesh mesh;
+    TextureManager unused;
+    mesh.generateCPU(&world, *chunk, unused);
+    // The door's corners: everything strictly inside its cell's span.
+    glm::vec3 lo(1e9f), hi(-1e9f);
+    int corners = 0;
+    bool stone_face_toward_door = false;
+    for (const BlockVertex &v : mesh.vertexData()) {
+      glm::vec3 p = glm::vec3(v.posX, v.posY, v.posZ) / kPosScale;
+      if ((v.faceId & 7) == Face::Left && p.x == cell.x + 1 && p.y >= cell.y &&
+          p.y <= cell.y + 1 && p.z >= cell.z && p.z <= cell.z + 1)
+        stone_face_toward_door = true;
+      if (v.tileY != kDoorBottomTile.y || v.tileX < kDoorBottomTile.x ||
+          v.tileX > kDoorEdgeTile.x)
+        continue;
+      ++corners;
+      lo = glm::min(lo, p);
+      hi = glm::max(hi, p);
+    }
+    CHECK(corners == 24); // six faces
+    DoorBox box = doorPanel(door);
+    CHECK(lo == glm::vec3(cell) + box.lo);
+    CHECK(hi == glm::vec3(cell) + box.hi);
+    CHECK(stone_face_toward_door);
+  }
 }

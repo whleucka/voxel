@@ -1,7 +1,7 @@
 #version 330 core
 
 // Packed vertex attributes
-layout(location=0) in vec3 aPosPacked;  // int16 * 2, decoded as short
+layout(location=0) in vec3 aPosPacked;  // int16 * 16, decoded as short
 layout(location=1) in int aFaceId;      // bits[2:0]=face 0-5, bits[6:3]=block light 0-15
 layout(location=2) in ivec2 aTileXY;    // Atlas tile coordinates
 layout(location=3) in ivec2 aUV;        // Base UV (0-255)
@@ -45,8 +45,8 @@ flat out float vCutoutThreshold;
 const float CUTOUT_THRESHOLD[4] = float[4](0.0, 0.67, 0.80, 0.92);
 
 void main() {
-    // Decode local position (was multiplied by 2 to preserve 0.5 precision)
-    vec3 localPos = aPosPacked * 0.5;
+    // Decode local position (stored to 1/16 of a block)
+    vec3 localPos = aPosPacked * (1.0 / 16.0); // kPosScale
 
     // Add chunk offset to get world position
     vec3 worldPos = localPos + vec3(float(aChunkOffset.x), 0.0, float(aChunkOffset.y));

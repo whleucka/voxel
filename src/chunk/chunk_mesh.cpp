@@ -4,12 +4,13 @@
 #include "core/constants.hpp"
 #include "world/world.hpp"
 #include <array>
+#include <cmath>
 
 namespace {
 
-// Helper to pack a float position into int16 (multiply by 2 to preserve 0.5 precision)
+// Packs a local position into int16, to 1/16 of a block.
 inline int16_t packPos(float v) {
-  return static_cast<int16_t>(v * 2.0f);
+  return static_cast<int16_t>(std::lround(v * kPosScale));
 }
 
 struct MeshBuffers {
@@ -297,6 +298,49 @@ void addQuad(MeshBuffers& buffers,
   }
 }
 
+// A door: its panel, a thin box inside the cell, all six faces, lit by the
+// cell itself (light gets into a door's cell) and without AO. Corners go in
+// the order addQuad uses for each face, so the winding matches.
+void addDoor(MeshBuffers &buffers, int x, int y, int z, BlockType type,
+             int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight) {
+  const DoorBox box = doorPanel(type);
+  const glm::vec3 lo = glm::vec3(x, y, z) + box.lo, hi = glm::vec3(x, y, z) + box.hi;
+  const BlockTexture &tex = block_data.at(type);
+  const uint8_t cutoutBits = static_cast<uint8_t>((cutoutClass(type) & 0x3) << 6);
+  const uint8_t light = static_cast<uint8_t>(cutoutBits | ((skyLight & 0xF) << 2) | 3);
+
+  auto face = [&](Face f, glm::ivec2 tile, const std::array<glm::vec3, 4> &corners) {
+    unsigned int start = static_cast<unsigned int>(buffers.vertices.size());
+    const uint8_t faceId =
+        static_cast<uint8_t>(static_cast<uint8_t>(f) | ((blockLight & 0xF) << 3));
+    const uint8_t uv[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+    for (int i = 0; i < 4; ++i)
+      buffers.vertices.push_back({packPos(corners[i].x), packPos(corners[i].y),
+                                  packPos(corners[i].z), faceId,
+                                  static_cast<uint8_t>(tile.x), static_cast<uint8_t>(tile.y),
+                                  uv[i][0], uv[i][1], light, chunkWorldX, chunkWorldZ});
+    const bool sideways = f == Face::Left || f == Face::Right;
+    const unsigned int order[2][6] = {{0, 3, 2, 2, 1, 0}, {0, 1, 2, 2, 3, 0}};
+    for (unsigned int k : order[sideways]) buffers.indices.push_back(start + k);
+  };
+
+  // The two big faces wear the half's tile; the thin edges, the edge tile.
+  const glm::vec3 size = hi - lo;
+  auto tileFor = [&](float w) { return w > 0.5f ? tex.side : tex.top; };
+  face(Face::Top, tex.top,
+       {{{lo.x, hi.y, lo.z}, {hi.x, hi.y, lo.z}, {hi.x, hi.y, hi.z}, {lo.x, hi.y, hi.z}}});
+  face(Face::Bottom, tex.bottom,
+       {{{lo.x, lo.y, hi.z}, {hi.x, lo.y, hi.z}, {hi.x, lo.y, lo.z}, {lo.x, lo.y, lo.z}}});
+  face(Face::Front, tileFor(size.x),
+       {{{lo.x, hi.y, hi.z}, {hi.x, hi.y, hi.z}, {hi.x, lo.y, hi.z}, {lo.x, lo.y, hi.z}}});
+  face(Face::Back, tileFor(size.x),
+       {{{hi.x, hi.y, lo.z}, {lo.x, hi.y, lo.z}, {lo.x, lo.y, lo.z}, {hi.x, lo.y, lo.z}}});
+  face(Face::Right, tileFor(size.z),
+       {{{hi.x, hi.y, lo.z}, {hi.x, hi.y, hi.z}, {hi.x, lo.y, hi.z}, {hi.x, lo.y, lo.z}}});
+  face(Face::Left, tileFor(size.z),
+       {{{lo.x, hi.y, hi.z}, {lo.x, hi.y, lo.z}, {lo.x, lo.y, lo.z}, {lo.x, lo.y, hi.z}}});
+}
+
 } // namespace
 
 ChunkMesh::ChunkMesh() {
@@ -418,7 +462,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[x][y]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR) continue;
+        if (type == BlockType::AIR || isDoor(type)) continue; // doors: addDoor
 
         if (sideShows(type, x, y, z + 1)) {
           const auto &tex = block_data.at(type);
@@ -473,7 +517,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[x][y]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR) continue;
+        if (type == BlockType::AIR || isDoor(type)) continue; // doors: addDoor
 
         if (sideShows(type, x, y, z - 1)) {
           const auto &tex = block_data.at(type);
@@ -528,7 +572,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[z][x]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR) continue;
+        if (type == BlockType::AIR || isDoor(type)) continue; // doors: addDoor
 
         BlockType neighbor = getBlock(world, chunk, x, y + 1, z);
         if (shouldRenderFace(type, neighbor)) {
@@ -593,7 +637,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[z][x]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR) continue;
+        if (type == BlockType::AIR || isDoor(type)) continue; // doors: addDoor
         if (isLiquid(type)) continue;
 
         BlockType neighbor = getBlock(world, chunk, x, y - 1, z);
@@ -650,7 +694,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[y][z]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR) continue;
+        if (type == BlockType::AIR || isDoor(type)) continue; // doors: addDoor
 
         if (sideShows(type, x + 1, y, z)) {
           const auto &tex = block_data.at(type);
@@ -705,7 +749,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[y][z]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR) continue;
+        if (type == BlockType::AIR || isDoor(type)) continue; // doors: addDoor
 
         if (sideShows(type, x - 1, y, z)) {
           const auto &tex = block_data.at(type);
@@ -751,6 +795,16 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
       }
     }
   }
+
+  // Doors, which the passes above leave out.
+  for (int y = 0; y < kChunkHeight; ++y)
+    for (int z = 0; z < kChunkDepth; ++z)
+      for (int x = 0; x < kChunkWidth; ++x) {
+        BlockType type = chunk.at(x, y, z);
+        if (isDoor(type))
+          addDoor(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
+                  getSkyLight(world, chunk, x, y, z), getBlockLight(world, chunk, x, y, z));
+      }
 
   cpuReady = !vertices.empty() || !transparentVertices.empty();
 }

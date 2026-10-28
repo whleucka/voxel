@@ -28,7 +28,7 @@ const float CUTOUT_THRESHOLD[4] = float[4](0.0, 0.67, 0.80, 0.92);
 
 void main() {
     // Decode position identically to block.vert
-    vec3 localPos = aPosPacked * 0.5;
+    vec3 localPos = aPosPacked * (1.0 / 16.0); // kPosScale
     vec3 worldPos = localPos + vec3(float(aChunkOffset.x), 0.0, float(aChunkOffset.y));
 
     gl_Position = uLightSpaceMatrix * vec4(worldPos, 1.0);
