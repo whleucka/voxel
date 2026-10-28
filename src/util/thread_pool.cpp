@@ -1,4 +1,6 @@
 #include "util/thread_pool.hpp"
+#include <exception>
+#include <iostream>
 
 ThreadPool::ThreadPool(size_t numThreads) {
   for (size_t i = 0; i < numThreads; ++i) {
@@ -15,7 +17,15 @@ ThreadPool::ThreadPool(size_t numThreads) {
           job = std::move(jobs.front());
           jobs.pop();
         }
-        job();
+        // A job that throws loses its own work, not the process: an
+        // exception escaping a worker thread would end the game unsaved.
+        try {
+          job();
+        } catch (const std::exception &e) {
+          std::cerr << "[pool] a background job failed: " << e.what() << "\n";
+        } catch (...) {
+          std::cerr << "[pool] a background job failed\n";
+        }
       }
     });
   }
