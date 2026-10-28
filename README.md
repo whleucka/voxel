@@ -260,7 +260,8 @@ opening onto hillsides so you can walk straight in, and now and then
 opening out into a **room** 10–20 blocks across, big enough for an
 underground base. Deep inside you'll find
 **glow crystals** (break one to take its light home), clusters of shards
-growing up from the floor and hanging from the ceiling, shallow **pools**, and
+growing up from the floor and hanging from the ceiling, **pools** filling
+hollows in the floor (2–3 deep, so mind your breath), and
 ore in the walls. Deep down, far below the sea, there are rare **gem
 pockets**: a clump of rubies, emeralds or diamonds together. Most are in a
 cave wall, the rest buried in the rock. Bedrock is only the floor of the
