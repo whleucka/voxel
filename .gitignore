@@ -5,3 +5,4 @@ voxel.properties
 saves/
 compile_commands.json
 .cache/
+__pycache__/
