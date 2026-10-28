@@ -298,15 +298,18 @@ void addQuad(MeshBuffers& buffers,
   }
 }
 
-// A door: its panel, a thin box inside the cell, all six faces, lit by the
-// cell itself (light gets into a door's cell) and without AO. Corners go in
-// the order addQuad uses for each face, so the winding matches.
-void addDoor(MeshBuffers &buffers, int x, int y, int z, BlockType type,
-             int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight) {
-  const DoorBox box = doorPanel(type);
-  const glm::vec3 lo = glm::vec3(x, y, z) + box.lo, hi = glm::vec3(x, y, z) + box.hi;
-  const BlockTexture &tex = block_data.at(type);
-  const uint8_t cutoutBits = static_cast<uint8_t>((cutoutClass(type) & 0x3) << 6);
+// The tiles a box wears on each face.
+struct BoxTiles {
+  glm::ivec2 top, bottom, front, back, right, left;
+};
+
+// A box inside a cell (doors, beds): all six faces, lit by the cell itself
+// (light gets into the cell, since these don't fill it) and without AO.
+// Corners go in the order addQuad uses for each face, so the winding matches.
+void addBox(MeshBuffers &buffers, glm::vec3 lo, glm::vec3 hi, const BoxTiles &tiles,
+            uint8_t cutout, int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight,
+            uint8_t blockLight) {
+  const uint8_t cutoutBits = static_cast<uint8_t>((cutout & 0x3) << 6);
   const uint8_t light = static_cast<uint8_t>(cutoutBits | ((skyLight & 0xF) << 2) | 3);
 
   auto face = [&](Face f, glm::ivec2 tile, const std::array<glm::vec3, 4> &corners) {
@@ -324,21 +327,73 @@ void addDoor(MeshBuffers &buffers, int x, int y, int z, BlockType type,
     for (unsigned int k : order[sideways]) buffers.indices.push_back(start + k);
   };
 
-  // The two big faces wear the half's tile; the thin edges, the edge tile.
+  face(Face::Top, tiles.top,
+       {{{lo.x, hi.y, lo.z}, {hi.x, hi.y, lo.z}, {hi.x, hi.y, hi.z}, {lo.x, hi.y, hi.z}}});
+  face(Face::Bottom, tiles.bottom,
+       {{{lo.x, lo.y, hi.z}, {hi.x, lo.y, hi.z}, {hi.x, lo.y, lo.z}, {lo.x, lo.y, lo.z}}});
+  face(Face::Front, tiles.front,
+       {{{lo.x, hi.y, hi.z}, {hi.x, hi.y, hi.z}, {hi.x, lo.y, hi.z}, {lo.x, lo.y, hi.z}}});
+  face(Face::Back, tiles.back,
+       {{{hi.x, hi.y, lo.z}, {lo.x, hi.y, lo.z}, {lo.x, lo.y, lo.z}, {hi.x, lo.y, lo.z}}});
+  face(Face::Right, tiles.right,
+       {{{hi.x, hi.y, lo.z}, {hi.x, hi.y, hi.z}, {hi.x, lo.y, hi.z}, {hi.x, lo.y, lo.z}}});
+  face(Face::Left, tiles.left,
+       {{{lo.x, hi.y, hi.z}, {lo.x, hi.y, lo.z}, {lo.x, lo.y, lo.z}, {lo.x, lo.y, hi.z}}});
+}
+
+// A door: its panel, a thin box. The two big faces wear the half's tile; the
+// thin edges, the edge tile.
+void addDoor(MeshBuffers &buffers, int x, int y, int z, BlockType type,
+             int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight) {
+  const DoorBox box = doorPanel(type);
+  const glm::vec3 lo = glm::vec3(x, y, z) + box.lo, hi = glm::vec3(x, y, z) + box.hi;
+  const BlockTexture &tex = block_data.at(type);
   const glm::vec3 size = hi - lo;
   auto tileFor = [&](float w) { return w > 0.5f ? tex.side : tex.top; };
-  face(Face::Top, tex.top,
-       {{{lo.x, hi.y, lo.z}, {hi.x, hi.y, lo.z}, {hi.x, hi.y, hi.z}, {lo.x, hi.y, hi.z}}});
-  face(Face::Bottom, tex.bottom,
-       {{{lo.x, lo.y, hi.z}, {hi.x, lo.y, hi.z}, {hi.x, lo.y, lo.z}, {lo.x, lo.y, lo.z}}});
-  face(Face::Front, tileFor(size.x),
-       {{{lo.x, hi.y, hi.z}, {hi.x, hi.y, hi.z}, {hi.x, lo.y, hi.z}, {lo.x, lo.y, hi.z}}});
-  face(Face::Back, tileFor(size.x),
-       {{{hi.x, hi.y, lo.z}, {lo.x, hi.y, lo.z}, {lo.x, lo.y, lo.z}, {hi.x, lo.y, lo.z}}});
-  face(Face::Right, tileFor(size.z),
-       {{{hi.x, hi.y, lo.z}, {hi.x, hi.y, hi.z}, {hi.x, lo.y, hi.z}, {hi.x, lo.y, lo.z}}});
-  face(Face::Left, tileFor(size.z),
-       {{{lo.x, hi.y, hi.z}, {lo.x, hi.y, lo.z}, {lo.x, lo.y, lo.z}, {lo.x, lo.y, hi.z}}});
+  const glm::ivec2 xs = tileFor(size.x), zs = tileFor(size.z);
+  addBox(buffers, lo, hi, {tex.top, tex.bottom, xs, xs, zs, zs}, cutoutClass(type),
+         chunkWorldX, chunkWorldZ, skyLight, blockLight);
+}
+
+// A bed half: a wooden frame with a blanket on it, and at the head a pillow
+// at the far end. The boxes are laid out for a bed facing north (head at
+// -Z) and turned to the bed's facing.
+void addBed(MeshBuffers &buffers, int x, int y, int z, BlockType type,
+            int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight) {
+  constexpr float s = 1.0f / 16.0f;
+  constexpr float frame_top = 5 * s;
+  const glm::ivec2 frame = kBedFrameTile, pillow = kBedPillowTile;
+  const glm::ivec2 blanket = bedBlanketTile(bedColour(type));
+  const DoorFacing facing = bedFacing(type);
+
+  // (x, z) in a north-facing cell to the same point in this bed's cell.
+  auto turn = [&](float u, float v) -> glm::vec2 {
+    switch (facing) {
+      case DoorFacing::North: return {u, v};
+      case DoorFacing::South: return {1 - u, 1 - v};
+      case DoorFacing::East:  return {1 - v, u};
+      case DoorFacing::West:
+      default:                return {v, 1 - u};
+    }
+  };
+  auto box = [&](glm::vec3 lo, glm::vec3 hi, const BoxTiles &tiles) {
+    glm::vec2 a = turn(lo.x, lo.z), b = turn(hi.x, hi.z);
+    glm::vec3 cell(x, y, z);
+    addBox(buffers, cell + glm::vec3(std::min(a.x, b.x), lo.y, std::min(a.y, b.y)),
+           cell + glm::vec3(std::max(a.x, b.x), hi.y, std::max(a.y, b.y)), tiles, kCutoutNone,
+           chunkWorldX, chunkWorldZ, skyLight, blockLight);
+  };
+  const BoxTiles wood{frame, frame, frame, frame, frame, frame};
+  const BoxTiles cover{blanket, frame, blanket, blanket, blanket, blanket};
+  const BoxTiles plump{pillow, pillow, pillow, pillow, pillow, pillow};
+
+  box({0, 0, 0}, {1, frame_top, 1}, wood);
+  if (!bedHead(type)) {
+    box({0, frame_top, 0}, {1, kBedHeight, 1}, cover);
+  } else {
+    box({0, frame_top, 8 * s}, {1, kBedHeight, 1}, cover);
+    box({s, frame_top, s}, {1 - s, kBedHeight, 8 * s}, plump);
+  }
 }
 
 } // namespace
@@ -462,7 +517,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[x][y]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR || isDoor(type)) continue; // doors: addDoor
+        if (type == BlockType::AIR || isDoor(type) || isBed(type)) continue; // addDoor, addBed
 
         if (sideShows(type, x, y, z + 1)) {
           const auto &tex = block_data.at(type);
@@ -517,7 +572,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[x][y]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR || isDoor(type)) continue; // doors: addDoor
+        if (type == BlockType::AIR || isDoor(type) || isBed(type)) continue; // addDoor, addBed
 
         if (sideShows(type, x, y, z - 1)) {
           const auto &tex = block_data.at(type);
@@ -572,7 +627,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[z][x]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR || isDoor(type)) continue; // doors: addDoor
+        if (type == BlockType::AIR || isDoor(type) || isBed(type)) continue; // addDoor, addBed
 
         BlockType neighbor = getBlock(world, chunk, x, y + 1, z);
         if (shouldRenderFace(type, neighbor)) {
@@ -637,7 +692,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[z][x]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR || isDoor(type)) continue; // doors: addDoor
+        if (type == BlockType::AIR || isDoor(type) || isBed(type)) continue; // addDoor, addBed
         if (isLiquid(type)) continue;
 
         BlockType neighbor = getBlock(world, chunk, x, y - 1, z);
@@ -694,7 +749,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[y][z]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR || isDoor(type)) continue; // doors: addDoor
+        if (type == BlockType::AIR || isDoor(type) || isBed(type)) continue; // addDoor, addBed
 
         if (sideShows(type, x + 1, y, z)) {
           const auto &tex = block_data.at(type);
@@ -749,7 +804,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[y][z]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR || isDoor(type)) continue; // doors: addDoor
+        if (type == BlockType::AIR || isDoor(type) || isBed(type)) continue; // addDoor, addBed
 
         if (sideShows(type, x - 1, y, z)) {
           const auto &tex = block_data.at(type);
@@ -796,7 +851,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
     }
   }
 
-  // Doors, which the passes above leave out.
+  // Doors and beds, which the passes above leave out.
   for (int y = 0; y < kChunkHeight; ++y)
     for (int z = 0; z < kChunkDepth; ++z)
       for (int x = 0; x < kChunkWidth; ++x) {
@@ -804,6 +859,9 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (isDoor(type))
           addDoor(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
                   getSkyLight(world, chunk, x, y, z), getBlockLight(world, chunk, x, y, z));
+        else if (isBed(type))
+          addBed(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
+                 getSkyLight(world, chunk, x, y, z), getBlockLight(world, chunk, x, y, z));
       }
 
   cpuReady = !vertices.empty() || !transparentVertices.empty();

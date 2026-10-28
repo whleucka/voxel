@@ -397,7 +397,10 @@ def bed_pillow(rng):
 
 
 def blanket(base, rng):
-    """A quilted blanket in one colour, with a pale folded-back band."""
+    """A quilted blanket in one colour.
+
+    Plain all over: the top face isn't turned with the bed, so a band at one
+    edge would sit on a different side for each facing."""
     img = new_tile()
     px = pixels(img)
     for y in range(TILE):
@@ -405,8 +408,6 @@ def blanket(base, rng):
             c = shade(base, rng.randint(-5, 5))
             if (x % 8 == 4 and y % 2 == 0) or (y % 8 == 4 and x % 2 == 0):
                 c = shade(base, -26)  # quilting stitches
-            if y < 6:
-                c = shade((236, 236, 232), rng.randint(-4, 4) - (12 if y == 5 else 0))
             px[x, y] = c + (255,)
     return img
 

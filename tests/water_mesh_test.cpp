@@ -112,3 +112,46 @@ TEST_CASE("a door is drawn as its thin panel, and its neighbours keep their face
     CHECK(stone_face_toward_door);
   }
 }
+
+TEST_CASE("a bed is drawn low, with its pillow at the head end, and its neighbours keep their faces") {
+  World world;
+  world.loadChunkSync(0, 0);
+  fill(world, {0, kBase - 2, 0}, {15, kBase + 4, 15}, BlockType::AIR);
+  fill(world, {2, kBase - 1, 2}, {12, kBase - 1, 12}, BlockType::STONE);
+  const glm::ivec3 foot{5, kBase, 5}, head{6, kBase, 5}; // facing east
+  fill(world, foot, foot, bedBlock(BedColour::Green, false, DoorFacing::East));
+  fill(world, head, head, bedBlock(BedColour::Green, true, DoorFacing::East));
+  fill(world, head + glm::ivec3(1, 0, 0), head + glm::ivec3(1, 0, 0), BlockType::STONE);
+
+  auto chunk = world.getChunk(0, 0);
+  ChunkMesh mesh;
+  TextureManager unused;
+  mesh.generateCPU(&world, *chunk, unused);
+  const glm::ivec2 blanket = bedBlanketTile(BedColour::Green);
+  glm::vec3 lo(1e9f), hi(-1e9f), pillow_lo(1e9f), pillow_hi(-1e9f);
+  int blanket_corners = 0;
+  bool stone_face_toward_bed = false;
+  for (const BlockVertex &v : mesh.vertexData()) {
+    glm::vec3 p = glm::vec3(v.posX, v.posY, v.posZ) / kPosScale;
+    glm::ivec2 tile(v.tileX, v.tileY);
+    if ((v.faceId & 7) == Face::Left && p.x == head.x + 1 && p.y >= head.y &&
+        p.y <= head.y + 1 && p.z >= head.z && p.z <= head.z + 1)
+      stone_face_toward_bed = true;
+    if (tile != kBedFrameTile && tile != kBedPillowTile && tile != blanket) continue;
+    lo = glm::min(lo, p);
+    hi = glm::max(hi, p);
+    blanket_corners += tile == blanket;
+    if (tile == kBedPillowTile) {
+      pillow_lo = glm::min(pillow_lo, p);
+      pillow_hi = glm::max(pillow_hi, p);
+    }
+  }
+  CHECK(lo == glm::vec3(foot));
+  CHECK(hi == glm::vec3(foot) + glm::vec3(2.0f, kBedHeight, 1.0f));
+  CHECK(blanket_corners > 0);
+  // The pillow sits on the head's far half.
+  CHECK(pillow_lo.x >= head.x + 0.5f);
+  CHECK(pillow_hi.x < head.x + 1.0f);
+  CHECK(pillow_hi.y == doctest::Approx(head.y + kBedHeight));
+  CHECK(stone_face_toward_bed);
+}
