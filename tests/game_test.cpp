@@ -3297,10 +3297,10 @@ TEST_CASE_FIXTURE(SleepGame, "the respawn bed is saved, for the host and for a g
   // A guest's record carries theirs.
   WorldSave::GuestRecord rec;
   rec.player.bed = glm::ivec3(-3, 70, 12);
-  REQUIRE(WorldSave::saveGuest(dir.path.string(), "Aria", rec));
+  REQUIRE(WorldSave::saveGuest(dir.path.string(), "Sam", rec));
   std::map<std::string, WorldSave::GuestRecord> guests;
   REQUIRE(WorldSave::loadGuests(dir.path.string(), guests));
-  CHECK(guests.at("Aria").player.bed == glm::ivec3(-3, 70, 12));
+  CHECK(guests.at("Sam").player.bed == glm::ivec3(-3, 70, 12));
 }
 
 // ─── Farming ───────────────────────────────────────────────────────────
@@ -3672,17 +3672,17 @@ TEST_CASE_FIXTURE(ChatGame, "joining and leaving is news, and newcomers get the 
 
   LocalConnection late;
   game.addClient(late);
-  late.send(Join{"Aria"});
+  late.send(Join{"Sam"});
   game.pump();
   auto got = chats(pollAll(late));
   REQUIRE(got.size() == kChatOnJoin + 1);
   for (size_t i = 0; i < kChatOnJoin; ++i) CHECK(got[i].history);
   CHECK(got[kChatOnJoin - 1].text == "line 24");
-  CHECK(got.back() == ChatMessage{sevenFortyTwo(), 0, "", "Aria joined the game", false});
-  CHECK(chatTexts(pollAll(conn)) == std::vector<std::string>{"Aria joined the game"});
+  CHECK(got.back() == ChatMessage{sevenFortyTwo(), 0, "", "Sam joined the game", false});
+  CHECK(chatTexts(pollAll(conn)) == std::vector<std::string>{"Sam joined the game"});
 
   game.removeClient(late);
-  CHECK(chatTexts(pollAll(conn)) == std::vector<std::string>{"Aria left the game"});
+  CHECK(chatTexts(pollAll(conn)) == std::vector<std::string>{"Sam left the game"});
 }
 
 TEST_CASE_FIXTURE(ChatGame, "the host keeps the last 50 lines") {

@@ -145,7 +145,7 @@ struct SleepState {
 struct Notice { std::string text; };
 
 // A chat line for everyone. `minute` is the host's clock (minutes since
-// midnight); `from` 0 is game news ("Aria joined the game"). `history`
+// midnight); `from` 0 is game news ("Sam joined the game"). `history`
 // marks the backlog sent on joining: listed, but not popped up on screen.
 struct ChatMessage {
   uint16_t minute = 0;

@@ -7,7 +7,7 @@ namespace {
 constexpr ImU32 kNewsColor = IM_COL32(190, 190, 190, 255);
 constexpr ImVec4 kTimeColor{0.65f, 0.65f, 0.65f, 1.0f};
 
-// One line: "[7:42 pm] Aria: text", wrapping onto the next line.
+// One line: "[7:42 pm] Sam: text", wrapping onto the next line.
 void chatLine(const ChatLine &line) {
   ImGui::TextColored(kTimeColor, "[%s]", formatClock(line.minute).c_str());
   ImGui::SameLine();

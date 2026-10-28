@@ -220,7 +220,7 @@ private:
   void broadcast(const Event &ev);
   // A chat line to every joined player, kept in the history. from 0: news.
   void postChat(PlayerId from, const std::string &name, const std::string &text);
-  // "Alex was beaten by a Zombie": once per death, for anyone newly dead.
+  // "Pat was beaten by a Zombie": once per death, for anyone newly dead.
   void announceDeaths();
   // Sends the inventory, and notes any item the player hasn't had before.
   void sendInventory(Client &client, PlayerState &ps);
