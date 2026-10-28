@@ -8,7 +8,7 @@ coordinates helps).
 
 - [x] At midday, a cave pool in the dark is dark too: no flat teal glow
 - [x] Next to a glow crystal or torch, the pool shows its blue-green tint
-- [ ] A lake or the sea under open sky looks just as before, day and night
+- [x] A lake or the sea under open sky looks just as before, day and night
 
 ## Cave pools — new worlds only
 
