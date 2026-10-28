@@ -434,6 +434,115 @@ def blanket(base, rng):
     return img
 
 
+# ─── Farming ─────────────────────────────────────────────────────────────
+
+FARMLAND_DRY = (150, 108, 70)
+FARMLAND_WET = (92, 62, 40)
+
+
+def farmland_top(base):
+    """Tilled soil: ridges and furrows running across, darker once wet."""
+    def draw(rng):
+        img = new_tile()
+        px = pixels(img)
+        for y in range(TILE):
+            furrow = y % 8 in (6, 7)
+            for x in range(TILE):
+                c = shade(base, (-30 if furrow else 6) + rng.randint(-8, 8))
+                px[x, y] = c + (255,)
+        return img
+    return draw
+
+
+def farmland_side(base):
+    """Soil seen from the side: the tilled crust over plain dirt."""
+    def draw(rng):
+        img = new_tile()
+        px = pixels(img)
+        dirt = (134, 96, 66)
+        for y in range(TILE):
+            for x in range(TILE):
+                c = shade(base if y < 5 else dirt, rng.randint(-9, 9))
+                if y == 5:
+                    c = shade(base, -24)
+                px[x, y] = c + (255,)
+        return img
+    return draw
+
+
+def crop_top(rng):
+    """All clear: a crop is only seen from the side."""
+    return new_tile()
+
+
+def stalk(draw, x, height, colour, lean=0):
+    top = (x + lean, TILE - 1 - height)
+    draw.line([(x, TILE - 1), top], fill=colour + (255,), width=2)
+    return top
+
+
+def wheat(stage):
+    """Wheat: thin green shoots that grow tall and turn gold with ears of grain."""
+    def draw_tile(rng):
+        img = new_tile()
+        d = ImageDraw.Draw(img)
+        height = [7, 13, 21, 27][stage]
+        green, gold = (88, 168, 56), (222, 186, 74)
+        for x in range(3, TILE - 2, 4):
+            h = height - rng.randint(0, 4)
+            top = stalk(d, x, h, gold if stage == 3 else shade(green, rng.randint(-14, 8)),
+                        rng.randint(-1, 1))
+            if stage >= 2:  # an ear of grain on top, green until ripe
+                ear = shade(gold, -20) if stage == 3 else (150, 190, 80)
+                d.ellipse([top[0] - 2, top[1] - 1, top[0] + 2, top[1] + 6], fill=ear + (255,))
+        return img
+    return draw_tile
+
+
+def carrot(stage):
+    """Carrots: feathery green tops, with orange roots showing once ripe."""
+    def draw_tile(rng):
+        img = new_tile()
+        d = ImageDraw.Draw(img)
+        height = [6, 11, 16, 18][stage]
+        for x in (6, 16, 26):
+            x += rng.randint(-1, 1)
+            for lean in (-3, 0, 3):
+                stalk(d, x, height - abs(lean), shade((70, 160, 60), rng.randint(-14, 10)), lean)
+            if stage == 3:  # the shoulder of the root, at the soil
+                d.ellipse([x - 3, TILE - 6, x + 3, TILE + 2], fill=(236, 122, 36, 255),
+                          outline=(176, 80, 20, 255))
+        return img
+    return draw_tile
+
+
+def strawberry(stage):
+    """Strawberries: a low leafy bush, then white flowers, then red berries."""
+    def draw_tile(rng):
+        img = new_tile()
+        d = ImageDraw.Draw(img)
+        height = [5, 9, 13, 14][stage]
+        leaf = (56, 140, 52)
+        for x in range(4, TILE - 2, 6):
+            x += rng.randint(-1, 1)
+            h = height - rng.randint(0, 3)
+            d.ellipse([x - 3, TILE - 1 - h, x + 3, TILE - 1 - h + 5],
+                      fill=shade(leaf, rng.randint(-12, 12)) + (255,))
+            d.line([(x, TILE - 1), (x, TILE - 1 - h + 3)], fill=shade(leaf, -30) + (255,))
+        if stage == 2:
+            for x in (8, 19, 27):
+                d.ellipse([x - 2, TILE - 13, x + 2, TILE - 9], fill=(250, 250, 240, 255))
+                d.point((x, TILE - 11), fill=(250, 210, 60, 255))
+        if stage == 3:
+            for x, y in ((7, 8), (17, 6), (26, 9), (12, 3)):
+                d.polygon([(x - 3, TILE - y - 3), (x + 3, TILE - y - 3), (x, TILE - y + 3)],
+                          fill=(220, 34, 50, 255))
+                d.point((x, TILE - y - 1), fill=(255, 220, 120, 255))
+        return img
+    return draw_tile
+
+
+
 # (file name, drawing) in row-2 order, matching block_data.hpp.
 TILES = [
     ("oak_planks",    lambda r: planks((150, 116, 74), r)),
@@ -479,7 +588,15 @@ TILES = [
     ("bed_purple",          lambda r: blanket((142, 66, 196), r)),
     ("bed_pink",            lambda r: blanket((244, 140, 190), r)),
     ("glow_crystal_end",    crystal_end),
-]
+    # Farming (block/crop.hpp): soil, then each crop's four stages.
+    ("farmland_dry_top",    farmland_top(FARMLAND_DRY)),
+    ("farmland_wet_top",    farmland_top(FARMLAND_WET)),
+    ("farmland_dry_side",   farmland_side(FARMLAND_DRY)),
+    ("farmland_wet_side",   farmland_side(FARMLAND_WET)),
+    ("crop_top",            crop_top),
+] + [(f"wheat_{i}", wheat(i)) for i in range(4)] + [
+    (f"carrot_{i}", carrot(i)) for i in range(4)] + [
+    (f"strawberry_{i}", strawberry(i)) for i in range(4)]
 
 
 def cell(index):

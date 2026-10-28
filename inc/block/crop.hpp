@@ -34,7 +34,7 @@ inline BlockType cropBlock(CropKind kind, int stage) {
                                 static_cast<uint8_t>(kind) * kCropStages + stage);
 }
 
-// Atlas tiles (tools/gen_farming_tiles.py), counted on from (0, 4) after the
+// Atlas tiles (tools/gen_building_tiles.py), counted on from (0, 4) after the
 // bed blankets and the glow crystal's end.
 constexpr glm::ivec2 kFarmlandDryTop{8, 4};
 constexpr glm::ivec2 kFarmlandWetTop{9, 4};
