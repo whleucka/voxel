@@ -119,6 +119,23 @@ changeable from the world list.
 *   **Creative:** fly, place without running out, pick any item from the
     palette beside the inventory, and nothing can hurt you.
 
+### Difficulty and food
+
+Pick a difficulty in Settings (the host's applies to everyone):
+
+*   **Peaceful:** no enemies.
+*   **Easy:** fewer enemies, weaker and slower.
+*   **Normal:** enemies as they're meant to be.
+*   **Hard:** half as many enemies again, with half as much health again,
+    and they hit harder.
+
+Food heals you right away and also makes you **well fed**: 45 seconds per
+point of food, up to 10 minutes (a loaf of Bread is 6 minutes). A loaf
+next to your hearts shows you're well fed, and blinks in the last 30
+seconds. On **Normal and Hard** your health only comes back by itself
+while you're well fed; when it can't, your hearts look darker. On
+Peaceful and Easy it always comes back.
+
 ### Building blocks
 
 Creative worlds also have blocks made for building: oak, pine, palm and

@@ -7,6 +7,7 @@
 #include "ui/item_icon_geometry.hpp"
 #include "vitals/vitals.hpp"
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace {
@@ -538,7 +539,7 @@ void bubble(ImDrawList *dl, ImVec2 c, float s, ImU32 col) {
 } // namespace
 
 void Hud::drawIconRow(ImDrawList *dl, const Rect &strip, Icon icon, int value,
-                      bool right_aligned) const {
+                      bool right_aligned, bool dim) const {
   float s = strip.h;
   float step = s * 1.22f; // room for the outlines between icons
   auto shape = [&](ImVec2 c, float size, ImU32 col) {
@@ -548,7 +549,7 @@ void Hud::drawIconRow(ImDrawList *dl, const Rect &strip, Icon icon, int value,
       case Icon::Bubble: bubble(dl, c, size, col); break;
     }
   };
-  ImU32 full = icon == Icon::Heart  ? IM_COL32(220, 30, 40, 255)
+  ImU32 full = icon == Icon::Heart  ? (dim ? IM_COL32(140, 45, 55, 255) : IM_COL32(220, 30, 40, 255))
              : icon == Icon::Bolt   ? IM_COL32(250, 200, 40, 255)
                                     : IM_COL32(90, 170, 255, 255);
 
@@ -583,8 +584,17 @@ void Hud::drawIconRow(ImDrawList *dl, const Rect &strip, Icon icon, int value,
 void Hud::drawVitals(const HudLayout &layout, const VitalsChanged &v, double now) {
   ImDrawList *dl = ImGui::GetBackgroundDrawList();
   Rect strip = layout.barStrip();
-  drawIconRow(dl, strip, Icon::Heart, v.health, false);
+  drawIconRow(dl, strip, Icon::Heart, v.health, false, v.regen_blocked);
   drawIconRow(dl, strip, Icon::Bolt, v.stamina, true);
+
+  // Well fed: a loaf left of the hearts, blinking in its last 30 seconds.
+  constexpr int kBlinkSeconds = 30;
+  bool blink_off = v.fed_s <= kBlinkSeconds && std::fmod(now, 0.8) >= 0.4;
+  if (v.fed_s > 0 && !blink_off) {
+    float s = strip.h * 1.3f;
+    Rect loaf{strip.x - s - strip.h * 0.4f, strip.y + (strip.h - s) * 0.5f, s, s};
+    drawIcon(dl, loaf, ItemId::BREAD, 1.0f);
+  }
   if (v.breath < Vitals::kMax)
     drawIconRow(dl, layout.breathStrip(), Icon::Bubble, v.breath, false);
 

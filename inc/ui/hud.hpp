@@ -104,7 +104,8 @@ private:
   void drawIcon(ImDrawList *dl, const Rect &r, ItemId id, float alpha) const;
   void drawCount(ImDrawList *dl, const Rect &r, uint16_t count, float alpha) const;
   // A row of 10 icons for a 0..20 value (2 points per icon, halves allowed).
+  // `dim` darkens the filled icons (hearts that won't come back unfed).
   enum class Icon { Heart, Bolt, Bubble };
   void drawIconRow(ImDrawList *dl, const Rect &strip, Icon icon, int value,
-                   bool right_aligned) const;
+                   bool right_aligned, bool dim = false) const;
 };
