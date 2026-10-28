@@ -502,3 +502,147 @@ TEST_CASE("version 5 caves open into rooms, joined to the tunnels") {
   REQUIRE(first.has_value() == again.has_value());
   if (first) CHECK(first->centre == again->centre);
 }
+
+TEST_CASE("version 5 terrain is block-for-block what it was before cave pools") {
+  // Recorded before version 6, which changed only cave water.
+  SeededWorld world(12345, worldgen::kRooms);
+  const std::pair<glm::ivec2, uint64_t> golden[] = {
+      {{0, 0}, 15990417736575297952ull},     {{5, -3}, 17682583551023169804ull},
+      {{-20, 14}, 14835799640475723344ull},  {{37, 2}, 2454193737634482255ull},
+      {{-8, -40}, 11389343274010357360ull},  {{90, 61}, 18059106823071587643ull},
+      {{-40, -40}, 2056980498654124889ull},  {{20, 20}, 7434592498413195312ull},
+  };
+  for (const auto &[pos, hash] : golden) {
+    CAPTURE(pos.x);
+    CAPTURE(pos.y);
+    CHECK(fnv1a(generate(pos.x, pos.y)) == hash);
+  }
+}
+
+// ─── Pools (version 6) ─────────────────────────────────────────────────
+
+namespace {
+
+// Cave water in a chunk: water below the ground.
+long caveWaterIn(const Chunk &c, glm::ivec2 pos) {
+  long n = 0;
+  for (int z = 0; z < kChunkDepth; ++z)
+    for (int x = 0; x < kChunkWidth; ++x) {
+      int h = surfaceOf(pos.x * kChunkWidth + x, pos.y * kChunkDepth + z);
+      for (int y = 0; y < h; ++y) n += c.at(x, y, z) == BlockType::WATER;
+    }
+  return n;
+}
+
+} // namespace
+
+TEST_CASE("version 6 is version 5 but for cave water") {
+  for (const glm::ivec2 &pos : kSample) {
+    std::vector<BlockType> v5, v6;
+    {
+      SeededWorld world(12345, worldgen::kRooms);
+      v5 = generate(pos.x, pos.y);
+    }
+    {
+      SeededWorld world(12345, worldgen::kPools);
+      v6 = generate(pos.x, pos.y);
+    }
+    CAPTURE(pos.x);
+    CAPTURE(pos.y);
+    // Old pools dried up, new ones filled (some in rock a bowl dug out).
+    long other = 0;
+    for (size_t i = 0; i < v5.size(); ++i)
+      other += v5[i] != v6[i] && v5[i] != BlockType::WATER && v6[i] != BlockType::WATER;
+    CHECK(other == 0);
+  }
+}
+
+TEST_CASE("version 6 pools fill hollows: walled in, 2-3 deep, never a lone block") {
+  auto solid = [](BlockType b) {
+    return b != BlockType::AIR && b != BlockType::WATER && b != BlockType::GLOW_CRYSTAL &&
+           b != BlockType::TREASURE_CHEST;
+  };
+  long pools = 0;
+  for (const glm::ivec2 &pos : kSample) {
+    SeededWorld world(12345, worldgen::kPools);
+    Chunk c(pos.x, pos.y);
+    c.init();
+    CAPTURE(pos.x);
+    CAPTURE(pos.y);
+    std::vector<bool> seen(kChunkWidth * kChunkHeight * kChunkDepth, false);
+    auto index = [](glm::ivec3 p) { return p.x + kChunkWidth * (p.z + kChunkDepth * p.y); };
+    for (int z = 0; z < kChunkDepth; ++z)
+      for (int x = 0; x < kChunkWidth; ++x) {
+        int h = surfaceOf(pos.x * kChunkWidth + x, pos.y * kChunkDepth + z);
+        for (int y = 0; y < h; ++y) {
+          if (c.at(x, y, z) != BlockType::WATER || seen[index({x, y, z})]) continue;
+          // One pool: the water joined to this block.
+          ++pools;
+          std::vector<glm::ivec3> body{{x, y, z}};
+          seen[index({x, y, z})] = true;
+          for (size_t i = 0; i < body.size(); ++i) {
+            const glm::ivec3 p = body[i];
+            CAPTURE(p.x);
+            CAPTURE(p.y);
+            CAPTURE(p.z);
+            CHECK(p.y < kSeaLevel - caves::kPoolDepth);
+            REQUIRE(p.x > 0);
+            REQUIRE(p.x < kChunkWidth - 1);
+            REQUIRE(p.z > 0);
+            REQUIRE(p.z < kChunkDepth - 1);
+            for (glm::ivec3 d : {glm::ivec3{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1},
+                                 {0, -1, 0}, {0, 1, 0}}) {
+              const glm::ivec3 q = p + d;
+              const BlockType b = c.at(q.x, q.y, q.z);
+              if (b == BlockType::WATER) {
+                if (!seen[index(q)]) {
+                  seen[index(q)] = true;
+                  body.push_back(q);
+                }
+              } else if (d.y <= 0) {
+                CHECK(solid(b)); // rock below and round it
+              } else {
+                CHECK((b == BlockType::AIR || solid(b))); // open, or under rock
+              }
+            }
+          }
+          // A flat surface, 2-3 deep, at least 4 blocks across the top.
+          int top = 0, bottom = kChunkHeight;
+          for (glm::ivec3 p : body) {
+            top = std::max(top, p.y);
+            bottom = std::min(bottom, p.y);
+          }
+          int surface = 0;
+          for (glm::ivec3 p : body)
+            if (c.at(p.x, p.y + 1, p.z) != BlockType::WATER) {
+              CHECK(p.y == top);
+              ++surface;
+            }
+          CHECK(top - bottom + 1 >= caves::kPoolMinDepth);
+          CHECK(top - bottom + 1 <= caves::kPoolMaxDepth);
+          CHECK(surface >= caves::kPoolMinSurface);
+          CHECK(surface <= caves::kPoolMaxSurface);
+        }
+      }
+  }
+  CHECK(pools > 0);
+}
+
+TEST_CASE("version 6 has about as much cave water as version 5") {
+  // A wide patch: pools are few, so ten chunks would say little.
+  long water[2] = {0, 0};
+  const uint8_t versions[2] = {worldgen::kRooms, worldgen::kPools};
+  for (int v = 0; v < 2; ++v) {
+    SeededWorld world(12345, versions[v]);
+    for (int cx = -6; cx < 6; ++cx)
+      for (int cz = -6; cz < 6; ++cz) {
+        Chunk c(cx, cz);
+        c.init();
+        water[v] += caveWaterIn(c, {cx, cz});
+      }
+  }
+  CAPTURE(water[0]);
+  CAPTURE(water[1]);
+  CHECK(water[1] * 2 >= water[0]);
+  CHECK(water[1] <= water[0] * 2);
+}

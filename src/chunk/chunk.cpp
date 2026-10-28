@@ -32,6 +32,7 @@ void Chunk::init() {
   if (with_caves) caves::decorate(*this, surfaces);
   if (g_settings.worldgen >= worldgen::kChests) caves::placeTreasure(*this, surfaces);
   if (g_settings.worldgen >= worldgen::kPockets) caves::placeGemPockets(*this, surfaces);
+  if (g_settings.worldgen >= worldgen::kPools) caves::placePools(*this, surfaces);
   computeSkyLight();
   computeBlockLight();
 }

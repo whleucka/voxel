@@ -4,6 +4,13 @@ What's waiting on a real play-test, newest first. Tick things off as they
 pass; anything that fails, note what happened (a screenshot plus the F12
 coordinates helps).
 
+## Cave pools — new worlds only
+
+- [ ] In a new world's deep caves, water sits in hollows: no lone blocks, none hanging over an edge with its side showing
+- [ ] Pools are 2–3 deep; you can swim, and climb or jump out
+- [ ] Glowfin show up in cave pools now (old pools were 1 deep, too shallow for them), and you can fish them
+- [ ] An old world's caves look just as they did
+
 ## Glow crystals that look like crystals
 
 - [ ] In a cave, floor crystals point up and ceiling crystals hang down
