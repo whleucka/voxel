@@ -234,7 +234,9 @@ furnace and they heal a lot more. A rod lasts 64 catches.
 ## Caves
 
 Worlds made from now on have **natural caves**: winding tunnels, some
-opening onto hillsides so you can walk straight in. Deep inside you'll find
+opening onto hillsides so you can walk straight in, and now and then
+opening out into a **room** 10–20 blocks across, big enough for an
+underground base. Deep inside you'll find
 **glow crystals** (break one to take its light home), shallow **pools**, and
 ore in the walls. Deep down, far below the sea, there are rare **gem
 pockets**: a clump of rubies, emeralds or diamonds together. Most are in a

@@ -2,6 +2,7 @@
 
 #include "core/constants.hpp"
 #include <array>
+#include <optional>
 #include <glm/glm.hpp>
 
 class Chunk;
@@ -42,6 +43,25 @@ constexpr unsigned kPocketNoneOdds = 40;   // in 100 chunks: no pocket...
 constexpr unsigned kPocketOneOdds = 40;    // ...one, and the rest two
 constexpr unsigned kPocketInWallOdds = 75; // in 100 pockets, where a cave shows it
 void placeGemPockets(Chunk &chunk, const Surfaces &surfaces);
+
+// Rooms (worldgen v5): now and then a tunnel opens into a room, 10-20
+// blocks across and 6-10 high, with a flattish floor. At most one in each
+// kRoomCell x kRoomCell square of the world, centred on a tunnel so it
+// always joins the caves, and kept under the same roof as the tunnels.
+constexpr int kRoomCell = 48;
+constexpr unsigned kRoomOdds = 70;   // in 100 squares that find a tunnel to grow from
+constexpr int kRoomMinRadius = 5, kRoomMaxRadius = 10; // across
+constexpr int kRoomMinHalfHeight = 4, kRoomMaxHalfHeight = 6;
+
+struct Room {
+  glm::ivec3 centre;
+  glm::vec3 radius; // x, y (above the centre), z
+};
+// The room in square (sx, sz), if it has one. A pure function of the seed.
+std::optional<Room> roomIn(int sx, int sz);
+// Whether (x, y, z) in world space is inside a room's shape (before the
+// roof and floor limits carve() applies). Slow: for tests.
+bool inRoom(const Room &room, glm::ivec3 world);
 
 // Whether carve() makes (x, y, z) in world space a cave. Slow: for tests.
 bool isTunnel(glm::ivec3 world);

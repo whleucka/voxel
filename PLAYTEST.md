@@ -16,6 +16,13 @@ coordinates helps).
 - [ ] A guest sees a door open and shut
 - [ ] The kids' verdict
 
+## Cave rooms
+
+- [ ] Make a NEW world and explore the caves: now and then a tunnel opens into a big room (10–20 blocks across)
+- [ ] Rooms join up with the tunnels, have a floor you can walk on, and never open into the sea or a lake
+- [ ] An older world's caves look exactly as before
+- [ ] The kids' verdict: big enough? often enough?
+
 ## Gem pockets, bedrock floor, ore gates (PRs #39, #40)
 
 - [ ] A wooden pickaxe on diamond ore: it doesn't budge, "Too hard! You need an Iron Pickaxe or better."
