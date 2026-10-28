@@ -1,11 +1,13 @@
 #include "doctest/doctest.h"
 #include "block/block_data.hpp"
 #include "block/crop.hpp"
+#include "item/farming.hpp"
 #include "item/item.hpp"
 #include "item/mining.hpp"
 #include "item/recipes.hpp"
 #include "item/tools.hpp"
 #include <set>
+#include <tuple>
 
 // ─── Blocks ────────────────────────────────────────────────────────────
 
@@ -146,4 +148,95 @@ TEST_CASE("bread, strawberry seeds and the watering can are made at a table") {
   // Wheat and carrot seeds come from tilling grass, not a recipe.
   CHECK_FALSE(recipeFor(ItemId::WHEAT_SEEDS));
   CHECK_FALSE(recipeFor(ItemId::CARROT_SEEDS));
+}
+
+// ─── Rules ─────────────────────────────────────────────────────────────
+
+TEST_CASE("each crop has its seed, and only seeds plant") {
+  for (int k = 0; k < kCropKinds; ++k) {
+    CropKind kind = static_cast<CropKind>(k);
+    CHECK(cropForSeed(seedFor(kind)) == kind);
+  }
+  CHECK(seedFor(CropKind::Wheat) == ItemId::WHEAT_SEEDS);
+  CHECK(seedFor(CropKind::Strawberry) == ItemId::STRAWBERRY_SEEDS);
+  CHECK_FALSE(cropForSeed(ItemId::WHEAT).has_value());
+  CHECK_FALSE(cropForSeed(ItemId::BERRIES).has_value());
+  CHECK_FALSE(cropForSeed(ItemId::NONE).has_value());
+}
+
+TEST_CASE("a hoe tills grass and dirt only") {
+  CHECK(tillable(BlockType::GRASS));
+  CHECK(tillable(BlockType::DIRT));
+  for (BlockType b : {BlockType::SAND, BlockType::STONE, BlockType::SNOW_DIRT,
+                      BlockType::FARMLAND_DRY, BlockType::FARMLAND_WET, BlockType::AIR})
+    CHECK_FALSE(tillable(b));
+}
+
+TEST_CASE("tilling grass turns up a wheat or carrot seed about one time in six") {
+  std::mt19937 rng(7);
+  int wheat = 0, carrot = 0;
+  const int tries = 6000;
+  for (int i = 0; i < tries; ++i) {
+    auto seed = seedFromTilling(BlockType::GRASS, rng);
+    if (!seed) continue;
+    REQUIRE((*seed == ItemId::WHEAT_SEEDS || *seed == ItemId::CARROT_SEEDS));
+    (*seed == ItemId::WHEAT_SEEDS ? wheat : carrot)++;
+  }
+  CHECK(wheat + carrot == doctest::Approx(tries / kSeedOneIn).epsilon(0.15));
+  CHECK(wheat == doctest::Approx(carrot).epsilon(0.25));
+  for (int i = 0; i < 200; ++i) CHECK_FALSE(seedFromTilling(BlockType::DIRT, rng).has_value());
+}
+
+TEST_CASE("an unripe crop gives back its seed; a ripe one its harvest") {
+  std::mt19937 rng(1);
+  for (int k = 0; k < kCropKinds; ++k)
+    for (int stage = 0; stage < kCropStages - 1; ++stage) {
+      auto got = harvest(cropBlock(static_cast<CropKind>(k), stage), rng);
+      REQUIRE(got.size() == 1);
+      CHECK(got[0] == ItemStack{seedFor(static_cast<CropKind>(k)), 1});
+    }
+  for (int i = 0; i < 100; ++i) {
+    auto wheat = harvest(BlockType::WHEAT_3, rng);
+    REQUIRE(wheat.size() == 2);
+    CHECK(wheat[0] == ItemStack{ItemId::WHEAT, 1});
+    CHECK(wheat[1].id == ItemId::WHEAT_SEEDS);
+    CHECK(wheat[1].count >= 1);
+    CHECK(wheat[1].count <= 2);
+    for (auto [crop, food, seed] : {std::tuple{BlockType::CARROT_3, ItemId::CARROT, ItemId::CARROT_SEEDS},
+                                    std::tuple{BlockType::STRAWBERRY_3, ItemId::STRAWBERRY,
+                                               ItemId::STRAWBERRY_SEEDS}}) {
+      auto got = harvest(crop, rng);
+      REQUIRE(got.size() == 2);
+      CHECK(got[0].id == food);
+      CHECK(got[0].count >= 2);
+      CHECK(got[0].count <= 3);
+      CHECK(got[1] == ItemStack{seed, 1});
+    }
+  }
+  CHECK(harvest(BlockType::DIRT, rng).empty());
+}
+
+TEST_CASE("sprout to ripe takes about a day, give or take") {
+  std::mt19937 rng(3);
+  for (int i = 0; i < 500; ++i) {
+    int ms = stageMs(rng);
+    CHECK(ms >= kStageMs - kStageJitterMs);
+    CHECK(ms <= kStageMs + kStageJitterMs);
+  }
+  // Three steps up from a sprout; a day is 20 minutes of play.
+  CHECK((kCropStages - 1) * kStageMs == 20 * 60 * 1000);
+  CHECK(kWetMs == 20 * 60 * 1000);
+}
+
+TEST_CASE("soil is near water within four blocks sideways, level or one below") {
+  glm::ivec3 soil{10, 70, 10};
+  auto withWaterAt = [](glm::ivec3 water) {
+    return [water](glm::ivec3 p) { return p == water ? BlockType::WATER : BlockType::DIRT; };
+  };
+  CHECK(nearWater(soil, withWaterAt(soil + glm::ivec3(4, 0, 0))));
+  CHECK(nearWater(soil, withWaterAt(soil + glm::ivec3(-4, -1, 4))));
+  CHECK(nearWater(soil, withWaterAt(soil + glm::ivec3(1, 0, 0))));
+  CHECK_FALSE(nearWater(soil, withWaterAt(soil + glm::ivec3(5, 0, 0))));
+  CHECK_FALSE(nearWater(soil, withWaterAt(soil + glm::ivec3(0, 1, 0)))); // above doesn't count
+  CHECK_FALSE(nearWater(soil, withWaterAt(soil + glm::ivec3(0, -2, 0))));
 }
