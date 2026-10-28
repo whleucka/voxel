@@ -65,6 +65,22 @@ bool readPlayer(std::istream &in, WorldSave::PlayerData &p) {
          rd(in, p.yaw) && rd(in, p.pitch) && rd(in, p.selected_slot) && rd(in, p.fly_mode);
 }
 
+// The respawn bed: a flag, then the foot cell if there is one.
+void writeBed(std::ostream &o, const WorldSave::PlayerData &p) {
+  wr(o, static_cast<uint8_t>(p.bed ? 1 : 0));
+  if (!p.bed) return;
+  wr(o, static_cast<int32_t>(p.bed->x));
+  wr(o, static_cast<int32_t>(p.bed->y));
+  wr(o, static_cast<int32_t>(p.bed->z));
+}
+
+// Missing (an older file): no bed.
+void readBed(std::istream &in, WorldSave::PlayerData &p) {
+  uint8_t has = 0;
+  int32_t x = 0, y = 0, z = 0;
+  if (rd(in, has) && has == 1 && rd(in, x) && rd(in, y) && rd(in, z)) p.bed = glm::ivec3(x, y, z);
+}
+
 void writeSlots(std::ostream &o, std::span<const ItemStack> slots) {
   wr(o, static_cast<uint16_t>(slots.size()));
   for (const ItemStack &s : slots) {
@@ -163,7 +179,9 @@ bool loadLevel(const std::string &dir, LevelData &out) {
 bool loadPlayer(const std::string &dir, PlayerData &out) {
   std::ifstream in(dir + "/player.dat", std::ios::binary);
   if (!in || !checkHeader(in, kPlayerMagic)) return false;
-  return readPlayer(in, out);
+  if (!readPlayer(in, out)) return false;
+  readBed(in, out);
+  return true;
 }
 
 bool loadEdits(const std::string &dir, WorldEdits &out) {
@@ -223,6 +241,7 @@ bool save(const std::string &dir, const LevelData &level,
     if (!o) return false;
     writeHeader(o, kPlayerMagic);
     writePlayer(o, player);
+    writeBed(o, player);
   }
   {
     std::ofstream o(dir + "/edits.dat", std::ios::binary | std::ios::trunc);
@@ -382,6 +401,7 @@ bool saveGuest(const std::string &dir, const std::string &name, const GuestRecor
   writeSlots(o, rec.inventory);
   writeIds(o, rec.discovered);
   writeWear(o, rec.inventory);
+  writeBed(o, rec.player);
   return static_cast<bool>(o);
 }
 
@@ -401,7 +421,10 @@ bool loadGuests(const std::string &dir, std::map<std::string, GuestRecord> &out)
       continue;
     }
     if (!readIds(in, rec.discovered)) rec.discovered.clear(); // from before crafting
-    else readWear(in, rec.inventory);                          // from before tools: unworn
+    else {
+      readWear(in, rec.inventory); // from before tools: unworn
+      readBed(in, rec.player);     // from before beds: none
+    }
     out[name] = std::move(rec);
   }
   return !ec;

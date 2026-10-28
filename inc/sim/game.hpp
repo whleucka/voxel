@@ -49,6 +49,10 @@ public:
   static constexpr int kEnemyAttackCooldownMs = 1000;
   static constexpr float kEnemyKnockback = 7.0f;
   static constexpr float kEnemyKnockUp = 5.0f;
+  // Beds
+  static constexpr float kSleepEnemyRange = 8.0f; // no sleeping with one this close
+  static constexpr int kSleepMs = 2000;           // everyone this long in bed: morning
+  static constexpr float kWakeTime = 6.5f * 3600; // 6:30
 
   Game(); // registers natural spawning (animals and enemies)
 
@@ -154,6 +158,8 @@ private:
   void apply(Client &client, const CastLine &cmd);
   void apply(Client &client, const ReelIn &cmd);
   void apply(Client &client, const UseDoor &cmd);
+  void apply(Client &client, const UseBed &cmd);
+  void apply(Client &client, const LeaveBed &cmd);
   // Bobbers float, bites come and go, and lines break.
   void tickFishing();
   // Takes the player's bobber out of the world and ends their fishing.
@@ -253,6 +259,19 @@ private:
   // `below` has gone (both halves go; one drops, in survival).
   void placeBed(Client &client, PlayerState &ps, glm::ivec3 pos);
   void popBedAbove(glm::ivec3 below);
+  // Whether the bed with its foot at `foot` is still there, loaded or not.
+  bool bedStillAt(glm::ivec3 foot) const;
+  // Where to stand up from the bed with its foot at `foot`: a clear spot
+  // beside it, or on top of it.
+  glm::vec3 besideBed(glm::ivec3 foot) const;
+  // Out of bed and standing beside it.
+  void wake(Client &client, PlayerState &ps);
+  // Wakes anyone whose bed went, who got hurt, or whose night is over, and
+  // skips to morning once every living player has slept long enough.
+  void tickSleep();
+  // Send SleepState to every owner whose shown state changed.
+  void flushSleep();
+  Client *clientOf(PlayerId id);
   // A Treasure Key held: it's used up and the chest is filled with loot.
   // False (nothing changed) without a key.
   bool unlockTreasure(Client &client, PlayerState &ps, glm::ivec3 pos);

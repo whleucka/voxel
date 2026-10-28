@@ -12,6 +12,7 @@
 #include <atomic>
 #include <glm/glm.hpp>
 #include <memory>
+#include <optional>
 #include <mutex>
 #include <span>
 #include <functional>
@@ -64,6 +65,8 @@ public:
   WorldEdits snapshotEdits() const;
   // The same edits as a flat list in world coordinates (for Welcome).
   std::vector<BlockEdit> editList() const;
+  // The player edit at a block, loaded chunk or not (nothing if unedited).
+  std::optional<BlockType> editAt(const glm::ivec3 &pos) const;
   // An edit made in another copy of this world (a guest mirroring the host).
   // Unlike setBlockAt it is never lost: an edit to a chunk that isn't loaded
   // yet is recorded and appears when the chunk streams in. Main thread only.

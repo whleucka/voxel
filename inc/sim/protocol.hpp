@@ -89,13 +89,17 @@ struct CastLine { glm::vec3 dir{0.0f, 0.0f, -1.0f}; };
 struct ReelIn {};
 // Opens or closes the door at `pos` (either half). The Game swings both.
 struct UseDoor { glm::ivec3 pos{0}; };
+// Right-click on a bed (either half): it becomes the player's respawn point,
+// and at night they lie down in it if they can. LeaveBed gets them up.
+struct UseBed { glm::ivec3 pos{0}; };
+struct LeaveBed {};
 
 using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SelectSlot, Save, SetTimeOfDay, GiveItem,
                              MoveItems, DropItem, AttackEntity,
                              SpawnDebugEntity, InteractEntity, EatItem, Craft,
                              OpenContainer, CloseContainer, StartBreak,
-                             CastLine, ReelIn, UseDoor>;
+                             CastLine, ReelIn, UseDoor, UseBed, LeaveBed>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 
@@ -119,6 +123,19 @@ struct Welcome {
   std::vector<BlockEdit> edits;
   uint8_t worldgen = worldgen::kOriginal; // the host world's generator
 };
+
+// Whether the owner is in bed (the foot of it), and how many of the living
+// players are, sent whenever any of it changes.
+struct SleepState {
+  bool in_bed = false;
+  glm::ivec3 bed{0};
+  uint8_t sleepers = 0;
+  uint8_t living = 0;
+  bool operator==(const SleepState &) const = default;
+};
+
+// Something the owner should read on the HUD ("This bed is taken").
+struct Notice { std::string text; };
 
 // The host's clock, once a second, so every guest's sky matches.
 struct TimeSync { float time_of_day = 0.0f; float time_scale = 1.0f; };
@@ -179,6 +196,7 @@ struct PlayerView {
   float yaw = -90.0f;       // camera convention (degrees)
   float pitch = 0.0f;
   bool crouch = false;
+  bool sleeping = false;    // lying on a bed, head along `yaw`
   bool moving = false;      // set client-side by the interpolator
 };
 
@@ -218,4 +236,4 @@ using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            CommandRejected, InventoryContents, VitalsChanged,
                            Respawned, EntitySnapshot, KnockedBack, JoinRefused,
                            Welcome, TimeSync, Disconnected, KnownItems,
-                           ContainerView, ToolBroke, Caught>;
+                           ContainerView, ToolBroke, Caught, SleepState, Notice>;

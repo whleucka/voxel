@@ -138,7 +138,7 @@ template <class IO> void fields(IO &io, EntityView &m) {
   io(m.id, m.kind, m.position, m.yaw, m.item, m.hurt, m.happy, m.burning, m.owner, m.biting);
 }
 template <class IO> void fields(IO &io, PlayerView &m) {
-  io(m.id, m.name, m.position, m.yaw, m.pitch, m.crouch);
+  io(m.id, m.name, m.position, m.yaw, m.pitch, m.crouch, m.sleeping);
 }
 
 // Commands
@@ -174,6 +174,8 @@ template <class IO> void fields(IO &io, StartBreak &m) { io(m.pos); }
 template <class IO> void fields(IO &io, CastLine &m) { io(m.dir); }
 template <class IO> void fields(IO &, ReelIn &) {}
 template <class IO> void fields(IO &io, UseDoor &m) { io(m.pos); }
+template <class IO> void fields(IO &io, UseBed &m) { io(m.pos); }
+template <class IO> void fields(IO &, LeaveBed &) {}
 
 // Events
 template <class IO> void fields(IO &io, Joined &m) {
@@ -192,6 +194,10 @@ template <class IO> void fields(IO &io, InventoryContents &m) { io(m.slots); }
 template <class IO> void fields(IO &io, KnownItems &m) { io(m.ids); }
 template <class IO> void fields(IO &io, ToolBroke &m) { io(m.item); }
 template <class IO> void fields(IO &io, Caught &m) { io(m.item); }
+template <class IO> void fields(IO &io, SleepState &m) {
+  io(m.in_bed, m.bed, m.sleepers, m.living);
+}
+template <class IO> void fields(IO &io, Notice &m) { io(m.text); }
 template <class IO> void fields(IO &io, ContainerView &m) {
   uint8_t kind = static_cast<uint8_t>(m.kind);
   io(m.pos, m.open, kind, m.slots, m.input, m.fuel, m.output, m.burn, m.cook);

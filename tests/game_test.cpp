@@ -2961,3 +2961,255 @@ TEST_CASE_FIXTURE(BedGame, "beds are saved") {
   CHECK(loaded.world().getBlockAt(glm::vec3(head()) + 0.5f) ==
         bedBlock(BedColour::Yellow, true, DoorFacing::East));
 }
+
+// ─── Sleeping ──────────────────────────────────────────────────────────
+
+namespace {
+
+std::vector<std::string> notices(const std::vector<Event> &evs) {
+  std::vector<std::string> out;
+  for (const Event &e : evs)
+    if (const auto *n = std::get_if<Notice>(&e)) out.push_back(n->text);
+  return out;
+}
+
+std::optional<SleepState> lastSleep(const std::vector<Event> &evs) {
+  std::optional<SleepState> out;
+  for (const Event &e : evs)
+    if (const auto *s = std::get_if<SleepState>(&e)) out = *s;
+  return out;
+}
+
+std::optional<Respawned> lastRespawned(const std::vector<Event> &evs) {
+  std::optional<Respawned> out;
+  for (const Event &e : evs)
+    if (const auto *r = std::get_if<Respawned>(&e)) out = *r;
+  return out;
+}
+
+struct SleepGame : BedGame {
+  ScopedDifficulty peaceful{Difficulty::Peaceful}; // nothing turns up to wake anyone
+  glm::ivec3 second = foot + glm::ivec3(0, 0, 2); // another bed, for the other player
+
+  SleepGame() {
+    placeBed(second, 0.0f, 1, ItemId::BLUE_BED);
+    placeBed(foot); // red, head to the east
+    pollAll(other);
+  }
+
+  PlayerState &me() { return *game.findPlayer(id); }
+  PlayerState &them() {
+    for (PlayerId p = 1; p < 10; ++p)
+      if (p != id && game.findPlayer(p)) return *game.findPlayer(p);
+    FAIL("no second player");
+    return me();
+  }
+  void night() { run(SetTimeOfDay{0.0f}); }
+  std::vector<Event> ticks(int ms) {
+    for (int t = 0; t < ms; t += Game::kTickMs) game.tick();
+    return pollAll(conn);
+  }
+  // A move with the current respawn counter (sleeping bumps it).
+  void walkTo(glm::vec3 pos) {
+    conn.send(MovePlayer{pos, 0.0f, 0.0f, false, false, true, false, false, false,
+                         me().respawn});
+    game.pump();
+  }
+  // The observer walks over to the second bed and gets in.
+  void otherSleeps() {
+    other.send(MovePlayer{{5.5f, ground + 1.0f, 8.5f}, 0.0f, 0.0f, false, false});
+    game.pump();
+    other.send(UseBed{second});
+    game.pump();
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(SleepGame, "by day a bed sets your respawn point but you can't sleep") {
+  run(SetTimeOfDay{12 * 3600.0f});
+  auto evs = run(UseBed{head()}); // either half
+  CHECK(me().bed == foot);
+  CHECK_FALSE(me().sleeping_in);
+  CHECK(notices(evs) == std::vector<std::string>{"Respawn point set. You can only sleep at night"});
+  // Already your bed: just the reason.
+  CHECK(notices(run(UseBed{foot})) == std::vector<std::string>{"You can only sleep at night"});
+}
+
+TEST_CASE_FIXTURE(SleepGame, "at night you lie down on the bed and stay there") {
+  night();
+  auto evs = run(UseBed{foot});
+  CHECK(notices(evs) == std::vector<std::string>{"Respawn point set"});
+  REQUIRE(me().sleeping_in == foot);
+  auto r = lastRespawned(evs);
+  REQUIRE(r);
+  CHECK(r->position == me().position);
+  CHECK(me().position.y == doctest::Approx(ground + 1 + kBedHeight));
+  CHECK(me().position.x == doctest::Approx(foot.x + 1.0f)); // between the halves
+  CHECK(me().yaw == 0.0f);                                   // head to the east
+  auto s = lastSleep(evs);
+  REQUIRE(s);
+  CHECK(s->in_bed);
+  CHECK(s->bed == foot);
+  CHECK(s->sleepers == 1);
+  CHECK(s->living == 2);
+  // The other player hears how many are in bed.
+  auto theirs = lastSleep(pollAll(other));
+  REQUIRE(theirs);
+  CHECK_FALSE(theirs->in_bed);
+  CHECK(theirs->sleepers == 1);
+
+  // Moves (even with the new counter) are ignored, and so are edits.
+  glm::vec3 where = me().position;
+  conn.send(MovePlayer{{9.5f, ground + 1.0f, 9.5f}, 0.0f, 0.0f, false, false, true, false,
+                       false, false, r->respawn});
+  game.pump();
+  CHECK(me().position == where);
+  CHECK(reason(run(BreakBlock{foot + glm::ivec3(0, -1, -1)})) == "break: in bed");
+  CHECK(reason(run(PlaceBlock{foot + glm::ivec3(0, 1, 0)})) == "place: in bed");
+}
+
+TEST_CASE_FIXTURE(SleepGame, "you can't sleep with a monster near, in a taken bed, or out of reach") {
+  night();
+  {
+    ScopedDifficulty normal{Difficulty::Normal};
+    auto e = game.entities().spawn(EntityKind::Gloomling, glm::vec3(foot) + glm::vec3(6.5f, 0, 0.5f));
+    REQUIRE(e);
+    CHECK(notices(run(UseBed{foot})) ==
+          std::vector<std::string>{"Respawn point set. You can't sleep, monsters are nearby!"});
+    CHECK_FALSE(me().sleeping_in);
+    game.entities().find(*e)->body.position = glm::vec3(foot) + glm::vec3(12.5f, 0, 0.5f);
+    run(UseBed{foot});
+    CHECK(me().sleeping_in == foot); // far enough now
+    game.entities().remove(*e);
+  }
+  // Someone's in it.
+  other.send(MovePlayer{{5.5f, ground + 1.0f, 3.5f}, 0.0f, 0.0f, false, false});
+  game.pump();
+  pollAll(other);
+  other.send(UseBed{foot});
+  game.pump();
+  CHECK(notices(pollAll(other)) == std::vector<std::string>{"Respawn point set. This bed is taken"});
+  CHECK_FALSE(them().sleeping_in);
+
+  run(LeaveBed{});
+  walkTo({5.5f, ground + 1.0f, 5.5f + 9.0f});
+  CHECK(reason(run(UseBed{foot})) == "bed: out of reach");
+  CHECK(reason(run(UseBed{foot + glm::ivec3(0, -1, 0)})) == "bed: that isn't a bed");
+}
+
+TEST_CASE_FIXTURE(SleepGame, "the night skips only once every living player is in bed") {
+  night();
+  run(UseBed{foot});
+  ticks(4000);
+  CHECK(me().sleeping_in); // still waiting for the other player
+  CHECK(game.clock().time_of_day < 3600.0f);
+
+  otherSleeps();
+  REQUIRE(them().sleeping_in);
+  ticks(1000);
+  CHECK(game.clock().time_of_day < 3600.0f); // not long enough yet
+  auto evs = ticks(1100);
+  CHECK(game.clock().time_of_day == doctest::Approx(Game::kWakeTime).epsilon(0.001));
+  CHECK_FALSE(me().sleeping_in);
+  CHECK_FALSE(them().sleeping_in);
+  auto s = lastSleep(evs);
+  REQUIRE(s);
+  CHECK_FALSE(s->in_bed);
+  CHECK(s->sleepers == 0);
+  // Up beside the bed, on the floor.
+  auto r = lastRespawned(evs);
+  REQUIRE(r);
+  CHECK(r->position.y == doctest::Approx(ground + 1.0f));
+  CHECK(at(glm::ivec3(glm::floor(r->position))) == BlockType::AIR);
+}
+
+TEST_CASE_FIXTURE(SleepGame, "a dead player doesn't keep everyone up") {
+  night();
+  run(UseBed{foot});
+  them().vitals.damage(1000);
+  REQUIRE(them().vitals.dead());
+  ticks(2100);
+  CHECK(game.clock().time_of_day == doctest::Approx(Game::kWakeTime).epsilon(0.001));
+  CHECK_FALSE(me().sleeping_in);
+}
+
+TEST_CASE_FIXTURE(SleepGame, "getting up, getting hurt, or losing the bed wakes you") {
+  night();
+  SUBCASE("getting up") {
+    run(UseBed{foot});
+    auto evs = run(LeaveBed{});
+    CHECK_FALSE(me().sleeping_in);
+    REQUIRE(lastRespawned(evs));
+    CHECK(lastRespawned(evs)->position.y == doctest::Approx(ground + 1.0f));
+  }
+  SUBCASE("getting hurt") {
+    run(UseBed{foot});
+    me().vitals.damage(2);
+    ticks(Game::kTickMs);
+    CHECK_FALSE(me().sleeping_in);
+  }
+  SUBCASE("the bed broken under you") {
+    otherSleeps();
+    REQUIRE(them().sleeping_in);
+    REQUIRE(them().sleeping_in == second);
+    me().inventory.set(me().selected_slot, {});
+    mine(second);
+    CHECK(at(second) == BlockType::AIR);
+    ticks(Game::kTickMs);
+    CHECK_FALSE(them().sleeping_in);
+  }
+  // Morning without the skip wakes you too.
+  run(UseBed{foot});
+  run(SetTimeOfDay{7 * 3600.0f});
+  ticks(Game::kTickMs);
+  CHECK_FALSE(me().sleeping_in);
+}
+
+TEST_CASE_FIXTURE(SleepGame, "you respawn beside your bed, or at spawn if it's gone") {
+  run(UseBed{foot}); // by day: just the respawn point
+  REQUIRE(me().bed == foot);
+  me().vitals.damage(1000);
+  auto evs = ticks(Game::kRespawnDelayMs + 100);
+  auto r = lastRespawned(evs);
+  REQUIRE(r);
+  CHECK(glm::distance(r->position, glm::vec3(foot) + glm::vec3(1.0f, 0, 0.5f)) < 2.0f);
+  CHECK(r->position.y == doctest::Approx(ground + 1.0f));
+
+  // Break it, die again: back to the world spawn.
+  walkTo({5.5f, ground + 1.0f, 8.5f});
+  me().inventory.set(me().selected_slot, {});
+  mine(foot);
+  REQUIRE(at(foot) == BlockType::AIR);
+  me().vitals.damage(1000);
+  evs = ticks(Game::kRespawnDelayMs + 100);
+  r = lastRespawned(evs);
+  REQUIRE(r);
+  CHECK(r->position == game.world().findSpawn());
+  CHECK_FALSE(me().bed);
+  CHECK(notices(evs) == std::vector<std::string>{"Your bed is missing"});
+}
+
+TEST_CASE_FIXTURE(SleepGame, "the respawn bed is saved, for the host and for a guest") {
+  ScopedSeed seed;
+  TempDir dir;
+  CHECK_FALSE(game.load(dir.path.string()));
+  run(UseBed{foot});
+  REQUIRE(me().bed == foot);
+  run(Save{});
+
+  ScopedRenderDistance rd{0};
+  Game loaded;
+  REQUIRE(loaded.load(dir.path.string()));
+  LocalConnection again;
+  Joined j = join(loaded, again);
+  CHECK(loaded.findPlayer(j.id)->bed == foot);
+
+  // A guest's record carries theirs.
+  WorldSave::GuestRecord rec;
+  rec.player.bed = glm::ivec3(-3, 70, 12);
+  REQUIRE(WorldSave::saveGuest(dir.path.string(), "Aria", rec));
+  std::map<std::string, WorldSave::GuestRecord> guests;
+  REQUIRE(WorldSave::loadGuests(dir.path.string(), guests));
+  CHECK(guests.at("Aria").player.bed == glm::ivec3(-3, 70, 12));
+}

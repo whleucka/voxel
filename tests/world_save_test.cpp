@@ -18,6 +18,7 @@ TEST_CASE("level, player and edits round-trip through save/load") {
   player.pitch = -12.5f;
   player.selected_slot = 4;
   player.fly_mode = 1;
+  player.bed = glm::ivec3(-40, 65, 12);
 
   WorldEdits edits;
   edits[{0, 0}][17] = 3;
@@ -43,6 +44,15 @@ TEST_CASE("level, player and edits round-trip through save/load") {
   CHECK(player2.pitch == player.pitch);
   CHECK(player2.selected_slot == player.selected_slot);
   CHECK(player2.fly_mode == player.fly_mode);
+  CHECK(player2.bed == player.bed);
+
+  // A player.dat from before beds (no trailing section) loads with none.
+  const auto file = dir.path / "player.dat";
+  std::filesystem::resize_file(file, std::filesystem::file_size(file) - 13);
+  WorldSave::PlayerData old;
+  REQUIRE(WorldSave::loadPlayer(dir.path.string(), old));
+  CHECK(old.position == player.position);
+  CHECK_FALSE(old.bed);
 
   REQUIRE(edits2.size() == edits.size());
   for (const auto &[key, chunk_edits] : edits) {
@@ -130,7 +140,7 @@ TEST_CASE("a missing or truncated inventory.dat fails to load") {
 TEST_CASE("guest records round-trip, one file per name") {
   TempDir dir;
   WorldSave::GuestRecord bea;
-  bea.player = {{1.5f, 70.0f, -3.25f}, 45.0f, -10.0f, 3, 1};
+  bea.player = {{1.5f, 70.0f, -3.25f}, 45.0f, -10.0f, 3, 1, glm::ivec3(2, 64, -3)};
   bea.inventory = {{ItemId::COAL, 5}, {}, {ItemId::DIAMOND, 1}};
   WorldSave::GuestRecord cy;
   cy.player.position = {-8.0f, 90.0f, 2.0f};
@@ -147,6 +157,8 @@ TEST_CASE("guest records round-trip, one file per name") {
   CHECK(b.player.pitch == -10.0f);
   CHECK(b.player.selected_slot == 3);
   CHECK(b.player.fly_mode == 1);
+  CHECK(b.player.bed == glm::ivec3(2, 64, -3));
+  CHECK_FALSE(loaded.at("cy_2").player.bed);
   CHECK(b.inventory == bea.inventory);
   CHECK(loaded.at("cy_2").player.position == cy.player.position);
 }

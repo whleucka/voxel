@@ -9,6 +9,7 @@
 #include "world/worldgen_version.hpp"
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <glm/glm.hpp>
 #include <span>
 #include <string>
@@ -44,6 +45,9 @@ struct PlayerData {
   float     pitch = 0.0f;
   int32_t   selected_slot = 0;
   uint8_t   fly_mode = 0;
+  // The foot of the bed they respawn at. A trailing section, in player.dat
+  // and in guest records: older files load with none.
+  std::optional<glm::ivec3> bed;
 };
 
 // Resolves a world name to its directory, e.g. "world" -> "saves/world".
