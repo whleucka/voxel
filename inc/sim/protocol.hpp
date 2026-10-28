@@ -167,6 +167,8 @@ struct VitalsChanged {
   int breath = 0;
   bool can_sprint = true;
   bool dead = false;
+  int fed_s = 0;              // well-fed time left, whole seconds rounded up
+  bool regen_blocked = false; // hurt, unfed, and food is needed to heal
   bool operator==(const VitalsChanged &) const = default;
 };
 

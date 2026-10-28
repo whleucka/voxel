@@ -323,7 +323,7 @@ void Game::tick() {
       ps->dead_ms += kTickMs;
       if (ps->dead_ms >= kRespawnDelayMs) respawn(client, *ps);
     } else if (rules().drain) {
-      ps->vitals.tick(kTickMs, ps->activity);
+      ps->vitals.tick(kTickMs, ps->activity, needsFood(g_settings.difficulty));
     } else {
       ps->vitals.reset(); // creative: always full
     }
@@ -388,6 +388,9 @@ void Game::flushVitals() {
     if (!ps) continue;
     const Vitals &v = ps->vitals;
     VitalsChanged now{v.health(), v.stamina(), v.breath(), v.canSprint(), v.dead()};
+    now.fed_s = (v.fedMs() + 999) / 1000;
+    now.regen_blocked = rules().drain && needsFood(g_settings.difficulty) && !v.dead() &&
+                        !v.wellFed() && v.health() < Vitals::kMax;
     if (ps->vitals_sent == now) continue;
     ps->vitals_sent = now;
     client.link->deliver(now);
@@ -1590,12 +1593,14 @@ void Game::apply(Client &client, const EatItem &) {
   const ItemStack &held = ps->inventory.slot(ps->selected_slot);
   if (held.empty() || itemDef(held.id).food_heal <= 0)
     return reject(client, "eat: that isn't food");
-  if (ps->vitals.health() >= Vitals::kMax) return reject(client, "eat: not hungry");
+  if (ps->vitals.health() >= Vitals::kMax && ps->vitals.fedMs() >= Vitals::kMaxFedMs)
+    return reject(client, "eat: not hungry");
 
   int heal = itemDef(held.id).food_heal;
   ps->inventory.take(ps->selected_slot, 1);
   sendInventory(client, *ps);
   ps->vitals.heal(heal);
+  ps->vitals.feed(heal);
 }
 
 // ─── Fishing ───────────────────────────────────────────────────────────
