@@ -25,7 +25,7 @@
 - **Tools and weapons:** pickaxes, axes, shovels, swords and hoes from wood to diamond; mining takes time and the best ore needs the best picks ([more below](#tools-and-weapons)).
 - **Creative mode:** fly, build without running out, and pick from every block, including planks, bricks, glass, eight bright colors and lamps.
 - **Play together:** host a world on your home network, and up to 8 players can join from the title screen.
-- **Your own worlds:** create, rename and delete worlds. Each one saves its edits, inventories and mode.
+- **Your own worlds:** create, rename and delete worlds. Each one saves its edits, inventories and mode, by itself every five minutes and when you quit.
 - **Engine:**
   - Greedy meshing with frustum culling, multi-threaded chunk generation and deterministic, seeded worldgen.
   - Sky and block lighting, shadow mapping, and transparent and cut-out blocks.

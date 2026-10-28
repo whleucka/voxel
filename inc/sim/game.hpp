@@ -30,6 +30,9 @@ public:
   static constexpr size_t kMaxPlayers = 8; // host included
   static constexpr size_t kMaxNameLength = 16;
   static constexpr int kTimeSyncTicks = 20; // once a second
+  // A world with a save directory saves itself this often, so a crash costs
+  // at most these last minutes.
+  static constexpr int kAutosaveTicks = 5 * 60 * 20; // five minutes
   // Dropped items
   static constexpr int kBreakDropDelayMs = 500;
   static constexpr int kThrowDropDelayMs = 1500;
