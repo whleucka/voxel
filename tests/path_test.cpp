@@ -174,3 +174,28 @@ TEST_CASE("creatures path through an open door but not a closed one") {
     CHECK(std::find(p->begin(), p->end(), glm::ivec3(8, kBase + 1, 4)) != p->end());
   }
 }
+
+TEST_CASE("creatures go round a bed, never over it") {
+  PathRig r;
+  r.floor({1, 0, 1}, {14, 0, 14});
+  // A bed lying across the straight line from start to goal.
+  fill(r.world, {8, kBase + 1, 8}, {8, kBase + 1, 8}, bedBlock(BedColour::Blue, false, DoorFacing::South));
+  fill(r.world, {8, kBase + 1, 9}, {8, kBase + 1, 9}, bedBlock(BedColour::Blue, true, DoorFacing::South));
+  glm::ivec3 from{4, kBase + 1, 8}, to{12, kBase + 1, 8};
+  auto p = r.path(from, to);
+  REQUIRE(p);
+  checkSteps(from, *p);
+  for (glm::ivec3 c : *p) {
+    CAPTURE(c);
+    CHECK(c.y == kBase + 1); // never up on top of it
+    CHECK_FALSE(isBed(r.world.getBlockAt(glm::vec3(c) + 0.5f)));
+  }
+
+  // A bed plugging the only gap in a wall: no way through.
+  PathRig w;
+  w.floor({1, 0, 1}, {14, 0, 14});
+  fill(w.world, {8, kBase + 1, 1}, {8, kBase + 3, 14}, BlockType::STONE);
+  fill(w.world, {8, kBase + 1, 4}, {8, kBase + 3, 4}, BlockType::AIR);
+  fill(w.world, {8, kBase + 1, 4}, {8, kBase + 1, 4}, bedBlock(BedColour::Blue, false, DoorFacing::East));
+  CHECK_FALSE(w.path({4, kBase + 1, 4}, {12, kBase + 1, 4}));
+}

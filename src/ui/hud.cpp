@@ -604,6 +604,20 @@ void Hud::drawVitals(const HudLayout &layout, const VitalsChanged &v, double now
   }
 }
 
+void Hud::drawSleep(float fade, int sleepers, int living) {
+  ImDrawList *fg = ImGui::GetForegroundDrawList();
+  ImVec2 d = ImGui::GetIO().DisplaySize;
+  fg->AddRectFilled(ImVec2(0, 0), d, rgba(6, 8, 24, 0.85f * std::clamp(fade, 0.0f, 1.0f)));
+
+  std::string text = "Sleeping...";
+  if (living > 1)
+    text += " (" + std::to_string(sleepers) + " of " + std::to_string(living) + " in bed)";
+  float size = std::round(d.y * 0.035f);
+  ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, text.c_str());
+  shadowText(fg, size, ImVec2((d.x - ext.x) * 0.5f, d.y * 0.72f), rgba(230, 230, 240, 1.0f),
+             1.0f, text.c_str());
+}
+
 void Hud::drawDeathScreen() {
   ImDrawList *fg = ImGui::GetForegroundDrawList();
   ImVec2 d = ImGui::GetIO().DisplaySize;

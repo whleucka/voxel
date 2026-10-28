@@ -1,5 +1,6 @@
 #pragma once
 
+#include "block/bed.hpp"
 #include "block/block_type.hpp"
 #include <cstdint>
 #include <glm/glm.hpp>
@@ -67,11 +68,19 @@ enum class ItemId : uint16_t {
   SOGGY_BOOT,
   TREASURE_KEY,
   WOODEN_DOOR,       // places a two-high door (the Game sets its halves)
+  WHITE_BED,         // beds: place a two-long bed (the Game sets its halves),
+  RED_BED,           // in the coloured blocks' order
+  ORANGE_BED,
+  YELLOW_BED,
+  GREEN_BED,
+  BLUE_BED,
+  PURPLE_BED,
+  PINK_BED,
   // Append only: the numeric value is persisted in inventory saves.
 };
 
 constexpr ItemId kFirstMaterialItem = ItemId::COAL;
-constexpr ItemId kLastMaterialItem = ItemId::WOODEN_DOOR;
+constexpr ItemId kLastMaterialItem = ItemId::PINK_BED;
 
 struct ItemIcon {
   enum class Atlas : uint8_t { Block, Item };
@@ -91,6 +100,17 @@ constexpr uint16_t kDefaultMaxStack = 64;
 
 inline ItemId itemForBlock(BlockType b) {
   return static_cast<ItemId>(static_cast<uint16_t>(b));
+}
+
+// The bed item of a colour, and the colour of a bed item.
+inline ItemId bedItem(BedColour colour) {
+  return static_cast<ItemId>(static_cast<uint16_t>(ItemId::WHITE_BED) +
+                             static_cast<uint16_t>(colour));
+}
+inline bool isBedItem(ItemId id) { return id >= ItemId::WHITE_BED && id <= ItemId::PINK_BED; }
+inline BedColour bedItemColour(ItemId id) {
+  return static_cast<BedColour>(static_cast<uint16_t>(id) -
+                                static_cast<uint16_t>(ItemId::WHITE_BED));
 }
 
 // True for every item this build knows: placeable blocks and materials.

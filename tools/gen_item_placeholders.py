@@ -267,6 +267,28 @@ def wooden_door():
     return img
 
 
+BED_COLOURS = [(236, 236, 232), (214, 46, 46), (240, 132, 30), (246, 214, 46),
+               (84, 184, 60), (48, 104, 220), (142, 66, 196), (244, 140, 190)]
+
+
+def bed(colour):
+    def draw():
+        img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        wood, dark = (120, 84, 50, 255), (64, 42, 22, 255)
+        blanket = colour + (255,)
+        edge = tuple(max(0, c - 70) for c in colour) + (255,)
+        d.rectangle([3, 8, 7, 26], fill=wood, outline=dark)    # headboard
+        d.rectangle([3, 18, 28, 24], fill=wood, outline=dark)  # frame
+        d.rectangle([26, 18, 28, 27], fill=wood, outline=dark) # foot leg
+        d.rectangle([3, 24, 5, 27], fill=wood, outline=dark)   # head leg
+        d.rectangle([8, 12, 13, 17], fill=(240, 240, 244, 255), outline=(150, 150, 160, 255))  # pillow
+        d.rectangle([13, 13, 28, 18], fill=blanket, outline=edge)  # blanket
+        d.line([(14, 14), (27, 14)], fill=tuple(min(255, c + 40) for c in colour) + (255,))
+        return img
+    return draw
+
+
 FISHING = [fishing_rod] + [fish(*c, cooked=cooked) for c in FISH for cooked in (False, True)] + [soggy_boot]
 
 # Animal products, crafted and smelted items, after the shape-based
@@ -275,7 +297,7 @@ DRAWN = [wool, berries, shell, petals, sticks,
          ingot((200, 200, 206), (110, 110, 118), (236, 236, 242)),   # iron
          ingot((214, 120, 64), (120, 60, 28), (246, 170, 120)),     # copper
          ingot((240, 200, 60), (150, 110, 20), (255, 236, 140)),    # gold
-         charcoal] + TOOLS + FISHING + [treasure_key, wooden_door]
+         charcoal] + TOOLS + FISHING + [treasure_key, wooden_door] + [bed(c) for c in BED_COLOURS]
 
 
 def main():

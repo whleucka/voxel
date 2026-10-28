@@ -47,9 +47,10 @@ TEST_CASE("no two blocks share a tile, apart from snow, dirt bottoms, furnace to
                                     BlockType::SNOW_DIRT};
   const std::set<BlockType> dirt = {BlockType::GRASS, BlockType::DIRT};
   const std::set<BlockType> furnace = {BlockType::FURNACE, BlockType::FURNACE_LIT};
-  // And a door's states all wear the same few tiles.
+  // And a door's or a bed's states all wear the same few tiles.
   auto doors = [](const std::set<BlockType> &types) {
-    return std::all_of(types.begin(), types.end(), isDoor);
+    return std::all_of(types.begin(), types.end(), isDoor) ||
+           std::all_of(types.begin(), types.end(), isBed);
   };
   for (const auto &[tile, types] : users) {
     CAPTURE(tile.first);

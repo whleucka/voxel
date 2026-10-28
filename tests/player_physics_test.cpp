@@ -262,3 +262,20 @@ TEST_CASE("a closed door stops you like a wall; an open one lets you through") {
       CHECK(p.getPosition().z > 7.0f); // stopped at the door's cell
   }
 }
+
+TEST_CASE("you land on a bed at its height, and step up onto it from the floor") {
+  Rig r;
+  r.set(8, kBase + 1, 6, bedBlock(BedColour::Red, false, DoorFacing::North));
+  r.set(8, kBase + 1, 5, bedBlock(BedColour::Red, true, DoorFacing::North));
+  // Dropped on it from above.
+  Player drop({8.5f, kBase + 4.0f, 6.5f});
+  steps(drop, r.world, 60);
+  CHECK(drop.getPosition().y == doctest::Approx(kBase + 1.0f + kBedHeight).epsilon(0.01));
+
+  // Walking at it: it's low enough to step onto, like a slab.
+  Player walk({8.5f, kBase + 1.0f, 9.5f});
+  steps(walk, r.world, 15); // settle
+  steps(walk, r.world, 40, forward());
+  CHECK(walk.getPosition().z < 7.0f);
+  CHECK(walk.getPosition().y == doctest::Approx(kBase + 1.0f + kBedHeight).epsilon(0.01));
+}

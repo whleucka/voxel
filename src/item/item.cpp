@@ -61,16 +61,25 @@ constexpr std::array<Material, kMaterialCount> kMaterials = {{
     {"Soggy Boot", 0, 1},
     {"Treasure Key", 0, 16}, // opens a treasure chest
     {"Wooden Door", 0, 16},
+    {"White Bed", 0, 16},
+    {"Red Bed", 0, 16},
+    {"Orange Bed", 0, 16},
+    {"Yellow Bed", 0, 16},
+    {"Green Bed", 0, 16},
+    {"Blue Bed", 0, 16},
+    {"Purple Bed", 0, 16},
+    {"Pink Bed", 0, 16},
 }};
 constexpr int kItemAtlasCols = 8;
 
 bool isPlaceableBlock(uint16_t v) {
   if (v == 0 || v > static_cast<uint16_t>(kLastBlockType)) return false;
   // Water is never held, a lit furnace is a furnace that's burning, a
-  // treasure chest is only ever found, and a door half comes from a door.
+  // treasure chest is only ever found, and door and bed halves come from a
+  // door or a bed.
   BlockType b = static_cast<BlockType>(v);
   return b != BlockType::WATER && b != BlockType::FURNACE_LIT &&
-         b != BlockType::TREASURE_CHEST && !isDoor(b);
+         b != BlockType::TREASURE_CHEST && !isDoor(b) && !isBed(b);
 }
 
 bool isMaterial(uint16_t v) {
@@ -143,6 +152,8 @@ std::optional<ItemId> dropFor(BlockType b) {
     default:
       // One door from its bottom half; the Game clears the top with it.
       if (isDoor(b)) return doorTop(b) ? std::nullopt : std::optional(ItemId::WOODEN_DOOR);
+      // Likewise one bed, of its colour, from its foot.
+      if (isBed(b)) return bedHead(b) ? std::nullopt : std::optional(bedItem(bedColour(b)));
       return itemForBlock(b);
   }
 }

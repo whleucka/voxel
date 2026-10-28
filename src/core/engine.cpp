@@ -290,6 +290,7 @@ void Engine::startSession(std::unique_ptr<Session> s) {
   last_rejection.clear();
   inventory_view = {};
   vitals_view = {Vitals::kMax, Vitals::kMax, Vitals::kMax, true, false};
+  sleep_view.reset();
   entity_interp = EntityInterpolator{};
   entity_views.clear();
   player_views.clear();
@@ -314,6 +315,19 @@ void Engine::endSession(std::string message) {
 void Engine::processInput(GLFWwindow *window) {
   // Don't process movement when inventory is open or while dead
   if (player->isInventoryOpen() || vitals_view.dead || paused()) return;
+
+  // In bed: a movement key or jump (pressed afresh) gets us up.
+  if (inBed()) {
+    bool any = false;
+    for (int key : {GLFW_KEY_W, GLFW_KEY_A, GLFW_KEY_S, GLFW_KEY_D, GLFW_KEY_SPACE})
+      any |= glfwGetKey(window, key) == GLFW_PRESS;
+    if (!any) bed_keys_released = true;
+    else if (bed_keys_released && !leave_sent) {
+      connection().send(LeaveBed{});
+      leave_sent = true;
+    }
+    return;
+  }
 
   PlayerInput input;
   input.forward  = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
@@ -340,6 +354,14 @@ void Engine::update() {
   // Physics runs locally; the Game is told where we ended up, and streams
   // chunks around every player's reported position when it pumps.
   player->update(delta_time, &world());
+  if (inBed()) {
+    // Head on the pillow, at the far end of the head half.
+    glm::ivec3 foot = sleep_view->bed;
+    BlockType b = world().getBlockAt(glm::vec3(foot) + 0.5f);
+    glm::vec3 along = isBed(b) ? glm::vec3(facingStep(bedFacing(b))) : glm::vec3(0.0f);
+    player->getCamera().setPosition(glm::vec3(foot) + glm::vec3(0.5f, kBedHeight + 0.25f, 0.5f) +
+                                    along * 1.35f);
+  }
   updateMining(delta_time);
   const Camera &cam = player->getCamera();
   MovePlayer move;
@@ -410,6 +432,17 @@ void Engine::handleEvents() {
     }
     else if (const auto *caught = std::get_if<Caught>(&ev)) {
       hud.notice(caughtMessage(caught->item), glfwGetTime());
+    }
+    else if (const auto *note = std::get_if<Notice>(&ev)) {
+      hud.notice(note->text, glfwGetTime());
+    }
+    else if (const auto *sleep = std::get_if<SleepState>(&ev)) {
+      if (sleep->in_bed && !inBed()) {
+        sleep_since = glfwGetTime();
+        bed_keys_released = false;
+        leave_sent = false;
+      }
+      sleep_view = *sleep;
     }
     else if (const auto *broke = std::get_if<ToolBroke>(&ev)) {
       hud.notice("Your " + std::string(itemDef(broke->item).name) + " broke!", glfwGetTime());
@@ -540,6 +573,9 @@ void Engine::render() {
   if (!player->isInventoryOpen() && myBobber() && myBobber()->biting)
     hud.drawBitePrompt(layout, glfwGetTime());
   if (mining && !player->isInventoryOpen()) hud.drawMiningRing(mining->progress);
+  if (inBed())
+    hud.drawSleep(static_cast<float>((glfwGetTime() - sleep_since) / (Game::kSleepMs / 1000.0)),
+                  sleep_view->sleepers, sleep_view->living);
   if (vitals_view.dead) hud.drawDeathScreen();
   PauseMenu::Action action = pause.draw(session->mode() == Session::Mode::Single,
                                         session->isGuest(), glfwGetTime());
@@ -1105,7 +1141,7 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     return;
   }
 
-  if (engine->vitals_view.dead) return;
+  if (engine->vitals_view.dead || engine->inBed()) return;
 
   // The client only aims; the Game validates and applies the edit on the next
   // pump, which runs before the next frame renders.
@@ -1155,6 +1191,10 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
       else
         engine->connection().send(CastLine{cam.front});
     }
+    // Lie down in a bed, or at least make it home (crouch to place against
+    // it instead).
+    else if (ray.hit && isBed(ray.block_type) && !player->isCrouching())
+      engine->connection().send(UseBed{ray.block_pos});
     // Open or shut a door (crouch to place against it instead).
     else if (ray.hit && isDoor(ray.block_type) && !player->isCrouching())
       engine->connection().send(UseDoor{ray.block_pos});
@@ -1215,7 +1255,7 @@ void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
 void Engine::updateMining(float dt) {
   bool holding = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS &&
                  rulesFor(game_mode).timed_mining && !player->isInventoryOpen() &&
-                 !vitals_view.dead && !ImGui::GetIO().WantCaptureMouse;
+                 !vitals_view.dead && !inBed() && !ImGui::GetIO().WantCaptureMouse;
   if (!holding || swinging) {
     mining.reset();
     if (!holding) swinging = false;

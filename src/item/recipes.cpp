@@ -80,6 +80,15 @@ const std::vector<Recipe> &recipes() {
                            {{{ItemId::GOLD_INGOT}, 2},
                             {{ItemId::RUBY, ItemId::EMERALD, ItemId::DIAMOND}, 1}}));
     list.push_back(atTable({ItemId::WOODEN_DOOR, 2}, {{anyPlanks(), 6}}));
+    // A white bed, then dyed with the coloured blocks' dyes.
+    list.push_back(atTable({ItemId::WHITE_BED, 1}, {{{ItemId::WOOL}, 3}, {anyPlanks(), 3}}));
+    const std::pair<BedColour, ItemId> dyes[] = {
+        {BedColour::Red, ItemId::RUBY},         {BedColour::Orange, ItemId::RAW_COPPER},
+        {BedColour::Yellow, ItemId::RAW_GOLD},  {BedColour::Green, ItemId::EMERALD},
+        {BedColour::Blue, ItemId::SEA_SHELL},   {BedColour::Purple, ItemId::BERRIES},
+        {BedColour::Pink, ItemId::SWEET_PETALS}};
+    for (const auto &[colour, dye] : dyes)
+      list.push_back(atTable({bedItem(colour), 1}, {{{ItemId::WHITE_BED}, 1}, {{dye}, 1}}));
     return list;
   }();
   return all;

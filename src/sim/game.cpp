@@ -92,6 +92,7 @@ bool Game::save() {
     pd.pitch         = host->pitch;
     pd.selected_slot = host->selected_slot;
     pd.fly_mode      = host->fly ? 1 : 0;
+    pd.bed           = host->bed;
   }
 
   // Same rule for the inventory; with neither a host nor a saved one there is
@@ -166,7 +167,7 @@ const WorldSave::GuestRecord *Game::guestRecord(const std::string &name) const {
 void Game::storeGuest(const PlayerState &ps) {
   WorldSave::GuestRecord rec;
   rec.player = {ps.position, ps.yaw, ps.pitch, ps.selected_slot,
-                static_cast<uint8_t>(ps.fly ? 1 : 0)};
+                static_cast<uint8_t>(ps.fly ? 1 : 0), ps.bed};
   rec.inventory.assign(ps.inventory.slots().begin(), ps.inventory.slots().end());
   rec.discovered = seenList(ps.seen);
   guest_records[ps.name] = std::move(rec);
@@ -277,6 +278,7 @@ void Game::pump() {
   }
   updateInterestPoints();
   flushVitals();
+  flushSleep();
 }
 
 void Game::updateInterestPoints() {
@@ -332,9 +334,11 @@ void Game::tick() {
   tickFurnaces();
   mergeDroppedItems();
   pickUpDroppedItems();
+  tickSleep();
 
   ++tick_count;
   flushVitals();
+  flushSleep();
   sendEntitySnapshots();
   if (tick_count % kTimeSyncTicks == 0)
     for (Client &client : clients)
@@ -358,7 +362,7 @@ void Game::sendEntitySnapshots() {
       if (pid == ps->id || other.vitals.dead()) continue;
       if (glm::distance(other.position, ps->position) > kEntityViewRange) continue;
       snap.players.push_back({pid, other.name, other.position, other.yaw, other.pitch,
-                              other.crouch, false});
+                              other.crouch, other.sleeping_in.has_value(), false});
     }
     client.link->deliver(std::move(snap));
   }
@@ -383,12 +387,17 @@ glm::vec3 Game::respawnPoint() {
   return *respawn_point;
 }
 
-// Back to the world spawn with full vitals. The inventory is kept.
+// Back to their bed, or the world spawn, with full vitals. The inventory is
+// kept.
 void Game::respawn(Client &client, PlayerState &ps) {
   ps.vitals.reset();
   ps.fall.reset();
   ps.dead_ms = 0;
-  ps.position = respawnPoint();
+  if (ps.bed && !bedStillAt(*ps.bed)) {
+    ps.bed.reset();
+    client.link->deliver(Notice{"Your bed is missing"});
+  }
+  ps.position = ps.bed ? besideBed(*ps.bed) : respawnPoint();
   ++ps.respawn;
   client.link->deliver(Respawned{ps.position, ps.respawn});
 }
@@ -536,12 +545,14 @@ void Game::apply(Client &client, const Join &cmd) {
     ps.pitch = rec->player.pitch;
     ps.selected_slot = rec->player.selected_slot;
     ps.fly = rec->player.fly_mode != 0;
+    ps.bed = rec->player.bed;
   } else if (client.role == Role::Host && saved_player) {
     ps.position = saved_player->position;
     ps.yaw = saved_player->yaw;
     ps.pitch = saved_player->pitch;
     ps.selected_slot = saved_player->selected_slot;
     ps.fly = saved_player->fly_mode != 0;
+    ps.bed = saved_player->bed;
     saved_player.reset();
   } else {
     ps.position = world_.findSpawn();
@@ -586,6 +597,8 @@ void Game::apply(Client &client, const MovePlayer &cmd) {
   // The dead stay put until they respawn, and moves from before the respawn
   // (still in flight when it happened) are stale.
   if (!ps || ps->vitals.dead() || cmd.respawn != ps->respawn) return;
+  // In bed, the Game holds them there; they get up with LeaveBed.
+  if (ps->sleeping_in) return;
   if (cmd.position.y < kVoidY) {
     ps->position = cmd.position;
     return rescueFromVoid(client, *ps);
@@ -613,6 +626,7 @@ void Game::apply(Client &client, const SelectSlot &cmd) {
 void Game::apply(Client &client, const BreakBlock &cmd) {
   PlayerState *ps = playerFor(client);
   if (!ps || ps->vitals.dead()) return;
+  if (ps->sleeping_in) return reject(client, "break: in bed");
   if (cmd.pos.y < 0 || cmd.pos.y >= kChunkHeight)
     return reject(client, "break: outside world height");
   if (!inReach(*ps, cmd.pos)) return reject(client, "break: out of reach");
@@ -651,7 +665,17 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
     }
     target = doorBlock(false, doorFacing(target), false);
   }
+  // So does a bed, dropping one of its colour.
+  if (isBed(target)) {
+    glm::ivec3 other = bedOther(cmd.pos, target);
+    if (isBed(world_.getBlockAt(glm::vec3(other) + 0.5f))) {
+      world_.setBlockAt(other, BlockType::AIR);
+      broadcast(BlockChanged{other, BlockType::AIR});
+    }
+    target = bedBlock(bedColour(target), false, bedFacing(target));
+  }
   popDoorAbove(cmd.pos);
+  popBedAbove(cmd.pos);
 
   // Survival: collect the drop, if the tool was good enough for it.
   if (!rules().block_drops) return;
@@ -700,10 +724,12 @@ bool Game::spendUse(Client &client, PlayerState &ps) {
 void Game::apply(Client &client, const PlaceBlock &cmd) {
   PlayerState *ps = playerFor(client);
   if (!ps || ps->vitals.dead()) return;
+  if (ps->sleeping_in) return reject(client, "place: in bed");
 
   const ItemStack &held = ps->inventory.slot(ps->selected_slot);
   if (held.empty()) return reject(client, "place: nothing held");
   if (held.id == ItemId::WOODEN_DOOR) return placeDoor(client, *ps, cmd.pos);
+  if (isBedItem(held.id)) return placeBed(client, *ps, cmd.pos);
   std::optional<BlockType> block = itemDef(held.id).places;
   if (!block) return reject(client, "place: held item isn't a block");
 
@@ -761,7 +787,7 @@ void Game::placeDoor(Client &client, PlayerState &ps, glm::ivec3 pos) {
     if (overlapsAnyPlayer(cell)) return reject(client, "place: inside a player");
   }
   BlockType below = world_.getBlockAt(glm::vec3(pos) + glm::vec3(0.5f, -0.5f, 0.5f));
-  if (!blocksMovement(below) || isDoor(below))
+  if (!blocksMovement(below) || isDoor(below) || isBed(below))
     return reject(client, "place: a door needs ground under it");
 
   setDoor(pos, doorBlock(false, doorFacingForYaw(ps.yaw), false));
@@ -801,6 +827,214 @@ void Game::apply(Client &client, const UseDoor &cmd) {
       (overlapsAnyPlayer(bottom) || overlapsAnyPlayer(bottom + glm::ivec3(0, 1, 0))))
     return reject(client, "door: someone's in the way");
   setDoor(bottom, swung);
+}
+
+// ─── Beds ──────────────────────────────────────────────────────────────
+
+void Game::placeBed(Client &client, PlayerState &ps, glm::ivec3 pos) {
+  if (pos.y < 1 || pos.y >= kChunkHeight) return reject(client, "place: outside world height");
+  if (!inReach(ps, pos)) return reject(client, "place: out of reach");
+
+  // The foot where you clicked, the head the way you look; both clear (not
+  // even water), on something solid.
+  const BedColour colour = bedItemColour(ps.inventory.slot(ps.selected_slot).id);
+  const DoorFacing facing = doorFacingForYaw(ps.yaw);
+  const glm::ivec3 head = pos + facingStep(facing);
+  for (glm::ivec3 cell : {pos, head}) {
+    int cx = static_cast<int>(std::floor(static_cast<float>(cell.x) / kChunkWidth));
+    int cz = static_cast<int>(std::floor(static_cast<float>(cell.z) / kChunkDepth));
+    if (!world_.getChunk(cx, cz)) return reject(client, "place: chunk not loaded");
+  }
+  for (glm::ivec3 cell : {pos, head}) {
+    if (world_.getBlockAt(glm::vec3(cell) + 0.5f) != BlockType::AIR)
+      return reject(client, "place: no room for a bed");
+    if (overlapsAnyPlayer(cell)) return reject(client, "place: inside a player");
+    BlockType below = world_.getBlockAt(glm::vec3(cell) + glm::vec3(0.5f, -0.5f, 0.5f));
+    if (!blocksMovement(below) || isDoor(below) || isBed(below))
+      return reject(client, "place: a bed needs ground under it");
+  }
+
+  const BlockType foot_half = bedBlock(colour, false, facing);
+  const BlockType head_half = bedBlock(colour, true, facing);
+  world_.setBlockAt(pos, foot_half);
+  world_.setBlockAt(head, head_half);
+  broadcast(BlockChanged{pos, foot_half});
+  broadcast(BlockChanged{head, head_half});
+  if (rules().consume_blocks) {
+    ps.inventory.take(ps.selected_slot, 1);
+    sendInventory(client, ps);
+  }
+}
+
+void Game::popBedAbove(glm::ivec3 below) {
+  const glm::ivec3 cell = below + glm::ivec3(0, 1, 0);
+  BlockType b = world_.getBlockAt(glm::vec3(cell) + 0.5f);
+  if (!isBed(b)) return;
+  for (glm::ivec3 half : {cell, bedOther(cell, b)}) {
+    if (!isBed(world_.getBlockAt(glm::vec3(half) + 0.5f))) continue;
+    world_.setBlockAt(half, BlockType::AIR);
+    broadcast(BlockChanged{half, BlockType::AIR});
+  }
+  if (rules().block_drops)
+    dropItem({bedItem(bedColour(b)), 1}, glm::vec3(cell) + glm::vec3(0.5f, 0.3f, 0.5f),
+             {0.0f, 3.0f, 0.0f}, kBreakDropDelayMs);
+}
+
+namespace {
+
+// The camera yaw (degrees) that looks along a facing.
+float yawOf(DoorFacing facing) {
+  switch (facing) {
+    case DoorFacing::North: return -90.0f;
+    case DoorFacing::East:  return 0.0f;
+    case DoorFacing::South: return 90.0f;
+    case DoorFacing::West:
+    default:                return 180.0f;
+  }
+}
+
+} // namespace
+
+bool Game::bedStillAt(glm::ivec3 foot) const {
+  // A bed only ever comes from an edit, so an unloaded chunk's edits know.
+  int cx = static_cast<int>(std::floor(static_cast<float>(foot.x) / kChunkWidth));
+  int cz = static_cast<int>(std::floor(static_cast<float>(foot.z) / kChunkDepth));
+  BlockType b = world_.getChunk(cx, cz) ? world_.getBlockAt(glm::vec3(foot) + 0.5f)
+                                        : world_.editAt(foot).value_or(BlockType::AIR);
+  return isBed(b) && !bedHead(b);
+}
+
+glm::vec3 Game::besideBed(glm::ivec3 foot) const {
+  BlockType b = world_.getBlockAt(glm::vec3(foot) + 0.5f);
+  if (isBed(b)) {
+    const glm::ivec3 head = bedOther(foot, b);
+    const glm::ivec3 along = head - foot;
+    const glm::ivec3 across(along.z, 0, -along.x);
+    // Beside the foot, then beside the head, then off either end.
+    const glm::ivec3 spots[] = {foot + across, foot - across, head + across,
+                                head - across, foot - along, head + along};
+    for (glm::ivec3 c : spots) {
+      auto at = [&](int dy) { return world_.getBlockAt(glm::vec3(c) + glm::vec3(0.5f, dy + 0.5f, 0.5f)); };
+      if (!blocksMovement(at(0)) && !blocksMovement(at(1)) && !isLiquid(at(0)) &&
+          blocksMovement(at(-1)) && !isBed(at(-1)))
+        return glm::vec3(c) + glm::vec3(0.5f, 0.0f, 0.5f);
+    }
+  }
+  return glm::vec3(foot) + glm::vec3(0.5f, kBedHeight, 0.5f);
+}
+
+Game::Client *Game::clientOf(PlayerId id) {
+  for (Client &c : clients)
+    if (c.player == id) return &c;
+  return nullptr;
+}
+
+void Game::apply(Client &client, const UseBed &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead() || ps->sleeping_in) return;
+  if (cmd.pos.y < 0 || cmd.pos.y >= kChunkHeight) return reject(client, "bed: outside world height");
+  BlockType hit = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
+  if (!isBed(hit)) return reject(client, "bed: that isn't a bed");
+  if (!inReach(*ps, cmd.pos)) return reject(client, "bed: out of reach");
+
+  // It's their respawn point now, whether or not they can sleep.
+  const glm::ivec3 foot = bedFoot(cmd.pos, hit);
+  const bool new_spawn = ps->bed != foot;
+  ps->bed = foot;
+  auto refuse = [&](std::string why) {
+    client.link->deliver(Notice{new_spawn ? "Respawn point set. " + why : why});
+  };
+
+  if (!isNight(clock_.fractionOfDay())) return refuse("You can only sleep at night");
+  const glm::vec3 middle =
+      glm::vec3(foot) + glm::vec3(0.5f, kBedHeight, 0.5f) + glm::vec3(facingStep(bedFacing(hit))) * 0.5f;
+  for (const auto &[eid, e] : entities_.all())
+    if (isEnemy(e.kind) && glm::distance(e.body.position, middle) <= kSleepEnemyRange)
+      return refuse("You can't sleep, monsters are nearby!");
+  for (const auto &[pid, other] : players)
+    if (other.sleeping_in == foot) return refuse("This bed is taken");
+
+  // Down they go: on the bed, head on the pillow. The client jumps there,
+  // and moves sent before it are stale.
+  if (new_spawn) client.link->deliver(Notice{"Respawn point set"});
+  ps->sleeping_in = foot;
+  ps->sleep_ms = 0;
+  ps->sleep_health = ps->vitals.health();
+  ps->breaking.reset();
+  ps->position = middle;
+  ps->yaw = yawOf(bedFacing(hit));
+  ps->crouch = false;
+  ps->fall.reset();
+  ++ps->respawn;
+  client.link->deliver(Respawned{ps->position, ps->respawn});
+  flushSleep();
+}
+
+void Game::apply(Client &client, const LeaveBed &) {
+  PlayerState *ps = playerFor(client);
+  if (ps && ps->sleeping_in) wake(client, *ps);
+}
+
+void Game::wake(Client &client, PlayerState &ps) {
+  const glm::ivec3 foot = *ps.sleeping_in;
+  ps.sleeping_in.reset();
+  ps.sleep_ms = 0;
+  ps.position = besideBed(foot);
+  ps.fall.reset();
+  ++ps.respawn;
+  client.link->deliver(Respawned{ps.position, ps.respawn});
+  flushSleep();
+}
+
+void Game::tickSleep() {
+  const bool night = isNight(clock_.fractionOfDay());
+  int living = 0, rested = 0;
+  for (auto &[pid, ps] : players) {
+    if (ps.vitals.dead()) {
+      ps.sleeping_in.reset(); // died in bed: nothing to wake from
+      continue;
+    }
+    ++living;
+    if (!ps.sleeping_in) continue;
+    // The bed went, they got hurt, or the night's over on its own.
+    if (!bedStillAt(*ps.sleeping_in) || ps.vitals.health() < ps.sleep_health || !night) {
+      if (Client *c = clientOf(pid)) wake(*c, ps);
+      continue;
+    }
+    ps.sleep_health = ps.vitals.health();
+    ps.sleep_ms += kTickMs;
+    if (ps.sleep_ms >= kSleepMs) ++rested;
+  }
+  if (living == 0 || rested < living) return;
+
+  // Everyone's asleep: morning, and up they get.
+  clock_.time_of_day = kWakeTime;
+  for (auto &[pid, ps] : players)
+    if (ps.sleeping_in)
+      if (Client *c = clientOf(pid)) wake(*c, ps);
+  for (Client &c : clients)
+    if (c.player && c.role == Role::Guest)
+      c.link->deliver(TimeSync{clock_.time_of_day, clock_.scale});
+}
+
+void Game::flushSleep() {
+  uint8_t living = 0, sleepers = 0;
+  for (const auto &[pid, ps] : players) {
+    if (ps.vitals.dead()) continue;
+    ++living;
+    sleepers += ps.sleeping_in.has_value();
+  }
+  for (Client &client : clients) {
+    PlayerState *ps = playerFor(client);
+    if (!ps) continue;
+    SleepState now{ps->sleeping_in.has_value(), ps->sleeping_in.value_or(glm::ivec3(0)),
+                   sleepers, living};
+    if (ps->sleep_sent == now) continue;
+    // Nobody in bed, and never was: nothing worth sending.
+    if (!ps->sleep_sent && sleepers == 0) continue;
+    ps->sleep_sent = now;
+    client.link->deliver(now);
+  }
 }
 
 void Game::apply(Client &client, const SetTimeOfDay &cmd) {

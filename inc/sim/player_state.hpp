@@ -30,6 +30,12 @@ struct PlayerState {
   // in water), and when the current bite's window closes (0: no bite).
   struct Fishing { EntityId bobber = 0; uint64_t bite_at_ms = 0; uint64_t window_end_ms = 0; };
   std::optional<Fishing> fishing;
+  // The foot of the bed they respawn at, and of the bed they're lying in.
+  std::optional<glm::ivec3> bed;
+  std::optional<glm::ivec3> sleeping_in;
+  int sleep_ms = 0;        // time in bed, toward skipping the night
+  int sleep_health = 0;    // health when last checked in bed: losing any wakes them
+  std::optional<SleepState> sleep_sent; // last SleepState sent to the owner
 
   Vitals vitals;
   FallTracker fall;

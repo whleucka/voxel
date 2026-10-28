@@ -798,6 +798,20 @@ void World::setLoadedEdits(std::span<const BlockEdit> list) {
   setLoadedEdits(std::move(e));
 }
 
+std::optional<BlockType> World::editAt(const glm::ivec3 &pos) const {
+  if (pos.y < 0 || pos.y >= kChunkHeight) return std::nullopt;
+  int cx = static_cast<int>(std::floor(static_cast<float>(pos.x) / kChunkWidth));
+  int cz = static_cast<int>(std::floor(static_cast<float>(pos.z) / kChunkDepth));
+  uint32_t idx = (pos.x - cx * kChunkWidth) + kChunkWidth * ((pos.z - cz * kChunkDepth) +
+                                                             kChunkDepth * pos.y);
+  std::lock_guard lk(edits_mutex);
+  auto chunk = edits.find({cx, cz});
+  if (chunk == edits.end()) return std::nullopt;
+  auto it = chunk->second.find(idx);
+  if (it == chunk->second.end()) return std::nullopt;
+  return static_cast<BlockType>(it->second);
+}
+
 std::vector<BlockEdit> World::editList() const {
   std::vector<BlockEdit> out;
   std::lock_guard lk(edits_mutex);

@@ -6,11 +6,12 @@
 
 namespace {
 
-bool isSolidAt(const World *world, int bx, int by, int bz) {
-  if (!world) return false;
-  if (by < 0 || by >= kChunkHeight) return false;
+// How far up the cell is solid: 0 for none, 1 for a whole block.
+float solidHeightAt(const World *world, int bx, int by, int bz) {
+  if (!world) return 0.0f;
+  if (by < 0 || by >= kChunkHeight) return 0.0f;
   BlockType block = world->getBlockAt(glm::vec3(bx + 0.5f, by + 0.5f, bz + 0.5f));
-  return blocksMovement(block);
+  return blocksMovement(block) ? blockHeight(block) : 0.0f;
 }
 
 } // namespace
@@ -176,12 +177,12 @@ bool PhysicsBody::collidesAt(const World *world, glm::vec3 pos) const {
   for (int bx = bx0; bx <= bx1; ++bx) {
     for (int by = by0; by <= by1; ++by) {
       for (int bz = bz0; bz <= bz1; ++bz) {
-        if (isSolidAt(world, bx, by, bz)) {
-          // Block occupies [bx, bx+1] x [by, by+1] x [bz, bz+1]; check the
+        if (float h = solidHeightAt(world, bx, by, bz); h > 0.0f) {
+          // Block occupies [bx, bx+1] x [by, by+h] x [bz, bz+1]; check the
           // actual overlap, not just grid overlap.
           bool overlaps =
               minX < bx + 1.0f && maxX > static_cast<float>(bx) &&
-              minY < by + 1.0f && maxY > static_cast<float>(by) &&
+              minY < by + h && maxY > static_cast<float>(by) &&
               minZ < bz + 1.0f && maxZ > static_cast<float>(bz);
           if (overlaps) return true;
         }

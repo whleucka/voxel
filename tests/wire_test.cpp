@@ -35,7 +35,7 @@ EntitySnapshot richSnapshot() {
   s.entities = {{7, EntityKind::Gloomling, {-1.5f, 64.25f, 1e6f}, 270.0f, ItemId::NONE, true, false},
                 {8, EntityKind::DroppedItem, {0, 0, 0}, 0.0f, ItemId::DIAMOND, false, true}};
   s.players = {{2, "Bea", {-100.5f, 70.0f, 3.0f}, -45.0f, 12.5f, true},
-               {3, "kid_2-b", {0, 0, 0}, 0.0f, 0.0f, false}};
+               {3, "kid_2-b", {0, 0, 0}, 0.0f, 0.0f, false, true}};
   return s;
 }
 
@@ -93,6 +93,8 @@ TEST_CASE("events round-trip with real values") {
   REQUIRE(snap_back.players.size() == 2);
   CHECK(snap_back.players[0].name == "Bea");
   CHECK(snap_back.players[0].crouch);
+  CHECK_FALSE(snap_back.players[0].sleeping);
+  CHECK(snap_back.players[1].sleeping);
   CHECK(snap_back.entities[1].item == ItemId::DIAMOND);
   CHECK(snap_back.entities[0].kind == EntityKind::Gloomling);
 }
@@ -282,4 +284,13 @@ TEST_CASE("chest views round-trip with their kind and slots") {
   auto back = std::get<ContainerView>(*wire::decodeEvent(enc(Event{v})));
   CHECK(back.kind == ContainerKind::Chest);
   CHECK(back.slots == v.slots);
+}
+
+TEST_CASE("bed messages round-trip") {
+  roundTrip(UseBed{{-4, 70, 12}});
+  roundTrip(LeaveBed{});
+  roundTrip(SleepState{true, {-4, 70, 12}, 2, 3});
+  roundTrip(Notice{"You can't sleep, monsters are nearby!"});
+  auto back = std::get<SleepState>(*wire::decodeEvent(enc(Event{SleepState{true, {-4, 70, 12}, 2, 3}})));
+  CHECK(back == SleepState{true, {-4, 70, 12}, 2, 3});
 }

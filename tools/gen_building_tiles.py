@@ -366,6 +366,52 @@ def door_edge(rng):
     return img
 
 
+def bed_frame(rng):
+    """The bed's wooden frame: dark boards running along it."""
+    img = new_tile()
+    px = pixels(img)
+    wood = (120, 84, 50)
+    for y in range(TILE):
+        tone = shade(wood, ((y // 8) % 2) * 8 - 4)
+        for x in range(TILE):
+            c = shade(tone, rng.randint(-5, 5))
+            if y % 8 == 0:
+                c = shade(wood, -34)  # seam between boards
+            px[x, y] = c + (255,)
+    return img
+
+
+def bed_pillow(rng):
+    """A plump white pillow, puffed in the middle and creased at the edges."""
+    img = new_tile()
+    px = pixels(img)
+    for y in range(TILE):
+        for x in range(TILE):
+            dx, dy = abs(x - 15.5) / 15.5, abs(y - 15.5) / 15.5
+            puff = 1.0 - max(dx, dy) ** 3
+            c = shade((214, 214, 218), puff * 34 + rng.randint(-3, 3))
+            if x in (0, TILE - 1) or y in (0, TILE - 1):
+                c = shade((214, 214, 218), -40)
+            px[x, y] = c + (255,)
+    return img
+
+
+def blanket(base, rng):
+    """A quilted blanket in one colour.
+
+    Plain all over: the top face isn't turned with the bed, so a band at one
+    edge would sit on a different side for each facing."""
+    img = new_tile()
+    px = pixels(img)
+    for y in range(TILE):
+        for x in range(TILE):
+            c = shade(base, rng.randint(-5, 5))
+            if (x % 8 == 4 and y % 2 == 0) or (y % 8 == 4 and x % 2 == 0):
+                c = shade(base, -26)  # quilting stitches
+            px[x, y] = c + (255,)
+    return img
+
+
 # (file name, drawing) in row-2 order, matching block_data.hpp.
 TILES = [
     ("oak_planks",    lambda r: planks((150, 116, 74), r)),
@@ -399,6 +445,17 @@ TILES = [
     ("door_bottom",         lambda r: door_face(r, False)),
     ("door_top",            lambda r: door_face(r, True)),
     ("door_edge",           door_edge),
+    ("bed_frame",           bed_frame),
+    ("bed_pillow",          bed_pillow),
+    # Row 4 from the third blanket on; the colours of the coloured blocks.
+    ("bed_white",           lambda r: blanket((226, 226, 222), r)),
+    ("bed_red",             lambda r: blanket((214, 46, 46), r)),
+    ("bed_orange",          lambda r: blanket((240, 132, 30), r)),
+    ("bed_yellow",          lambda r: blanket((246, 214, 46), r)),
+    ("bed_green",           lambda r: blanket((84, 184, 60), r)),
+    ("bed_blue",            lambda r: blanket((48, 104, 220), r)),
+    ("bed_purple",          lambda r: blanket((142, 66, 196), r)),
+    ("bed_pink",            lambda r: blanket((244, 140, 190), r)),
 ]
 
 
