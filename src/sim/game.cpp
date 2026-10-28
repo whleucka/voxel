@@ -651,7 +651,17 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
     }
     target = doorBlock(false, doorFacing(target), false);
   }
+  // So does a bed, dropping one of its colour.
+  if (isBed(target)) {
+    glm::ivec3 other = bedOther(cmd.pos, target);
+    if (isBed(world_.getBlockAt(glm::vec3(other) + 0.5f))) {
+      world_.setBlockAt(other, BlockType::AIR);
+      broadcast(BlockChanged{other, BlockType::AIR});
+    }
+    target = bedBlock(bedColour(target), false, bedFacing(target));
+  }
   popDoorAbove(cmd.pos);
+  popBedAbove(cmd.pos);
 
   // Survival: collect the drop, if the tool was good enough for it.
   if (!rules().block_drops) return;
@@ -704,6 +714,7 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
   const ItemStack &held = ps->inventory.slot(ps->selected_slot);
   if (held.empty()) return reject(client, "place: nothing held");
   if (held.id == ItemId::WOODEN_DOOR) return placeDoor(client, *ps, cmd.pos);
+  if (isBedItem(held.id)) return placeBed(client, *ps, cmd.pos);
   std::optional<BlockType> block = itemDef(held.id).places;
   if (!block) return reject(client, "place: held item isn't a block");
 
@@ -761,7 +772,7 @@ void Game::placeDoor(Client &client, PlayerState &ps, glm::ivec3 pos) {
     if (overlapsAnyPlayer(cell)) return reject(client, "place: inside a player");
   }
   BlockType below = world_.getBlockAt(glm::vec3(pos) + glm::vec3(0.5f, -0.5f, 0.5f));
-  if (!blocksMovement(below) || isDoor(below))
+  if (!blocksMovement(below) || isDoor(below) || isBed(below))
     return reject(client, "place: a door needs ground under it");
 
   setDoor(pos, doorBlock(false, doorFacingForYaw(ps.yaw), false));
@@ -801,6 +812,57 @@ void Game::apply(Client &client, const UseDoor &cmd) {
       (overlapsAnyPlayer(bottom) || overlapsAnyPlayer(bottom + glm::ivec3(0, 1, 0))))
     return reject(client, "door: someone's in the way");
   setDoor(bottom, swung);
+}
+
+// ─── Beds ──────────────────────────────────────────────────────────────
+
+void Game::placeBed(Client &client, PlayerState &ps, glm::ivec3 pos) {
+  if (pos.y < 1 || pos.y >= kChunkHeight) return reject(client, "place: outside world height");
+  if (!inReach(ps, pos)) return reject(client, "place: out of reach");
+
+  // The foot where you clicked, the head the way you look; both clear (not
+  // even water), on something solid.
+  const BedColour colour = bedItemColour(ps.inventory.slot(ps.selected_slot).id);
+  const DoorFacing facing = doorFacingForYaw(ps.yaw);
+  const glm::ivec3 head = pos + facingStep(facing);
+  for (glm::ivec3 cell : {pos, head}) {
+    int cx = static_cast<int>(std::floor(static_cast<float>(cell.x) / kChunkWidth));
+    int cz = static_cast<int>(std::floor(static_cast<float>(cell.z) / kChunkDepth));
+    if (!world_.getChunk(cx, cz)) return reject(client, "place: chunk not loaded");
+  }
+  for (glm::ivec3 cell : {pos, head}) {
+    if (world_.getBlockAt(glm::vec3(cell) + 0.5f) != BlockType::AIR)
+      return reject(client, "place: no room for a bed");
+    if (overlapsAnyPlayer(cell)) return reject(client, "place: inside a player");
+    BlockType below = world_.getBlockAt(glm::vec3(cell) + glm::vec3(0.5f, -0.5f, 0.5f));
+    if (!blocksMovement(below) || isDoor(below) || isBed(below))
+      return reject(client, "place: a bed needs ground under it");
+  }
+
+  const BlockType foot_half = bedBlock(colour, false, facing);
+  const BlockType head_half = bedBlock(colour, true, facing);
+  world_.setBlockAt(pos, foot_half);
+  world_.setBlockAt(head, head_half);
+  broadcast(BlockChanged{pos, foot_half});
+  broadcast(BlockChanged{head, head_half});
+  if (rules().consume_blocks) {
+    ps.inventory.take(ps.selected_slot, 1);
+    sendInventory(client, ps);
+  }
+}
+
+void Game::popBedAbove(glm::ivec3 below) {
+  const glm::ivec3 cell = below + glm::ivec3(0, 1, 0);
+  BlockType b = world_.getBlockAt(glm::vec3(cell) + 0.5f);
+  if (!isBed(b)) return;
+  for (glm::ivec3 half : {cell, bedOther(cell, b)}) {
+    if (!isBed(world_.getBlockAt(glm::vec3(half) + 0.5f))) continue;
+    world_.setBlockAt(half, BlockType::AIR);
+    broadcast(BlockChanged{half, BlockType::AIR});
+  }
+  if (rules().block_drops)
+    dropItem({bedItem(bedColour(b)), 1}, glm::vec3(cell) + glm::vec3(0.5f, 0.3f, 0.5f),
+             {0.0f, 3.0f, 0.0f}, kBreakDropDelayMs);
 }
 
 void Game::apply(Client &client, const SetTimeOfDay &cmd) {

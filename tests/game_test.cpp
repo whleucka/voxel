@@ -2840,3 +2840,124 @@ TEST_CASE_FIXTURE(DoorGame, "doors are saved open or shut") {
   CHECK(loaded.world().getBlockAt(glm::vec3(top()) + 0.5f) ==
         doorBlock(true, DoorFacing::East, true));
 }
+
+// ─── Beds ──────────────────────────────────────────────────────────────
+
+namespace {
+struct BedGame : EditGame {
+  glm::ivec3 foot{5, ground + 1, 5};
+  glm::ivec3 head() const { return foot + glm::ivec3(1, 0, 0); } // looking +X
+
+  BedGame() {
+    // A flat floor round the bed, clear above it, so the terrain doesn't matter.
+    for (int x = 2; x <= 9; ++x)
+      for (int z = 2; z <= 9; ++z) {
+        game.world().setBlockAt({x, ground, z}, BlockType::STONE);
+        for (int y = ground + 1; y <= ground + 4; ++y)
+          game.world().setBlockAt({x, y, z}, BlockType::AIR);
+      }
+  }
+
+  // Holds `n` beds of `item` and places one at `pos`, looking along `yaw`.
+  std::vector<Event> placeBed(glm::ivec3 pos, float yaw = 0.0f, uint16_t n = 1,
+                              ItemId item = ItemId::RED_BED) {
+    conn.send(MovePlayer{{5.5f, ground + 1.0f, 8.5f}, yaw, 0.0f, false, false});
+    game.pump();
+    PlayerState &me = *game.findPlayer(id);
+    me.inventory.set(me.selected_slot, {item, n});
+    pollAll(conn);
+    return run(PlaceBlock{pos});
+  }
+};
+} // namespace
+
+TEST_CASE_FIXTURE(BedGame, "a bed is placed foot first, its head the way you look, and used up") {
+  auto evs = placeBed(foot, 0.0f, 2); // looking +X
+  CHECK(changes(evs) == 2);
+  CHECK(at(foot) == bedBlock(BedColour::Red, false, DoorFacing::East));
+  CHECK(at(head()) == bedBlock(BedColour::Red, true, DoorFacing::East));
+  const PlayerState &me = *game.findPlayer(id);
+  CHECK(me.inventory.slot(me.selected_slot) == ItemStack{ItemId::RED_BED, 1});
+  CHECK(changes(pollAll(other)) == 2);
+
+  // Looking north (-Z), in another colour.
+  glm::ivec3 next = foot + glm::ivec3(-2, 0, 0);
+  placeBed(next, -90.0f, 1, ItemId::GREEN_BED);
+  CHECK(at(next) == bedBlock(BedColour::Green, false, DoorFacing::North));
+  CHECK(at(next + glm::ivec3(0, 0, -1)) == bedBlock(BedColour::Green, true, DoorFacing::North));
+}
+
+TEST_CASE_FIXTURE(BedGame, "a bed needs two clear cells with ground under both") {
+  // Something where the head would go.
+  game.world().setBlockAt(head(), BlockType::STONE);
+  CHECK(reason(placeBed(foot)) == "place: no room for a bed");
+  CHECK(at(foot) == BlockType::AIR);
+  const PlayerState &me = *game.findPlayer(id);
+  CHECK(me.inventory.slot(me.selected_slot) == ItemStack{ItemId::RED_BED, 1});
+  // Water's no good either.
+  game.world().setBlockAt(head(), BlockType::WATER);
+  CHECK(reason(placeBed(foot)) == "place: no room for a bed");
+  // A hole under the head.
+  game.world().setBlockAt(head(), BlockType::AIR);
+  game.world().setBlockAt(head() - glm::ivec3(0, 1, 0), BlockType::AIR);
+  CHECK(reason(placeBed(foot)) == "place: a bed needs ground under it");
+  CHECK(at(foot) == BlockType::AIR);
+  // Not on top of another bed.
+  game.world().setBlockAt(head() - glm::ivec3(0, 1, 0), BlockType::STONE);
+  placeBed(foot);
+  CHECK(reason(placeBed(foot + glm::ivec3(0, 1, 0))) == "place: a bed needs ground under it");
+  // And a door won't stand on one.
+  conn.send(MovePlayer{{5.5f, ground + 1.0f, 8.5f}, 0.0f, 0.0f, false, false});
+  game.pump();
+  game.findPlayer(id)->inventory.set(me.selected_slot, {ItemId::WOODEN_DOOR, 1});
+  CHECK(reason(run(PlaceBlock{foot + glm::ivec3(0, 1, 0)})) ==
+        "place: a door needs ground under it");
+}
+
+TEST_CASE_FIXTURE(BedGame, "breaking either half takes the whole bed and drops one of its colour") {
+  for (bool hit_head : {false, true}) {
+    CAPTURE(hit_head);
+    placeBed(foot, 0.0f, 1, ItemId::BLUE_BED);
+    PlayerState &me = *game.findPlayer(id);
+    me.inventory.set(me.selected_slot, {});
+    auto evs = mine(hit_head ? head() : foot);
+    CHECK(changes(evs) == 2);
+    CHECK(at(foot) == BlockType::AIR);
+    CHECK(at(head()) == BlockType::AIR);
+    CHECK(heldCount(inventory(), ItemId::BLUE_BED) == 1);
+    for (int i = 0; i < kInventorySlots; ++i) me.inventory.set(i, {});
+  }
+}
+
+TEST_CASE_FIXTURE(BedGame, "a bed pops off when the ground under either half goes") {
+  for (bool under_head : {false, true}) {
+    CAPTURE(under_head);
+    placeBed(foot, 0.0f, 1, ItemId::PINK_BED);
+    wield(ItemId::DIAMOND_PICKAXE);
+    glm::ivec3 ground_cell = (under_head ? head() : foot) - glm::ivec3(0, 1, 0);
+    auto evs = mine(ground_cell);
+    CHECK(changes(evs) == 3);
+    CHECK(at(foot) == BlockType::AIR);
+    CHECK(at(head()) == BlockType::AIR);
+    CHECK(dropped(game, ItemId::PINK_BED) == (under_head ? 2 : 1));
+    game.world().setBlockAt(ground_cell, BlockType::STONE);
+  }
+}
+
+TEST_CASE_FIXTURE(BedGame, "beds are saved") {
+  ScopedSeed seed;
+  TempDir dir;
+  CHECK_FALSE(game.load(dir.path.string()));
+  placeBed(foot, 0.0f, 1, ItemId::YELLOW_BED);
+  run(Save{});
+
+  ScopedRenderDistance rd{0};
+  Game loaded;
+  REQUIRE(loaded.load(dir.path.string()));
+  loaded.world().loadChunkSync(0, 0);
+  loaded.world().flushPendingEdits();
+  CHECK(loaded.world().getBlockAt(glm::vec3(foot) + 0.5f) ==
+        bedBlock(BedColour::Yellow, false, DoorFacing::East));
+  CHECK(loaded.world().getBlockAt(glm::vec3(head()) + 0.5f) ==
+        bedBlock(BedColour::Yellow, true, DoorFacing::East));
+}

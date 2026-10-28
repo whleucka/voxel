@@ -249,6 +249,10 @@ private:
   void setDoor(glm::ivec3 bottom, BlockType bottom_half);
   void placeDoor(Client &client, PlayerState &ps, glm::ivec3 pos);
   void popDoorAbove(glm::ivec3 below);
+  // Beds: placing one (the held colour), and popping one whose support at
+  // `below` has gone (both halves go; one drops, in survival).
+  void placeBed(Client &client, PlayerState &ps, glm::ivec3 pos);
+  void popBedAbove(glm::ivec3 below);
   // A Treasure Key held: it's used up and the chest is filled with loot.
   // False (nothing changed) without a key.
   bool unlockTreasure(Client &client, PlayerState &ps, glm::ivec3 pos);
