@@ -164,6 +164,19 @@ AO4 computeFaceAO(World* world, const Chunk& chunk, int x, int y, int z, Face fa
   return {{3, 3, 3, 3}}; // fallback: no occlusion
 }
 
+// A glow crystal grows away from the rock it's on: one with something solid
+// above it and nothing below hangs from a ceiling, so its side faces show the
+// shard tile upside down. Anything else points up.
+bool crystalHangs(World* world, const Chunk& chunk, BlockType type, int x, int y, int z) {
+  return type == BlockType::GLOW_CRYSTAL &&
+         blocksMovement(ChunkMesh::getBlock(world, chunk, x, y + 1, z)) &&
+         !blocksMovement(ChunkMesh::getBlock(world, chunk, x, y - 1, z));
+}
+
+// Whether a block's side faces may merge with their neighbours'. A glow
+// crystal's can't: a hanging one's face and a standing one's face differ.
+bool mergesSides(BlockType type) { return type != BlockType::GLOW_CRYSTAL; }
+
 void addQuad(MeshBuffers& buffers,
              int posX, int posY, int posZ,
              int sizeA, int sizeB,
@@ -174,7 +187,8 @@ void addQuad(MeshBuffers& buffers,
              uint8_t cutoutClass,
              const AO4& ao,
              uint8_t skyLight,
-             uint8_t blockLight) {
+             uint8_t blockLight,
+             bool flipV = false) {
   auto& vertices = transparent ? buffers.transparentVertices : buffers.vertices;
   auto& indices = transparent ? buffers.transparentIndices : buffers.indices;
 
@@ -196,7 +210,7 @@ void addQuad(MeshBuffers& buffers,
       packPos(px), packPos(py), packPos(pz),
       faceId,
       static_cast<uint8_t>(tileX), static_cast<uint8_t>(tileY),
-      uvX, uvY,
+      uvX, static_cast<uint8_t>(flipV ? sizeB - uvY : uvY), // flipV: tile upside down
       static_cast<uint8_t>(cutoutBits | ((skyLight & 0xF) << 2) | (aoVal & 0x3)),
       chunkWorldX, chunkWorldZ
     });
@@ -526,7 +540,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           uint8_t blockLight = getBlockLight(world, chunk, x, y, z + 1);
 
           int width = 1;
-          while (x + width < kChunkWidth && !mask[x + width][y] &&
+          while (mergesSides(type) && x + width < kChunkWidth && !mask[x + width][y] &&
                  chunk.safeAt(x + width, y, z) == type &&
                  sideShows(type, x + width, y, z + 1) &&
                  getSkyLight(world, chunk, x + width, y, z + 1) == skyLight &&
@@ -536,7 +550,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           }
 
           int height = 1;
-          bool can_expand = true;
+          bool can_expand = mergesSides(type);
           while (y + height < kChunkHeight && can_expand) {
             for (int i = 0; i < width; ++i) {
               if (mask[x + i][y + height] ||
@@ -558,7 +572,8 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, width, height,
                   tex.side.x, tex.side.y, Face::Front, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), cutoutClass(type), ao, skyLight, blockLight);
+                  isTransparent(type), cutoutClass(type), ao, skyLight, blockLight,
+                  crystalHangs(world, chunk, type, x, y, z));
         }
       }
     }
@@ -581,7 +596,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           uint8_t blockLight = getBlockLight(world, chunk, x, y, z - 1);
 
           int width = 1;
-          while (x + width < kChunkWidth && !mask[x + width][y] &&
+          while (mergesSides(type) && x + width < kChunkWidth && !mask[x + width][y] &&
                  chunk.safeAt(x + width, y, z) == type &&
                  sideShows(type, x + width, y, z - 1) &&
                  getSkyLight(world, chunk, x + width, y, z - 1) == skyLight &&
@@ -591,7 +606,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           }
 
           int height = 1;
-          bool can_expand = true;
+          bool can_expand = mergesSides(type);
           while (y + height < kChunkHeight && can_expand) {
             for (int i = 0; i < width; ++i) {
               if (mask[x + i][y + height] ||
@@ -613,7 +628,8 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, width, height,
                   tex.side.x, tex.side.y, Face::Back, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), cutoutClass(type), ao, skyLight, blockLight);
+                  isTransparent(type), cutoutClass(type), ao, skyLight, blockLight,
+                  crystalHangs(world, chunk, type, x, y, z));
         }
       }
     }
@@ -758,7 +774,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           uint8_t blockLight = getBlockLight(world, chunk, x + 1, y, z);
 
           int depth = 1;
-          while (z + depth < kChunkDepth && !mask[y][z + depth] &&
+          while (mergesSides(type) && z + depth < kChunkDepth && !mask[y][z + depth] &&
                  chunk.safeAt(x, y, z + depth) == type &&
                  sideShows(type, x + 1, y, z + depth) &&
                  getSkyLight(world, chunk, x + 1, y, z + depth) == skyLight &&
@@ -768,7 +784,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           }
 
           int height = 1;
-          bool can_expand = true;
+          bool can_expand = mergesSides(type);
           while (y + height < kChunkHeight && can_expand) {
             for (int i = 0; i < depth; ++i) {
               if (mask[y + height][z + i] ||
@@ -790,7 +806,8 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, depth, height,
                   tex.side.x, tex.side.y, Face::Right, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), cutoutClass(type), ao, skyLight, blockLight);
+                  isTransparent(type), cutoutClass(type), ao, skyLight, blockLight,
+                  crystalHangs(world, chunk, type, x, y, z));
         }
       }
     }
@@ -813,7 +830,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           uint8_t blockLight = getBlockLight(world, chunk, x - 1, y, z);
 
           int depth = 1;
-          while (z + depth < kChunkDepth && !mask[y][z + depth] &&
+          while (mergesSides(type) && z + depth < kChunkDepth && !mask[y][z + depth] &&
                  chunk.safeAt(x, y, z + depth) == type &&
                  sideShows(type, x - 1, y, z + depth) &&
                  getSkyLight(world, chunk, x - 1, y, z + depth) == skyLight &&
@@ -823,7 +840,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           }
 
           int height = 1;
-          bool can_expand = true;
+          bool can_expand = mergesSides(type);
           while (y + height < kChunkHeight && can_expand) {
             for (int i = 0; i < depth; ++i) {
               if (mask[y + height][z + i] ||
@@ -845,7 +862,8 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
           addQuad(buffers, x, y, z, depth, height,
                   tex.side.x, tex.side.y, Face::Left, chunkWorldX, chunkWorldZ,
-                  isTransparent(type), cutoutClass(type), ao, skyLight, blockLight);
+                  isTransparent(type), cutoutClass(type), ao, skyLight, blockLight,
+                  crystalHangs(world, chunk, type, x, y, z));
         }
       }
     }
