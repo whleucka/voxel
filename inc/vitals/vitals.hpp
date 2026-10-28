@@ -30,16 +30,23 @@ public:
   // Health
   static constexpr int kRegenDelayMs = 4000;   // since the last damage
   static constexpr int kRegenMs = 2000;        // 1 point every 2 s
+  // Well fed: eating gives this much per food point, up to the cap.
+  static constexpr int kFedPerPointMs = 45 * 1000;
+  static constexpr int kMaxFedMs = 10 * 60 * 1000;
 
   int health() const { return health_; }
   int stamina() const { return stamina_; }
   int breath() const { return breath_; }
   bool dead() const { return health_ <= 0; }
   bool canSprint() const { return !exhausted && stamina_ > 0; }
+  int fedMs() const { return fed_ms; }
+  bool wellFed() const { return fed_ms > 0; }
 
-  void tick(int dt_ms, const Activity &a);
+  // needs_food: health only regenerates while well fed (Normal and Hard).
+  void tick(int dt_ms, const Activity &a, bool needs_food = false);
   void damage(int amount); // resets the regen delay; ignored once dead
   void heal(int amount);   // up to kMax; ignored once dead
+  void feed(int food_points); // adds well-fed time, up to kMaxFedMs
   void reset();            // full everything (respawn)
 
 private:
@@ -54,6 +61,7 @@ private:
   int drown_acc = 0;
   int since_damage = kRegenDelayMs;
   int regen_acc = 0;
+  int fed_ms = 0;       // well-fed time left
 };
 
 // Fall damage from the client's reported positions: the drop from the highest
