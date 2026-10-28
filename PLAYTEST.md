@@ -4,6 +4,20 @@ What's waiting on a real play-test, newest first. Tick things off as they
 pass; anything that fails, note what happened (a screenshot plus the F12
 coordinates helps).
 
+## Beds
+
+- [ ] Craft a White Bed (3 wool + 3 planks at a table), then dye one of each colour
+- [ ] Place beds facing each way: head goes the way you look; needs floor under both halves
+- [ ] Beds look right by day and at night, from every side, in each colour; you can jump on one
+- [ ] By day, right-click: "Respawn point set. You can only sleep at night"
+- [ ] At night: you lie down, the view drops onto the pillow and the screen darkens; morning comes after a couple of seconds
+- [ ] A monster close by: "You can't sleep, monsters are nearby!"
+- [ ] W/A/S/D or Space gets you up; getting hit wakes you
+- [ ] Die and wake up next to your bed; break it, die again, and you're back at spawn ("Your bed is missing")
+- [ ] With a guest: one in bed waits ("1 of 2 in bed"), both in bed skips the night; each sees the other lying in bed; you can't share a bed
+- [ ] Save and reload: beds stay, and so does your respawn bed
+- [ ] The kids' verdict (Alex: the colours!)
+
 ## Doors
 
 - [ ] Craft Wooden Doors (6 planks at a table, makes 2) and place them facing each way

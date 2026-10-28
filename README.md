@@ -18,6 +18,7 @@
 - **Crafting:** discover recipes as you collect things, and build a Crafting Table for the bigger ones ([more below](#crafting)).
 - **Smelting:** a furnace that cooks raw ore into ingots, and sand into glass, while you're off exploring ([more below](#smelting)).
 - **Doors:** craft wooden doors, right-click to open and shut them; nothing gets through a closed one ([more below](#doors)).
+- **Beds:** craft a bed in one of 8 colours, sleep through the night, and wake up there after you die ([more below](#beds)).
 - **Chests:** craft chests to keep your things in, and hunt deep caves for locked treasure chests ([more below](#chests-and-treasure)).
 - **Fishing:** make a rod, cast it, and reel in when the bobber dips. Cook your catch, or find treasure ([more below](#fishing)).
 - **Tools and weapons:** pickaxes, axes, shovels and swords from wood to diamond; mining takes time and the best ore needs the best picks ([more below](#tools-and-weapons)).
@@ -99,7 +100,7 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **W, A, S, D:** Move. **Space:** Jump. **Mouse:** Look around.
 *   **Left Ctrl:** Sprint (uses stamina). **Left Shift:** Crouch.
 *   **Left click:** Hit a creature, or break a block (hold it in survival).
-*   **Right click:** Place a block, feed an animal, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, or open and shut a door.
+*   **Right click:** Place a block, feed an animal, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, open and shut a door, or sleep in a bed.
 *   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
 *   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
 *   **ESC:** Close the inventory, or open the pause menu (Resume, Settings,
@@ -212,6 +213,22 @@ A **closed door is a wall** to everything: players, enemies and
 animals. Only players can open or break a door, so a house with one is a
 safe place to spend the night. Leave it open and enemies can follow you
 in. Breaking either half gives the door back.
+
+## Beds
+
+Make a **White Bed** from 3 wool and 3 planks (any wood) at a Crafting
+Table, then dye it with one of the coloured blocks' dyes for a **red**
+(ruby), **orange** (raw copper), **yellow** (raw gold), **green** (emerald),
+**blue** (sea shell), **purple** (berries) or **pink** (sweet petals) one.
+Place it on the floor: its head goes the way you're looking. A bed is low,
+so you can climb on and bounce about on it.
+
+Right-click a bed and it becomes **your respawn point**: die, and you wake
+up next to it. At **night**, right-clicking also puts you to bed. Once
+**every player** is in bed, the night skips to 6:30 in the morning. You
+can't sleep with a monster within 8 blocks, or in someone else's bed. Press
+a movement key or jump to get up, and getting hurt wakes you. Break your bed
+and you go back to the world spawn; breaking either half gives the bed back.
 
 ## Fishing
 

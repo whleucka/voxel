@@ -114,13 +114,22 @@ void EntityRenderer::setLight(const World &world, glm::vec3 position) const {
 }
 
 void EntityRenderer::drawModel(const std::vector<ModelBox> &model, glm::vec3 position,
-                               float yaw, bool moving, const World &world, double now) const {
+                               float yaw, bool moving, const World &world, double now,
+                               bool lying) const {
   setLight(world, position);
   // Models face -Z at yaw 0; positive yaw turns toward +X.
   glm::mat4 m = glm::rotate(glm::translate(glm::mat4(1.0f), position), -glm::radians(yaw),
                             glm::vec3(0, 1, 0));
+  if (lying) {
+    // Turned round, then tipped back about X: the head ends up along the
+    // facing, the face up, and the body (1.8 long) centred on `position`.
+    m = glm::rotate(m, glm::radians(180.0f), glm::vec3(0, 1, 0));
+    m = glm::translate(m, glm::vec3(0.0f, 0.3f, -0.9f));
+    m = glm::rotate(m, glm::radians(90.0f), glm::vec3(1, 0, 0));
+  }
   shader->setInt("uMode", 0);
-  float swing = moving ? std::sin(static_cast<float>(now) * 10.0f) * glm::radians(30.0f) : 0.0f;
+  float swing = moving && !lying ? std::sin(static_cast<float>(now) * 10.0f) * glm::radians(30.0f)
+                                 : 0.0f;
   for (const ModelBox &box : model) {
     shader->setVec3("uColor", box.color);
     if (box.glow) shader->setBool("uGlow", true);
@@ -254,7 +263,7 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities,
   shader->setFloat("uBurn", 0.0f);
   for (const PlayerView &p : players)
     drawModel(playerModel(playerColor(p.name)), p.position, playerModelYaw(p.yaw), p.moving,
-              world, now);
+              world, now, p.sleeping);
 
   glBindVertexArray(0);
   glEnable(GL_CULL_FACE);

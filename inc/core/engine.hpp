@@ -42,6 +42,13 @@ private:
   GameMode game_mode = GameMode::Survival;   // the world's, from Joined
   PauseMenu pause;
   VitalsChanged vitals_view{Vitals::kMax, Vitals::kMax, Vitals::kMax, true, false};
+  // In bed: the Game's latest SleepState, since when, and whether a key has
+  // been let go since lying down (so the key that walked us there doesn't
+  // get us straight up again) and LeaveBed sent.
+  std::optional<SleepState> sleep_view;
+  double sleep_since = 0.0;
+  bool bed_keys_released = false, leave_sent = false;
+  bool inBed() const { return sleep_view && sleep_view->in_bed; }
   Hud hud;
   EntityRenderer entity_renderer;
   BlockOutline block_outline;

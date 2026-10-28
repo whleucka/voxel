@@ -36,9 +36,10 @@ private:
   GLuint vao = 0, vbo = 0;
   GLuint block_tex = 0, item_tex = 0;
 
-  // Box models (creatures and players), lit at `position`.
+  // Box models (creatures and players), lit at `position`. Lying, the model
+  // is laid on its back with its head along `yaw`, centred on `position`.
   void drawModel(const std::vector<ModelBox> &model, glm::vec3 position, float yaw,
-                 bool moving, const World &world, double now) const;
+                 bool moving, const World &world, double now, bool lying = false) const;
   void setLight(const World &world, glm::vec3 position) const;
   // `local` is applied before the box is placed (e.g. a leg's swing).
   void drawBox(const glm::mat4 &entity_model, glm::vec3 offset, glm::vec3 size,

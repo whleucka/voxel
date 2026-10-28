@@ -39,6 +39,9 @@ public:
   void drawVitals(const HudLayout &layout, const VitalsChanged &v, double now);
   // Full-screen "You died" while waiting to respawn.
   void drawDeathScreen();
+  // In bed: the screen darkens over `fade` (0..1), with how many of the
+  // living players are in bed when there's more than one.
+  void drawSleep(float fade, int sleepers, int living);
 
   // Start the red edge flash shown after taking damage.
   void flashDamage(double now) { damage_since = now; }
