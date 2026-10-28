@@ -8,8 +8,9 @@ struct CursorState {
   bool paused = false;    // pause menu open
   bool debug = false;     // F12 panel open
   bool inventory = false; // inventory screen open (items are clicked)
+  bool chat = false;      // chat open (the Send button is clicked)
 };
 
 constexpr bool cursorFree(const CursorState &s) {
-  return !s.playing || s.paused || s.debug || s.inventory;
+  return !s.playing || s.paused || s.debug || s.inventory || s.chat;
 }

@@ -4,6 +4,7 @@
 #include "player/player.hpp"
 #include "render/camera.hpp"
 #include "core/session.hpp"
+#include "ui/chat_view.hpp"
 #include "ui/hud.hpp"
 #include "ui/pause_menu.hpp"
 #include "ui/title_menu.hpp"
@@ -67,6 +68,12 @@ private:
   bool known_baseline = true;  // the first KnownItems after joining: no popup
   int crafting_scroll = 0;     // first crafting row shown
   std::optional<ContainerView> container_view; // the furnace being looked into
+  // Chat: what's been said, whether the panel is open (keys type into it),
+  // whether it opened this frame, and what's typed so far.
+  ChatLog chat_log;
+  bool chat_open = false, chat_opening = false;
+  char chat_buf[kChatBufBytes] = {};
+  void setChatOpen(bool open);
   // Survival: the block the held left button is working on, and for how long.
   struct Mining { glm::ivec3 pos{0}; float seconds = 0.0f; float progress = 0.0f; };
   std::optional<Mining> mining;
