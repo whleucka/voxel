@@ -12,9 +12,15 @@
 #include <cctype>
 #include <cmath>
 #include <ctime>
+#include <filesystem>
 #include <iostream>
 
 namespace {
+
+// The files of a saved world, other than its guests.
+constexpr const char *kWorldFiles[] = {"level.dat",     "player.dat",     "edits.dat",
+                                       "inventory.dat", "discovered.dat", "furnaces.dat",
+                                       "chests.dat",    "farms.dat"};
 
 std::vector<ItemId> seenList(const SeenItems &seen) {
   std::vector<ItemId> out;
@@ -41,8 +47,15 @@ bool Game::load(const std::string &dir) {
   noise_offset_ = g_settings.noise_offset;
   worldgen_ = g_settings.worldgen;
 
+  // A file that is there but won't load is set aside, so the next save
+  // doesn't replace it with less. Without level.dat the rest can't be used.
+  auto setAside = [&](const char *file) { WorldSave::setAside(dir, file); };
   WorldSave::LevelData level;
-  if (!WorldSave::loadLevel(dir, level)) return false;
+  if (!WorldSave::loadLevel(dir, level)) {
+    if (std::filesystem::exists(std::filesystem::path(dir) / "level.dat"))
+      for (const char *file : kWorldFiles) setAside(file);
+    return false;
+  }
 
   g_settings.world_seed   = level.seed;
   g_settings.noise_offset = level.noise_offset;
@@ -51,28 +64,36 @@ bool Game::load(const std::string &dir) {
   noise_offset_ = level.noise_offset;
   worldgen_ = level.worldgen;
 
+  // A cut-short edits.dat still gives what it has: better than none.
   WorldEdits edits;
-  WorldSave::loadEdits(dir, edits);
+  if (!WorldSave::loadEdits(dir, edits)) setAside("edits.dat");
   std::optional<WorldSave::PlayerData> player;
   if (WorldSave::PlayerData pd; WorldSave::loadPlayer(dir, pd)) player = pd;
+  else setAside("player.dat");
   std::optional<std::vector<ItemStack>> inventory;
   if (std::vector<ItemStack> inv; WorldSave::loadInventory(dir, inv))
     inventory = std::move(inv);
+  else setAside("inventory.dat");
 
   restore(level, std::move(edits), player, std::move(inventory));
   if (std::vector<ItemId> ids; WorldSave::loadDiscovered(dir, ids))
     saved_discovered = std::move(ids);
+  else setAside("discovered.dat");
   furnaces_.clear();
   if (std::vector<WorldSave::FurnaceRecord> fs; WorldSave::loadFurnaces(dir, fs))
     for (const auto &r : fs) furnaces_[r.pos] = r.furnace;
+  else setAside("furnaces.dat");
   chests_.clear();
   if (std::vector<WorldSave::ChestRecord> cs; WorldSave::loadChests(dir, cs))
     for (const auto &r : cs) chests_[r.pos] = r.chest;
+  else setAside("chests.dat");
   crops_.clear();
   soil_.clear();
   if (WorldSave::Farms farms; WorldSave::loadFarms(dir, farms)) {
     for (const auto &r : farms.crops) crops_[r.pos] = {r.left_ms};
     for (const auto &r : farms.soil) soil_[r.pos] = {r.wet_ms, r.by_water};
+  } else {
+    setAside("farms.dat");
   }
   WorldSave::loadGuests(dir, guest_records);
   return true;
@@ -654,6 +675,8 @@ void Game::apply(Client &client, const Join &cmd) {
   client.player = joined.id;
   // Flying from a creative visit doesn't carry into survival.
   if (!rules().fly) joined.fly = false;
+  // A saved slot is only a hint: one off the hotbar (a damaged file) is the first.
+  if (joined.selected_slot < 0 || joined.selected_slot >= kHotbarSlots) joined.selected_slot = 0;
   client.link->deliver(Joined{joined.id, joined.position, joined.yaw, joined.pitch,
                               joined.selected_slot, joined.fly, mode_});
   sendInventory(client, joined);
