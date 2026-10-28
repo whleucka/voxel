@@ -279,3 +279,54 @@ TEST_CASE("you land on a bed at its height, and step up onto it from the floor")
   CHECK(walk.getPosition().z < 7.0f);
   CHECK(walk.getPosition().y == doctest::Approx(kBase + 1.0f + kBedHeight).epsilon(0.01));
 }
+
+// ─── Long frames ───────────────────────────────────────────────────────
+// A hitch (a slow frame, the window dragged) makes one step cover a lot of
+// ground. Bodies must still stop at what's in the way.
+
+TEST_CASE("a fall at full speed through one long frame still lands on a 1-block floor") {
+  Rig r;
+  PhysicsBody b;
+  b.position = {8.5f, kBase + 3.0f, 8.5f};
+  b.velocity = {0.0f, kTerminalVelocity, 0.0f};
+  b.move(0.1f, &r.world); // 6 blocks of fall in one step
+  CHECK(b.position.y >= kBase + 1.0f);
+  // It stops where it last fitted, at most a sub-step up, and settles.
+  for (int i = 0; i < 30; ++i) b.move(kDt, &r.world);
+  CHECK(b.on_ground);
+  CHECK(std::abs(b.position.y - (kBase + 1.0f)) < 0.01f);
+}
+
+TEST_CASE("a small creature falling for one long tick doesn't pass through the floor") {
+  Rig r;
+  PhysicsBody b;
+  b.half_width = 0.125f; // the smallest creature
+  b.height = 0.25f;
+  b.position = {8.5f, kBase + 1.5f, 8.5f};
+  b.velocity = {0.0f, kTerminalVelocity, 0.0f};
+  b.move(0.05f, &r.world); // one Game tick: 3 blocks, to below the floor
+  CHECK(b.position.y >= kBase + 1.0f);
+}
+
+TEST_CASE("a fast body crossing a long frame stops at a wall") {
+  Rig r;
+  r.set(8, kBase + 1, 8, BlockType::STONE);
+  r.set(8, kBase + 2, 8, BlockType::STONE);
+  PhysicsBody b;
+  b.position = {5.5f, kBase + 1.0f, 8.5f};
+  b.on_ground = true;
+  b.velocity = {40.0f, 0.0f, 0.0f};
+  b.move(0.1f, &r.world); // 4 blocks in one step, the wall 2.5 away
+  CHECK(b.position.x < 8.0f);
+}
+
+TEST_CASE("a body resting on the floor stays on the ground through a long frame") {
+  Rig r;
+  PhysicsBody b;
+  b.position = {8.5f, kBase + 1.0f, 8.5f};
+  for (int i = 0; i < 3; ++i) b.move(kDt, &r.world);
+  REQUIRE(b.on_ground);
+  b.move(0.25f, &r.world);
+  CHECK(b.on_ground);
+  CHECK(b.position.y == doctest::Approx(kBase + 1.0f));
+}
