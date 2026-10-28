@@ -8,11 +8,12 @@ produces the same image.
 
 Only empty cells are written. Pass --force to redraw cells that already hold
 art (for example after tweaking a colour here), which overwrites any
-hand-painted version. With --png-dir DIR, each tile is also saved as
+hand-painted version. --only NAME... draws just the named tiles (such as
+glow_crystal), over whatever their cells hold. With --png-dir DIR, each tile is also saved as
 DIR/<name>.png, which tools/png_to_xcf.py turns into the GIMP sources in
 assets/blocks/.
 
-Requires Pillow. Usage: python3 tools/gen_building_tiles.py [--force] [--png-dir DIR]
+Requires Pillow. Usage: python3 tools/gen_building_tiles.py [--force] [--only NAME...] [--png-dir DIR]
 """
 
 import argparse
@@ -138,30 +139,51 @@ def colour(base, rng):
 
 
 def crystal(rng):
-    """Glowing shards growing out of dark rock."""
+    """Glowing shards growing up from the bottom edge of a clear tile.
+
+    Everything round the shards is alpha 0, so the cutout test in block.vert
+    leaves only the shards. A crystal hanging from a ceiling shows this tile
+    upside down (chunk_mesh.cpp), so the shards always grow out of the rock."""
     img = new_tile()
-    px = pixels(img)
-    rock = (52, 50, 64)
-    for y in range(TILE):
-        for x in range(TILE):
-            px[x, y] = shade(rock, rng.randint(-8, 8)) + (255,)
     draw = ImageDraw.Draw(img)
-    # (base x, base y, height, half width, lean, colour): back to front.
+    # (base x, height, half width, lean, colour): back to front.
     shards = [
-        (7, 30, 17, 3, -3, (150, 110, 240)),
-        (25, 31, 15, 3, 3, (150, 110, 240)),
-        (19, 31, 22, 4, 1, (110, 225, 240)),
-        (11, 31, 25, 4, -1, (120, 235, 250)),
-        (27, 14, 9, 2, 2, (200, 150, 250)),
-        (4, 12, 8, 2, -2, (110, 225, 240)),
+        (5, 14, 2, -2, (110, 225, 240)),
+        (27, 13, 2, 2, (200, 150, 250)),
+        (8, 18, 3, -3, (150, 110, 240)),
+        (24, 16, 3, 3, (150, 110, 240)),
+        (19, 23, 4, 1, (110, 225, 240)),
+        (12, 27, 4, -1, (120, 235, 250)),
     ]
-    for bx, by, h, w, lean, colour in shards:
+    by = TILE - 1
+    for bx, h, w, lean, colour in shards:
         tip = (bx + lean, by - h)
         left = [(bx - w, by), (bx - w + lean, by - h + w + 1), tip, (bx, by)]
         right = [(bx, by), tip, (bx + w + lean, by - h + w + 1), (bx + w, by)]
         draw.polygon(left, fill=shade(colour, -35) + (255,))
         draw.polygon(right, fill=colour + (255,))
         draw.line([(bx, by - 1), tip], fill=(235, 250, 255, 255))
+    return img
+
+
+def crystal_end(rng):
+    """The tips of the shards seen end-on: a few gems on a clear tile.
+
+    The top and bottom faces of a glow crystal; see crystal()."""
+    img = new_tile()
+    draw = ImageDraw.Draw(img)
+    # (centre x, centre y, radius, colour)
+    gems = [
+        (10, 11, 5, (120, 235, 250)),
+        (22, 9, 3, (200, 150, 250)),
+        (21, 22, 5, (150, 110, 240)),
+        (8, 24, 3, (110, 225, 240)),
+    ]
+    for cx, cy, r, colour in gems:
+        diamond = [(cx, cy - r), (cx + r, cy), (cx, cy + r), (cx - r, cy)]
+        draw.polygon(diamond, fill=shade(colour, -35) + (255,))
+        draw.polygon([(cx, cy - r), (cx + r, cy), (cx, cy)], fill=colour + (255,))
+        draw.point((cx, cy), fill=(235, 250, 255, 255))
     return img
 
 
@@ -456,6 +478,7 @@ TILES = [
     ("bed_blue",            lambda r: blanket((48, 104, 220), r)),
     ("bed_purple",          lambda r: blanket((142, 66, 196), r)),
     ("bed_pink",            lambda r: blanket((244, 140, 190), r)),
+    ("glow_crystal_end",    crystal_end),
 ]
 
 
@@ -472,6 +495,8 @@ def is_empty(atlas, col, row):
 def main():
     ap = argparse.ArgumentParser(description="Draw the building-block tiles.")
     ap.add_argument("--force", action="store_true", help="redraw cells that hold art")
+    ap.add_argument("--only", nargs="+", metavar="NAME",
+                    help="draw just these tiles, over any art in their cells")
     ap.add_argument("--png-dir", type=Path, help="also save each tile here")
     args = ap.parse_args()
 
@@ -479,11 +504,13 @@ def main():
     if args.png_dir:
         args.png_dir.mkdir(parents=True, exist_ok=True)
     for i, (name, draw) in enumerate(TILES):
+        if args.only and name not in args.only:
+            continue
         col, row = cell(i)
         tile = draw(random.Random(f"{name}:{i}"))
         if args.png_dir:
             tile.save(args.png_dir / f"{name}.png")
-        if not args.force and not is_empty(atlas, col, row):
+        if not (args.force or args.only) and not is_empty(atlas, col, row):
             print(f"skip {name}: cell ({col}, {row}) already has art")
             continue
         atlas.paste(tile, (col * TILE, row * TILE))

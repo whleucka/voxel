@@ -53,7 +53,7 @@ inline float blockHeight(BlockType type) { return isBed(type) ? kBedHeight : 1.0
 // and must stay in the same order.
 enum CutoutClass : uint8_t {
   kCutoutNone = 0,  // no alpha test
-  kCutoutLow  = 1,  // 0.67 — oak, glass
+  kCutoutLow  = 1,  // 0.67 — oak, glass, glow crystal
   kCutoutMid  = 2,  // 0.80 — palm, cherry
   kCutoutHigh = 3,  // 0.92 — pine
 };
@@ -61,7 +61,8 @@ enum CutoutClass : uint8_t {
 inline uint8_t cutoutClass(BlockType type) {
   switch (type) {
     case BlockType::OAK_LEAF:
-    case BlockType::GLASS:       return kCutoutLow;  // frame 255, pane 0
+    case BlockType::GLASS:       // frame 255, pane 0
+    case BlockType::GLOW_CRYSTAL: return kCutoutLow; // shards 255, the rest 0
     case BlockType::PALM_LEAF:
     case BlockType::CHERRY_LEAF: return kCutoutMid;
     case BlockType::PINE_LEAF:   return kCutoutHigh;
@@ -101,7 +102,8 @@ inline bool shouldRenderFace(BlockType current, BlockType neighbor) {
 inline uint8_t skyLightOpacity(BlockType type) {
   switch (type) {
     case BlockType::AIR:
-    case BlockType::GLASS:     return 0;
+    case BlockType::GLASS:
+    case BlockType::GLOW_CRYSTAL: return 0;
     case BlockType::WATER:     return 2;
     case BlockType::OAK_LEAF:
     case BlockType::PINE_LEAF:
@@ -241,7 +243,9 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = [] {
     {BlockType::PURPLE_BLOCK, {glm::ivec2{13, 2}, glm::ivec2{13, 2}, glm::ivec2{13, 2}}},
     {BlockType::PINK_BLOCK, {glm::ivec2{14, 2}, glm::ivec2{14, 2}, glm::ivec2{14, 2}}},
     {BlockType::GLOWSTONE, {glm::ivec2{15, 2}, glm::ivec2{15, 2}, glm::ivec2{15, 2}}},
-    {BlockType::GLOW_CRYSTAL, {glm::ivec2{0, 3}, glm::ivec2{0, 3}, glm::ivec2{0, 3}}},
+    // Shard tips seen end-on above and below, the shards themselves round the
+    // sides (drawn upside down when the crystal hangs; see chunk_mesh.cpp).
+    {BlockType::GLOW_CRYSTAL, {glm::ivec2{7, 4}, glm::ivec2{7, 4}, glm::ivec2{0, 3}}},
     // A worktop on top, a tool rack round the sides, and the worktop again below.
     {BlockType::CRAFTING_TABLE, {glm::ivec2{1, 3}, glm::ivec2{1, 3}, glm::ivec2{2, 3}}},
     // A stone top and a mouth on every side; flames in it while lit.

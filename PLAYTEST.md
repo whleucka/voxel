@@ -4,6 +4,15 @@ What's waiting on a real play-test, newest first. Tick things off as they
 pass; anything that fails, note what happened (a screenshot plus the F12
 coordinates helps).
 
+## Glow crystals that look like crystals
+
+- [ ] In a cave, floor crystals point up and ceiling crystals hang down
+- [ ] You can see the cave through the gaps between the shards; a cluster of them looks solid, not hollow
+- [ ] Crystals still light up the cave, and Cave Grumbles still keep away
+- [ ] Mining one gives you a Glow Crystal; place it on a ceiling and it hangs, on a floor and it stands
+- [ ] The hotbar icon looks right
+- [ ] Aria's verdict on the art (GIMP sources: `assets/blocks/glow_crystal.xcf`, `glow_crystal_end.xcf`)
+
 ## Beds
 
 - [ ] Survival: punch some leaves off a tree, feed them to a Woolly, and get wool (any kind of leaves works)

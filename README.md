@@ -128,6 +128,11 @@ the palette beside the inventory.
 The tiles are original pixel art drawn by `tools/gen_building_tiles.py`.
 Each has a GIMP source in `assets/blocks/` (and a layer in
 `assets/atlas/block_atlas.xcf`) for anyone who'd like to repaint it.
+To try a new version, export your painting over its cell in
+`res/block_atlas.png` (32×32 pixels; the cell is the layer's position in
+the atlas). Clear pixels show as see-through on glass, leaves and glow
+crystals. To go back to the generated art, run
+`python3 tools/gen_building_tiles.py --only glow_crystal` (or any tile's name).
 
 ## Crafting
 
@@ -254,7 +259,8 @@ Worlds made from now on have **natural caves**: winding tunnels, some
 opening onto hillsides so you can walk straight in, and now and then
 opening out into a **room** 10–20 blocks across, big enough for an
 underground base. Deep inside you'll find
-**glow crystals** (break one to take its light home), shallow **pools**, and
+**glow crystals** (break one to take its light home), clusters of shards
+growing up from the floor and hanging from the ceiling, shallow **pools**, and
 ore in the walls. Deep down, far below the sea, there are rare **gem
 pockets**: a clump of rubies, emeralds or diamonds together. Most are in a
 cave wall, the rest buried in the rock. Bedrock is only the floor of the
