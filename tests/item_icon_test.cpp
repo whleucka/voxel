@@ -24,10 +24,10 @@ TEST_CASE("block tiles map into the 16-wide atlas") {
 TEST_CASE("icons pick the atlas their item lives in") {
   UvRect coal = iconUv(itemDef(ItemId::COAL).icon);
   CHECK(coal.uv0 == glm::vec2(0.0f));
-  CHECK(coal.uv1 == glm::vec2(1.0f / 8));
+  CHECK(coal.uv1 == glm::vec2(1.0f / 16));
 
   UvRect ruby = iconUv(itemDef(ItemId::RUBY).icon); // tile (3, 0)
-  CHECK(ruby.uv0.x == doctest::Approx(3.0f / 8));
+  CHECK(ruby.uv0.x == doctest::Approx(3.0f / 16));
 
   UvRect dirt = iconUv(itemDef(itemForBlock(BlockType::DIRT)).icon); // tile (2, 0)
   CHECK(dirt.uv0.x == doctest::Approx(2.0f / 16));

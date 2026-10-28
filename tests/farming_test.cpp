@@ -3,6 +3,8 @@
 #include "block/crop.hpp"
 #include "item/item.hpp"
 #include "item/mining.hpp"
+#include "item/recipes.hpp"
+#include "item/tools.hpp"
 #include <set>
 
 // ─── Blocks ────────────────────────────────────────────────────────────
@@ -76,4 +78,72 @@ TEST_CASE("farmland is solid soil that digs and drops like dirt, and isn't an it
     CHECK_FALSE(isValidItem(itemForBlock(b)));
   }
   CHECK(block_data.at(BlockType::FARMLAND_DRY).top != block_data.at(BlockType::FARMLAND_WET).top);
+}
+
+// ─── Items ─────────────────────────────────────────────────────────────
+
+TEST_CASE("the farming items: hoes and the can one to a stack, the rest 64") {
+  for (ItemId id : {ItemId::WHEAT_SEEDS, ItemId::CARROT_SEEDS, ItemId::STRAWBERRY_SEEDS,
+                    ItemId::WHEAT, ItemId::BREAD, ItemId::CARROT, ItemId::STRAWBERRY}) {
+    CAPTURE(itemDef(id).name);
+    CHECK(itemDef(id).max_stack == 64);
+    CHECK(usesOf(id) == 0);
+  }
+  CHECK(itemDef(ItemId::WATERING_CAN).max_stack == 1);
+  CHECK(itemDef(ItemId::WATERING_CAN).name == "Watering Can");
+  CHECK(usesOf(ItemId::WATERING_CAN) == kCanSplashes);
+  CHECK(toolOf(ItemId::WATERING_CAN).kind == ToolKind::None); // breaking blocks doesn't spill it
+  for (ItemId id = ItemId::WOOD_HOE; id <= ItemId::DIAMOND_HOE;
+       id = static_cast<ItemId>(static_cast<uint16_t>(id) + 1)) {
+    CAPTURE(itemDef(id).name);
+    CHECK(itemDef(id).max_stack == 1);
+    CHECK(toolOf(id).kind == ToolKind::Hoe);
+    CHECK(usesOf(id) == maxUses(toolOf(id).tier));
+  }
+}
+
+TEST_CASE("bread, carrots and strawberries are food; wheat and seeds aren't") {
+  CHECK(itemDef(ItemId::BREAD).food_heal == 8);
+  CHECK(itemDef(ItemId::CARROT).food_heal == 4);
+  CHECK(itemDef(ItemId::STRAWBERRY).food_heal == 4);
+  CHECK(itemDef(ItemId::WHEAT).food_heal == 0);
+  CHECK(itemDef(ItemId::WHEAT_SEEDS).food_heal == 0);
+  CHECK(itemDef(ItemId::STRAWBERRY_SEEDS).food_heal == 0);
+}
+
+namespace {
+const Recipe *recipeFor(ItemId id) {
+  for (const Recipe &r : recipes())
+    if (r.makes.id == id) return &r;
+  return nullptr;
+}
+} // namespace
+
+TEST_CASE("bread, strawberry seeds and the watering can are made at a table") {
+  const Recipe *bread = recipeFor(ItemId::BREAD);
+  REQUIRE(bread);
+  CHECK(bread->needs_table);
+  CHECK(bread->makes.count == 1);
+  REQUIRE(bread->needs.size() == 1);
+  CHECK(bread->needs[0].any_of == std::vector<ItemId>{ItemId::WHEAT});
+  CHECK(bread->needs[0].count == 3);
+
+  const Recipe *seeds = recipeFor(ItemId::STRAWBERRY_SEEDS);
+  REQUIRE(seeds);
+  CHECK(seeds->needs_table);
+  CHECK(seeds->makes.count == 2);
+  REQUIRE(seeds->needs.size() == 1);
+  CHECK(seeds->needs[0].any_of == std::vector<ItemId>{ItemId::BERRIES});
+  CHECK(seeds->needs[0].count == 1);
+
+  const Recipe *can = recipeFor(ItemId::WATERING_CAN);
+  REQUIRE(can);
+  CHECK(can->needs_table);
+  REQUIRE(can->needs.size() == 1);
+  CHECK(can->needs[0].any_of == std::vector<ItemId>{ItemId::COPPER_INGOT});
+  CHECK(can->needs[0].count == 3);
+
+  // Wheat and carrot seeds come from tilling grass, not a recipe.
+  CHECK_FALSE(recipeFor(ItemId::WHEAT_SEEDS));
+  CHECK_FALSE(recipeFor(ItemId::CARROT_SEEDS));
 }

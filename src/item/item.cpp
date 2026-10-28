@@ -70,6 +70,23 @@ constexpr std::array<Material, kMaterialCount> kMaterials = {{
     {"Blue Bed", 0, 16},
     {"Purple Bed", 0, 16},
     {"Pink Bed", 0, 16},
+    // Farming: hoes wear like tools, and the can's wear is the water it has
+    // poured out.
+    {"Wooden Hoe", 0, 1},
+    {"Stone Hoe", 0, 1},
+    {"Copper Hoe", 0, 1},
+    {"Iron Hoe", 0, 1},
+    {"Ruby Hoe", 0, 1},
+    {"Emerald Hoe", 0, 1},
+    {"Diamond Hoe", 0, 1},
+    {"Wheat Seeds", 0},
+    {"Carrot Seeds", 0},
+    {"Strawberry Seeds", 0},
+    {"Wheat", 0},
+    {"Bread", 8},
+    {"Carrot", 4},
+    {"Strawberry", 4},
+    {"Watering Can", 0, 1},
 }};
 constexpr int kItemAtlasCols = 8;
 

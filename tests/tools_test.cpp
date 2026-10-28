@@ -5,7 +5,8 @@
 #include <set>
 
 namespace {
-const ToolKind kKinds[] = {ToolKind::Pickaxe, ToolKind::Axe, ToolKind::Shovel, ToolKind::Sword};
+const ToolKind kKinds[] = {ToolKind::Pickaxe, ToolKind::Axe, ToolKind::Shovel, ToolKind::Sword,
+                           ToolKind::Hoe};
 const Tier kTiers[] = {Tier::Wood,  Tier::Stone,   Tier::Copper, Tier::Iron,
                        Tier::Ruby, Tier::Emerald, Tier::Diamond};
 } // namespace
@@ -23,7 +24,7 @@ TEST_CASE("every kind comes in every tier, one to a stack, and round-trips") {
       CHECK(maxUses(t) > 0);
       seen.insert(id);
     }
-  CHECK(seen.size() == 28);
+  CHECK(seen.size() == 35);
   CHECK(toolOf(ItemId::NONE).kind == ToolKind::None);
   CHECK(toolOf(ItemId::COAL).kind == ToolKind::None);
   CHECK(toolOf(itemForBlock(BlockType::STONE)).kind == ToolKind::None);
@@ -36,6 +37,10 @@ TEST_CASE("tool ids are stable") {
   CHECK(static_cast<int>(ItemId::DIAMOND_SWORD) == 299);
   CHECK(itemDef(ItemId::STONE_SHOVEL).name == "Stone Shovel");
   CHECK(itemDef(ItemId::WOOD_SWORD).name == "Wooden Sword");
+  // Hoes came later, after the beds.
+  CHECK(static_cast<int>(ItemId::WOOD_HOE) == 318);
+  CHECK(static_cast<int>(ItemId::DIAMOND_HOE) == 324);
+  CHECK(itemDef(ItemId::WOOD_HOE).name == "Wooden Hoe");
 }
 
 TEST_CASE("better tiers mine faster, last longer and hit harder") {
@@ -57,6 +62,7 @@ TEST_CASE("what a hit does with what's held") {
   CHECK(attackDamage(ItemId::IRON_AXE) == 5);
   CHECK(attackDamage(ItemId::DIAMOND_PICKAXE) == 2);
   CHECK(attackDamage(ItemId::RUBY_SHOVEL) == 2);
+  CHECK(attackDamage(ItemId::DIAMOND_HOE) == 2);
 }
 
 TEST_CASE("each tool is made from its tier's material and sticks, at a table") {
@@ -70,10 +76,12 @@ TEST_CASE("each tool is made from its tier's material and sticks, at a table") {
     CHECK(r.makes.count == 1);
     REQUIRE(r.needs.size() == 2);
     CHECK(r.needs[1].any_of == std::vector<ItemId>{ItemId::STICKS});
-    uint16_t head = t.kind == ToolKind::Shovel ? 1 : t.kind == ToolKind::Sword ? 2 : 3;
+    uint16_t head = t.kind == ToolKind::Shovel                         ? 1
+                    : t.kind == ToolKind::Sword || t.kind == ToolKind::Hoe ? 2
+                                                                           : 3;
     CHECK(r.needs[0].count == head);
     if (t.tier == Tier::Iron) CHECK(r.needs[0].any_of == std::vector<ItemId>{ItemId::IRON_INGOT});
     if (t.tier == Tier::Wood) CHECK(r.needs[0].any_of.size() == 4); // any planks
   }
-  CHECK(found == 28);
+  CHECK(found == 35);
 }

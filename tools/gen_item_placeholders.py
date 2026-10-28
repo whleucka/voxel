@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate placeholder icons for non-block items into res/item_atlas.png.
 
-The atlas is 256x256 with 32 px tiles (8x8). Material items fill it row by
-row in ItemId order, tile (i % 8, i // 8) (see src/item/item.cpp). Shapes and colours are fixed, so running
+The atlas is 512x512 with 32 px tiles (16x16). Material items fill its left
+half, eight to a row, in ItemId order: tile (i % 8, i // 8) (see src/item/item.cpp). Shapes and colours are fixed, so running
 this again produces the same image. Replace tiles with real art at any time;
 nothing in the code depends on what they look like.
 
@@ -14,7 +14,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 TILE = 32
-SIZE = 256
+SIZE = 512
+COLS = 8  # tiles to a row: the atlas grew taller, so items kept their tiles
 OUT = Path(__file__).resolve().parent.parent / "res" / "item_atlas.png"
 
 # Outline points on a 32x32 tile.
@@ -303,7 +304,7 @@ DRAWN = [wool, berries, shell, petals, sticks,
 def main():
     atlas = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     tiles = [tile_image(*spec) for spec in MATERIALS] + [draw() for draw in DRAWN]
-    cols = SIZE // TILE
+    cols = COLS
     for i, tile in enumerate(tiles):
         atlas.paste(tile, ((i % cols) * TILE, (i // cols) * TILE))
     atlas.save(OUT)
