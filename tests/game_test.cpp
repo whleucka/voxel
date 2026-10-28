@@ -37,6 +37,8 @@ Joined join(Game &game, LocalConnection &conn) {
   conn.send(Join{});
   game.pump();
   auto events = pollAll(conn);
+  // Chat (the backlog and "joined the game") is checked on its own.
+  std::erase_if(events, [](const Event &e) { return std::holds_alternative<ChatMessage>(e); });
   REQUIRE(events.size() == 4);
   REQUIRE(std::holds_alternative<Joined>(events[0]));
   REQUIRE(std::holds_alternative<InventoryContents>(events[1]));
@@ -3593,4 +3595,146 @@ TEST_CASE("farms.dat round-trips crops and soil") {
   CHECK_FALSE(back.soil[0].by_water);
   CHECK(back.soil[1].by_water);
   CHECK_FALSE(WorldSave::loadFarms((dir.path / "nope").string(), back));
+}
+
+// ─── Chat ──────────────────────────────────────────────────────────────
+
+namespace {
+
+uint16_t sevenFortyTwo() { return 19 * 60 + 42; }
+
+std::vector<ChatMessage> chats(const std::vector<Event> &evs) {
+  std::vector<ChatMessage> out;
+  for (const Event &e : evs)
+    if (const auto *c = std::get_if<ChatMessage>(&e)) out.push_back(*c);
+  return out;
+}
+
+std::vector<std::string> chatTexts(const std::vector<Event> &evs) {
+  std::vector<std::string> out;
+  for (const ChatMessage &c : chats(evs)) out.push_back(c.text);
+  return out;
+}
+
+struct ChatGame : VitalsGame {
+  ChatGame() {
+    game.chat_minute = sevenFortyTwo;
+    pollAll(conn);
+    pollAll(other);
+  }
+  // Each message a second apart, clear of the spam limit.
+  std::vector<Event> say(std::string text) {
+    auto evs = send(Chat{std::move(text)});
+    game.advance(1.0f);
+    auto more = pollAll(conn);
+    evs.insert(evs.end(), more.begin(), more.end());
+    return evs;
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(ChatGame, "a chat message reaches everyone, sender included") {
+  auto mine = chats(send(Chat{"  come to my house\n"}));
+  REQUIRE(mine.size() == 1);
+  CHECK(mine[0] == ChatMessage{sevenFortyTwo(), id, me().name, "come to my house", false});
+  auto theirs = chats(pollAll(other));
+  REQUIRE(theirs.size() == 1);
+  CHECK(theirs[0] == mine[0]);
+  CHECK(game.chatHistory().back() == mine[0]);
+}
+
+TEST_CASE_FIXTURE(ChatGame, "empty messages aren't sent, long ones are cut") {
+  CHECK(chats(send(Chat{"   "})).empty());
+  auto long_one = chats(send(Chat{std::string(300, 'z')}));
+  REQUIRE(long_one.size() == 1);
+  CHECK(long_one[0].text.size() == kMaxChatChars);
+}
+
+TEST_CASE_FIXTURE(ChatGame, "more than 5 messages in 5 seconds is too fast") {
+  for (int i = 0; i < 5; ++i) CHECK(chats(send(Chat{"hi " + std::to_string(i)})).size() == 1);
+  auto evs = send(Chat{"hi 5"});
+  CHECK(chats(evs).empty());
+  CHECK(notices(evs) == std::vector<std::string>{"Slow down!"});
+  CHECK(chats(pollAll(other)).size() == 5);
+}
+
+TEST_CASE_FIXTURE(ChatGame, "saying the same thing twice in a row is dropped quietly") {
+  CHECK(chats(send(Chat{"ZOMBIES"})).size() == 1);
+  auto evs = send(Chat{"ZOMBIES"});
+  CHECK(chats(evs).empty());
+  CHECK(notices(evs).empty());
+}
+
+TEST_CASE_FIXTURE(ChatGame, "joining and leaving is news, and newcomers get the backlog") {
+  for (int i = 0; i < 25; ++i) say("line " + std::to_string(i));
+  pollAll(other);
+
+  LocalConnection late;
+  game.addClient(late);
+  late.send(Join{"Aria"});
+  game.pump();
+  auto got = chats(pollAll(late));
+  REQUIRE(got.size() == kChatOnJoin + 1);
+  for (size_t i = 0; i < kChatOnJoin; ++i) CHECK(got[i].history);
+  CHECK(got[kChatOnJoin - 1].text == "line 24");
+  CHECK(got.back() == ChatMessage{sevenFortyTwo(), 0, "", "Aria joined the game", false});
+  CHECK(chatTexts(pollAll(conn)) == std::vector<std::string>{"Aria joined the game"});
+
+  game.removeClient(late);
+  CHECK(chatTexts(pollAll(conn)) == std::vector<std::string>{"Aria left the game"});
+}
+
+TEST_CASE_FIXTURE(ChatGame, "the host keeps the last 50 lines") {
+  for (int i = 0; i < 60; ++i) say("line " + std::to_string(i));
+  REQUIRE(game.chatHistory().size() == kChatHistory);
+  CHECK(game.chatHistory().back().text == "line 59");
+}
+
+TEST_CASE_FIXTURE(ChatGame, "a deadly fall is told once") {
+  fall(40.0f);
+  REQUIRE(me().vitals.dead());
+  auto evs = advance(0.1f);
+  CHECK(chatTexts(evs) == std::vector<std::string>{me().name + " fell too far"});
+  CHECK(chatTexts(advance(1.0f)).empty());
+  CHECK(chatTexts(pollAll(other)) == std::vector<std::string>{me().name + " fell too far"});
+}
+
+TEST_CASE_FIXTURE(ChatGame, "running out of breath is drowning") {
+  MovePlayer under = at({0.5f, 100.0f, 0.5f}, false);
+  under.in_water = under.eyes_underwater = true;
+  std::vector<std::string> told;
+  for (int s = 0; s < 40 && !me().vitals.dead(); ++s) {
+    send(under);
+    auto t = chatTexts(advance(1.0f));
+    told.insert(told.end(), t.begin(), t.end());
+  }
+  REQUIRE(me().vitals.dead());
+  auto t = chatTexts(advance(0.1f));
+  told.insert(told.end(), t.begin(), t.end());
+  CHECK(told == std::vector<std::string>{me().name + " drowned"});
+}
+
+TEST_CASE_FIXTURE(EnemyGame, "being beaten by an enemy is told with its name") {
+  pollAll(conn);
+  std::vector<std::string> told;
+  for (int i = 0; i < 400 && !game.findPlayer(id)->vitals.dead(); ++i) {
+    auto t = chatTexts(tick());
+    told.insert(told.end(), t.begin(), t.end());
+  }
+  REQUIRE(game.findPlayer(id)->vitals.dead());
+  auto t = chatTexts(tick());
+  told.insert(told.end(), t.begin(), t.end());
+  CHECK(told == std::vector<std::string>{game.findPlayer(id)->name + " was beaten by a Cave Grumble"});
+}
+
+TEST_CASE_FIXTURE(SleepGame, "getting into bed is news, with how many are sleeping") {
+  game.chat_minute = sevenFortyTwo;
+  night();
+  pollAll(other);
+  auto evs = run(UseBed{foot});
+  CHECK(chatTexts(evs) == std::vector<std::string>{me().name + " is sleeping (1 of 2)"});
+  pollAll(conn);
+  otherSleeps();
+  CHECK(chatTexts(pollAll(conn)) == std::vector<std::string>{them().name + " is sleeping (2 of 2)"});
 }

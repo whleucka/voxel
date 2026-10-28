@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <ctime>
 #include <iostream>
 
 namespace {
@@ -166,8 +167,10 @@ void Game::removeClient(ClientLink &link) {
         !WorldSave::saveGuest(save_dir, ps.name, guest_records.at(ps.name)))
       std::cerr << "[game] couldn't save guest '" << ps.name << "'\n";
   }
+  std::string name = players.at(*gone).name;
   players.erase(*gone);
   broadcast(PlayerLeft{*gone});
+  postChat(0, "", name + " left the game");
 }
 
 const WorldSave::GuestRecord *Game::guestRecord(const std::string &name) const {
@@ -215,6 +218,54 @@ bool Game::hostOnly(Client &client, std::string_view what) {
 
 void Game::broadcast(const Event &ev) {
   for (Client &client : clients) client.link->deliver(ev);
+}
+
+// ─── Chat ──────────────────────────────────────────────────────────────
+
+uint16_t Game::localMinute() {
+  std::time_t now = std::time(nullptr);
+  std::tm local{};
+  localtime_r(&now, &local);
+  return static_cast<uint16_t>(local.tm_hour * 60 + local.tm_min);
+}
+
+void Game::postChat(PlayerId from, const std::string &name, const std::string &text) {
+  ChatMessage msg{chat_minute(), from, name, text, false};
+  chat_history.push_back(msg);
+  while (chat_history.size() > kChatHistory) chat_history.pop_front();
+  for (Client &client : clients)
+    if (client.player) client.link->deliver(msg);
+}
+
+void Game::apply(Client &client, const Chat &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps) return;
+  std::optional<std::string> text = cleanChatText(cmd.text);
+  if (!text) return;
+  switch (ps->chat_limit.check(*text, static_cast<int64_t>(nowMs()))) {
+    case ChatLimiter::Verdict::TooFast: return client.link->deliver(Notice{"Slow down!"});
+    case ChatLimiter::Verdict::Repeat:  return;
+    case ChatLimiter::Verdict::Ok:      break;
+  }
+  postChat(ps->id, ps->name, *text);
+}
+
+void Game::announceDeaths() {
+  std::vector<std::string> lines;
+  for (auto &[id, ps] : players) {
+    if (!ps.vitals.dead()) {
+      ps.death_told = false;
+      continue;
+    }
+    if (ps.death_told) continue;
+    ps.death_told = true;
+    // Out of breath means the water got them, whatever hurt them before.
+    std::string how = ps.vitals.breath() == 0 ? "drowned"
+                      : ps.hurt_by.empty()    ? "died"
+                                              : ps.hurt_by;
+    lines.push_back(ps.name + " " + how);
+  }
+  for (const std::string &line : lines) postChat(0, "", line);
 }
 
 void Game::sendInventory(Client &client, PlayerState &ps) {
@@ -347,6 +398,7 @@ void Game::tick() {
   mergeDroppedItems();
   pickUpDroppedItems();
   tickSleep();
+  announceDeaths();
 
   ++tick_count;
   flushVitals();
@@ -605,6 +657,13 @@ void Game::apply(Client &client, const Join &cmd) {
   client.link->deliver(Joined{joined.id, joined.position, joined.yaw, joined.pitch,
                               joined.selected_slot, joined.fly, mode_});
   sendInventory(client, joined);
+  size_t skip = chat_history.size() > kChatOnJoin ? chat_history.size() - kChatOnJoin : 0;
+  for (size_t i = skip; i < chat_history.size(); ++i) {
+    ChatMessage old = chat_history[i];
+    old.history = true;
+    client.link->deliver(old);
+  }
+  postChat(0, "", joined.name + " joined the game");
 }
 
 void Game::apply(Client &client, const MovePlayer &cmd) {
@@ -626,7 +685,10 @@ void Game::apply(Client &client, const MovePlayer &cmd) {
   ps->activity = {cmd.sprinting, cmd.eyes_underwater, cmd.fly};
 
   int fall = ps->fall.update(cmd.position.y, cmd.on_ground, cmd.in_water, cmd.fly);
-  if (fall > 0 && rules().damage) ps->vitals.damage(fall);
+  if (fall > 0 && rules().damage) {
+    ps->vitals.damage(fall);
+    ps->hurt_by = "fell too far";
+  }
 }
 
 void Game::apply(Client &client, const SelectSlot &cmd) {
@@ -986,6 +1048,14 @@ void Game::apply(Client &client, const UseBed &cmd) {
   ps->fall.reset();
   ++ps->respawn;
   client.link->deliver(Respawned{ps->position, ps->respawn});
+  int living = 0, sleepers = 0;
+  for (const auto &[pid, other] : players) {
+    if (other.vitals.dead()) continue;
+    ++living;
+    sleepers += other.sleeping_in.has_value();
+  }
+  postChat(0, "", ps->name + " is sleeping (" + std::to_string(sleepers) + " of " +
+                      std::to_string(living) + ")");
   flushSleep();
 }
 
@@ -1754,6 +1824,7 @@ void Game::enemyAttacks() {
       if (boxGap(p_lo, p_hi, e_lo, e_hi) > kEnemyContactRange) continue;
 
       ps->vitals.damage(scaledDamage(entityType(e.kind).enemy->damage, g_settings.difficulty));
+      ps->hurt_by = "was beaten by a " + std::string(entityType(e.kind).name);
       e.attack_cooldown_ms = kEnemyAttackCooldownMs;
 
       glm::vec2 away(ps->position.x - e.body.position.x, ps->position.z - e.body.position.z);

@@ -97,13 +97,16 @@ struct LeaveBed {};
 // it, seeds plant on it, and the watering can fills from water or splashes
 // the soil round it.
 struct UseItemOn { glm::ivec3 pos{0}; };
+// Say something to everyone. The Game cleans and rate-limits it.
+struct Chat { std::string text; };
 
 using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SelectSlot, Save, SetTimeOfDay, GiveItem,
                              MoveItems, DropItem, AttackEntity,
                              SpawnDebugEntity, InteractEntity, EatItem, Craft,
                              OpenContainer, CloseContainer, StartBreak,
-                             CastLine, ReelIn, UseDoor, UseBed, LeaveBed, UseItemOn>;
+                             CastLine, ReelIn, UseDoor, UseBed, LeaveBed, UseItemOn,
+                             Chat>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 
@@ -140,6 +143,18 @@ struct SleepState {
 
 // Something the owner should read on the HUD ("This bed is taken").
 struct Notice { std::string text; };
+
+// A chat line for everyone. `minute` is the host's clock (minutes since
+// midnight); `from` 0 is game news ("Aria joined the game"). `history`
+// marks the backlog sent on joining: listed, but not popped up on screen.
+struct ChatMessage {
+  uint16_t minute = 0;
+  PlayerId from = 0;
+  std::string name;
+  std::string text;
+  bool history = false;
+  bool operator==(const ChatMessage &) const = default;
+};
 
 // The host's clock, once a second, so every guest's sky matches.
 struct TimeSync { float time_of_day = 0.0f; float time_scale = 1.0f; };
@@ -242,4 +257,5 @@ using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            CommandRejected, InventoryContents, VitalsChanged,
                            Respawned, EntitySnapshot, KnockedBack, JoinRefused,
                            Welcome, TimeSync, Disconnected, KnownItems,
-                           ContainerView, ToolBroke, Caught, SleepState, Notice>;
+                           ContainerView, ToolBroke, Caught, SleepState, Notice,
+                           ChatMessage>;

@@ -177,6 +177,7 @@ template <class IO> void fields(IO &io, UseDoor &m) { io(m.pos); }
 template <class IO> void fields(IO &io, UseBed &m) { io(m.pos); }
 template <class IO> void fields(IO &, LeaveBed &) {}
 template <class IO> void fields(IO &io, UseItemOn &m) { io(m.pos); }
+template <class IO> void fields(IO &io, Chat &m) { io(m.text); }
 
 // Events
 template <class IO> void fields(IO &io, Joined &m) {
@@ -199,6 +200,9 @@ template <class IO> void fields(IO &io, SleepState &m) {
   io(m.in_bed, m.bed, m.sleepers, m.living);
 }
 template <class IO> void fields(IO &io, Notice &m) { io(m.text); }
+template <class IO> void fields(IO &io, ChatMessage &m) {
+  io(m.minute, m.from, m.name, m.text, m.history);
+}
 template <class IO> void fields(IO &io, ContainerView &m) {
   uint8_t kind = static_cast<uint8_t>(m.kind);
   io(m.pos, m.open, kind, m.slots, m.input, m.fuel, m.output, m.burn, m.cook);
