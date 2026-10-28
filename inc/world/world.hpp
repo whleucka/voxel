@@ -84,9 +84,10 @@ public:
   uint8_t getSkyLightAt(const glm::ivec3& worldPos) const;
   uint8_t getBlockLightAt(const glm::ivec3& worldPos) const;
 
-  // DDA raycast: find the first solid block along a ray
+  // DDA raycast: find the first solid block along a ray (or the first
+  // water, with `liquids`, as a watering can aims)
   RaycastResult raycast(const glm::vec3& origin, const glm::vec3& direction,
-                        float max_distance) const;
+                        float max_distance, bool liquids = false) const;
 
 private:
   void populateChunk(Chunk &chunk, const ChunkKey &key);

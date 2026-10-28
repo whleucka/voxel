@@ -664,7 +664,7 @@ uint8_t World::getBlockLightAt(const glm::ivec3 &p) const {
 // Based on "A Fast Voxel Traversal Algorithm" (Amanatides & Woo, 1987).
 
 RaycastResult World::raycast(const glm::vec3& origin, const glm::vec3& direction,
-                              float max_distance) const {
+                              float max_distance, bool liquids) const {
   RaycastResult result;
 
   if (glm::length(direction) < 1e-8f) return result;
@@ -726,7 +726,7 @@ RaycastResult World::raycast(const glm::vec3& origin, const glm::vec3& direction
     // Check current voxel (skip the very first one if player is inside it)
     BlockType block = getBlockAt(glm::vec3(x + 0.5f, y + 0.5f, z + 0.5f));
 
-    if (block != BlockType::AIR && !isLiquid(block)) {
+    if (block != BlockType::AIR && (liquids || !isLiquid(block))) {
       result.hit = true;
       result.block_pos = glm::ivec3(x, y, z);
       result.distance = distance;

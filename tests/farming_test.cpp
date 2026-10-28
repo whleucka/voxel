@@ -6,6 +6,8 @@
 #include "item/mining.hpp"
 #include "item/recipes.hpp"
 #include "item/tools.hpp"
+#include "test_util.hpp"
+#include "world/world.hpp"
 #include <set>
 #include <tuple>
 
@@ -239,4 +241,26 @@ TEST_CASE("soil is near water within four blocks sideways, level or one below") 
   CHECK_FALSE(nearWater(soil, withWaterAt(soil + glm::ivec3(5, 0, 0))));
   CHECK_FALSE(nearWater(soil, withWaterAt(soil + glm::ivec3(0, 1, 0)))); // above doesn't count
   CHECK_FALSE(nearWater(soil, withWaterAt(soil + glm::ivec3(0, -2, 0))));
+}
+
+// ─── Aiming ────────────────────────────────────────────────────────────
+
+TEST_CASE("a watering can's aim stops at water; other aims go through it") {
+  ScopedRenderDistance rd{0};
+  World world;
+  world.loadChunkSync(0, 0);
+  fill(world, {2, 100, 2}, {6, 100, 6}, BlockType::STONE);
+  fill(world, {2, 101, 2}, {6, 101, 6}, BlockType::WATER);
+  fill(world, {2, 102, 2}, {6, 110, 6}, BlockType::AIR);
+  const glm::vec3 eye{4.5f, 103.5f, 4.5f}, down{0.0f, -1.0f, 0.0f};
+
+  RaycastResult dry = world.raycast(eye, down, 5.0f);
+  REQUIRE(dry.hit);
+  CHECK(dry.block_pos == glm::ivec3(4, 100, 4));
+  CHECK(dry.block_type == BlockType::STONE);
+
+  RaycastResult wet = world.raycast(eye, down, 5.0f, true);
+  REQUIRE(wet.hit);
+  CHECK(wet.block_pos == glm::ivec3(4, 101, 4));
+  CHECK(wet.block_type == BlockType::WATER);
 }
