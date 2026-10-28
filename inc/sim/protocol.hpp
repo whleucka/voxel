@@ -87,13 +87,15 @@ struct Craft { uint16_t recipe = 0; bool all = false; };
 // any line already out. ReelIn brings it back, with a catch if it was biting.
 struct CastLine { glm::vec3 dir{0.0f, 0.0f, -1.0f}; };
 struct ReelIn {};
+// Opens or closes the door at `pos` (either half). The Game swings both.
+struct UseDoor { glm::ivec3 pos{0}; };
 
 using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SelectSlot, Save, SetTimeOfDay, GiveItem,
                              MoveItems, DropItem, AttackEntity,
                              SpawnDebugEntity, InteractEntity, EatItem, Craft,
                              OpenContainer, CloseContainer, StartBreak,
-                             CastLine, ReelIn>;
+                             CastLine, ReelIn, UseDoor>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 

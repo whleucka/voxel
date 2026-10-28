@@ -1,5 +1,6 @@
 #include "sim/game.hpp"
 #include "block/block_data.hpp"
+#include "block/door.hpp"
 #include "item/mining.hpp"
 #include "item/tools.hpp"
 #include "entity/animals.hpp"
@@ -641,6 +642,16 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
   broadcast(BlockChanged{cmd.pos, BlockType::AIR});
   spillFurnace(cmd.pos);
   spillChest(cmd.pos);
+  // A door goes as a whole, whichever half was hit, and drops one door.
+  if (isDoor(target)) {
+    glm::ivec3 other = cmd.pos + glm::ivec3(0, doorTop(target) ? -1 : 1, 0);
+    if (isDoor(world_.getBlockAt(glm::vec3(other) + 0.5f))) {
+      world_.setBlockAt(other, BlockType::AIR);
+      broadcast(BlockChanged{other, BlockType::AIR});
+    }
+    target = doorBlock(false, doorFacing(target), false);
+  }
+  popDoorAbove(cmd.pos);
 
   // Survival: collect the drop, if the tool was good enough for it.
   if (!rules().block_drops) return;
@@ -692,6 +703,7 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
 
   const ItemStack &held = ps->inventory.slot(ps->selected_slot);
   if (held.empty()) return reject(client, "place: nothing held");
+  if (held.id == ItemId::WOODEN_DOOR) return placeDoor(client, *ps, cmd.pos);
   std::optional<BlockType> block = itemDef(held.id).places;
   if (!block) return reject(client, "place: held item isn't a block");
 
@@ -719,6 +731,76 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
     ps->inventory.take(ps->selected_slot, 1);
     sendInventory(client, *ps);
   }
+}
+
+// ─── Doors ─────────────────────────────────────────────────────────────
+
+void Game::setDoor(glm::ivec3 bottom, BlockType bottom_half) {
+  const glm::ivec3 top = bottom + glm::ivec3(0, 1, 0);
+  const BlockType top_half = doorBlock(true, doorFacing(bottom_half), doorOpen(bottom_half));
+  world_.setBlockAt(bottom, bottom_half);
+  world_.setBlockAt(top, top_half);
+  broadcast(BlockChanged{bottom, bottom_half});
+  broadcast(BlockChanged{top, top_half});
+}
+
+void Game::placeDoor(Client &client, PlayerState &ps, glm::ivec3 pos) {
+  if (pos.y < 1 || pos.y + 1 >= kChunkHeight)
+    return reject(client, "place: outside world height");
+  if (!inReach(ps, pos)) return reject(client, "place: out of reach");
+  int cx = static_cast<int>(std::floor(static_cast<float>(pos.x) / kChunkWidth));
+  int cz = static_cast<int>(std::floor(static_cast<float>(pos.z) / kChunkDepth));
+  if (!world_.getChunk(cx, cz)) return reject(client, "place: chunk not loaded");
+
+  // Two clear cells, standing on something solid.
+  const glm::ivec3 top = pos + glm::ivec3(0, 1, 0);
+  for (glm::ivec3 cell : {pos, top}) {
+    BlockType existing = world_.getBlockAt(glm::vec3(cell) + 0.5f);
+    if (existing != BlockType::AIR && !isLiquid(existing))
+      return reject(client, "place: no room for a door");
+    if (overlapsAnyPlayer(cell)) return reject(client, "place: inside a player");
+  }
+  BlockType below = world_.getBlockAt(glm::vec3(pos) + glm::vec3(0.5f, -0.5f, 0.5f));
+  if (!blocksMovement(below) || isDoor(below))
+    return reject(client, "place: a door needs ground under it");
+
+  setDoor(pos, doorBlock(false, doorFacingForYaw(ps.yaw), false));
+  if (rules().consume_blocks) {
+    ps.inventory.take(ps.selected_slot, 1);
+    sendInventory(client, ps);
+  }
+}
+
+void Game::popDoorAbove(glm::ivec3 below) {
+  const glm::ivec3 bottom = below + glm::ivec3(0, 1, 0);
+  BlockType b = world_.getBlockAt(glm::vec3(bottom) + 0.5f);
+  if (!isDoor(b) || doorTop(b)) return;
+  for (glm::ivec3 cell : {bottom, bottom + glm::ivec3(0, 1, 0)}) {
+    if (!isDoor(world_.getBlockAt(glm::vec3(cell) + 0.5f))) continue;
+    world_.setBlockAt(cell, BlockType::AIR);
+    broadcast(BlockChanged{cell, BlockType::AIR});
+  }
+  if (rules().block_drops)
+    dropItem({ItemId::WOODEN_DOOR, 1}, glm::vec3(bottom) + glm::vec3(0.5f, 0.3f, 0.5f),
+             {0.0f, 3.0f, 0.0f}, kBreakDropDelayMs);
+}
+
+void Game::apply(Client &client, const UseDoor &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead()) return;
+  if (cmd.pos.y < 0 || cmd.pos.y >= kChunkHeight)
+    return reject(client, "door: outside world height");
+  BlockType hit = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
+  if (!isDoor(hit)) return reject(client, "door: that isn't a door");
+  if (!inReach(*ps, cmd.pos)) return reject(client, "door: out of reach");
+
+  const glm::ivec3 bottom = cmd.pos - glm::ivec3(0, doorTop(hit) ? 1 : 0, 0);
+  const BlockType swung = doorBlock(false, doorFacing(hit), !doorOpen(hit));
+  // Shutting it on someone would trap them in a solid cell.
+  if (!doorOpen(swung) &&
+      (overlapsAnyPlayer(bottom) || overlapsAnyPlayer(bottom + glm::ivec3(0, 1, 0))))
+    return reject(client, "door: someone's in the way");
+  setDoor(bottom, swung);
 }
 
 void Game::apply(Client &client, const SetTimeOfDay &cmd) {

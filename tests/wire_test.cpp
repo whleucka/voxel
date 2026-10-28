@@ -213,6 +213,7 @@ TEST_CASE("crafting messages round-trip") {
 TEST_CASE("container messages round-trip") {
   roundTrip(OpenContainer{{-4, 70, 12}});
   roundTrip(CloseContainer{});
+  roundTrip(UseDoor{{-4, 70, 12}});
   ContainerView v;
   v.pos = {1, 2, 3};
   v.open = true;

@@ -173,6 +173,7 @@ template <class IO> void fields(IO &, CloseContainer &) {}
 template <class IO> void fields(IO &io, StartBreak &m) { io(m.pos); }
 template <class IO> void fields(IO &io, CastLine &m) { io(m.dir); }
 template <class IO> void fields(IO &, ReelIn &) {}
+template <class IO> void fields(IO &io, UseDoor &m) { io(m.pos); }
 
 // Events
 template <class IO> void fields(IO &io, Joined &m) {
