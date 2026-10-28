@@ -1926,6 +1926,15 @@ TEST_CASE_FIXTURE(EnemyGame, "at sunrise surface enemies under the sky vanish, g
     CHECK(e.kind != EntityKind::DroppedItem); // vanishing drops nothing
 }
 
+TEST_CASE_FIXTURE(EnemyGame, "at sunrise zombies vanish and mummies stay") {
+  EntityId zombie = spawnEnemy(EntityKind::Zombie, {1.2f, 0.0f, -3.0f});
+  EntityId mummy = spawnEnemy(EntityKind::Mummy, {-1.2f, 0.0f, -5.0f});
+  run(SetTimeOfDay{kNoonSeconds});
+  tick();
+  CHECK_FALSE(game.entities().find(zombie));
+  CHECK(game.entities().find(mummy));
+}
+
 TEST_CASE_FIXTURE(EnemyGame, "a surface enemy under a roof survives the day") {
   EntityId gloom = spawnEnemy(EntityKind::Gloomling, {2.0f, 0.0f, 0.0f});
   glm::ivec3 above(game.entities().find(gloom)->body.position);
