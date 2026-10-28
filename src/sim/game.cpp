@@ -429,6 +429,7 @@ void Game::tick() {
     for (Client &client : clients)
       if (client.player && client.role == Role::Guest)
         client.link->deliver(TimeSync{clock_.time_of_day, clock_.scale});
+  if (!save_dir.empty() && tick_count % kAutosaveTicks == 0) save();
 }
 
 void Game::sendEntitySnapshots() {

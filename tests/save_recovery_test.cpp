@@ -99,3 +99,33 @@ TEST_CASE("a saved hotbar slot out of range is clamped, not trusted") {
   conn.send(DropItem{false});
   CHECK_NOTHROW(game.pump());
 }
+
+// ─── Autosave ──────────────────────────────────────────────────────────
+// A crash costs at most the last few minutes.
+
+TEST_CASE("a game bound to a save directory saves itself every few minutes") {
+  ScopedSeed seed;
+  ScopedRenderDistance rd{0};
+  TempDir dir;
+  Game game;
+  game.spawner() = Spawner{};
+  CHECK_FALSE(game.load(dir.path.string())); // a new world: binds the directory
+  LocalConnection conn;
+  game.addClient(conn, Game::Role::Host);
+  conn.send(Join{});
+  game.pump();
+
+  const fs::path level = dir.path / "level.dat";
+  for (int i = 0; i < Game::kAutosaveTicks - 1; ++i) game.tick();
+  CHECK_FALSE(fs::exists(level));
+  game.tick();
+  REQUIRE(fs::exists(level));
+  WorldSave::LevelData saved;
+  REQUIRE(WorldSave::loadLevel(dir.path.string(), saved));
+  CHECK(saved.time_of_day == doctest::Approx(game.clock().time_of_day));
+
+  // And again, with what has changed since.
+  for (int i = 0; i < Game::kAutosaveTicks; ++i) game.tick();
+  REQUIRE(WorldSave::loadLevel(dir.path.string(), saved));
+  CHECK(saved.time_of_day == doctest::Approx(game.clock().time_of_day));
+}
