@@ -156,6 +156,10 @@ void main() {
         // nearly vanishes at night (linear was still ~6-16% teal after sRGB gamma).
         float brightness = clamp(length(uAmbientColor) * 3.5, 0.0, 1.0);
         brightness = brightness * brightness;           // quadratic drop-off
+        // ...and only as bright as the light where the water is: daylight
+        // reaches a cave pool only as far as the sky does, and a crystal or
+        // torch tints it near the light, so dark cave water stays dark.
+        brightness = max(brightness * vSkyLight, bl);
         vec3  waterTint  = vec3(0.04, 0.26, 0.38) * brightness;
         finalColor = mix(finalColor, waterTint, 0.28 * brightness);
     }
