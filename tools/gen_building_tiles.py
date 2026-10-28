@@ -315,6 +315,57 @@ def lamp(rng):
     return img
 
 
+DOOR_WOOD = (150, 116, 74)  # oak planks
+
+
+def door_face(rng, top):
+    """Upright boards in a frame: a window up top, a handle lower down.
+
+    The window is alpha 0 (like glass, the cutout test drops it), so you can
+    see out of a closed door."""
+    img = new_tile()
+    px = pixels(img)
+    for x in range(TILE):
+        board = x // 8
+        tone = shade(DOOR_WOOD, (board % 2) * 8 - 4)
+        for y in range(TILE):
+            c = shade(tone, rng.randint(-5, 5))
+            if x % 8 == 0 and 2 < x < TILE - 3:
+                c = shade(DOOR_WOOD, -38)  # seam between boards
+            if x < 3 or x > TILE - 4 or (y < 3 and top) or (y > TILE - 4 and not top):
+                c = shade(DOOR_WOOD, -22 + rng.randint(-4, 4))  # the frame
+            px[x, y] = c + (255,)
+    if top:
+        for y in range(7, 23):
+            for x in range(7, 25):
+                edge = x in (7, 24) or y in (7, 22)
+                mullion = x in (15, 16) or y == 15
+                if edge or mullion:
+                    px[x, y] = shade(DOOR_WOOD, -50) + (255,)
+                else:
+                    px[x, y] = (0, 0, 0, 0)
+    else:
+        # A brass handle on a dark plate, on the side away from the hinge.
+        for y in range(2, 9):
+            for x in range(22, 27):
+                px[x, y] = shade(DOOR_WOOD, -55) + (255,)
+        for y in range(4, 7):
+            for x in range(19, 25):
+                px[x, y] = (226, 182, 70, 255)
+        px[20, 4] = (255, 236, 150, 255)
+    return img
+
+
+def door_edge(rng):
+    """The panel's thin edges: end grain, darker than its faces."""
+    img = new_tile()
+    px = pixels(img)
+    for y in range(TILE):
+        for x in range(TILE):
+            px[x, y] = shade(DOOR_WOOD, -16 + rng.randint(-6, 6)) + (255,)
+    return img
+
+
 # (file name, drawing) in row-2 order, matching block_data.hpp.
 TILES = [
     ("oak_planks",    lambda r: planks((150, 116, 74), r)),
@@ -345,6 +396,9 @@ TILES = [
     ("chest_side",          chest_side),
     ("treasure_chest_top",  treasure_top),
     ("treasure_chest_side", treasure_side),
+    ("door_bottom",         lambda r: door_face(r, False)),
+    ("door_top",            lambda r: door_face(r, True)),
+    ("door_edge",           door_edge),
 ]
 
 

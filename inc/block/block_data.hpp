@@ -1,6 +1,7 @@
 #pragma once
 
 #include "block/block_type.hpp"
+#include "block/door.hpp"
 #include "robin_hood/robin_hood.h"
 #include <glm/glm.hpp>
 #include <string_view>
@@ -52,7 +53,9 @@ inline uint8_t cutoutClass(BlockType type) {
     case BlockType::PALM_LEAF:
     case BlockType::CHERRY_LEAF: return kCutoutMid;
     case BlockType::PINE_LEAF:   return kCutoutHigh;
-    default:                     return kCutoutNone;
+    default:
+      // A door's top half has a window in it.
+      return isDoor(type) && doorTop(type) ? kCutoutLow : kCutoutNone;
   }
 }
 
@@ -63,6 +66,8 @@ inline bool isCutout(BlockType type) {
 // Determine if a face should be rendered between current block and neighbor
 inline bool shouldRenderFace(BlockType current, BlockType neighbor) {
   if (neighbor == BlockType::AIR) return true;
+  // A door is a thin panel: whatever is round it shows.
+  if (isDoor(neighbor)) return true;
   // Panes of glass side by side read as one window, so the face between them
   // is hidden.  Leaves keep their inner faces (below).
   if (current == BlockType::GLASS && neighbor == BlockType::GLASS) return false;
@@ -90,7 +95,7 @@ inline uint8_t skyLightOpacity(BlockType type) {
     case BlockType::PINE_LEAF:
     case BlockType::PALM_LEAF:
     case BlockType::CHERRY_LEAF: return 1;
-    default:                   return 15;
+    default:                   return isDoor(type) ? 0 : 15; // light gets round a door
   }
 }
 
@@ -156,11 +161,17 @@ inline std::string_view blockName(BlockType type) {
     case BlockType::FURNACE_LIT:   return "Lit Furnace";
     case BlockType::CHEST:         return "Chest";
     case BlockType::TREASURE_CHEST: return "Treasure Chest";
-    default:                      return "Unknown";
+    default:                      return isDoor(type) ? "Wooden Door" : "Unknown";
   }
 }
 
-static robin_hood::unordered_map<BlockType, BlockTexture> block_data = {
+// Door tiles (tools/gen_building_tiles.py): the panel's faces, and its edges.
+constexpr glm::ivec2 kDoorBottomTile{10, 3}; // with the handle
+constexpr glm::ivec2 kDoorTopTile{11, 3};    // with the window
+constexpr glm::ivec2 kDoorEdgeTile{12, 3};
+
+static robin_hood::unordered_map<BlockType, BlockTexture> block_data = [] {
+  robin_hood::unordered_map<BlockType, BlockTexture> d = {
     {BlockType::GRASS, {glm::ivec2{0, 0}, glm::ivec2{2, 0}, glm::ivec2{1, 0}}},
     {BlockType::DIRT, {glm::ivec2{2, 0}, glm::ivec2{2, 0}, glm::ivec2{2, 0}}},
     {BlockType::STONE, {glm::ivec2{3, 0}, glm::ivec2{3, 0}, glm::ivec2{3, 0}}},
@@ -214,4 +225,12 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = {
     // wood with gold bands and a lock.
     {BlockType::CHEST, {glm::ivec2{6, 3}, glm::ivec2{6, 3}, glm::ivec2{7, 3}}},
     {BlockType::TREASURE_CHEST, {glm::ivec2{8, 3}, glm::ivec2{8, 3}, glm::ivec2{9, 3}}},
-};
+  };
+  // Doors: edges on top and bottom, the half's face round the sides.
+  for (int v = static_cast<int>(BlockType::DOOR_BOTTOM_N_CLOSED);
+       v <= static_cast<int>(BlockType::DOOR_TOP_W_OPEN); ++v) {
+    BlockType b = static_cast<BlockType>(v);
+    d[b] = {kDoorEdgeTile, kDoorEdgeTile, doorTop(b) ? kDoorTopTile : kDoorBottomTile};
+  }
+  return d;
+}();
