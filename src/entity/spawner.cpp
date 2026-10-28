@@ -73,8 +73,8 @@ void Spawner::tick(EntityStore &store, const World &world, Rng &rng,
   for (size_t r = 0; r < rules_.size(); ++r) {
     timers_[r] -= EntityStore::kTickMs;
     if (timers_[r] > 0) continue;
-    timers_[r] = rules_[r].interval_ms;
     const SpawnRule &rule = rules_[r];
+    timers_[r] = rule.hostile ? scaledInterval(rule.interval_ms, difficulty) : rule.interval_ms;
     if (rule.hostile && difficulty == Difficulty::Peaceful) continue;
     int cap = rule.hostile ? scaledCap(rule.max_per_player, difficulty) : rule.max_per_player;
     const bool cave = rule.placement == Placement::Cave;
@@ -106,7 +106,9 @@ void Spawner::tick(EntityStore &store, const World &world, Rng &rng,
         if (rule.can_spawn && !rule.can_spawn(world, *ground, time_of_day)) continue;
         // Standing on the ground block, or floating low in the water cell.
         float y = water ? ground->y + 0.1f : ground->y + 1.0f;
-        store.spawn(rule.kind, glm::vec3(x + 0.5f, y, z + 0.5f));
+        auto id = store.spawn(rule.kind, glm::vec3(x + 0.5f, y, z + 0.5f));
+        if (id && rule.hostile)
+          if (Entity *e = store.find(*id)) e->health = scaledHealth(e->health, difficulty);
         break;
       }
     }

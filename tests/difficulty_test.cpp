@@ -16,9 +16,11 @@ struct ScopedSettings {
 } // namespace
 
 TEST_CASE("difficulty names parse and print") {
-  for (Difficulty d : {Difficulty::Peaceful, Difficulty::Easy, Difficulty::Normal})
+  for (Difficulty d :
+       {Difficulty::Peaceful, Difficulty::Easy, Difficulty::Normal, Difficulty::Hard})
     CHECK(parseDifficulty(difficultyName(d)) == d);
-  CHECK_FALSE(parseDifficulty("hard"));
+  CHECK(difficultyName(Difficulty::Hard) == "hard");
+  CHECK_FALSE(parseDifficulty("nightmare"));
   CHECK_FALSE(parseDifficulty(""));
 }
 
@@ -37,7 +39,8 @@ TEST_CASE("difficulty round-trips through voxel.properties") {
   ScopedSettings keep;
   TempDir dir;
   std::string path = (dir.path / "voxel.properties").string();
-  for (Difficulty d : {Difficulty::Peaceful, Difficulty::Normal, Difficulty::Easy}) {
+  for (Difficulty d :
+       {Difficulty::Peaceful, Difficulty::Normal, Difficulty::Easy, Difficulty::Hard}) {
     g_settings.difficulty = d;
     REQUIRE(saveServerProperties(path));
     g_settings.difficulty = d == Difficulty::Easy ? Difficulty::Normal : Difficulty::Easy;
@@ -67,6 +70,29 @@ TEST_CASE("easy halves caps and damage, at least 1, and slows enemies") {
   CHECK(scaledCap(4, Difficulty::Normal) == 4);
   CHECK(scaledDamage(2, Difficulty::Normal) == 2);
   CHECK(speedScale(Difficulty::Normal) == 1.0f);
+}
+
+TEST_CASE("hard is half as much again as normal, rounded up") {
+  CHECK(scaledCap(4, Difficulty::Hard) == 6);
+  CHECK(scaledCap(3, Difficulty::Hard) == 5);
+  CHECK(scaledDamage(1, Difficulty::Hard) == 2);
+  CHECK(scaledDamage(2, Difficulty::Hard) == 3);
+  CHECK(scaledHealth(6, Difficulty::Hard) == 9);
+  CHECK(scaledHealth(4, Difficulty::Hard) == 6);
+  CHECK(scaledHealth(16, Difficulty::Hard) == 24);
+  CHECK(scaledInterval(1000, Difficulty::Hard) == 750);
+  CHECK(speedScale(Difficulty::Hard) == 1.0f);
+  for (Difficulty d : {Difficulty::Peaceful, Difficulty::Easy, Difficulty::Normal}) {
+    CHECK(scaledHealth(6, d) == 6);
+    CHECK(scaledInterval(1000, d) == 1000);
+  }
+}
+
+TEST_CASE("only normal and hard need food to heal") {
+  CHECK_FALSE(needsFood(Difficulty::Peaceful));
+  CHECK_FALSE(needsFood(Difficulty::Easy));
+  CHECK(needsFood(Difficulty::Normal));
+  CHECK(needsFood(Difficulty::Hard));
 }
 
 TEST_CASE("player name and server port round-trip through voxel.properties") {

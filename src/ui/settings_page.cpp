@@ -12,10 +12,10 @@ bool SettingsPage::draw(Settings &s, bool difficulty_locked) {
   ImGui::PushItemWidth(-170);
 
   // Game
-  static const char *kDifficulties[] = {"Peaceful", "Easy", "Normal"};
+  static const char *kDifficulties[] = {"Peaceful", "Easy", "Normal", "Hard"};
   int difficulty = static_cast<int>(s.difficulty);
   ImGui::BeginDisabled(difficulty_locked);
-  if (ImGui::Combo("Difficulty", &difficulty, kDifficulties, 3))
+  if (ImGui::Combo("Difficulty", &difficulty, kDifficulties, 4))
     s.difficulty = static_cast<Difficulty>(difficulty);
   ImGui::EndDisabled();
   if (difficulty_locked) ImGui::TextDisabled("The host chooses the difficulty.");

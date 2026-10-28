@@ -334,6 +334,34 @@ TEST_CASE("hostile caps are halved on easy and full on normal") {
   CHECK(normal.store.size() == 4);
 }
 
+TEST_CASE("hard has half as many again, with half as much health again") {
+  HostileRig hard;
+  hard.rule(4);
+  hard.ticks(400, Difficulty::Hard);
+  CHECK(hard.store.size() == 6);
+  for (const auto &[id, e] : hard.store.all()) CHECK(e.health == 9); // Gloomling: 6
+
+  HostileRig normal;
+  normal.rule(4);
+  normal.ticks(400, Difficulty::Normal);
+  for (const auto &[id, e] : normal.store.all()) CHECK(e.health == 6);
+}
+
+TEST_CASE("hard tries to spawn a third more often") {
+  // One attempt per interval with a cap far above what can spawn.
+  auto spawned = [](Difficulty d) {
+    HostileRig r;
+    SpawnRule rule{EntityKind::Gloomling, 100, 1000, always};
+    rule.hostile = true;
+    r.spawner.addRule(rule);
+    r.ticks(1000 * 12 / EntityStore::kTickMs, d); // 12 s
+    return r.store.size();
+  };
+  CHECK(spawned(Difficulty::Normal) == 12);
+  // The first attempt waits a full interval; the rest every 750 ms.
+  CHECK(spawned(Difficulty::Hard) == 15);
+}
+
 TEST_CASE("cave rules spawn below the surface, closer in") {
   HostileRig r;
   // Dig a tunnel 20 blocks east of the player, under the terrain.

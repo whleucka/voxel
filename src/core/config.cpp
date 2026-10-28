@@ -68,7 +68,8 @@ std::string serializeSettings(const Settings &s, bool blank_seed) {
   o << "\n"
     << "# How far (in blocks) chunks stay loaded around the player.\n"
     << "view-distance=" << s.render_distance << "\n"
-    << "# Enemies: peaceful (none), easy (fewer, weaker, slower) or normal.\n"
+    << "# Enemies: peaceful (none), easy (fewer, weaker, slower), normal or hard\n"
+    << "# (more, tougher). On normal and hard, health only comes back when fed.\n"
     << "difficulty=" << difficultyName(s.difficulty) << "\n"
     << "\n"
     << "# ─── Multiplayer ─────────────────────────────────────────\n"
@@ -173,7 +174,7 @@ void loadServerProperties(const std::string &path) {
     else if (k == "server-port")       applyInt(k, v, g_settings.server_port);
     else if (k == "difficulty") {
       if (auto d = parseDifficulty(v)) g_settings.difficulty = *d;
-      else std::cerr << "[config] 'difficulty': expected peaceful/easy/normal, got '"
+      else std::cerr << "[config] 'difficulty': expected peaceful/easy/normal/hard, got '"
                      << v << "' — keeping default\n";
     }
     else if (k == "fullscreen")        applyBool(k, v, g_settings.fullscreen);
