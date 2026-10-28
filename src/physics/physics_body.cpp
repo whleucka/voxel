@@ -10,7 +10,7 @@ bool isSolidAt(const World *world, int bx, int by, int bz) {
   if (!world) return false;
   if (by < 0 || by >= kChunkHeight) return false;
   BlockType block = world->getBlockAt(glm::vec3(bx + 0.5f, by + 0.5f, bz + 0.5f));
-  return block != BlockType::AIR && !isLiquid(block);
+  return blocksMovement(block);
 }
 
 } // namespace

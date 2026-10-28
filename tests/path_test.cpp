@@ -1,6 +1,6 @@
 #include "doctest/doctest.h"
 #include "physics/path.hpp"
-#include "block/block_type.hpp"
+#include "block/door.hpp"
 #include "test_util.hpp"
 #include "world/world.hpp"
 #include <algorithm>
@@ -152,4 +152,25 @@ TEST_CASE("mid-air endpoints snap to the ground below") {
   auto p = r.path({2, kBase + 2, 8}, {6, kBase + 3, 8}); // a jumping player
   REQUIRE(p);
   CHECK(p->back() == glm::ivec3(6, kBase + 1, 8));
+}
+
+TEST_CASE("creatures path through an open door but not a closed one") {
+  for (bool open : {false, true}) {
+    CAPTURE(open);
+    PathRig r;
+    r.floor({1, 0, 1}, {14, 0, 14});
+    // A wall across x = 8 the whole way, with a door in it at z = 4.
+    fill(r.world, {8, kBase + 1, 1}, {8, kBase + 3, 14}, BlockType::STONE);
+    fill(r.world, {8, kBase + 1, 4}, {8, kBase + 1, 4}, doorBlock(false, DoorFacing::East, open));
+    fill(r.world, {8, kBase + 2, 4}, {8, kBase + 2, 4}, doorBlock(true, DoorFacing::East, open));
+    glm::ivec3 from{4, kBase + 1, 4}, to{12, kBase + 1, 4};
+    auto p = r.path(from, to);
+    if (!open) {
+      CHECK_FALSE(p);
+      continue;
+    }
+    REQUIRE(p);
+    checkSteps(from, *p);
+    CHECK(std::find(p->begin(), p->end(), glm::ivec3(8, kBase + 1, 4)) != p->end());
+  }
 }

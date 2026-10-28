@@ -4,6 +4,7 @@
 // The numbers were recorded from the original Player implementation.
 #include "doctest/doctest.h"
 #include <cmath>
+#include "block/door.hpp"
 #include "player/player.hpp"
 #include "test_util.hpp"
 #include "world/world.hpp"
@@ -244,4 +245,20 @@ TEST_CASE("a player over ground that hasn't loaded yet holds still") {
   world.loadChunkSync(0, 0); // once it's there, gravity takes over
   steps(p, world, 10);
   CHECK(p.getPosition().y < kBase + 6.0f);
+}
+
+TEST_CASE("a closed door stops you like a wall; an open one lets you through") {
+  for (bool open : {false, true}) {
+    CAPTURE(open);
+    Rig r;
+    r.set(8, kBase + 1, 6, doorBlock(false, DoorFacing::North, open));
+    r.set(8, kBase + 2, 6, doorBlock(true, DoorFacing::North, open));
+    Player p({8.5f, kBase + 1.0f, 9.5f});
+    steps(p, r.world, 15); // settle
+    steps(p, r.world, 120, forward());
+    if (open)
+      CHECK(p.getPosition().z < 6.0f); // walked through the doorway
+    else
+      CHECK(p.getPosition().z > 7.0f); // stopped at the door's cell
+  }
 }

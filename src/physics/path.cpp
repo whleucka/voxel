@@ -1,5 +1,5 @@
 #include "physics/path.hpp"
-#include "block/block_type.hpp"
+#include "block/door.hpp"
 #include "world/world.hpp"
 #include <algorithm>
 #include <cmath>
@@ -10,8 +10,10 @@
 
 namespace {
 
+// Air, or an open door; a closed one is a wall.
 bool clear(const World &world, glm::ivec3 c) {
-  return world.getBlockAt(glm::vec3(c) + 0.5f) == BlockType::AIR;
+  BlockType b = world.getBlockAt(glm::vec3(c) + 0.5f);
+  return b == BlockType::AIR || (isDoor(b) && doorOpen(b));
 }
 
 bool bodyClear(const World &world, glm::ivec3 c, int height) {

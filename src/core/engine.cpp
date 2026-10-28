@@ -597,7 +597,7 @@ void Engine::renderCrosshair() {
   {
     glm::vec3 eyePos = player->getEyePosition();
     BlockType eyeBlock = world().getBlockAt(eyePos);
-    if (eyeBlock != BlockType::AIR && !isLiquid(eyeBlock)) {
+    if (blocksMovement(eyeBlock)) {
       ImDrawList* overlay = ImGui::GetBackgroundDrawList();
       overlay->AddRectFilled(ImVec2(0, 0), ImVec2((float)win_width, (float)win_height),
                              IM_COL32(0, 0, 0, 200));

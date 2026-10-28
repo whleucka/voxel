@@ -638,8 +638,7 @@ BlockType World::getBlockAt(const glm::vec3& worldPos) const {
 
 bool World::isSolidBlock(int bx, int by, int bz) const {
   if (by < 0 || by >= kChunkHeight) return false;
-  BlockType block = getBlockAt(glm::vec3(bx + 0.5f, by + 0.5f, bz + 0.5f));
-  return block != BlockType::AIR && !isLiquid(block);
+  return blocksMovement(getBlockAt(glm::vec3(bx + 0.5f, by + 0.5f, bz + 0.5f)));
 }
 
 uint8_t World::getSkyLightAt(const glm::ivec3 &p) const {
