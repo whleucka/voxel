@@ -119,7 +119,12 @@ TEST_CASE("the four animals are friendly, sized and fed") {
     CHECK(d.max_health == 0); // can't be hit
     CHECK(d.walk_speed > 0.0f);
     CHECK(d.brain);
-    CHECK(itemDef(d.animal->favourite).places.has_value());
+    REQUIRE_FALSE(d.animal->eats.empty());
+    // Food is something a survival player can get: a block that drops itself.
+    for (ItemId food : d.animal->eats) {
+      REQUIRE(itemDef(food).places.has_value());
+      CHECK(dropFor(*itemDef(food).places) == food);
+    }
     CHECK(isValidItem(d.animal->product.id));
     CHECK_FALSE(d.animal->biomes.empty());
     CHECK_FALSE(d.animal->ground.empty());

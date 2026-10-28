@@ -93,7 +93,11 @@ EntityTypeDef makeWoolly() {
       {{0.06f, 0.72f, -0.69f}, {0.07f, 0.07f, 0.02f}, {1, 1, 1}},
   };
   addLegs(d.model, 0.36f, -0.32f, 0.38f, {0.18f, 0.32f, 0.18f}, face);
-  d.animal = AnimalDef{itemForBlock(BlockType::GRASS), {ItemId::WOOL, 1},
+  // Any leaves: whatever tree is nearest. (Not grass: breaking grass gives
+  // dirt, so survival players never have any.)
+  d.animal = AnimalDef{{itemForBlock(BlockType::OAK_LEAF), itemForBlock(BlockType::PINE_LEAF),
+                        itemForBlock(BlockType::PALM_LEAF), itemForBlock(BlockType::CHERRY_LEAF)},
+                       {ItemId::WOOL, 1},
                        {BiomeType::MOUNTAIN, BiomeType::PLAINS},
                        {BlockType::GRASS, BlockType::SNOW, BlockType::SNOW_DIRT}};
   return d;
@@ -114,7 +118,7 @@ EntityTypeDef makeBunny() {
       {{0.04f, 0.31f, -0.34f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},
   };
   addLegs(d.model, 0.15f, -0.13f, 0.20f, {0.09f, 0.10f, 0.12f}, fur);
-  d.animal = AnimalDef{itemForBlock(BlockType::CHERRY_LEAF), {ItemId::BERRIES, 1},
+  d.animal = AnimalDef{{itemForBlock(BlockType::CHERRY_LEAF)}, {ItemId::BERRIES, 1},
                        {BiomeType::PLAINS, BiomeType::CHERRY},
                        {BlockType::GRASS}};
   return d;
@@ -132,7 +136,7 @@ EntityTypeDef makeShellTurtle() {
       {{0.03f, 0.24f, -0.59f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},
   };
   addLegs(d.model, 0.42f, -0.30f, 0.32f, {0.16f, 0.12f, 0.16f}, skin);
-  d.animal = AnimalDef{itemForBlock(BlockType::PALM_LEAF), {ItemId::SEA_SHELL, 1},
+  d.animal = AnimalDef{{itemForBlock(BlockType::PALM_LEAF)}, {ItemId::SEA_SHELL, 1},
                        {BiomeType::TROPICAL}, {BlockType::SAND}};
   return d;
 }
@@ -156,7 +160,7 @@ EntityTypeDef makeBlossomDeer() {
       {{0.05f, 1.33f, -0.79f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},
   };
   addLegs(d.model, 0.26f, -0.40f, 0.40f, {0.12f, 0.70f, 0.12f}, leg);
-  d.animal = AnimalDef{itemForBlock(BlockType::OAK_LEAF), {ItemId::SWEET_PETALS, 1},
+  d.animal = AnimalDef{{itemForBlock(BlockType::OAK_LEAF)}, {ItemId::SWEET_PETALS, 1},
                        {BiomeType::CHERRY}, {BlockType::GRASS}};
   return d;
 }

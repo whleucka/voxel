@@ -50,7 +50,7 @@ struct SelectSlot { int slot = 0; };
 struct Save {};
 struct SetTimeOfDay { float seconds = 0.0f; }; // debug panel
 struct GiveItem { ItemId id = ItemId::NONE; uint16_t count = 0; }; // debug panel
-// Right-click on an entity: feed an animal its favourite (held) block.
+// Right-click on an entity: feed an animal the (held) block it eats.
 struct InteractEntity { EntityId id = 0; };
 // Eat one of the held food item.
 struct EatItem {};
