@@ -233,6 +233,53 @@ EntityTypeDef makeCaveGrumble() {
   return d;
 }
 
+// Zombies and mummies (Alex's idea): player-sized walkers with their arms
+// held out in front. Legs swing; arms are fixed.
+void addWalkerBody(std::vector<ModelBox> &m, glm::vec3 skin, glm::vec3 top,
+                   glm::vec3 legs, glm::vec3 eye) {
+  m.push_back({{-0.25f, 1.30f, -0.25f}, {0.50f, 0.50f, 0.50f}, skin});          // head
+  m.push_back({{-0.17f, 1.56f, -0.26f}, {0.10f, 0.07f, 0.02f}, eye, 0, true});  // eyes
+  m.push_back({{0.07f, 1.56f, -0.26f}, {0.10f, 0.07f, 0.02f}, eye, 0, true});
+  m.push_back({{-0.25f, 0.70f, -0.13f}, {0.50f, 0.60f, 0.26f}, top});           // body
+  m.push_back({{-0.37f, 1.12f, -0.68f}, {0.12f, 0.16f, 0.56f}, top});           // arms out
+  m.push_back({{0.25f, 1.12f, -0.68f}, {0.12f, 0.16f, 0.56f}, top});
+  m.push_back({{-0.37f, 1.12f, -0.80f}, {0.12f, 0.16f, 0.12f}, skin});          // hands
+  m.push_back({{0.25f, 1.12f, -0.80f}, {0.12f, 0.16f, 0.12f}, skin});
+  m.push_back({{-0.23f, 0.00f, -0.11f}, {0.22f, 0.70f, 0.22f}, legs, +1});      // legs
+  m.push_back({{0.01f, 0.00f, -0.11f}, {0.22f, 0.70f, 0.22f}, legs, -1});
+}
+
+EntityTypeDef makeZombie() {
+  const glm::vec3 skin{0.47f, 0.62f, 0.45f}, shirt{0.26f, 0.42f, 0.66f},
+      trousers{0.22f, 0.20f, 0.30f}, eye{0.75f, 1.00f, 0.65f};
+  EntityTypeDef d{"Zombie", 0.3f, 1.8f, 10, 0, 2.2f, {}, makeChaser,
+                  {glowstone(1)}, std::nullopt};
+  addWalkerBody(d.model, skin, shirt, trousers, eye);
+  d.model.push_back({{-0.10f, 0.78f, -0.14f}, {0.16f, 0.14f, 0.02f}, skin});     // torn shirt
+  d.model.push_back({{0.08f, 1.04f, -0.14f}, {0.10f, 0.10f, 0.02f}, skin});
+  d.chance_drops = {kSometimesCoal, {{ItemId::CARROT, 1}, 0.25f}};
+  d.enemy = EnemyDef{/*damage=*/2, /*surface=*/true, /*vanish_at_dawn=*/true,
+                     {BiomeType::PLAINS, BiomeType::MOUNTAIN, BiomeType::CHERRY,
+                      BiomeType::TROPICAL}};
+  return d;
+}
+
+EntityTypeDef makeMummy() {
+  const glm::vec3 wrap{0.90f, 0.85f, 0.70f}, band{0.70f, 0.63f, 0.48f},
+      eye{1.00f, 0.70f, 0.20f};
+  EntityTypeDef d{"Mummy", 0.3f, 1.8f, 12, 0, 1.8f, {}, makeChaser,
+                  {glowstone(1)}, std::nullopt};
+  addWalkerBody(d.model, wrap, wrap, wrap, eye);
+  d.model.push_back({{-0.26f, 1.42f, -0.26f}, {0.52f, 0.06f, 0.52f}, band});     // wrap bands
+  d.model.push_back({{-0.26f, 0.92f, -0.14f}, {0.52f, 0.06f, 0.28f}, band});
+  d.model.push_back({{-0.26f, 0.30f, -0.12f}, {0.50f, 0.06f, 0.24f}, band});
+  d.model.push_back({{0.10f, 0.40f, 0.13f}, {0.08f, 0.40f, 0.02f}, wrap});       // trailing strip
+  d.chance_drops = {kSometimesCoal, {{ItemId::WOOL, 1}, 0.5f}};
+  d.enemy = EnemyDef{/*damage=*/2, /*surface=*/true, /*vanish_at_dawn=*/false,
+                     {BiomeType::DESERT}};
+  return d;
+}
+
 // ─── Fish ──────────────────────────────────────────────────────────────
 // Small, facing -Z, with a tail that wags while swimming. Spots are on both
 // flanks; glowing ones are drawn unlit.
@@ -293,6 +340,8 @@ const EntityTypeDef kBobber{
 const EntityTypeDef kGloomling = makeGloomling();
 const EntityTypeDef kThornCrawler = makeThornCrawler();
 const EntityTypeDef kCaveGrumble = makeCaveGrumble();
+const EntityTypeDef kZombie = makeZombie();
+const EntityTypeDef kMummy = makeMummy();
 
 const EntityTypeDef kWoolly = makeWoolly();
 const EntityTypeDef kBunny = makeBunny();
@@ -315,7 +364,9 @@ bool isValidEntityKind(EntityKind kind) {
     case EntityKind::Pebblefish:
     case EntityKind::Sunfin:
     case EntityKind::Glowfin:
-    case EntityKind::Bobber:       return true;
+    case EntityKind::Bobber:
+    case EntityKind::Zombie:
+    case EntityKind::Mummy:        return true;
   }
   return false;
 }
@@ -335,6 +386,8 @@ const EntityTypeDef &entityType(EntityKind kind) {
     case EntityKind::Sunfin:       return kSunfin;
     case EntityKind::Glowfin:      return kGlowfin;
     case EntityKind::Bobber:       return kBobber;
+    case EntityKind::Zombie:       return kZombie;
+    case EntityKind::Mummy:        return kMummy;
   }
   return kTestCreature;
 }

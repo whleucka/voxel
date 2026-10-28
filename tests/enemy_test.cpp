@@ -98,7 +98,7 @@ TEST_CASE("a chaser ignores players it isn't given as targets") {
 
 // ─── Enemy kinds ───────────────────────────────────────────────────────
 
-TEST_CASE("the three enemies match the enemy table") {
+TEST_CASE("the enemies match the enemy table") {
   struct Row {
     EntityKind kind;
     float width, height, speed;
@@ -110,6 +110,8 @@ TEST_CASE("the three enemies match the enemy table") {
       {EntityKind::Gloomling, 0.6f, 0.6f, 3.0f, 6, 1, true, true, 1},
       {EntityKind::ThornCrawler, 0.7f, 0.5f, 4.2f, 4, 2, true, true, 1},
       {EntityKind::CaveGrumble, 0.8f, 1.3f, 1.6f, 16, 2, false, false, 2},
+      {EntityKind::Zombie, 0.6f, 1.8f, 2.2f, 10, 2, true, true, 1},
+      {EntityKind::Mummy, 0.6f, 1.8f, 1.8f, 12, 2, true, false, 1},
   };
   REQUIRE(std::size(kEnemyKinds) == std::size(rows));
   for (const Row &row : rows) {
@@ -127,7 +129,7 @@ TEST_CASE("the three enemies match the enemy table") {
     CHECK(d.brain);
     REQUIRE(d.drops.size() == 1);
     CHECK(d.drops[0] == ItemStack{itemForBlock(BlockType::GLOWSTONE), row.glowstone});
-    REQUIRE(d.chance_drops.size() == 1);
+    REQUIRE(d.chance_drops.size() >= 1);
     CHECK(d.chance_drops[0].stack == ItemStack{ItemId::COAL, 1});
     CHECK(d.chance_drops[0].chance == doctest::Approx(0.5f));
 
@@ -137,6 +139,24 @@ TEST_CASE("the three enemies match the enemy table") {
   }
   CHECK(entityType(EntityKind::ThornCrawler).enemy->biomes.size() == 3);
   CHECK(entityType(EntityKind::Gloomling).enemy->biomes.empty());
+}
+
+TEST_CASE("zombies sometimes drop a carrot, mummies sometimes wool") {
+  const auto &zombie = entityType(EntityKind::Zombie).chance_drops;
+  REQUIRE(zombie.size() == 2);
+  CHECK(zombie[1].stack == ItemStack{ItemId::CARROT, 1});
+  CHECK(zombie[1].chance == doctest::Approx(0.25f));
+  const auto &mummy = entityType(EntityKind::Mummy).chance_drops;
+  REQUIRE(mummy.size() == 2);
+  CHECK(mummy[1].stack == ItemStack{ItemId::WOOL, 1});
+  CHECK(mummy[1].chance == doctest::Approx(0.5f));
+}
+
+TEST_CASE("zombies roam the grassy lands, mummies only the desert") {
+  using B = BiomeType;
+  CHECK(entityType(EntityKind::Zombie).enemy->biomes ==
+        std::vector<B>{B::PLAINS, B::MOUNTAIN, B::CHERRY, B::TROPICAL});
+  CHECK(entityType(EntityKind::Mummy).enemy->biomes == std::vector<B>{B::DESERT});
 }
 
 TEST_CASE("animals and other kinds aren't enemies") {
@@ -225,6 +245,24 @@ TEST_CASE("a thorn crawler spawns only in its biomes") {
     CHECK_FALSE(enemyCanSpawn(EntityKind::ThornCrawler, world, g, kMidnight));
     CHECK(enemyCanSpawn(EntityKind::Gloomling, world, g, kMidnight)); // anywhere
   }
+}
+
+TEST_CASE("a zombie spawns at night on grass, a mummy at night on desert sand") {
+  World world;
+  auto plains = findBiomeChunk(BiomeType::PLAINS);
+  auto desert = findBiomeChunk(BiomeType::DESERT);
+  REQUIRE(plains);
+  REQUIRE(desert);
+  glm::ivec3 grass = groundIn(world, *plains, BlockType::GRASS);
+  glm::ivec3 sand = groundIn(world, *desert, BlockType::SAND);
+
+  CHECK(enemyCanSpawn(EntityKind::Zombie, world, grass, kMidnight));
+  CHECK_FALSE(enemyCanSpawn(EntityKind::Zombie, world, grass, kNoon));
+  CHECK_FALSE(enemyCanSpawn(EntityKind::Zombie, world, sand, kMidnight));
+
+  CHECK(enemyCanSpawn(EntityKind::Mummy, world, sand, kMidnight));
+  CHECK_FALSE(enemyCanSpawn(EntityKind::Mummy, world, sand, kNoon));
+  CHECK_FALSE(enemyCanSpawn(EntityKind::Mummy, world, grass, kMidnight));
 }
 
 TEST_CASE("a cave grumble spawns only underground in the dark, at any time") {
