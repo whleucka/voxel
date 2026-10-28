@@ -94,6 +94,25 @@ struct ChestRecord {
 bool loadChests(const std::string &dir, std::vector<ChestRecord> &out);
 bool saveChests(const std::string &dir, std::span<const ChestRecord> chests);
 
+// farms.dat — how far each growing crop is from its next stage, and how long
+// each patch of farmland stays wet. The blocks themselves are edits; worlds
+// from before farming have none.
+struct CropRecord {
+  glm::ivec3 pos{0};
+  int32_t left_ms = 0; // until the next stage
+};
+struct SoilRecord {
+  glm::ivec3 pos{0};
+  int32_t wet_ms = 0;    // left before watered soil dries
+  bool by_water = false; // water close by keeps it wet
+};
+struct Farms {
+  std::vector<CropRecord> crops;
+  std::vector<SoilRecord> soil;
+};
+bool loadFarms(const std::string &dir, Farms &out);
+bool saveFarms(const std::string &dir, const Farms &farms);
+
 // players/<name>.dat — a guest's state, kept in the host's world so they carry
 // on where they left off. The host's own record stays in player.dat and
 // inventory.dat. Names must be 1-16 of [A-Za-z0-9_-] (they're file names).

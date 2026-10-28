@@ -93,13 +93,17 @@ struct UseDoor { glm::ivec3 pos{0}; };
 // and at night they lie down in it if they can. LeaveBed gets them up.
 struct UseBed { glm::ivec3 pos{0}; };
 struct LeaveBed {};
+// Right-click on the block at `pos` with a farming tool in hand: a hoe tills
+// it, seeds plant on it, and the watering can fills from water or splashes
+// the soil round it.
+struct UseItemOn { glm::ivec3 pos{0}; };
 
 using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SelectSlot, Save, SetTimeOfDay, GiveItem,
                              MoveItems, DropItem, AttackEntity,
                              SpawnDebugEntity, InteractEntity, EatItem, Craft,
                              OpenContainer, CloseContainer, StartBreak,
-                             CastLine, ReelIn, UseDoor, UseBed, LeaveBed>;
+                             CastLine, ReelIn, UseDoor, UseBed, LeaveBed, UseItemOn>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 

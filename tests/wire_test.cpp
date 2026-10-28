@@ -289,6 +289,7 @@ TEST_CASE("chest views round-trip with their kind and slots") {
 TEST_CASE("bed messages round-trip") {
   roundTrip(UseBed{{-4, 70, 12}});
   roundTrip(LeaveBed{});
+  roundTrip(UseItemOn{{-9, 71, 30}});
   roundTrip(SleepState{true, {-4, 70, 12}, 2, 3});
   roundTrip(Notice{"You can't sleep, monsters are nearby!"});
   auto back = std::get<SleepState>(*wire::decodeEvent(enc(Event{SleepState{true, {-4, 70, 12}, 2, 3}})));

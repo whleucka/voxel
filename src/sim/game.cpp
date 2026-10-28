@@ -1,6 +1,7 @@
 #include "sim/game.hpp"
 #include "block/block_data.hpp"
 #include "block/door.hpp"
+#include "item/farming.hpp"
 #include "item/mining.hpp"
 #include "item/tools.hpp"
 #include "entity/animals.hpp"
@@ -66,6 +67,12 @@ bool Game::load(const std::string &dir) {
   chests_.clear();
   if (std::vector<WorldSave::ChestRecord> cs; WorldSave::loadChests(dir, cs))
     for (const auto &r : cs) chests_[r.pos] = r.chest;
+  crops_.clear();
+  soil_.clear();
+  if (WorldSave::Farms farms; WorldSave::loadFarms(dir, farms)) {
+    for (const auto &r : farms.crops) crops_[r.pos] = {r.left_ms};
+    for (const auto &r : farms.soil) soil_[r.pos] = {r.wet_ms, r.by_water};
+  }
   WorldSave::loadGuests(dir, guest_records);
   return true;
 }
@@ -113,10 +120,14 @@ bool Game::save() {
   for (const auto &[pos, f] : furnaces_) furnaces.push_back({pos, f});
   std::vector<WorldSave::ChestRecord> chests;
   for (const auto &[pos, c] : chests_) chests.push_back({pos, c});
+  WorldSave::Farms farms;
+  for (const auto &[pos, c] : crops_) farms.crops.push_back({pos, c.left_ms});
+  for (const auto &[pos, s] : soil_) farms.soil.push_back({pos, s.wet_ms, s.by_water});
 
   if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits()) ||
       !WorldSave::saveFurnaces(save_dir, furnaces) ||
       !WorldSave::saveChests(save_dir, chests) ||
+      !WorldSave::saveFarms(save_dir, farms) ||
       (inv && !WorldSave::saveInventory(save_dir, *inv)) ||
       (discovered && !WorldSave::saveDiscovered(save_dir, *discovered)) || !guests_ok) {
     std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";
@@ -332,6 +343,7 @@ void Game::tick() {
   releaseAnimalProducts();
   burnEntities();
   tickFurnaces();
+  if (tick_count % (1000 / kTickMs) == 0) growFarms(1000);
   mergeDroppedItems();
   pickUpDroppedItems();
   tickSleep();
@@ -676,24 +688,24 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
   }
   popDoorAbove(cmd.pos);
   popBedAbove(cmd.pos);
+  popCropAbove(cmd.pos);
+  crops_.erase(cmd.pos);
+  soil_.erase(cmd.pos);
 
-  // Survival: collect the drop, if the tool was good enough for it.
+  // Survival: collect the drop, if the tool was good enough for it; a crop
+  // gives its harvest.
   if (!rules().block_drops) return;
-  if (auto drop = dropFor(target); drop && dropsWith(target, held)) {
+  if (isCrop(target)) {
+    for (const ItemStack &got : harvest(target, rng_)) giveOrDrop(*ps, got, cmd.pos);
+  } else if (auto drop = dropFor(target); drop && dropsWith(target, held)) {
     ItemStack got{*drop, 1};
     // Emerald pickaxe: a one in three chance of a second from ore.
     if (held == ItemId::EMERALD_PICKAXE && isOre(target) &&
         std::uniform_int_distribution<int>(0, 2)(rng_) == 0)
       got.count = 2;
-    ItemStack left = ps->inventory.add(got);
-    // No room: it pops out of the block instead.
-    if (!left.empty()) {
-      std::uniform_real_distribution<float> side(-1.0f, 1.0f);
-      dropItem(left, glm::vec3(cmd.pos) + glm::vec3(0.5f, 0.3f, 0.5f),
-               {side(rng_), 4.0f, side(rng_)}, kBreakDropDelayMs);
-    }
+    giveOrDrop(*ps, got, cmd.pos);
   }
-  if (rules().timed_mining) wearHeldTool(client, *ps);
+  if (rules().timed_mining && !isCrop(target)) wearHeldTool(client, *ps);
   sendInventory(client, *ps);
 }
 
@@ -751,6 +763,7 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
 
   world_.setBlockAt(cmd.pos, *block);
   broadcast(BlockChanged{cmd.pos, *block});
+  packSoilUnder(cmd.pos);
   if (*block == BlockType::FURNACE) furnaces_[cmd.pos] = Furnace{};
   if (*block == BlockType::CHEST) chests_[cmd.pos] = Chest{};
   if (rules().consume_blocks) {
@@ -791,6 +804,7 @@ void Game::placeDoor(Client &client, PlayerState &ps, glm::ivec3 pos) {
     return reject(client, "place: a door needs ground under it");
 
   setDoor(pos, doorBlock(false, doorFacingForYaw(ps.yaw), false));
+  packSoilUnder(pos);
   if (rules().consume_blocks) {
     ps.inventory.take(ps.selected_slot, 1);
     sendInventory(client, ps);
@@ -860,6 +874,8 @@ void Game::placeBed(Client &client, PlayerState &ps, glm::ivec3 pos) {
   world_.setBlockAt(head, head_half);
   broadcast(BlockChanged{pos, foot_half});
   broadcast(BlockChanged{head, head_half});
+  packSoilUnder(pos);
+  packSoilUnder(head);
   if (rules().consume_blocks) {
     ps.inventory.take(ps.selected_slot, 1);
     sendInventory(client, ps);
@@ -1035,6 +1051,191 @@ void Game::flushSleep() {
     ps->sleep_sent = now;
     client.link->deliver(now);
   }
+}
+
+// ─── Farming ───────────────────────────────────────────────────────────
+
+namespace {
+constexpr glm::ivec3 kUp{0, 1, 0};
+
+bool chunkLoaded(const World &world, glm::ivec3 pos) {
+  int cx = static_cast<int>(std::floor(static_cast<float>(pos.x) / kChunkWidth));
+  int cz = static_cast<int>(std::floor(static_cast<float>(pos.z) / kChunkDepth));
+  return world.getChunk(cx, cz) != nullptr;
+}
+} // namespace
+
+void Game::apply(Client &client, const UseItemOn &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead()) return;
+  if (ps->sleeping_in) return reject(client, "use: in bed");
+  if (cmd.pos.y < 0 || cmd.pos.y + 1 >= kChunkHeight)
+    return reject(client, "use: outside world height");
+  if (!inReach(*ps, cmd.pos)) return reject(client, "use: out of reach");
+  if (!chunkLoaded(world_, cmd.pos)) return reject(client, "use: chunk not loaded");
+
+  const ItemId held = ps->inventory.slot(ps->selected_slot).id;
+  if (toolOf(held).kind == ToolKind::Hoe) return till(client, *ps, cmd.pos);
+  if (cropForSeed(held)) return plant(client, *ps, cmd.pos);
+  if (held == ItemId::WATERING_CAN) return water(client, *ps, cmd.pos);
+  reject(client, "use: nothing to use");
+}
+
+void Game::till(Client &client, PlayerState &ps, glm::ivec3 pos) {
+  auto at = [&](glm::ivec3 p) { return world_.getBlockAt(glm::vec3(p) + 0.5f); };
+  const BlockType target = at(pos);
+  if (!tillable(target)) return reject(client, "till: only grass and dirt");
+  if (at(pos + kUp) != BlockType::AIR) return reject(client, "till: something's on it");
+
+  const Soil soil{0, nearWater(pos, at)};
+  const BlockType tilled = soil.by_water ? BlockType::FARMLAND_WET : BlockType::FARMLAND_DRY;
+  world_.setBlockAt(pos, tilled);
+  broadcast(BlockChanged{pos, tilled});
+  soil_[pos] = soil;
+  // Grass sometimes turns up a seed, which pops out of the soil.
+  if (rules().block_drops)
+    if (auto seed = seedFromTilling(target, rng_))
+      dropItem({*seed, 1}, glm::vec3(pos) + glm::vec3(0.5f, 1.1f, 0.5f), {0.0f, 3.0f, 0.0f},
+               kBreakDropDelayMs);
+  if (rules().timed_mining && wearHeldTool(client, ps)) sendInventory(client, ps);
+}
+
+void Game::plant(Client &client, PlayerState &ps, glm::ivec3 pos) {
+  auto at = [&](glm::ivec3 p) { return world_.getBlockAt(glm::vec3(p) + 0.5f); };
+  if (!isFarmland(at(pos))) return reject(client, "plant: seeds go on farmland");
+  const glm::ivec3 cell = pos + kUp;
+  if (at(cell) != BlockType::AIR) return reject(client, "plant: something's there");
+
+  const BlockType sprout = cropBlock(*cropForSeed(ps.inventory.slot(ps.selected_slot).id), 0);
+  world_.setBlockAt(cell, sprout);
+  broadcast(BlockChanged{cell, sprout});
+  crops_[cell] = {stageMs(rng_)};
+  if (rules().consume_blocks) {
+    ps.inventory.take(ps.selected_slot, 1);
+    sendInventory(client, ps);
+  }
+}
+
+void Game::water(Client &client, PlayerState &ps, glm::ivec3 pos) {
+  auto at = [&](glm::ivec3 p) { return world_.getBlockAt(glm::vec3(p) + 0.5f); };
+  ItemStack can = ps.inventory.slot(ps.selected_slot);
+  const BlockType target = at(pos);
+  // Dipped in water, it fills up.
+  if (target == BlockType::WATER) {
+    if (can.wear == 0) return;
+    can.wear = 0;
+    ps.inventory.set(ps.selected_slot, can);
+    return sendInventory(client, ps);
+  }
+  // Poured on a crop, it waters the soil the crop is in.
+  const glm::ivec3 centre = isCrop(target) ? pos - kUp : pos;
+  if (!isFarmland(at(centre))) return reject(client, "water: only on farmland");
+  if (rules().timed_mining && can.wear >= kCanSplashes)
+    return reject(client, "water: the can is empty");
+
+  for (int dz = -kSplashRadius; dz <= kSplashRadius; ++dz)
+    for (int dx = -kSplashRadius; dx <= kSplashRadius; ++dx) {
+      const glm::ivec3 p = centre + glm::ivec3(dx, 0, dz);
+      const BlockType b = at(p);
+      if (!isFarmland(b)) continue;
+      soil_[p].wet_ms = kWetMs;
+      if (b == BlockType::FARMLAND_DRY) setFarmBlock(p, BlockType::FARMLAND_WET);
+    }
+  // Survival: each splash uses some of the water; it empties, but never breaks.
+  if (rules().timed_mining) {
+    ++can.wear;
+    ps.inventory.set(ps.selected_slot, can);
+    sendInventory(client, ps);
+  }
+}
+
+void Game::growFarms(int ms) {
+  auto at = [&](glm::ivec3 p) { return world_.getBlockAt(glm::vec3(p) + 0.5f); };
+  // Soil first: what dries now stops what grows on it now.
+  for (auto it = soil_.begin(); it != soil_.end();) {
+    const glm::ivec3 pos = it->first;
+    Soil &soil = it->second;
+    const std::optional<BlockType> b = farmBlockAt(pos);
+    if (!b || !isFarmland(*b)) {
+      it = soil_.erase(it);
+      continue;
+    }
+    // Water can only be looked for where the world is loaded; elsewhere the
+    // soil keeps what it last knew.
+    if (chunkLoaded(world_, pos)) soil.by_water = nearWater(pos, at);
+    soil.wet_ms = std::max(0, soil.wet_ms - ms);
+    const BlockType want =
+        soil.by_water || soil.wet_ms > 0 ? BlockType::FARMLAND_WET : BlockType::FARMLAND_DRY;
+    if (*b != want) setFarmBlock(pos, want);
+    ++it;
+  }
+  for (auto it = crops_.begin(); it != crops_.end();) {
+    const glm::ivec3 pos = it->first;
+    const std::optional<BlockType> b = farmBlockAt(pos);
+    if (!b || !isCrop(*b) || cropRipe(*b)) {
+      it = crops_.erase(it);
+      continue;
+    }
+    // On dry soil it waits.
+    if (farmBlockAt(pos - kUp) != BlockType::FARMLAND_WET || (it->second.left_ms -= ms) > 0) {
+      ++it;
+      continue;
+    }
+    const BlockType next = cropBlock(cropKind(*b), cropStage(*b) + 1);
+    setFarmBlock(pos, next);
+    if (cropRipe(next)) {
+      it = crops_.erase(it);
+      continue;
+    }
+    it->second.left_ms += stageMs(rng_);
+    ++it;
+  }
+}
+
+std::optional<int> Game::cropTimeLeft(glm::ivec3 pos) const {
+  auto it = crops_.find(pos);
+  if (it == crops_.end()) return std::nullopt;
+  return it->second.left_ms;
+}
+
+std::optional<BlockType> Game::farmBlockAt(glm::ivec3 pos) const {
+  if (chunkLoaded(world_, pos)) return world_.getBlockAt(glm::vec3(pos) + 0.5f);
+  return world_.editAt(pos);
+}
+
+void Game::setFarmBlock(glm::ivec3 pos, BlockType type) {
+  world_.applyEdit(pos, type); // kept for when the chunk loads, if it isn't
+  broadcast(BlockChanged{pos, type});
+}
+
+void Game::popCropAbove(glm::ivec3 below) {
+  const glm::ivec3 cell = below + kUp;
+  const BlockType b = world_.getBlockAt(glm::vec3(cell) + 0.5f);
+  if (!isCrop(b)) return;
+  world_.setBlockAt(cell, BlockType::AIR);
+  broadcast(BlockChanged{cell, BlockType::AIR});
+  crops_.erase(cell);
+  if (rules().block_drops)
+    dropItem({seedFor(cropKind(b)), 1}, glm::vec3(cell) + glm::vec3(0.5f, 0.3f, 0.5f),
+             {0.0f, 3.0f, 0.0f}, kBreakDropDelayMs);
+}
+
+void Game::packSoilUnder(glm::ivec3 placed) {
+  const glm::ivec3 below = placed - kUp;
+  if (!isFarmland(world_.getBlockAt(glm::vec3(below) + 0.5f))) return;
+  if (!blocksMovement(world_.getBlockAt(glm::vec3(placed) + 0.5f))) return;
+  world_.setBlockAt(below, BlockType::DIRT);
+  broadcast(BlockChanged{below, BlockType::DIRT});
+  soil_.erase(below);
+}
+
+void Game::giveOrDrop(PlayerState &ps, ItemStack stack, glm::ivec3 pos) {
+  ItemStack left = ps.inventory.add(stack);
+  // No room: it pops out of the block instead.
+  if (left.empty()) return;
+  std::uniform_real_distribution<float> side(-1.0f, 1.0f);
+  dropItem(left, glm::vec3(pos) + glm::vec3(0.5f, 0.3f, 0.5f), {side(rng_), 4.0f, side(rng_)},
+           kBreakDropDelayMs);
 }
 
 void Game::apply(Client &client, const SetTimeOfDay &cmd) {

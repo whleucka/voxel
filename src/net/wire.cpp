@@ -176,6 +176,7 @@ template <class IO> void fields(IO &, ReelIn &) {}
 template <class IO> void fields(IO &io, UseDoor &m) { io(m.pos); }
 template <class IO> void fields(IO &io, UseBed &m) { io(m.pos); }
 template <class IO> void fields(IO &, LeaveBed &) {}
+template <class IO> void fields(IO &io, UseItemOn &m) { io(m.pos); }
 
 // Events
 template <class IO> void fields(IO &io, Joined &m) {
