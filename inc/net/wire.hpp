@@ -16,7 +16,7 @@
 //          values; strings are u16 length + bytes.
 namespace wire {
 
-constexpr uint16_t kProtocolVersion = 10; // 10: doors (UseDoor)
+constexpr uint16_t kProtocolVersion = 11; // 11: worldgen v5 (cave rooms)
 constexpr uint32_t kMaxFrame = 4 * 1024 * 1024;
 
 std::vector<uint8_t> encode(const Command &cmd);

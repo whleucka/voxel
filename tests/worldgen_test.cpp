@@ -10,6 +10,7 @@
 #include "core/seed.hpp"
 #include "core/settings.hpp"
 #include <algorithm>
+#include <map>
 #include <thread>
 #include <vector>
 
@@ -127,6 +128,21 @@ TEST_CASE("version 3 terrain is block-for-block what it was before gem pockets")
       {{-20, 14}, 4628817095330574992ull},   {{37, 2}, 15918804729390741490ull},
       {{-8, -40}, 2036547142840156546ull},   {{90, 61}, 3652691629932540463ull},
       {{-40, -40}, 11627408748525792241ull}, {{20, 20}, 7543263588685442860ull},
+  };
+  for (const auto &[pos, hash] : golden) {
+    CAPTURE(pos.x);
+    CAPTURE(pos.y);
+    CHECK(fnv1a(generate(pos.x, pos.y)) == hash);
+  }
+}
+
+TEST_CASE("version 4 terrain is block-for-block what it was before cave rooms") {
+  SeededWorld world(12345, worldgen::kPockets);
+  const std::pair<glm::ivec2, uint64_t> golden[] = {
+      {{0, 0}, 15990417736575297952ull},     {{5, -3}, 17682583551023169804ull},
+      {{-20, 14}, 8197031622458482333ull},   {{37, 2}, 2454193737634482255ull},
+      {{-8, -40}, 11389343274010357360ull},  {{90, 61}, 18059106823071587643ull},
+      {{-40, -40}, 2056980498654124889ull},  {{20, 20}, 7434592498413195312ull},
   };
   for (const auto &[pos, hash] : golden) {
     CAPTURE(pos.x);
@@ -429,4 +445,60 @@ TEST_CASE("version 4 gems come in rare, deep pockets of one kind") {
   for (glm::ivec2 pos : kSample)
     for (BlockType b : generate(pos.x, pos.y)) gems_v4 += isGem(b);
   CHECK(gems_v4 * 3 < gems_v3);       // far fewer than version 3
+}
+
+// ─── Rooms (version 5) ─────────────────────────────────────────────────
+
+TEST_CASE("version 5 caves open into rooms, joined to the tunnels") {
+  SeededWorld world(12345, worldgen::kRooms);
+  int rooms = 0, squares = 0;
+  for (int sx = -4; sx < 4; ++sx)
+    for (int sz = -4; sz < 4; ++sz) {
+      ++squares;
+      std::optional<caves::Room> room = caves::roomIn(sx, sz);
+      if (!room) continue;
+      ++rooms;
+      CAPTURE(sx);
+      CAPTURE(sz);
+      // Inside its own square, and grown from a tunnel.
+      CHECK(room->centre.x >= sx * caves::kRoomCell);
+      CHECK(room->centre.x < (sx + 1) * caves::kRoomCell);
+      CHECK(room->centre.z >= sz * caves::kRoomCell);
+      CHECK(room->centre.z < (sz + 1) * caves::kRoomCell);
+      CHECK(caves::isTunnel(room->centre));
+      CHECK(room->radius.x >= caves::kRoomMinRadius);
+      CHECK(room->radius.x <= caves::kRoomMaxRadius);
+      CHECK(room->radius.y >= caves::kRoomMinHalfHeight);
+      CHECK(room->radius.y <= caves::kRoomMaxHalfHeight);
+      CHECK(room->centre.y > caves::kFloor);
+      if (rooms > 3) continue; // generating chunks is slow: check a few
+      // Its middle is open in the generated world, across chunk borders.
+      int open = 0, cells = 0;
+      const glm::ivec3 half = glm::ivec3(room->radius / 2.0f);
+      std::map<glm::ivec2, std::vector<BlockType>, bool (*)(glm::ivec2, glm::ivec2)> chunks(
+          [](glm::ivec2 a, glm::ivec2 b) { return a.x != b.x ? a.x < b.x : a.y < b.y; });
+      for (int x = -half.x; x <= half.x; ++x)
+        for (int z = -half.z; z <= half.z; ++z)
+          for (int y = -1; y <= 1; ++y) {
+            glm::ivec3 w = room->centre + glm::ivec3(x, y, z);
+            glm::ivec2 c(w.x >> 4, w.z >> 4);
+            auto it = chunks.find(c);
+            if (it == chunks.end()) it = chunks.emplace(c, generate(c.x, c.y)).first;
+            BlockType b = it->second[(w.x & 15) + kChunkWidth * ((w.z & 15) + kChunkDepth * w.y)];
+            ++cells;
+            open += b == BlockType::AIR || b == BlockType::WATER || b == BlockType::GLOW_CRYSTAL;
+          }
+      CHECK(open * 10 >= cells * 9);
+    }
+  CHECK(rooms * 8 >= squares); // common enough to find
+  CHECK(rooms < squares);      // but not everywhere
+  // The same answer again, whatever was cached in between.
+  std::optional<caves::Room> first = caves::roomIn(1, 1);
+  {
+    SeededWorld other(999, worldgen::kRooms);
+    caves::roomIn(1, 1);
+  }
+  std::optional<caves::Room> again = caves::roomIn(1, 1);
+  REQUIRE(first.has_value() == again.has_value());
+  if (first) CHECK(first->centre == again->centre);
 }

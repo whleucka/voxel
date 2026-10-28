@@ -9,6 +9,7 @@
 #include <array>
 #include <glm/gtc/noise.hpp>
 #include <random>
+#include <unordered_map>
 
 namespace caves {
 
@@ -137,7 +138,74 @@ BlockType wallOre(std::mt19937 &rng, bool deep) {
   return BlockType::IRON_ORE;
 }
 
+// The floor sits closer to the centre than the roof, so a room is a flattish
+// dome rather than a ball, and its edge wobbles so it doesn't look turned.
+constexpr float kRoomFloor = 0.55f; // of the height above the centre
+constexpr float kRoomWobble = 0.25f;
+constexpr float kRoomWobbleFrequency = 0.18f;
+constexpr int kRoomTries = 96; // spots tried for a tunnel to grow from
+
 } // namespace
+
+namespace {
+
+std::optional<Room> findRoom(int sx, int sz) {
+  uint64_t h = worldgen::mix(g_settings.world_seed ^ 0x2003ull);
+  h = worldgen::mix(h ^ static_cast<uint32_t>(sx));
+  h = worldgen::mix(h ^ static_cast<uint32_t>(sz));
+  std::mt19937 rng(static_cast<uint32_t>(h ^ (h >> 32)));
+  if (rng() % 100 >= kRoomOdds) return std::nullopt;
+
+  Room room;
+  room.radius = {kRoomMinRadius + float(rng() % (kRoomMaxRadius - kRoomMinRadius + 1)),
+                 kRoomMinHalfHeight + float(rng() % (kRoomMaxHalfHeight - kRoomMinHalfHeight + 1)),
+                 kRoomMinRadius + float(rng() % (kRoomMaxRadius - kRoomMinRadius + 1))};
+  // Grow it from a tunnel, so it joins the caves: try a few spots, keeping
+  // clear of the square's edge so neighbouring rooms don't merge.
+  const int margin = kRoomMaxRadius + 2;
+  for (int tries = 0; tries < kRoomTries; ++tries) {
+    glm::ivec3 p{sx * kRoomCell + margin + int(rng() % (kRoomCell - 2 * margin)),
+                 kFloor + int(room.radius.y * kRoomFloor) + 1 + int(rng() % (kSeaLevel - kFloor)),
+                 sz * kRoomCell + margin + int(rng() % (kRoomCell - 2 * margin))};
+    if (isTunnel(p)) {
+      room.centre = p;
+      return room;
+    }
+  }
+  return std::nullopt;
+}
+
+} // namespace
+
+// Every chunk near a square asks for its room, so each worker thread keeps
+// the answers (for this seed) rather than searching for tunnels again.
+std::optional<Room> roomIn(int sx, int sz) {
+  struct Cache {
+    uint32_t seed = 0;
+    glm::vec2 offset{0.0f};
+    std::unordered_map<int64_t, std::optional<Room>> rooms;
+  };
+  thread_local Cache cache;
+  if (cache.seed != g_settings.world_seed || cache.offset != g_settings.noise_offset ||
+      cache.rooms.size() > 4096) {
+    cache = {g_settings.world_seed, g_settings.noise_offset, {}};
+  }
+  const int64_t key = (static_cast<int64_t>(sx) << 32) ^ static_cast<uint32_t>(sz);
+  auto it = cache.rooms.find(key);
+  if (it == cache.rooms.end()) it = cache.rooms.emplace(key, findRoom(sx, sz)).first;
+  return it->second;
+}
+
+bool inRoom(const Room &room, glm::ivec3 w) {
+  glm::vec3 d = glm::vec3(w - room.centre);
+  glm::vec3 r = room.radius;
+  if (d.y < 0) r.y *= kRoomFloor;
+  float wobble = 1.0f + kRoomWobble * glm::perlin((glm::vec3(w) + glm::vec3(g_settings.noise_offset.x, 0.0f,
+                                                                               g_settings.noise_offset.y)) *
+                                                  kRoomWobbleFrequency);
+  glm::vec3 n = d / r;
+  return glm::dot(n, n) < wobble * wobble;
+}
 
 bool isTunnel(glm::ivec3 w) {
   int gx = floorDiv(w.x, kStep), gy = floorDiv(w.y, kStep), gz = floorDiv(w.z, kStep);
@@ -151,6 +219,30 @@ bool isTunnel(glm::ivec3 w) {
                    float(w.z - gz * kStep) / kStep);
   return tunnel(f, columnAt(w.x, w.z, directHeight, nullptr), w.y);
 }
+
+namespace {
+
+// The rooms whose squares reach into this chunk, carved under each column's
+// roof, like the tunnels.
+void carveRooms(Chunk &chunk, const std::array<Column, kChunkWidth * kChunkDepth> &columns) {
+  const int wx0 = chunk.getPos().x * kChunkWidth;
+  const int wz0 = chunk.getPos().y * kChunkDepth;
+  for (int sx = floorDiv(wx0, kRoomCell) - 1; sx <= floorDiv(wx0 + kChunkWidth - 1, kRoomCell) + 1; ++sx)
+    for (int sz = floorDiv(wz0, kRoomCell) - 1; sz <= floorDiv(wz0 + kChunkDepth - 1, kRoomCell) + 1; ++sz) {
+      std::optional<Room> room = roomIn(sx, sz);
+      if (!room) continue;
+      const glm::ivec3 reach = glm::ivec3(glm::ceil(room->radius * (1.0f + kRoomWobble))) + 1;
+      const glm::ivec3 lo = room->centre - reach, hi = room->centre + reach;
+      for (int z = std::max(lo.z, wz0); z <= std::min(hi.z, wz0 + kChunkDepth - 1); ++z)
+        for (int x = std::max(lo.x, wx0); x <= std::min(hi.x, wx0 + kChunkWidth - 1); ++x) {
+          const Column &c = columns[(x - wx0) + kChunkWidth * (z - wz0)];
+          for (int y = std::max(lo.y, kFloor); y <= std::min(hi.y, c.ceiling - 1); ++y)
+            if (inRoom(*room, {x, y, z})) chunk.at(x - wx0, y, z - wz0) = BlockType::AIR;
+        }
+    }
+}
+
+} // namespace
 
 void carve(Chunk &chunk, Surfaces &surfaces) {
   const int wx0 = chunk.getPos().x * kChunkWidth;
@@ -170,6 +262,7 @@ void carve(Chunk &chunk, Surfaces &surfaces) {
           columnAt(wx0 + x, wz0 + z, cachedHeight, &heights);
       any |= c.radius > 0.0f && c.ceiling > kFloor;
     }
+  if (g_settings.worldgen >= worldgen::kRooms) carveRooms(chunk, columns);
   if (!any) return; // outside every cave system: skip the 3D noise
 
   static_assert(kChunkWidth % kStep == 0 && kChunkHeight % kStep == 0);
