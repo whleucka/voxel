@@ -2,6 +2,7 @@
 #include "block/block_type.hpp"
 #include "test_util.hpp"
 #include "world/world_save.hpp"
+#include <cmath>
 #include <fstream>
 
 TEST_CASE("level, player and edits round-trip through save/load") {
@@ -283,4 +284,120 @@ TEST_CASE("chests.dat round-trips every slot, with wear; no file, no chests") {
   CHECK(out[0].chest == a.chest);
   CHECK(out[0].chest[kChestSlots - 1].wear == 37);
   CHECK(out[1].chest == Chest{});
+}
+
+// ─── Damaged files and failed writes ───────────────────────────────────
+
+namespace {
+
+void writeRawEdits(const std::filesystem::path &dir, int32_t cx, int32_t cz,
+                   uint32_t claimed, const std::vector<std::pair<uint32_t, uint8_t>> &edits) {
+  std::ofstream o(dir / "edits.dat", std::ios::binary);
+  uint32_t version = 1, chunks = 1;
+  o.write("VXED", 4);
+  o.write(reinterpret_cast<const char *>(&version), 4);
+  o.write(reinterpret_cast<const char *>(&chunks), 4);
+  o.write(reinterpret_cast<const char *>(&cx), 4);
+  o.write(reinterpret_cast<const char *>(&cz), 4);
+  o.write(reinterpret_cast<const char *>(&claimed), 4);
+  for (auto [idx, block] : edits) {
+    o.write(reinterpret_cast<const char *>(&idx), 4);
+    o.write(reinterpret_cast<const char *>(&block), 1);
+  }
+}
+
+std::string slurp(const std::filesystem::path &p) {
+  std::ifstream in(p, std::ios::binary);
+  return {std::istreambuf_iterator<char>(in), {}};
+}
+
+} // namespace
+
+TEST_CASE("a save that can't be written leaves the last good file in place") {
+  TempDir dir;
+  WorldEdits edits;
+  edits[{0, 0}][17] = 3;
+  REQUIRE(WorldSave::save(dir.path.string(), {}, {}, edits));
+  std::string before = slurp(dir.path / "edits.dat");
+
+  // Something already in the way of the temp file: the write can't happen.
+  std::filesystem::create_directory(dir.path / "edits.dat.tmp");
+  WorldEdits more = edits;
+  more[{1, 1}][5] = 4;
+  CHECK_FALSE(WorldSave::save(dir.path.string(), {}, {}, more));
+  CHECK(slurp(dir.path / "edits.dat") == before);
+}
+
+TEST_CASE("a successful save leaves no temp files behind") {
+  TempDir dir;
+  REQUIRE(WorldSave::save(dir.path.string(), {}, {}, {}));
+  REQUIRE(WorldSave::saveInventory(dir.path.string(), std::vector<ItemStack>(40)));
+  REQUIRE(WorldSave::saveGuest(dir.path.string(), "guest", {}));
+  for (const auto &e : std::filesystem::recursive_directory_iterator(dir.path))
+    CHECK(e.path().extension() != ".tmp");
+}
+
+TEST_CASE("edits to blocks this build doesn't know, or outside the chunk, are dropped") {
+  TempDir dir;
+  const uint32_t outside = kChunkWidth * kChunkDepth * kChunkHeight;
+  writeRawEdits(dir.path, 2, -3, 3,
+                {{17, static_cast<uint8_t>(BlockType::STONE)},
+                 {18, static_cast<uint8_t>(kLastBlockType) + 1},
+                 {outside, static_cast<uint8_t>(BlockType::STONE)}});
+  WorldEdits loaded;
+  REQUIRE(WorldSave::loadEdits(dir.path.string(), loaded));
+  REQUIRE(loaded.count({2, -3}) == 1);
+  const ChunkEdits &ce = loaded[{2, -3}];
+  CHECK(ce.size() == 1);
+  CHECK(ce.at(17) == static_cast<uint8_t>(BlockType::STONE));
+}
+
+TEST_CASE("an edits.dat claiming more edits than a chunk holds fails without throwing") {
+  TempDir dir;
+  writeRawEdits(dir.path, 0, 0, 0xFFFFFFF0u, {{1, 1}});
+  WorldEdits loaded;
+  bool ok = true;
+  CHECK_NOTHROW(ok = WorldSave::loadEdits(dir.path.string(), loaded));
+  CHECK_FALSE(ok);
+}
+
+TEST_CASE("stacks bigger than the item allows load capped") {
+  TempDir dir;
+  writeRawInventory(dir.path, {{static_cast<uint16_t>(kDirt), 60000},
+                               {static_cast<uint16_t>(ItemId::IRON_PICKAXE), 9}});
+  std::vector<ItemStack> loaded;
+  REQUIRE(WorldSave::loadInventory(dir.path.string(), loaded));
+  CHECK(loaded[0] == ItemStack{kDirt, itemDef(kDirt).max_stack});
+  CHECK(loaded[1] == ItemStack{ItemId::IRON_PICKAXE, itemDef(ItemId::IRON_PICKAXE).max_stack});
+}
+
+TEST_CASE("a player.dat with a position that isn't a number fails to load") {
+  TempDir dir;
+  WorldSave::PlayerData pd;
+  pd.position = {std::nanf(""), 70.0f, 0.0f};
+  REQUIRE(WorldSave::save(dir.path.string(), {}, pd, {}));
+  WorldSave::PlayerData loaded;
+  CHECK_FALSE(WorldSave::loadPlayer(dir.path.string(), loaded));
+}
+
+TEST_CASE("setAside moves a file out of the way; a missing one is left be") {
+  TempDir dir;
+  std::ofstream(dir.path / "chests.dat") << "half a file";
+  WorldSave::setAside(dir.path.string(), "chests.dat");
+  CHECK_FALSE(std::filesystem::exists(dir.path / "chests.dat"));
+  CHECK(slurp(dir.path / "chests.dat.unreadable") == "half a file");
+
+  WorldSave::setAside(dir.path.string(), "farms.dat");
+  CHECK_FALSE(std::filesystem::exists(dir.path / "farms.dat.unreadable"));
+}
+
+TEST_CASE("an unreadable guest file is set aside, so their next save can't replace it") {
+  TempDir dir;
+  std::filesystem::create_directories(dir.path / "players");
+  std::ofstream(dir.path / "players" / "broken.dat") << "nope";
+  std::map<std::string, WorldSave::GuestRecord> loaded;
+  WorldSave::loadGuests(dir.path.string(), loaded);
+  CHECK(loaded.empty());
+  CHECK(std::filesystem::exists(dir.path / "players" / "broken.dat.unreadable"));
+  CHECK_FALSE(std::filesystem::exists(dir.path / "players" / "broken.dat"));
 }

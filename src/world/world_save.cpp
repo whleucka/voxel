@@ -1,10 +1,15 @@
 #include "world/world_save.hpp"
 
+#include "core/constants.hpp"
+#include "item/item.hpp"
 #include <cctype>
+#include <cmath>
 #include <cstring>
+#include <fcntl.h>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <unistd.h>
 
 namespace {
 
@@ -44,6 +49,47 @@ constexpr char kFurnaceMagic[4] = {'V', 'X', 'F', 'U'};
 constexpr char kChestMagic[4]   = {'V', 'X', 'C', 'H'};
 constexpr char kFarmMagic[4]    = {'V', 'X', 'F', 'A'};
 
+constexpr uint32_t kChunkVolume = kChunkWidth * kChunkDepth * kChunkHeight;
+
+// Writes a file whole or not at all: into <path>.tmp, flushed to disk, then
+// renamed over the old one. A crash or a full disk mid-save leaves the last
+// good file in place rather than half of a new one.
+template <class F> bool writeAtomic(const std::string &path, F &&write) {
+  namespace fs = std::filesystem;
+  const std::string tmp = path + ".tmp";
+  std::error_code ec;
+  fs::create_directories(fs::path(path).parent_path(), ec);
+  if (ec) return false;
+  bool ok;
+  {
+    std::ofstream o(tmp, std::ios::binary | std::ios::trunc);
+    if (!o) return false;
+    write(o);
+    o.close();
+    ok = static_cast<bool>(o);
+  }
+  if (ok) {
+    int fd = ::open(tmp.c_str(), O_RDONLY);
+    ok = fd >= 0 && ::fsync(fd) == 0;
+    if (fd >= 0) ::close(fd);
+  }
+  if (ok) fs::rename(tmp, path, ec);
+  if (!ok || ec) {
+    fs::remove(tmp, ec);
+    std::cerr << "[save] couldn't write '" << path << "'\n";
+    return false;
+  }
+  return true;
+}
+
+// A loaded stack as this build can hold it: unknown items as nothing, and no
+// more than the item stacks to.
+ItemStack loadedStack(uint16_t id, uint16_t count) {
+  ItemId item = static_cast<ItemId>(id);
+  if (!isValidItem(item) || count == 0) return {};
+  return {item, std::min(count, itemDef(item).max_stack)};
+}
+
 bool safeName(const std::string &name) {
   if (name.empty() || name.size() > 16) return false;
   for (char c : name)
@@ -61,9 +107,12 @@ void writePlayer(std::ostream &o, const WorldSave::PlayerData &p) {
   wr(o, p.fly_mode);
 }
 
+// Fails on a position or look that isn't a number, as the wire does.
 bool readPlayer(std::istream &in, WorldSave::PlayerData &p) {
   return rd(in, p.position.x) && rd(in, p.position.y) && rd(in, p.position.z) &&
-         rd(in, p.yaw) && rd(in, p.pitch) && rd(in, p.selected_slot) && rd(in, p.fly_mode);
+         rd(in, p.yaw) && rd(in, p.pitch) && rd(in, p.selected_slot) &&
+         rd(in, p.fly_mode) && std::isfinite(p.position.x) && std::isfinite(p.position.y) &&
+         std::isfinite(p.position.z) && std::isfinite(p.yaw) && std::isfinite(p.pitch);
 }
 
 // The respawn bed: a flag, then the foot cell if there is one.
@@ -98,8 +147,7 @@ bool readSlots(std::istream &in, std::vector<ItemStack> &out) {
   for (ItemStack &s : slots) {
     uint16_t id, count;
     if (!rd(in, id) || !rd(in, count)) return false;
-    ItemId item = static_cast<ItemId>(id);
-    if (isValidItem(item) && count > 0) s = {item, count};
+    s = loadedStack(id, count);
   }
   out = std::move(slots);
   return true;
@@ -147,9 +195,7 @@ void writeStack(std::ostream &o, const ItemStack &s) {
 bool readStack(std::istream &in, ItemStack &s) {
   uint16_t id = 0, count = 0;
   if (!rd(in, id) || !rd(in, count)) return false;
-  ItemId item = static_cast<ItemId>(id);
-  // Unknown items load as nothing rather than as something they aren't.
-  s = isValidItem(item) && count > 0 ? ItemStack{item, count} : ItemStack{};
+  s = loadedStack(id, count);
   return true;
 }
 
@@ -159,6 +205,18 @@ namespace WorldSave {
 
 std::string worldDir(const std::string &name) {
   return "saves/" + (name.empty() ? std::string("world") : name);
+}
+
+void setAside(const std::string &dir, const std::string &file) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path from = fs::path(dir) / file;
+  if (!fs::exists(from, ec)) return;
+  fs::path to = from;
+  to += ".unreadable";
+  fs::rename(from, to, ec);
+  if (ec) std::cerr << "[save] couldn't set aside " << from << ": " << ec.message() << "\n";
+  else std::cerr << "[save] " << from << " won't load; kept as " << to << "\n";
 }
 
 // ─── level.dat ──────────────────────────────────────────────────────────────
@@ -194,14 +252,16 @@ bool loadEdits(const std::string &dir, WorldEdits &out) {
   for (uint32_t c = 0; c < chunk_count; ++c) {
     int32_t cx, cz;
     uint32_t edit_count;
-    if (!rd(in, cx) || !rd(in, cz) || !rd(in, edit_count)) return false;
+    // A chunk can't hold more edits than it has blocks.
+    if (!rd(in, cx) || !rd(in, cz) || !rd(in, edit_count) || edit_count > kChunkVolume)
+      return false;
     ChunkEdits &ce = out[{cx, cz}];
-    ce.reserve(edit_count);
     for (uint32_t e = 0; e < edit_count; ++e) {
       uint32_t idx;
       uint8_t  block;
       if (!rd(in, idx) || !rd(in, block)) return false;
-      ce[idx] = block;
+      // Blocks from a newer build, or cells outside the chunk, are dropped.
+      if (idx < kChunkVolume && block <= static_cast<uint8_t>(kLastBlockType)) ce[idx] = block;
     }
   }
   return true;
@@ -210,56 +270,40 @@ bool loadEdits(const std::string &dir, WorldEdits &out) {
 // ─── level.dat (alone) ───────────────────────────────────────────────────────
 
 bool saveLevel(const std::string &dir, const LevelData &level) {
-  std::error_code ec;
-  std::filesystem::create_directories(dir, ec);
-  if (ec) return false;
-  std::ofstream o(dir + "/level.dat", std::ios::binary | std::ios::trunc);
-  if (!o) return false;
-  writeHeader(o, kLevelMagic);
-  wr(o, level.seed);
-  wr(o, level.noise_offset.x);
-  wr(o, level.noise_offset.y);
-  wr(o, level.time_of_day);
-  wr(o, static_cast<uint8_t>(level.mode));
-  wr(o, level.worldgen);
-  return static_cast<bool>(o);
+  return writeAtomic(dir + "/level.dat", [&](std::ostream &o) {
+    writeHeader(o, kLevelMagic);
+    wr(o, level.seed);
+    wr(o, level.noise_offset.x);
+    wr(o, level.noise_offset.y);
+    wr(o, level.time_of_day);
+    wr(o, static_cast<uint8_t>(level.mode));
+    wr(o, level.worldgen);
+  });
 }
 
 // ─── save ────────────────────────────────────────────────────────────────────
 bool save(const std::string &dir, const LevelData &level,
           const PlayerData &player, const WorldEdits &edits) {
-  std::error_code ec;
-  std::filesystem::create_directories(dir, ec);
-  if (ec) {
-    std::cerr << "[save] cannot create '" << dir << "': " << ec.message()
-              << "\n";
-    return false;
-  }
-
-  if (!saveLevel(dir, level)) return false;
-  {
-    std::ofstream o(dir + "/player.dat", std::ios::binary | std::ios::trunc);
-    if (!o) return false;
-    writeHeader(o, kPlayerMagic);
-    writePlayer(o, player);
-    writeBed(o, player);
-  }
-  {
-    std::ofstream o(dir + "/edits.dat", std::ios::binary | std::ios::trunc);
-    if (!o) return false;
-    writeHeader(o, kEditMagic);
-    wr(o, static_cast<uint32_t>(edits.size()));
-    for (const auto &[key, ce] : edits) {
-      wr(o, static_cast<int32_t>(key.x));
-      wr(o, static_cast<int32_t>(key.z));
-      wr(o, static_cast<uint32_t>(ce.size()));
-      for (const auto &[idx, block] : ce) {
-        wr(o, idx);
-        wr(o, block);
-      }
-    }
-  }
-  return true;
+  return saveLevel(dir, level) &&
+         writeAtomic(dir + "/player.dat",
+                     [&](std::ostream &o) {
+                       writeHeader(o, kPlayerMagic);
+                       writePlayer(o, player);
+                       writeBed(o, player);
+                     }) &&
+         writeAtomic(dir + "/edits.dat", [&](std::ostream &o) {
+           writeHeader(o, kEditMagic);
+           wr(o, static_cast<uint32_t>(edits.size()));
+           for (const auto &[key, ce] : edits) {
+             wr(o, static_cast<int32_t>(key.x));
+             wr(o, static_cast<int32_t>(key.z));
+             wr(o, static_cast<uint32_t>(ce.size()));
+             for (const auto &[idx, block] : ce) {
+               wr(o, idx);
+               wr(o, block);
+             }
+           }
+         });
 }
 
 // ─── inventory.dat ──────────────────────────────────────────────────────────
@@ -272,16 +316,11 @@ bool loadInventory(const std::string &dir, std::vector<ItemStack> &out) {
 }
 
 bool saveInventory(const std::string &dir, std::span<const ItemStack> slots) {
-  std::error_code ec;
-  std::filesystem::create_directories(dir, ec);
-  if (ec) return false;
-
-  std::ofstream o(dir + "/inventory.dat", std::ios::binary | std::ios::trunc);
-  if (!o) return false;
-  writeHeader(o, kInvMagic);
-  writeSlots(o, slots);
-  writeWear(o, slots);
-  return static_cast<bool>(o);
+  return writeAtomic(dir + "/inventory.dat", [&](std::ostream &o) {
+    writeHeader(o, kInvMagic);
+    writeSlots(o, slots);
+    writeWear(o, slots);
+  });
 }
 
 // ─── discovered.dat ─────────────────────────────────────────────────────────
@@ -293,14 +332,10 @@ bool loadDiscovered(const std::string &dir, std::vector<ItemId> &out) {
 }
 
 bool saveDiscovered(const std::string &dir, std::span<const ItemId> ids) {
-  std::error_code ec;
-  std::filesystem::create_directories(dir, ec);
-  if (ec) return false;
-  std::ofstream o(dir + "/discovered.dat", std::ios::binary | std::ios::trunc);
-  if (!o) return false;
-  writeHeader(o, kKnownMagic);
-  writeIds(o, ids);
-  return static_cast<bool>(o);
+  return writeAtomic(dir + "/discovered.dat", [&](std::ostream &o) {
+    writeHeader(o, kKnownMagic);
+    writeIds(o, ids);
+  });
 }
 
 // ─── furnaces.dat ───────────────────────────────────────────────────────────
@@ -324,26 +359,22 @@ bool loadFurnaces(const std::string &dir, std::vector<FurnaceRecord> &out) {
 }
 
 bool saveFurnaces(const std::string &dir, std::span<const FurnaceRecord> furnaces) {
-  std::error_code ec;
-  std::filesystem::create_directories(dir, ec);
-  if (ec) return false;
-  std::ofstream o(dir + "/furnaces.dat", std::ios::binary | std::ios::trunc);
-  if (!o) return false;
-  writeHeader(o, kFurnaceMagic);
-  wr(o, static_cast<uint32_t>(furnaces.size()));
-  for (const FurnaceRecord &r : furnaces) {
-    const Furnace &f = r.furnace;
-    wr(o, r.pos.x);
-    wr(o, r.pos.y);
-    wr(o, r.pos.z);
-    writeStack(o, f.input);
-    writeStack(o, f.fuel);
-    writeStack(o, f.output);
-    wr(o, f.burn_ms);
-    wr(o, f.burn_total_ms);
-    wr(o, f.cook_ms);
-  }
-  return static_cast<bool>(o);
+  return writeAtomic(dir + "/furnaces.dat", [&](std::ostream &o) {
+    writeHeader(o, kFurnaceMagic);
+    wr(o, static_cast<uint32_t>(furnaces.size()));
+    for (const FurnaceRecord &r : furnaces) {
+      const Furnace &f = r.furnace;
+      wr(o, r.pos.x);
+      wr(o, r.pos.y);
+      wr(o, r.pos.z);
+      writeStack(o, f.input);
+      writeStack(o, f.fuel);
+      writeStack(o, f.output);
+      wr(o, f.burn_ms);
+      wr(o, f.burn_total_ms);
+      wr(o, f.cook_ms);
+    }
+  });
 }
 
 // ─── chests.dat ─────────────────────────────────────────────────────────────
@@ -369,41 +400,33 @@ bool loadChests(const std::string &dir, std::vector<ChestRecord> &out) {
 }
 
 bool saveChests(const std::string &dir, std::span<const ChestRecord> chests) {
-  std::error_code ec;
-  std::filesystem::create_directories(dir, ec);
-  if (ec) return false;
-  std::ofstream o(dir + "/chests.dat", std::ios::binary | std::ios::trunc);
-  if (!o) return false;
-  writeHeader(o, kChestMagic);
-  wr(o, static_cast<uint32_t>(chests.size()));
-  for (const ChestRecord &r : chests) {
-    wr(o, r.pos.x);
-    wr(o, r.pos.y);
-    wr(o, r.pos.z);
-    for (const ItemStack &s : r.chest) {
-      writeStack(o, s);
-      wr(o, s.wear);
+  return writeAtomic(dir + "/chests.dat", [&](std::ostream &o) {
+    writeHeader(o, kChestMagic);
+    wr(o, static_cast<uint32_t>(chests.size()));
+    for (const ChestRecord &r : chests) {
+      wr(o, r.pos.x);
+      wr(o, r.pos.y);
+      wr(o, r.pos.z);
+      for (const ItemStack &s : r.chest) {
+        writeStack(o, s);
+        wr(o, s.wear);
+      }
     }
-  }
-  return static_cast<bool>(o);
+  });
 }
 
 // ─── players/<name>.dat ─────────────────────────────────────────────────────
 
 bool saveGuest(const std::string &dir, const std::string &name, const GuestRecord &rec) {
   if (!safeName(name)) return false;
-  std::error_code ec;
-  std::filesystem::create_directories(dir + "/players", ec);
-  if (ec) return false;
-  std::ofstream o(dir + "/players/" + name + ".dat", std::ios::binary | std::ios::trunc);
-  if (!o) return false;
-  writeHeader(o, kGuestMagic);
-  writePlayer(o, rec.player);
-  writeSlots(o, rec.inventory);
-  writeIds(o, rec.discovered);
-  writeWear(o, rec.inventory);
-  writeBed(o, rec.player);
-  return static_cast<bool>(o);
+  return writeAtomic(dir + "/players/" + name + ".dat", [&](std::ostream &o) {
+    writeHeader(o, kGuestMagic);
+    writePlayer(o, rec.player);
+    writeSlots(o, rec.inventory);
+    writeIds(o, rec.discovered);
+    writeWear(o, rec.inventory);
+    writeBed(o, rec.player);
+  });
 }
 
 bool loadGuests(const std::string &dir, std::map<std::string, GuestRecord> &out) {
@@ -416,9 +439,11 @@ bool loadGuests(const std::string &dir, std::map<std::string, GuestRecord> &out)
     std::string name = entry.path().stem().string();
     std::ifstream in(entry.path(), std::ios::binary);
     GuestRecord rec;
-    if (!safeName(name) || !in || !checkHeader(in, kGuestMagic) ||
-        !readPlayer(in, rec.player) || !readSlots(in, rec.inventory)) {
-      std::cerr << "[save] skipping unreadable " << entry.path() << "\n";
+    if (!safeName(name)) continue; // not one of ours
+    if (!in || !checkHeader(in, kGuestMagic) || !readPlayer(in, rec.player) ||
+        !readSlots(in, rec.inventory)) {
+      in.close();
+      setAside(folder.string(), entry.path().filename().string());
       continue;
     }
     if (!readIds(in, rec.discovered)) rec.discovered.clear(); // from before crafting
@@ -461,28 +486,24 @@ bool loadFarms(const std::string &dir, Farms &out) {
 }
 
 bool saveFarms(const std::string &dir, const Farms &farms) {
-  std::error_code ec;
-  std::filesystem::create_directories(dir, ec);
-  if (ec) return false;
-  std::ofstream o(dir + "/farms.dat", std::ios::binary | std::ios::trunc);
-  if (!o) return false;
-  writeHeader(o, kFarmMagic);
-  wr(o, static_cast<uint32_t>(farms.crops.size()));
-  for (const CropRecord &r : farms.crops) {
-    wr(o, r.pos.x);
-    wr(o, r.pos.y);
-    wr(o, r.pos.z);
-    wr(o, r.left_ms);
-  }
-  wr(o, static_cast<uint32_t>(farms.soil.size()));
-  for (const SoilRecord &r : farms.soil) {
-    wr(o, r.pos.x);
-    wr(o, r.pos.y);
-    wr(o, r.pos.z);
-    wr(o, r.wet_ms);
-    wr(o, static_cast<uint8_t>(r.by_water ? 1 : 0));
-  }
-  return static_cast<bool>(o);
+  return writeAtomic(dir + "/farms.dat", [&](std::ostream &o) {
+    writeHeader(o, kFarmMagic);
+    wr(o, static_cast<uint32_t>(farms.crops.size()));
+    for (const CropRecord &r : farms.crops) {
+      wr(o, r.pos.x);
+      wr(o, r.pos.y);
+      wr(o, r.pos.z);
+      wr(o, r.left_ms);
+    }
+    wr(o, static_cast<uint32_t>(farms.soil.size()));
+    for (const SoilRecord &r : farms.soil) {
+      wr(o, r.pos.x);
+      wr(o, r.pos.y);
+      wr(o, r.pos.z);
+      wr(o, r.wet_ms);
+      wr(o, static_cast<uint8_t>(r.by_water ? 1 : 0));
+    }
+  });
 }
 
 } // namespace WorldSave

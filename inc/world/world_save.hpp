@@ -53,6 +53,13 @@ struct PlayerData {
 // Resolves a world name to its directory, e.g. "world" -> "saves/world".
 std::string worldDir(const std::string &name);
 
+// Every save is written whole or not at all (a temp file renamed over the old
+// one), so a crash mid-save leaves the last good file.
+
+// Renames dir/file to dir/file.unreadable, if it is there: for a file that
+// exists but won't load, so the next save can't write over what is left of it.
+void setAside(const std::string &dir, const std::string &file);
+
 // Loaders return false if the file is missing or has a bad/mismatched header;
 // the caller then treats it as a fresh world.
 bool loadLevel(const std::string &dir, LevelData &out);
