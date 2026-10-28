@@ -4,6 +4,12 @@ What's waiting on a real play-test, newest first. Tick things off as they
 pass; anything that fails, note what happened (a screenshot plus the F12
 coordinates helps).
 
+## Dark water stays dark
+
+- [ ] At midday, a cave pool in the dark is dark too: no flat teal glow
+- [ ] Next to a glow crystal or torch, the pool shows its blue-green tint
+- [ ] A lake or the sea under open sky looks just as before, day and night
+
 ## Cave pools — new worlds only
 
 - [ ] In a new world's deep caves, water sits in hollows: no lone blocks, none hanging over an edge with its side showing
