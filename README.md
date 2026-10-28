@@ -209,8 +209,8 @@ block against it instead. It has a window in the top half, so you can see
 who's outside.
 
 A **closed door is a wall** to everything: players, enemies and
-animals. Only a player can open it, and nothing breaks it down, so a house with a door is
-a safe place to spend the night. Leave it open and enemies can follow you
+animals. Only players can open or break a door, so a house with one is a
+safe place to spend the night. Leave it open and enemies can follow you
 in. Breaking either half gives the door back.
 
 ## Fishing
