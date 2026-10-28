@@ -31,7 +31,7 @@ TEST_CASE("every placeable block has an item that places it") {
   for (uint16_t v = 1; v <= kLastBlock; ++v) {
     BlockType b = static_cast<BlockType>(v);
     if (b == BlockType::WATER || b == BlockType::FURNACE_LIT ||
-        b == BlockType::TREASURE_CHEST || isDoor(b))
+        b == BlockType::TREASURE_CHEST || isDoor(b) || isBed(b))
       continue;
     ItemId id = itemForBlock(b);
     CAPTURE(blockName(b));
@@ -47,7 +47,7 @@ TEST_CASE("every placeable block has an item that places it") {
 
 TEST_CASE("the material items are defined with unique item-atlas tiles") {
   auto mats = materials();
-  CHECK(mats.size() == 54);
+  CHECK(mats.size() == 62);
 
   std::set<std::pair<int, int>> tiles;
   for (ItemId id : mats) {
@@ -57,7 +57,8 @@ TEST_CASE("the material items are defined with unique item-atlas tiles") {
     CHECK(!def.name.empty());
     CHECK(def.name != "Unknown");
     bool single = usesOf(id) > 0 || id == ItemId::SOGGY_BOOT;
-    const bool sixteen = id == ItemId::TREASURE_KEY || id == ItemId::WOODEN_DOOR;
+    const bool sixteen =
+        id == ItemId::TREASURE_KEY || id == ItemId::WOODEN_DOOR || isBedItem(id);
     CHECK(def.max_stack == (single ? 1 : sixteen ? 16 : 64));
     CHECK_FALSE(def.places.has_value());
     CHECK(def.icon.atlas == ItemIcon::Atlas::Item);
@@ -87,6 +88,8 @@ TEST_CASE("material item ids are stable") {
   CHECK(static_cast<uint16_t>(ItemId::SOGGY_BOOT) == 307);
   CHECK(static_cast<uint16_t>(ItemId::TREASURE_KEY) == 308);
   CHECK(static_cast<uint16_t>(ItemId::WOODEN_DOOR) == 309);
+  CHECK(static_cast<uint16_t>(ItemId::WHITE_BED) == 310);
+  CHECK(static_cast<uint16_t>(ItemId::PINK_BED) == 317);
 }
 
 TEST_CASE("isValidItem rejects the empty item, water and unknown ids") {
@@ -136,7 +139,7 @@ TEST_CASE("every other block drops itself, and every drop is a valid item") {
     CAPTURE(blockName(b));
     auto drop = dropFor(b);
     if (drop) CHECK(isValidItem(*drop));
-    if (!special.count(b) && !isDoor(b)) CHECK(drop == itemForBlock(b));
+    if (!special.count(b) && !isDoor(b) && !isBed(b)) CHECK(drop == itemForBlock(b));
   }
 }
 

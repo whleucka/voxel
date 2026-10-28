@@ -1,6 +1,7 @@
 #pragma once
 
 #include "block/block_type.hpp"
+#include "block/bed.hpp"
 #include "block/door.hpp"
 #include "robin_hood/robin_hood.h"
 #include <glm/glm.hpp>
@@ -72,8 +73,8 @@ inline bool isCutout(BlockType type) {
 // Determine if a face should be rendered between current block and neighbor
 inline bool shouldRenderFace(BlockType current, BlockType neighbor) {
   if (neighbor == BlockType::AIR) return true;
-  // A door is a thin panel: whatever is round it shows.
-  if (isDoor(neighbor)) return true;
+  // A door is a thin panel and a bed is low: whatever is round them shows.
+  if (isDoor(neighbor) || isBed(neighbor)) return true;
   // Panes of glass side by side read as one window, so the face between them
   // is hidden.  Leaves keep their inner faces (below).
   if (current == BlockType::GLASS && neighbor == BlockType::GLASS) return false;
@@ -101,7 +102,7 @@ inline uint8_t skyLightOpacity(BlockType type) {
     case BlockType::PINE_LEAF:
     case BlockType::PALM_LEAF:
     case BlockType::CHERRY_LEAF: return 1;
-    default:                   return isDoor(type) ? 0 : 15; // light gets round a door
+    default:                   return isDoor(type) || isBed(type) ? 0 : 15; // light gets round them
   }
 }
 
@@ -115,6 +116,10 @@ inline uint8_t blockLightEmission(BlockType type) {
     default:                   return 0;
   }
 }
+
+constexpr std::string_view kBedNames[kBedColours] = {
+    "White Bed", "Red Bed", "Orange Bed", "Yellow Bed",
+    "Green Bed", "Blue Bed", "Purple Bed", "Pink Bed"};
 
 inline std::string_view blockName(BlockType type) {
   switch (type) {
@@ -167,7 +172,10 @@ inline std::string_view blockName(BlockType type) {
     case BlockType::FURNACE_LIT:   return "Lit Furnace";
     case BlockType::CHEST:         return "Chest";
     case BlockType::TREASURE_CHEST: return "Treasure Chest";
-    default:                      return isDoor(type) ? "Wooden Door" : "Unknown";
+    default:
+      if (isDoor(type)) return "Wooden Door";
+      if (isBed(type)) return kBedNames[static_cast<int>(bedColour(type))];
+      return "Unknown";
   }
 }
 
@@ -175,6 +183,13 @@ inline std::string_view blockName(BlockType type) {
 constexpr glm::ivec2 kDoorBottomTile{10, 3}; // with the handle
 constexpr glm::ivec2 kDoorTopTile{11, 3};    // with the window
 constexpr glm::ivec2 kDoorEdgeTile{12, 3};
+// Bed tiles: the wooden frame, the pillow, then a blanket for each colour.
+constexpr glm::ivec2 kBedFrameTile{13, 3};
+constexpr glm::ivec2 kBedPillowTile{14, 3};
+inline glm::ivec2 bedBlanketTile(BedColour colour) {
+  int i = 15 + static_cast<int>(colour); // counted from (0, 3)
+  return {i % 16, 3 + i / 16};
+}
 
 static robin_hood::unordered_map<BlockType, BlockTexture> block_data = [] {
   robin_hood::unordered_map<BlockType, BlockTexture> d = {
@@ -237,6 +252,13 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = [] {
        v <= static_cast<int>(BlockType::DOOR_TOP_W_OPEN); ++v) {
     BlockType b = static_cast<BlockType>(v);
     d[b] = {kDoorEdgeTile, kDoorEdgeTile, doorTop(b) ? kDoorTopTile : kDoorBottomTile};
+  }
+  // Beds: the blanket (or the pillow at the head) on top, the frame below.
+  for (int v = static_cast<int>(BlockType::BED_WHITE_FOOT_N);
+       v <= static_cast<int>(BlockType::BED_PINK_HEAD_W); ++v) {
+    BlockType b = static_cast<BlockType>(v);
+    d[b] = {bedHead(b) ? kBedPillowTile : bedBlanketTile(bedColour(b)), kBedFrameTile,
+            kBedFrameTile};
   }
   return d;
 }();

@@ -13,7 +13,6 @@ const DoorFacing kFacings[] = {DoorFacing::North, DoorFacing::East, DoorFacing::
 TEST_CASE("door block ids are pinned") {
   CHECK(static_cast<int>(BlockType::DOOR_BOTTOM_N_CLOSED) == 49);
   CHECK(static_cast<int>(BlockType::DOOR_TOP_W_OPEN) == 64);
-  CHECK(kLastBlockType == BlockType::DOOR_TOP_W_OPEN);
 }
 
 TEST_CASE("every door state round-trips through its block type") {
