@@ -110,11 +110,18 @@ TEST_CASE("the glow crystal glows softer than the lamp and drops itself") {
   CHECK(static_cast<int>(BlockType::GLOW_CRYSTAL) == 43);
   CHECK(blockName(BlockType::GLOW_CRYSTAL) == "Glow Crystal");
   CHECK(blockLightEmission(BlockType::GLOW_CRYSTAL) == 10);
-  CHECK(skyLightOpacity(BlockType::GLOW_CRYSTAL) == 15);
+  CHECK(skyLightOpacity(BlockType::GLOW_CRYSTAL) == 0); // see-through, like glass
   CHECK(dropFor(BlockType::GLOW_CRYSTAL) == itemForBlock(BlockType::GLOW_CRYSTAL));
   const auto &palette = paletteItems();
   CHECK(std::find(palette.begin(), palette.end(),
                   itemForBlock(BlockType::GLOW_CRYSTAL)) != palette.end());
+}
+
+TEST_CASE("only the shards of a glow crystal show") {
+  CHECK(cutoutClass(BlockType::GLOW_CRYSTAL) == kCutoutLow);
+  CHECK(shouldRenderFace(BlockType::STONE, BlockType::GLOW_CRYSTAL));
+  CHECK(shouldRenderFace(BlockType::GLOW_CRYSTAL, BlockType::GLOW_CRYSTAL));
+  CHECK_FALSE(shouldRenderFace(BlockType::GLOW_CRYSTAL, BlockType::STONE));
 }
 
 TEST_CASE("the crafting table is a plain solid block that drops itself") {
