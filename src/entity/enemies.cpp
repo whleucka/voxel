@@ -49,4 +49,6 @@ void registerEnemySpawns(Spawner &spawner) {
   spawner.addRule(hostileRule(EntityKind::Gloomling, 4, canSpawn<EntityKind::Gloomling>));
   spawner.addRule(hostileRule(EntityKind::ThornCrawler, 3, canSpawn<EntityKind::ThornCrawler>));
   spawner.addRule(hostileRule(EntityKind::CaveGrumble, 3, canSpawn<EntityKind::CaveGrumble>));
+  spawner.addRule(hostileRule(EntityKind::Zombie, 3, canSpawn<EntityKind::Zombie>));
+  spawner.addRule(hostileRule(EntityKind::Mummy, 3, canSpawn<EntityKind::Mummy>));
 }

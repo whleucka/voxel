@@ -4,6 +4,16 @@ What's waiting on a real play-test, newest first. Tick things off as they
 pass; anything that fails, note what happened (a screenshot plus the F12
 coordinates helps).
 
+## Zombies and mummies (Alex's idea)
+
+- [ ] Zombies come out at night on grass (not in the desert), and vanish at sunrise
+- [ ] Mummies come out at night in the desert only, and are still there in the morning
+- [ ] Both are slow: you can outrun them by sprinting, and Thorn Crawlers are clearly faster
+- [ ] Zombies sometimes drop a carrot, mummies often drop wool
+- [ ] They stay away from torches and lamps, like the other night enemies
+- [ ] A friend on the network sees and can fight them
+- [ ] Alex's verdict: do they look like a zombie and a mummy?
+
 ## Hard difficulty and well fed
 
 - [ ] Settings has Hard; Hard nights are busier and the enemies take more hits and hit harder, but it still feels fair

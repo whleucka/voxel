@@ -13,7 +13,7 @@
 - **Survival:** break blocks to collect them and place them to build. Watch your health, stamina and breath, and dig for coal, iron, copper, gold, emerald, ruby and diamond.
 - **Creatures:**
   - Friendly Woollies, Bunnies, Shell Turtles and Blossom Deer. Feed them and they give you something back: a Woolly eats any leaves and gives you wool.
-  - At night, Gloomlings and Thorn Crawlers come out, and Cave Grumbles lurk in the dark underground.
+  - At night, Gloomlings, Thorn Crawlers and Zombies come out, Mummies shuffle through the desert (and stay after sunrise), and Cave Grumbles lurk in the dark underground.
   - Pebblefish, Sunfin and glowing Glowfin swim in lakes, the sea and cave pools.
 - **Crafting:** discover recipes as you collect things, and build a Crafting Table for the bigger ones ([more below](#crafting)).
 - **Smelting:** a furnace that cooks raw ore into ingots, and sand into glass, while you're off exploring ([more below](#smelting)).
