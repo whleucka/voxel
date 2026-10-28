@@ -23,7 +23,7 @@ struct SpawnRule {
   // time_of_day: fraction of the day, 0..1 (0.5 = noon).
   bool (*can_spawn)(const World &world, glm::ivec3 ground, float time_of_day) = nullptr;
   Placement placement = Placement::Surface;
-  bool hostile = false; // enemies: none on Peaceful, caps scaled by difficulty
+  bool hostile = false; // enemies: none on Peaceful; caps, intervals and health scaled by difficulty
 };
 
 class Spawner {

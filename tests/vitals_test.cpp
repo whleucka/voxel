@@ -9,8 +9,8 @@ const Activity kIdle{};
 const Activity kSprint{true, false, false};
 const Activity kUnderwater{false, true, false};
 
-void run(Vitals &v, int ms, const Activity &a) {
-  for (int t = 0; t < ms; t += kTick) v.tick(kTick, a);
+void run(Vitals &v, int ms, const Activity &a, bool needs_food = false) {
+  for (int t = 0; t < ms; t += kTick) v.tick(kTick, a, needs_food);
 }
 
 } // namespace
@@ -220,4 +220,74 @@ TEST_CASE("heal restores health up to the max and not for the dead") {
   v.damage(30);
   v.heal(5);
   CHECK(v.health() == 0);
+}
+
+// ─── Well fed ──────────────────────────────────────────────────────────
+
+TEST_CASE("eating gives 45 s of well-fed time per point, up to 10 minutes") {
+  Vitals v;
+  CHECK_FALSE(v.wellFed());
+  v.feed(8); // Bread
+  CHECK(v.fedMs() == 6 * 60 * 1000);
+  v.feed(4);
+  CHECK(v.fedMs() == 9 * 60 * 1000);
+  v.feed(8);
+  CHECK(v.fedMs() == Vitals::kMaxFedMs);
+  v.feed(0);
+  v.feed(-3);
+  CHECK(v.fedMs() == Vitals::kMaxFedMs);
+}
+
+TEST_CASE("well-fed time counts down whether hurt or not") {
+  Vitals v;
+  v.feed(2); // 90 s
+  run(v, 60 * 1000, kIdle);
+  CHECK(v.fedMs() == 30 * 1000);
+  run(v, 31 * 1000, kSprint);
+  CHECK(v.fedMs() == 0);
+  CHECK_FALSE(v.wellFed());
+}
+
+TEST_CASE("when food is needed, health only comes back while well fed") {
+  Vitals v;
+  v.damage(10);
+  run(v, 20 * 1000, kIdle, true);
+  CHECK(v.health() == 10);
+
+  v.feed(1); // 45 s: plenty to heal 10 points at 1 per 2 s
+  run(v, 2000 * 4, kIdle, true); // the regen delay passed while unfed
+  CHECK(v.health() == 14);
+  run(v, 60 * 1000, kIdle, true);
+  CHECK(v.health() == 20);
+}
+
+TEST_CASE("regen stops when well-fed time runs out") {
+  Vitals v;
+  v.feed(1);                       // 45 s fed
+  run(v, 31 * 1000, kIdle, true);  // 14 s left
+  v.damage(18);
+  run(v, 4000, kIdle, true);       // the regen delay: 10 s left
+  run(v, 20 * 1000, kIdle, true);  // 10 points' worth, but fed ends at 5
+  int healed = v.health();
+  CHECK(healed == 7);
+  CHECK_FALSE(v.wellFed());
+  run(v, 30 * 1000, kIdle, true);
+  CHECK(v.health() == healed);
+}
+
+TEST_CASE("without needing food, health comes back unfed as before") {
+  Vitals v;
+  v.damage(4);
+  run(v, 4000 + 2000 * 4, kIdle, false);
+  CHECK(v.health() == 20);
+}
+
+TEST_CASE("feeding the dead does nothing; reset clears well-fed time") {
+  Vitals v;
+  v.feed(8);
+  v.reset();
+  CHECK(v.fedMs() == 0);
+  v.damage(20);
+  v.feed(8);
+  CHECK(v.fedMs() == 0);
 }

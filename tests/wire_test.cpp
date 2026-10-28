@@ -83,6 +83,7 @@ TEST_CASE("events round-trip with real values") {
   CHECK(inv_back.slots == inv.slots);
 
   roundTrip(VitalsChanged{0, 20, 7, false, true});
+  roundTrip(VitalsChanged{12, 20, 20, true, false, 361, true});
   roundTrip(Respawned{{8, 70, 8}, 3});
   roundTrip(KnockedBack{{-7, 5, 0.5f}});
   roundTrip(TimeSync{43200.0f, 35.0f});

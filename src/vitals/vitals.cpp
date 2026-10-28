@@ -4,7 +4,7 @@
 
 // ─── Vitals ────────────────────────────────────────────────────────────
 
-void Vitals::tick(int dt_ms, const Activity &a) {
+void Vitals::tick(int dt_ms, const Activity &a, bool needs_food) {
   if (dead() || dt_ms <= 0) return;
 
   // Stamina: sprinting drains it; after a short rest it recovers.
@@ -61,9 +61,14 @@ void Vitals::tick(int dt_ms, const Activity &a) {
   }
   if (dead()) return;
 
-  // Health: regenerates once a while has passed without damage.
+  // Health: regenerates once a while has passed without damage, and (when
+  // food is needed) only while well fed.
+  bool can_regen = !needs_food || fed_ms > 0;
+  fed_ms = std::max(0, fed_ms - dt_ms);
   if (since_damage < kRegenDelayMs) {
     since_damage += dt_ms;
+  } else if (!can_regen) {
+    regen_acc = 0;
   } else if (health_ < kMax) {
     regen_acc += dt_ms;
     while (regen_acc >= kRegenMs && health_ < kMax) {
@@ -83,6 +88,11 @@ void Vitals::damage(int amount) {
 void Vitals::heal(int amount) {
   if (dead() || amount <= 0) return;
   health_ = std::min(kMax, health_ + amount);
+}
+
+void Vitals::feed(int food_points) {
+  if (dead() || food_points <= 0) return;
+  fed_ms = std::min(kMaxFedMs, fed_ms + food_points * kFedPerPointMs);
 }
 
 void Vitals::reset() { *this = Vitals{}; }

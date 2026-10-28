@@ -4,6 +4,16 @@ What's waiting on a real play-test, newest first. Tick things off as they
 pass; anything that fails, note what happened (a screenshot plus the F12
 coordinates helps).
 
+## Hard difficulty and well fed
+
+- [ ] Settings has Hard; Hard nights are busier and the enemies take more hits and hit harder, but it still feels fair
+- [ ] On Normal, after a fight your health doesn't come back until you eat; the hearts look darker until you do
+- [ ] Eating shows a loaf next to the hearts; it blinks before running out, and health stops coming back once it's gone
+- [ ] You can eat at full health to stock up (up to 10 minutes), then it says "not hungry"
+- [ ] On Easy nothing feels different (Alex)
+- [ ] Is 45 seconds per food point about right, or do you have to eat too often?
+- [ ] A friend on the network sees their own loaf and darker hearts
+
 ## Farming (Aria's idea)
 
 - [ ] Make a hoe at a table and till grass and dirt: the soil turns light brown, and grass sometimes pops out a seed

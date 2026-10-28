@@ -206,9 +206,9 @@ template <class IO> void fields(IO &io, ContainerView &m) {
                                                               : ContainerKind::Furnace;
 }
 template <class IO> void fields(IO &io, VitalsChanged &m) {
-  int32_t h = m.health, s = m.stamina, b = m.breath;
-  io(h, s, b, m.can_sprint, m.dead);
-  m.health = h, m.stamina = s, m.breath = b;
+  int32_t h = m.health, s = m.stamina, b = m.breath, f = m.fed_s;
+  io(h, s, b, m.can_sprint, m.dead, f, m.regen_blocked);
+  m.health = h, m.stamina = s, m.breath = b, m.fed_s = f;
 }
 template <class IO> void fields(IO &io, Respawned &m) { io(m.position, m.respawn); }
 template <class IO> void fields(IO &io, EntitySnapshot &m) { io(m.tick, m.entities, m.players); }

@@ -1721,15 +1721,80 @@ TEST_CASE_FIXTURE(EditGame, "eating food heals and uses one up") {
   CHECK(countOf(inventory(), ItemId::BERRIES) == 0);
 }
 
-TEST_CASE_FIXTURE(EditGame, "you can't eat at full health or eat non-food") {
-  run(GiveItem{ItemId::SWEET_PETALS, 1});
+TEST_CASE_FIXTURE(EditGame, "you can't eat when full and well fed, or eat non-food") {
+  run(GiveItem{ItemId::SWEET_PETALS, 4});
   for (int i = 0; i < kHotbarSlots; ++i)
     if (inventory().slot(i).id == ItemId::SWEET_PETALS) run(SelectSlot{i});
+  // Full health but not well fed: eating still tops up well-fed time.
+  CHECK_FALSE(rejected(run(EatItem{})));
+  CHECK(game.findPlayer(id)->vitals.fedMs() == 6 * Vitals::kFedPerPointMs);
+  CHECK_FALSE(rejected(run(EatItem{})));
+  CHECK_FALSE(rejected(run(EatItem{})));
+  REQUIRE(game.findPlayer(id)->vitals.fedMs() == Vitals::kMaxFedMs);
   CHECK(rejected(run(EatItem{})));
   CHECK(countOf(inventory(), ItemId::SWEET_PETALS) == 1);
 
   run(SelectSlot{0}); // glowstone
   CHECK(rejected(run(EatItem{})));
+}
+
+namespace {
+
+// EditGame on a chosen difficulty, with the player hurt by a fall (to 11).
+struct HungryGame : EditGame {
+  ScopedDifficulty difficulty;
+  explicit HungryGame(Difficulty d = Difficulty::Normal) : difficulty(d) {
+    glm::vec3 p = game.findPlayer(id)->position;
+    conn.send(::at(p + glm::vec3(0, 12, 0), true));
+    conn.send(::at(p + glm::vec3(0, 11, 0), false));
+    conn.send(::at(p, true));
+    game.pump();
+    REQUIRE(game.findPlayer(id)->vitals.health() == 11);
+  }
+  int health() { return game.findPlayer(id)->vitals.health(); }
+  void wait(float seconds) {
+    for (float t = 0; t < seconds; t += 0.5f) game.advance(0.5f);
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(HungryGame, "on normal, health only comes back while well fed") {
+  wait(20.0f);
+  CHECK(health() == 11);
+  auto v = game.findPlayer(id)->vitals_sent;
+  REQUIRE(v);
+  CHECK(v->regen_blocked);
+  CHECK(v->fed_s == 0);
+
+  run(GiveItem{ItemId::RAW_PEBBLEFISH, 1}); // 2 points: 90 s fed
+  for (int i = 0; i < kHotbarSlots; ++i)
+    if (inventory().slot(i).id == ItemId::RAW_PEBBLEFISH) run(SelectSlot{i});
+  run(EatItem{});
+  CHECK(health() == 13);
+  game.advance(0.05f);
+  v = game.findPlayer(id)->vitals_sent;
+  REQUIRE(v);
+  CHECK_FALSE(v->regen_blocked);
+  CHECK(v->fed_s == 90);
+
+  wait(20.0f);
+  CHECK(health() == 20);
+}
+
+TEST_CASE("on easy, health comes back without food") {
+  HungryGame g{Difficulty::Easy};
+  g.wait(30.0f);
+  CHECK(g.health() == 20);
+  auto v = g.game.findPlayer(g.id)->vitals_sent;
+  REQUIRE(v);
+  CHECK_FALSE(v->regen_blocked);
+}
+
+TEST_CASE("on hard, health needs food too") {
+  HungryGame g{Difficulty::Hard};
+  g.wait(20.0f);
+  CHECK(g.health() == 11);
 }
 
 // ─── Enemies ───────────────────────────────────────────────────────────
