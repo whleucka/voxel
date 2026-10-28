@@ -118,6 +118,23 @@ TEST_CASE("version 1 terrain is block-for-block what it was before caves") {
   }
 }
 
+TEST_CASE("version 3 terrain is block-for-block what it was before gem pockets") {
+  // Recorded on main at 7262f84, before version 4. Worlds made with caves
+  // and chests must regenerate exactly, or edits land on the wrong terrain.
+  SeededWorld world(12345, worldgen::kChests);
+  const std::pair<glm::ivec2, uint64_t> golden[] = {
+      {{0, 0}, 7253626337975457968ull},      {{5, -3}, 9952782697928643798ull},
+      {{-20, 14}, 4628817095330574992ull},   {{37, 2}, 15918804729390741490ull},
+      {{-8, -40}, 2036547142840156546ull},   {{90, 61}, 3652691629932540463ull},
+      {{-40, -40}, 11627408748525792241ull}, {{20, 20}, 7543263588685442860ull},
+  };
+  for (const auto &[pos, hash] : golden) {
+    CAPTURE(pos.x);
+    CAPTURE(pos.y);
+    CHECK(fnv1a(generate(pos.x, pos.y)) == hash);
+  }
+}
+
 // ─── Caves (version 2) ─────────────────────────────────────────────────
 
 namespace {
@@ -339,4 +356,77 @@ TEST_CASE("treasure chests are rare, deep, and tucked into cave nooks") {
   again.init();
   first.init();
   CHECK(blocksOf(again) == blocksOf(first));
+}
+
+// ─── Gem pockets and a bedrock floor (version 4) ───────────────────────
+
+namespace {
+
+bool isGem(BlockType b) {
+  return b == BlockType::DIAMOND_ORE || b == BlockType::EMERALD_ORE || b == BlockType::RUBY_ORE;
+}
+
+} // namespace
+
+TEST_CASE("version 4 keeps bedrock to the floor") {
+  SeededWorld world(12345, worldgen::kPockets);
+  for (glm::ivec2 pos : kSample) {
+    Chunk c(pos.x, pos.y);
+    c.init();
+    CAPTURE(pos.x);
+    CAPTURE(pos.y);
+    long floor = 0, above = 0;
+    for (int y = 0; y < kChunkHeight; ++y)
+      for (int z = 0; z < kChunkDepth; ++z)
+        for (int x = 0; x < kChunkWidth; ++x) {
+          if (c.at(x, y, z) != BlockType::BEDROCK) continue;
+          (y < 4 ? floor : above) += 1;
+        }
+    CHECK(above == 0);
+    CHECK(floor >= kChunkWidth * kChunkDepth); // y 0 is solid, and a rough edge above
+    for (int z = 0; z < kChunkDepth; ++z)
+      for (int x = 0; x < kChunkWidth; ++x) CHECK(c.at(x, 0, z) == BlockType::BEDROCK);
+  }
+}
+
+TEST_CASE("version 4 gems come in rare, deep pockets of one kind") {
+  long gems_v3 = 0, gems_v4 = 0;
+  for (glm::ivec2 pos : kSample) {
+    SeededWorld world(12345, worldgen::kChests);
+    for (BlockType b : generate(pos.x, pos.y)) gems_v3 += isGem(b);
+  }
+  SeededWorld world(12345, worldgen::kPockets);
+  int with_pockets = 0, chunks = 0;
+  for (int cx = -6; cx < 6; ++cx)
+    for (int cz = -6; cz < 6; ++cz) {
+      Chunk c(cx, cz);
+      c.init();
+      ++chunks;
+      bool any = false;
+      for (int y = 0; y < kChunkHeight; ++y)
+        for (int z = 0; z < kChunkDepth; ++z)
+          for (int x = 0; x < kChunkWidth; ++x) {
+            BlockType b = c.at(x, y, z);
+            if (!isGem(b)) continue;
+            any = true;
+            CAPTURE(cx);
+            CAPTURE(cz);
+            CHECK(y < kSeaLevel - caves::kPocketDepth);
+            CHECK(y >= caves::kPocketFloor);
+            // Part of a clump: a gem of the same kind right next to it.
+            auto same = [&](int dx, int dy, int dz) {
+              int a = x + dx, b2 = z + dz;
+              return a >= 0 && a < kChunkWidth && b2 >= 0 && b2 < kChunkDepth &&
+                     c.at(a, y + dy, b2) == b;
+            };
+            CHECK((same(1, 0, 0) || same(-1, 0, 0) || same(0, 1, 0) || same(0, -1, 0) ||
+                   same(0, 0, 1) || same(0, 0, -1)));
+          }
+      with_pockets += any;
+    }
+  CHECK(with_pockets > 0);           // they exist...
+  CHECK(with_pockets < chunks * 3 / 4); // ...but plenty of chunks have none
+  for (glm::ivec2 pos : kSample)
+    for (BlockType b : generate(pos.x, pos.y)) gems_v4 += isGem(b);
+  CHECK(gems_v4 * 3 < gems_v3);       // far fewer than version 3
 }

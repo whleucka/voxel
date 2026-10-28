@@ -31,6 +31,7 @@ void Chunk::init() {
   biome->spawnDecorations(*this);
   if (with_caves) caves::decorate(*this, surfaces);
   if (g_settings.worldgen >= worldgen::kChests) caves::placeTreasure(*this, surfaces);
+  if (g_settings.worldgen >= worldgen::kPockets) caves::placeGemPockets(*this, surfaces);
   computeSkyLight();
   computeBlockLight();
 }

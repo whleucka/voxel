@@ -32,6 +32,17 @@ constexpr int kTreasureDepth = 20;   // below sea level
 constexpr unsigned kTreasureOdds = 40; // one chunk in this many gets one
 void placeTreasure(Chunk &chunk, const Surfaces &surfaces);
 
+// Gem pockets (worldgen v4): the only gems in the chunk, a clump of 3-6 of
+// one kind, deep down. Most chunks have none; some pockets are in a cave
+// wall, the rest buried. Its own random stream.
+constexpr int kPocketDepth = 20;           // below sea level
+constexpr int kPocketFloor = 6;            // above the bedrock floor
+constexpr int kPocketMin = 3, kPocketMax = 6;
+constexpr unsigned kPocketNoneOdds = 40;   // in 100 chunks: no pocket...
+constexpr unsigned kPocketOneOdds = 40;    // ...one, and the rest two
+constexpr unsigned kPocketInWallOdds = 75; // in 100 pockets, where a cave shows it
+void placeGemPockets(Chunk &chunk, const Surfaces &surfaces);
+
 // Whether carve() makes (x, y, z) in world space a cave. Slow: for tests.
 bool isTunnel(glm::ivec3 world);
 

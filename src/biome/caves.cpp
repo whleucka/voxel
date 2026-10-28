@@ -124,6 +124,8 @@ int cachedHeight(int wx, int wz, const void *ctx) {
 BlockType wallOre(std::mt19937 &rng, bool deep) {
   unsigned roll = rng() % 10;
   if (deep) {
+    // From version 4 the gems are in pockets instead.
+    if (g_settings.worldgen >= worldgen::kPockets && roll <= 5) return BlockType::IRON_ORE;
     if (roll == 0) return BlockType::DIAMOND_ORE;
     if (roll <= 3) return BlockType::EMERALD_ORE;
     if (roll <= 5) return BlockType::RUBY_ORE;
@@ -282,6 +284,75 @@ void placeTreasure(Chunk &chunk, const Surfaces &surface) {
   if (nooks.empty()) return;
   glm::ivec3 at = nooks[rng() % nooks.size()];
   chunk.at(at.x, at.y, at.z) = BlockType::TREASURE_CHEST;
+}
+
+void placeGemPockets(Chunk &chunk, const Surfaces &surface) {
+  uint64_t h = worldgen::mix(g_settings.world_seed ^ 0x6E35u);
+  h = worldgen::mix(h ^ static_cast<uint32_t>(chunk.getPos().x));
+  h = worldgen::mix(h ^ static_cast<uint32_t>(chunk.getPos().y));
+  std::mt19937 rng(static_cast<uint32_t>(h ^ (h >> 32)));
+
+  auto host = [&](glm::ivec3 p) {
+    if (p.x < 0 || p.x >= kChunkWidth || p.z < 0 || p.z >= kChunkDepth || p.y < kPocketFloor ||
+        p.y >= kSeaLevel - kPocketDepth)
+      return false;
+    BlockType b = chunk.at(p.x, p.y, p.z);
+    return b == BlockType::STONE || b == BlockType::COBBLESTONE || b == BlockType::COAL_ORE ||
+           b == BlockType::COPPER_ORE || b == BlockType::IRON_ORE;
+  };
+  // Cave air: open, and under the ground (not the sky over a low valley).
+  auto caveAir = [&](glm::ivec3 p) {
+    if (p.x < 0 || p.x >= kChunkWidth || p.z < 0 || p.z >= kChunkDepth) return false;
+    BlockType b = chunk.at(p.x, p.y, p.z);
+    return (b == BlockType::AIR || b == BlockType::WATER || b == BlockType::GLOW_CRYSTAL) &&
+           p.y < surface[p.x + kChunkWidth * p.z];
+  };
+  const glm::ivec3 kSides[] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+
+  // Spots in a cave wall, so some pockets can be found by exploring.
+  std::vector<glm::ivec3> walls;
+  for (int y = kPocketFloor; y < kSeaLevel - kPocketDepth; ++y)
+    for (int z = 0; z < kChunkDepth; ++z)
+      for (int x = 0; x < kChunkWidth; ++x) {
+        glm::ivec3 p{x, y, z};
+        if (!host(p)) continue;
+        for (glm::ivec3 d : kSides)
+          if (caveAir(p + d)) {
+            walls.push_back(p);
+            break;
+          }
+      }
+
+  unsigned roll = rng() % 100;
+  int pockets = roll < kPocketNoneOdds ? 0 : roll < kPocketNoneOdds + kPocketOneOdds ? 1 : 2;
+  for (int i = 0; i < pockets; ++i) {
+    glm::ivec3 at;
+    if (!walls.empty() && rng() % 100 < kPocketInWallOdds) {
+      at = walls[rng() % walls.size()];
+    } else {
+      at = {static_cast<int>(rng() % kChunkWidth),
+            kPocketFloor + static_cast<int>(rng() % (kSeaLevel - kPocketDepth - kPocketFloor)),
+            static_cast<int>(rng() % kChunkDepth)};
+      if (!host(at)) continue;
+    }
+    unsigned kind = rng() % 10;
+    BlockType gem = kind < 2   ? BlockType::DIAMOND_ORE
+                    : kind < 6 ? BlockType::EMERALD_ORE
+                               : BlockType::RUBY_ORE;
+    // A small clump: grow from the spot through rock next to what's there.
+    int want = kPocketMin + static_cast<int>(rng() % (kPocketMax - kPocketMin + 1));
+    std::vector<std::pair<glm::ivec3, BlockType>> cells{{at, chunk.at(at.x, at.y, at.z)}};
+    chunk.at(at.x, at.y, at.z) = gem;
+    for (int tries = 0; static_cast<int>(cells.size()) < want && tries < 40; ++tries) {
+      glm::ivec3 next = cells[rng() % cells.size()].first + kSides[rng() % 6];
+      if (!host(next)) continue;
+      cells.push_back({next, chunk.at(next.x, next.y, next.z)});
+      chunk.at(next.x, next.y, next.z) = gem;
+    }
+    // Too cramped to make a pocket: leave the rock as it was.
+    if (static_cast<int>(cells.size()) < kPocketMin)
+      for (const auto &[p, was] : cells) chunk.at(p.x, p.y, p.z) = was;
+  }
 }
 
 } // namespace caves
