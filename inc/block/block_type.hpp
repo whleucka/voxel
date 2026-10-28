@@ -55,8 +55,18 @@ enum class BlockType : uint8_t {
   FURNACE_LIT,  // a furnace while it burns: glows, and isn't an item
   CHEST,
   TREASURE_CHEST, // locked, in deep caves (worldgen v3): not an item, unbreakable
+  // Doors: the state is in the type, in the order of block/door.hpp
+  // (bottom then top half; facing N, E, S, W; closed then open).
+  DOOR_BOTTOM_N_CLOSED, DOOR_BOTTOM_N_OPEN,
+  DOOR_BOTTOM_E_CLOSED, DOOR_BOTTOM_E_OPEN,
+  DOOR_BOTTOM_S_CLOSED, DOOR_BOTTOM_S_OPEN,
+  DOOR_BOTTOM_W_CLOSED, DOOR_BOTTOM_W_OPEN,
+  DOOR_TOP_N_CLOSED, DOOR_TOP_N_OPEN,
+  DOOR_TOP_E_CLOSED, DOOR_TOP_E_OPEN,
+  DOOR_TOP_S_CLOSED, DOOR_TOP_S_OPEN,
+  DOOR_TOP_W_CLOSED, DOOR_TOP_W_OPEN,
 };
 
 // The highest BlockType value. Update it when appending a type; a test in
 // tests/item_test.cpp fails if a named type exists past it.
-constexpr BlockType kLastBlockType = BlockType::TREASURE_CHEST;
+constexpr BlockType kLastBlockType = BlockType::DOOR_TOP_W_OPEN;

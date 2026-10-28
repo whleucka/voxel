@@ -597,7 +597,7 @@ void Engine::renderCrosshair() {
   {
     glm::vec3 eyePos = player->getEyePosition();
     BlockType eyeBlock = world().getBlockAt(eyePos);
-    if (eyeBlock != BlockType::AIR && !isLiquid(eyeBlock)) {
+    if (blocksMovement(eyeBlock)) {
       ImDrawList* overlay = ImGui::GetBackgroundDrawList();
       overlay->AddRectFilled(ImVec2(0, 0), ImVec2((float)win_width, (float)win_height),
                              IM_COL32(0, 0, 0, 200));
@@ -1155,6 +1155,9 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
       else
         engine->connection().send(CastLine{cam.front});
     }
+    // Open or shut a door (crouch to place against it instead).
+    else if (ray.hit && isDoor(ray.block_type) && !player->isCrouching())
+      engine->connection().send(UseDoor{ray.block_pos});
     // Use a Crafting Table, furnace or chest (crouch to place against it instead).
     else if (ray.hit && ray.block_type == BlockType::CRAFTING_TABLE && !player->isCrouching())
       engine->setInventoryOpen(true);

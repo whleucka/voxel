@@ -66,11 +66,12 @@ enum class ItemId : uint16_t {
   COOKED_GLOWFIN,
   SOGGY_BOOT,
   TREASURE_KEY,
+  WOODEN_DOOR,       // places a two-high door (the Game sets its halves)
   // Append only: the numeric value is persisted in inventory saves.
 };
 
 constexpr ItemId kFirstMaterialItem = ItemId::COAL;
-constexpr ItemId kLastMaterialItem = ItemId::TREASURE_KEY;
+constexpr ItemId kLastMaterialItem = ItemId::WOODEN_DOOR;
 
 struct ItemIcon {
   enum class Atlas : uint8_t { Block, Item };

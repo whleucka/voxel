@@ -31,6 +31,8 @@ public:
   bool hasTransparent() const { return transparent_index_count > 0; }
   // The blended faces (water) as built by generateCPU, for tests.
   const std::vector<BlockVertex> &transparentVertexData() const { return transparentVertices; }
+  // The opaque faces, likewise.
+  const std::vector<BlockVertex> &vertexData() const { return vertices; }
 
 private:
   void setupVAO(GLuint vao, GLuint vbo, GLuint ebo,

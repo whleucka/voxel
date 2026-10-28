@@ -253,6 +253,20 @@ def treasure_key():
     return img
 
 
+def wooden_door():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    wood, dark, light = (150, 116, 74, 255), (80, 58, 32, 255), (190, 152, 104, 255)
+    d.rectangle([8, 2, 23, 29], fill=wood, outline=dark)
+    d.line([(15, 3), (15, 28)], fill=dark)                     # seam between boards
+    d.rectangle([11, 5, 20, 13], fill=(150, 210, 236, 255), outline=dark)  # window
+    d.line([(15, 5), (15, 13)], fill=dark)
+    d.line([(11, 9), (20, 9)], fill=dark)
+    d.rectangle([19, 17, 21, 19], fill=(226, 182, 70, 255))    # handle
+    d.line([(9, 3), (9, 28)], fill=light)
+    return img
+
+
 FISHING = [fishing_rod] + [fish(*c, cooked=cooked) for c in FISH for cooked in (False, True)] + [soggy_boot]
 
 # Animal products, crafted and smelted items, after the shape-based
@@ -261,7 +275,7 @@ DRAWN = [wool, berries, shell, petals, sticks,
          ingot((200, 200, 206), (110, 110, 118), (236, 236, 242)),   # iron
          ingot((214, 120, 64), (120, 60, 28), (246, 170, 120)),     # copper
          ingot((240, 200, 60), (150, 110, 20), (255, 236, 140)),    # gold
-         charcoal] + TOOLS + FISHING + [treasure_key]
+         charcoal] + TOOLS + FISHING + [treasure_key, wooden_door]
 
 
 def main():

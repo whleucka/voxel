@@ -79,6 +79,7 @@ const std::vector<Recipe> &recipes() {
     list.push_back(atTable({ItemId::TREASURE_KEY, 1},
                            {{{ItemId::GOLD_INGOT}, 2},
                             {{ItemId::RUBY, ItemId::EMERALD, ItemId::DIAMOND}, 1}}));
+    list.push_back(atTable({ItemId::WOODEN_DOOR, 2}, {{anyPlanks(), 6}}));
     return list;
   }();
   return all;

@@ -1,6 +1,7 @@
 // Game is exercised through a LocalConnection exactly as Engine drives it,
 // without a window: World::init() (shaders) is never called.
 #include "doctest/doctest.h"
+#include "block/door.hpp"
 #include "item/mining.hpp"
 #include "item/tools.hpp"
 #include "core/settings.hpp"
@@ -2712,4 +2713,130 @@ TEST_CASE_FIXTURE(EditGame, "two players see the same chest") {
   std::optional<ContainerView> v = lastView(pollAll(other));
   REQUIRE(v);
   CHECK(v->slots[0] == ItemStack{ItemId::COAL, 9});
+}
+
+// ─── Doors ─────────────────────────────────────────────────────────────
+
+namespace {
+struct DoorGame : EditGame {
+  glm::ivec3 door{5, ground + 1, 5};
+  glm::ivec3 top() const { return door + glm::ivec3(0, 1, 0); }
+
+  // Holds `n` doors and places one at `pos`, looking along `yaw`.
+  std::vector<Event> placeDoor(glm::ivec3 pos, float yaw = 0.0f, uint16_t n = 1) {
+    conn.send(MovePlayer{{5.5f, ground + 1.0f, 8.5f}, yaw, 0.0f, false, false});
+    game.pump();
+    PlayerState &me = *game.findPlayer(id);
+    me.inventory.set(me.selected_slot, {ItemId::WOODEN_DOOR, n});
+    pollAll(conn);
+    return run(PlaceBlock{pos});
+  }
+};
+} // namespace
+
+TEST_CASE_FIXTURE(DoorGame, "a door is placed closed, two high, facing its placer, and used up") {
+  auto evs = placeDoor(door, 0.0f, 2); // looking +X
+  CHECK(changes(evs) == 2);
+  CHECK(at(door) == doorBlock(false, DoorFacing::East, false));
+  CHECK(at(top()) == doorBlock(true, DoorFacing::East, false));
+  const PlayerState &me = *game.findPlayer(id);
+  CHECK(me.inventory.slot(me.selected_slot) == ItemStack{ItemId::WOODEN_DOOR, 1});
+  CHECK(changes(pollAll(other)) == 2);
+
+  // Looking the other ways.
+  glm::ivec3 next = door + glm::ivec3(-2, 0, 0);
+  game.world().setBlockAt(next - glm::ivec3(0, 1, 0), BlockType::STONE);
+  game.world().setBlockAt(next, BlockType::AIR);
+  game.world().setBlockAt(next + glm::ivec3(0, 1, 0), BlockType::AIR);
+  placeDoor(next, -90.0f);
+  CHECK(at(next) == doorBlock(false, DoorFacing::North, false));
+}
+
+TEST_CASE_FIXTURE(DoorGame, "a door needs ground under it and two clear cells") {
+  // No room: something in the top cell.
+  game.world().setBlockAt(top(), BlockType::STONE);
+  CHECK(reason(placeDoor(door)) == "place: no room for a door");
+  CHECK(at(door) == BlockType::AIR);
+  const PlayerState &me = *game.findPlayer(id);
+  CHECK(me.inventory.slot(me.selected_slot) == ItemStack{ItemId::WOODEN_DOOR, 1});
+  // Nothing under it.
+  game.world().setBlockAt(top(), BlockType::AIR);
+  CHECK(reason(placeDoor(top())) == "place: a door needs ground under it");
+  // Not on another door either.
+  placeDoor(door);
+  CHECK(reason(placeDoor(top() + glm::ivec3(0, 1, 0))) == "place: a door needs ground under it");
+}
+
+TEST_CASE_FIXTURE(DoorGame, "either half opens and closes the whole door, for everyone") {
+  placeDoor(door);
+  pollAll(other);
+  CHECK(changes(run(UseDoor{door})) == 2);
+  CHECK(doorOpen(at(door)));
+  CHECK(doorOpen(at(top())));
+  CHECK(changes(pollAll(other)) == 2);
+  run(UseDoor{top()});
+  CHECK_FALSE(doorOpen(at(door)));
+  CHECK_FALSE(doorOpen(at(top())));
+  CHECK(doorFacing(at(door)) == DoorFacing::East); // it only swings
+
+  CHECK(reason(run(UseDoor{door + glm::ivec3(1, 0, 0)})) == "door: that isn't a door");
+  moveTo({5.5f, ground + 1.0f, 5.5f + 9.0f});
+  CHECK(reason(run(UseDoor{door})) == "door: out of reach");
+  CHECK_FALSE(doorOpen(at(door)));
+}
+
+TEST_CASE_FIXTURE(DoorGame, "a door won't shut on someone standing in it") {
+  placeDoor(door);
+  run(UseDoor{door});
+  moveTo({5.5f, ground + 1.0f, 5.5f}); // in the doorway
+  CHECK(reason(run(UseDoor{door})) == "door: someone's in the way");
+  CHECK(doorOpen(at(door)));
+}
+
+TEST_CASE_FIXTURE(DoorGame, "breaking either half takes the whole door and drops one") {
+  for (glm::ivec3 hit : {door, door + glm::ivec3(0, 1, 0)}) {
+    CAPTURE(hit.y - door.y);
+    placeDoor(door);
+    PlayerState &me = *game.findPlayer(id);
+    me.inventory.set(me.selected_slot, {});
+    auto evs = mine(hit);
+    CHECK(changes(evs) == 2);
+    CHECK(at(door) == BlockType::AIR);
+    CHECK(at(top()) == BlockType::AIR);
+    CHECK(heldCount(inventory(), ItemId::WOODEN_DOOR) == 1);
+    me.inventory.set(me.selected_slot, {});
+    for (int i = 0; i < kInventorySlots; ++i) me.inventory.set(i, {});
+  }
+}
+
+TEST_CASE_FIXTURE(DoorGame, "a door pops off when the ground under it goes") {
+  placeDoor(door);
+  wield(ItemId::DIAMOND_SHOVEL);
+  glm::ivec3 ground_cell = door - glm::ivec3(0, 1, 0);
+  // Whatever the ground is, a diamond pickaxe or shovel gets through it quickly.
+  if (toughness(at(ground_cell)).best == ToolKind::Pickaxe) wield(ItemId::DIAMOND_PICKAXE);
+  auto evs = mine(ground_cell);
+  CHECK(changes(evs) == 3);
+  CHECK(at(door) == BlockType::AIR);
+  CHECK(at(top()) == BlockType::AIR);
+  CHECK(dropped(game, ItemId::WOODEN_DOOR) == 1);
+}
+
+TEST_CASE_FIXTURE(DoorGame, "doors are saved open or shut") {
+  ScopedSeed seed;
+  TempDir dir;
+  CHECK_FALSE(game.load(dir.path.string()));
+  placeDoor(door);
+  run(UseDoor{door});
+  run(Save{});
+
+  ScopedRenderDistance rd{0};
+  Game loaded;
+  REQUIRE(loaded.load(dir.path.string()));
+  loaded.world().loadChunkSync(0, 0);
+  loaded.world().flushPendingEdits();
+  CHECK(loaded.world().getBlockAt(glm::vec3(door) + 0.5f) ==
+        doorBlock(false, DoorFacing::East, true));
+  CHECK(loaded.world().getBlockAt(glm::vec3(top()) + 0.5f) ==
+        doorBlock(true, DoorFacing::East, true));
 }

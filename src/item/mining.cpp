@@ -1,4 +1,5 @@
 #include "item/mining.hpp"
+#include "block/door.hpp"
 
 Toughness toughness(BlockType b) {
   using enum BlockType;
@@ -41,6 +42,7 @@ Toughness toughness(BlockType b) {
       return {true, 12000, ToolKind::Pickaxe, ToolKind::None, Tier::Iron};
 
     default:
+      if (isDoor(b)) return {true, 3000, ToolKind::Axe}; // like planks
       return {true, 1000};
   }
 }

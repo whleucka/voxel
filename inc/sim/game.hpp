@@ -153,6 +153,7 @@ private:
   void apply(Client &client, const StartBreak &cmd);
   void apply(Client &client, const CastLine &cmd);
   void apply(Client &client, const ReelIn &cmd);
+  void apply(Client &client, const UseDoor &cmd);
   // Bobbers float, bites come and go, and lines break.
   void tickFishing();
   // Takes the player's bobber out of the world and ends their fishing.
@@ -243,6 +244,11 @@ private:
   void spillFurnace(glm::ivec3 pos);
   std::map<glm::ivec3, Chest, BlockLess> chests_;
   void spillChest(glm::ivec3 pos);
+  // Doors: setting both halves at once, placing one, and popping one whose
+  // support at `below` has gone (it drops, in survival).
+  void setDoor(glm::ivec3 bottom, BlockType bottom_half);
+  void placeDoor(Client &client, PlayerState &ps, glm::ivec3 pos);
+  void popDoorAbove(glm::ivec3 below);
   // A Treasure Key held: it's used up and the chest is filled with loot.
   // False (nothing changed) without a key.
   bool unlockTreasure(Client &client, PlayerState &ps, glm::ivec3 pos);

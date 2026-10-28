@@ -4,6 +4,25 @@ What's waiting on a real play-test, newest first. Tick things off as they
 pass; anything that fails, note what happened (a screenshot plus the F12
 coordinates helps).
 
+## Doors
+
+- [ ] Craft Wooden Doors (6 planks at a table, makes 2) and place them facing each way
+- [ ] Right-click opens and shuts it, top or bottom half; crouch + right-click places a block against it
+- [ ] It looks right from both sides, open and shut, by day and at night; you can see out of the window
+- [ ] A shut door stops you; an open one lets you through; it won't shut while you stand in it
+- [ ] Build a hut with a door and spend a night inside: enemies stay out while it's shut, follow you in when it's open
+- [ ] Breaking either half gives one door back; digging the ground under it pops it off
+- [ ] Save and reload: doors stay open or shut
+- [ ] A guest sees a door open and shut
+- [ ] The kids' verdict
+
+## Gem pockets, bedrock floor, ore gates (PRs #39, #40)
+
+- [ ] A wooden pickaxe on diamond ore: it doesn't budge, "Too hard! You need an Iron Pickaxe or better."
+- [ ] Make a NEW world: no bedrock in the caves, only at the very bottom
+- [ ] Gems are rare, and come in clumps of 3–6 of one kind (mostly in deep cave walls)
+- [ ] Aria and Alex's verdict on gem rarity
+
 ## Chests and treasure
 
 - [ ] Craft a Chest (8 planks at a table), place it, right-click: a 4 x 5 panel where crafting was
