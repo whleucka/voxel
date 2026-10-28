@@ -17,6 +17,7 @@
   - Pebblefish, Sunfin and glowing Glowfin swim in lakes, the sea and cave pools.
 - **Crafting:** discover recipes as you collect things, and build a Crafting Table for the bigger ones ([more below](#crafting)).
 - **Smelting:** a furnace that cooks raw ore into ingots, and sand into glass, while you're off exploring ([more below](#smelting)).
+- **Doors:** craft wooden doors, right-click to open and shut them; nothing gets through a closed one ([more below](#doors)).
 - **Chests:** craft chests to keep your things in, and hunt deep caves for locked treasure chests ([more below](#chests-and-treasure)).
 - **Fishing:** make a rod, cast it, and reel in when the bobber dips. Cook your catch, or find treasure ([more below](#fishing)).
 - **Tools and weapons:** pickaxes, axes, shovels and swords from wood to diamond; mining takes time and the best ore needs the best picks ([more below](#tools-and-weapons)).
@@ -98,7 +99,7 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **W, A, S, D:** Move. **Space:** Jump. **Mouse:** Look around.
 *   **Left Ctrl:** Sprint (uses stamina). **Left Shift:** Crouch.
 *   **Left click:** Hit a creature, or break a block (hold it in survival).
-*   **Right click:** Place a block, feed an animal, eat the food you're holding, cast and reel in a fishing rod, or open a chest, furnace or Crafting Table.
+*   **Right click:** Place a block, feed an animal, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, or open and shut a door.
 *   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
 *   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
 *   **ESC:** Close the inventory, or open the pause menu (Resume, Settings,
@@ -175,7 +176,8 @@ Make tools at a Crafting Table from sticks and a material:
 Materials, worst to best: **wood** (planks), **stone** (cobblestone),
 **copper** and **iron** (ingots from a furnace), then **ruby**, **emerald**
 and **diamond**. Coal and copper ore need a stone pickaxe, iron and gold a
-copper one, and gems an iron one. Tools wear out (watch the bar under the
+copper one, and gems an iron one: until you have it, ore won't budge, and
+the game tells you which pickaxe you need. Tools wear out (watch the bar under the
 icon). Gem tools have a trick each: a ruby sword sets enemies alight, an
 emerald pickaxe sometimes doubles ore, and diamond is the fastest and
 toughest. Creative breaks everything in one hit, as before.
@@ -197,6 +199,19 @@ ordinary chest you can keep using.
 
 Treasure chests are only in worlds made from now on. Older worlds keep
 exactly the terrain they had.
+
+## Doors
+
+Make **Wooden Doors** from 6 planks (any wood) at a Crafting Table: you
+get two. Place one on the ground with two blocks of room above it, and it
+faces you. Right-click either half to open or shut it; crouch to place a
+block against it instead. It has a window in the top half, so you can see
+who's outside.
+
+A **closed door is a wall** to everything: players, enemies and
+animals. Only a player can open it, and nothing breaks it down, so a house with a door is
+a safe place to spend the night. Leave it open and enemies can follow you
+in. Breaking either half gives the door back.
 
 ## Fishing
 
@@ -221,7 +236,10 @@ furnace and they heal a lot more. A rod lasts 64 catches.
 Worlds made from now on have **natural caves**: winding tunnels, some
 opening onto hillsides so you can walk straight in. Deep inside you'll find
 **glow crystals** (break one to take its light home), shallow **pools**, and
-gems in the walls, better ones the deeper you go. Cave Grumbles only appear
+ore in the walls. Deep down, far below the sea, there are rare **gem
+pockets**: a clump of rubies, emeralds or diamonds together. Most are in a
+cave wall, the rest buried in the rock. Bedrock is only the floor of the
+world. Cave Grumbles only appear
 in the dark, so a crystal or lamp keeps the area around it safe.
 
 Worlds made before caves keep exactly the terrain they had: each world
