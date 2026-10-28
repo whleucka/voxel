@@ -289,9 +289,9 @@ TEST_CASE("chest views round-trip with their kind and slots") {
 
 TEST_CASE("chat messages round-trip") {
   roundTrip(Chat{"come to my house \xE2\x99\xA5"});
-  roundTrip(ChatMessage{19 * 60 + 42, 3, "Aria", "ZOMBIES!!", false});
-  roundTrip(ChatMessage{5, 0, "", "Alex joined the game", true});
-  ChatMessage m{100, 2, "Alex", "hi", true};
+  roundTrip(ChatMessage{19 * 60 + 42, 3, "Sam", "ZOMBIES!!", false});
+  roundTrip(ChatMessage{5, 0, "", "Pat joined the game", true});
+  ChatMessage m{100, 2, "Pat", "hi", true};
   CHECK(std::get<ChatMessage>(*wire::decodeEvent(enc(Event{m}))) == m);
 }
 

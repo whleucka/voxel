@@ -233,7 +233,7 @@ EntityTypeDef makeCaveGrumble() {
   return d;
 }
 
-// Zombies and mummies (Alex's idea): player-sized walkers with their arms
+// Zombies and mummies: player-sized walkers with their arms
 // held out in front. Legs swing; arms are fixed.
 void addWalkerBody(std::vector<ModelBox> &m, glm::vec3 skin, glm::vec3 top,
                    glm::vec3 legs, glm::vec3 eye) {

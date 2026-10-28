@@ -140,7 +140,7 @@ TEST_CASE("reset to defaults keeps the world, name and port") {
   s.world_name = "castle";
   s.world_seed = 42;
   s.noise_offset = {1.0f, 2.0f};
-  s.player_name = "alex";
+  s.player_name = "pat";
   s.server_port = 50000;
   s.window_width = 1280;
   s.time_scale = 720.0f;
@@ -155,7 +155,7 @@ TEST_CASE("reset to defaults keeps the world, name and port") {
   CHECK(d.world_name == "castle");
   CHECK(d.world_seed == 42u);
   CHECK(d.noise_offset == glm::vec2(1.0f, 2.0f));
-  CHECK(d.player_name == "alex");
+  CHECK(d.player_name == "pat");
   CHECK(d.server_port == 50000);
   CHECK(d.window_width == 1280);
   CHECK(d.time_scale == fresh.time_scale);

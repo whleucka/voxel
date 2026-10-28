@@ -274,7 +274,7 @@ furnace and they heal a lot more. A rod lasts 64 catches.
 
 ## Farming
 
-Aria's idea. Make a **hoe** at a Crafting Table from 2 of a tier's material
+A play-tester's idea. Make a **hoe** at a Crafting Table from 2 of a tier's material
 (planks, cobblestone, an ingot or a gem) and 2 sticks. Right-click **grass
 or dirt** with it to till it into **farmland**. Tilling grass sometimes turns
 up **Wheat Seeds** or **Carrot Seeds**; for **Strawberry Seeds**, take 1
