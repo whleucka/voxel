@@ -337,6 +337,24 @@ const EntityTypeDef kBobber{
      {{-0.02f, 0.18f, -0.02f}, {0.04f, 0.06f, 0.04f}, {0.86f, 0.16f, 0.16f}}},
     nullptr, {}, {}};
 
+// A wooden hull with low sides and two seats, the bow toward -Z. Its box is
+// narrower than the hull so it fits one-block canals; the Game moves it.
+EntityTypeDef makeBoat() {
+  const glm::vec3 wood{0.62f, 0.45f, 0.27f}, dark{0.45f, 0.31f, 0.17f}, seat{0.74f, 0.56f, 0.35f};
+  EntityTypeDef d{"Boat", 0.45f, 0.6f, 0, 0, 0.0f,
+                  {{{-0.5f, 0.0f, -0.8f}, {1.0f, 0.12f, 1.6f}, dark},   // bottom
+                   {{-0.5f, 0.12f, -0.8f}, {0.1f, 0.38f, 1.6f}, wood},  // sides
+                   {{0.4f, 0.12f, -0.8f}, {0.1f, 0.38f, 1.6f}, wood},
+                   {{-0.4f, 0.12f, -0.8f}, {0.8f, 0.38f, 0.1f}, wood},  // bow
+                   {{-0.4f, 0.12f, 0.7f}, {0.8f, 0.38f, 0.1f}, wood},   // stern
+                   {{-0.4f, 0.2f, -0.4f}, {0.8f, 0.06f, 0.2f}, seat},   // front seat
+                   {{-0.4f, 0.2f, 0.2f}, {0.8f, 0.06f, 0.2f}, seat}},   // back seat
+                  nullptr, {}, {}};
+  d.vehicle = true;
+  return d;
+}
+const EntityTypeDef kBoat = makeBoat();
+
 const EntityTypeDef kGloomling = makeGloomling();
 const EntityTypeDef kThornCrawler = makeThornCrawler();
 const EntityTypeDef kCaveGrumble = makeCaveGrumble();
@@ -366,7 +384,8 @@ bool isValidEntityKind(EntityKind kind) {
     case EntityKind::Glowfin:
     case EntityKind::Bobber:
     case EntityKind::Zombie:
-    case EntityKind::Mummy:        return true;
+    case EntityKind::Mummy:
+    case EntityKind::Boat:         return true;
   }
   return false;
 }
@@ -388,6 +407,7 @@ const EntityTypeDef &entityType(EntityKind kind) {
     case EntityKind::Bobber:       return kBobber;
     case EntityKind::Zombie:       return kZombie;
     case EntityKind::Mummy:        return kMummy;
+    case EntityKind::Boat:         return kBoat;
   }
   return kTestCreature;
 }

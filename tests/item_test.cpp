@@ -47,7 +47,7 @@ TEST_CASE("every placeable block has an item that places it") {
 
 TEST_CASE("the material items are defined with unique item-atlas tiles") {
   auto mats = materials();
-  CHECK(mats.size() == 77);
+  CHECK(mats.size() == 78);
 
   std::set<std::pair<int, int>> tiles;
   for (ItemId id : mats) {
@@ -56,7 +56,7 @@ TEST_CASE("the material items are defined with unique item-atlas tiles") {
     CAPTURE(def.name);
     CHECK(!def.name.empty());
     CHECK(def.name != "Unknown");
-    bool single = usesOf(id) > 0 || id == ItemId::SOGGY_BOOT;
+    bool single = usesOf(id) > 0 || id == ItemId::SOGGY_BOOT || id == ItemId::BOAT;
     const bool sixteen =
         id == ItemId::TREASURE_KEY || id == ItemId::WOODEN_DOOR || isBedItem(id);
     CHECK(def.max_stack == (single ? 1 : sixteen ? 16 : 64));

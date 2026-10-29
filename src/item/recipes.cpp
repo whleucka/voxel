@@ -97,6 +97,8 @@ const std::vector<Recipe> &recipes() {
     list.push_back(atTable({ItemId::BREAD, 1}, {{{ItemId::WHEAT}, 3}}));
     list.push_back(atTable({ItemId::STRAWBERRY_SEEDS, 2}, {{{ItemId::BERRIES}, 1}}));
     list.push_back(atTable({ItemId::WATERING_CAN, 1}, {{{ItemId::COPPER_INGOT}, 3}}));
+    // A boat, made anywhere so it can be made at the shore.
+    list.push_back(anywhere({ItemId::BOAT, 1}, {{anyPlanks(), 5}}));
     return list;
   }();
   return all;

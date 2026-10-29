@@ -53,7 +53,7 @@ TEST_CASE("recipe ids are stable: they travel on the wire") {
   CHECK(all[16].makes.id == block(BlockType::FURNACE));
 }
 
-TEST_CASE("only planks, sticks and the table can be made without a table") {
+TEST_CASE("only planks, sticks, the table and a boat can be made without a table") {
   for (const Recipe &r : recipes()) {
     CAPTURE(itemDef(r.makes.id).name);
     bool basic = r.makes.id == ItemId::STICKS ||
@@ -61,7 +61,8 @@ TEST_CASE("only planks, sticks and the table can be made without a table") {
                  r.makes.id == block(BlockType::OAK_PLANKS) ||
                  r.makes.id == block(BlockType::PINE_PLANKS) ||
                  r.makes.id == block(BlockType::PALM_PLANKS) ||
-                 r.makes.id == block(BlockType::CHERRY_PLANKS);
+                 r.makes.id == block(BlockType::CHERRY_PLANKS) ||
+                 r.makes.id == ItemId::BOAT; // made at the shore
     CHECK(r.needs_table == !basic);
   }
 }
