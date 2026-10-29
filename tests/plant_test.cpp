@@ -1,5 +1,9 @@
 #include "doctest/doctest.h"
 #include "block/block_data.hpp"
+#include "chunk/chunk.hpp"
+#include "chunk/chunk_mesh.hpp"
+#include "test_util.hpp"
+#include "world/world.hpp"
 #include "item/item.hpp"
 #include "item/mining.hpp"
 #include <algorithm>
@@ -153,4 +157,87 @@ TEST_CASE("a cake counts its slices down and is placed whole") {
   CHECK(isValidItem(itemForBlock(BlockType::CAKE_4)));
   CHECK_FALSE(isValidItem(itemForBlock(BlockType::CAKE_3)));
   CHECK(itemDef(itemForBlock(BlockType::CAKE_4)).name == "Cake");
+}
+
+// ─── Meshing ───────────────────────────────────────────────────────────
+
+namespace {
+
+constexpr int kSky = 200; // clear sky above chunk (0,0)
+
+// The mesh's vertices that wear `tile`, and how far up and across they reach.
+struct Drawn {
+  int quads = 0;
+  glm::vec3 lo{1e9f}, hi{-1e9f};
+};
+Drawn drawnWith(World &world, glm::ivec2 tile) {
+  auto chunk = world.getChunk(0, 0);
+  REQUIRE(chunk);
+  ChunkMesh mesh;
+  TextureManager unused; // generateCPU makes no GL calls
+  mesh.generateCPU(&world, *chunk, unused);
+  Drawn d;
+  const auto &v = mesh.vertexData();
+  for (size_t i = 0; i + 3 < v.size(); i += 4) {
+    if (v[i].tileX != tile.x || v[i].tileY != tile.y) continue;
+    ++d.quads;
+    for (size_t k = i; k < i + 4; ++k) {
+      glm::vec3 p = glm::vec3(v[k].posX, v[k].posY, v[k].posZ) / float(kPosScale);
+      d.lo = glm::min(d.lo, p);
+      d.hi = glm::max(d.hi, p);
+    }
+  }
+  return d;
+}
+
+World &openGround() {
+  static World world;
+  world.loadChunkSync(0, 0);
+  fill(world, {0, kSky - 2, 0}, {15, kSky + 6, 15}, BlockType::AIR);
+  fill(world, {1, kSky - 1, 1}, {14, kSky - 1, 14}, BlockType::GRASS);
+  return world;
+}
+
+} // namespace
+
+TEST_CASE("a plant is drawn as crossed planes inside its cell") {
+  World &world = openGround();
+  fill(world, {5, kSky, 5}, {5, kSky, 5}, BlockType::POPPY);
+  Drawn d = drawnWith(world, block_data.at(BlockType::POPPY).side);
+  CHECK(d.quads == 16); // four planes, front and back, as boxes with no depth
+  CHECK(d.lo == glm::vec3(5, kSky, 5));
+  CHECK(d.hi == glm::vec3(6, kSky + 1, 6));
+}
+
+TEST_CASE("a torch on a wall stands against it, higher up") {
+  World &world = openGround();
+  fill(world, {5, kSky, 4}, {5, kSky + 1, 4}, BlockType::STONE);
+  fill(world, {5, kSky + 1, 5}, {5, kSky + 1, 5}, BlockType::TORCH_N);
+  Drawn d = drawnWith(world, kTorchTile);
+  REQUIRE(d.quads > 0);
+  CHECK(d.lo.y > kSky + 1);        // raised off the cell's floor
+  CHECK(d.lo.z < 5.0f);            // leaning into the wall's side
+}
+
+TEST_CASE("a cactus is a box a little inside its cell") {
+  World &world = openGround();
+  fill(world, {5, kSky - 1, 5}, {5, kSky - 1, 5}, BlockType::SAND);
+  fill(world, {5, kSky, 5}, {5, kSky, 5}, BlockType::CACTUS);
+  Drawn d = drawnWith(world, kCactusSideTile);
+  CHECK(d.quads == 4);
+  CHECK(d.lo.x == doctest::Approx(5 + 1.0f / 16));
+  CHECK(d.hi.x == doctest::Approx(6 - 1.0f / 16));
+  CHECK(d.hi.y == doctest::Approx(kSky + 1));
+}
+
+TEST_CASE("an eaten cake is shorter and shows where it was cut") {
+  World &world = openGround();
+  fill(world, {5, kSky, 5}, {5, kSky, 5}, BlockType::CAKE_4);
+  CHECK(drawnWith(world, kCakeCutTile).quads == 0);
+  const float whole = drawnWith(world, kCakeTopTile).hi.x;
+  fill(world, {5, kSky, 5}, {5, kSky, 5}, BlockType::CAKE_2);
+  CHECK(drawnWith(world, kCakeCutTile).quads == 1);
+  Drawn half = drawnWith(world, kCakeTopTile);
+  CHECK(half.hi.x < whole);
+  CHECK(half.hi.y == doctest::Approx(kSky + kCakeHeight));
 }

@@ -135,8 +135,9 @@ inline uint8_t skyLightOpacity(BlockType type) {
     case BlockType::PALM_LEAF:
     case BlockType::CHERRY_LEAF: return 1;
     default: // light gets round these
+      // (and round a cactus, which doesn't fill its cell either)
       return isDoor(type) || isBed(type) || isCrop(type) || isPlant(type) || isTorch(type) ||
-                     isCake(type)
+                     isCake(type) || type == BlockType::CACTUS
                  ? 0
                  : 15;
   }

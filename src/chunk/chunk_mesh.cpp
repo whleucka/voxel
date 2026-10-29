@@ -410,12 +410,13 @@ void addBed(MeshBuffers &buffers, int x, int y, int z, BlockType type,
   }
 }
 
-// A crop: four flat planes in a # across the cell, so plants side by side
-// never share a face and a field can be seen into. Each plane is a box with
-// no thickness: its front and back faces are the plant seen from either side.
+// A crop or a wild plant: four flat planes in a # across the cell, so plants
+// side by side never share a face and a field can be seen into. Each plane is
+// a box with no thickness: its front and back faces are the plant seen from
+// either side.
 void addCrop(MeshBuffers &buffers, int x, int y, int z, BlockType type,
              int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight) {
-  const glm::ivec2 plant = cropTile(type);
+  const glm::ivec2 plant = block_data.at(type).side;
   const BoxTiles tiles{kCropTopTile, kCropTopTile, plant, plant, plant, plant};
   const glm::vec3 cell(x, y, z);
   for (float at : {4.0f / 16.0f, 12.0f / 16.0f}) {
@@ -424,6 +425,47 @@ void addCrop(MeshBuffers &buffers, int x, int y, int z, BlockType type,
     addBox(buffers, cell + glm::vec3(at, 0, 0), cell + glm::vec3(at, 1, 1), tiles,
            cutoutClass(type), chunkWorldX, chunkWorldZ, skyLight, blockLight);
   }
+}
+
+// A torch: two flat planes crossed through the middle of the cell, wearing
+// the stick-and-flame tile. One on a wall stands against it, a little higher.
+void addTorch(MeshBuffers &buffers, int x, int y, int z, BlockType type,
+              int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight) {
+  const glm::ivec2 tile = block_data.at(type).side;
+  const BoxTiles tiles{kCropTopTile, kCropTopTile, tile, tile, tile, tile};
+  const glm::ivec3 wall = torchSupport(type);
+  glm::vec3 base(x, y, z);
+  if (wall.y == 0) base += glm::vec3(wall) * 0.35f + glm::vec3(0.0f, 0.2f, 0.0f);
+  addBox(buffers, base + glm::vec3(0, 0, 0.5f), base + glm::vec3(1, 1, 0.5f), tiles,
+         cutoutClass(type), chunkWorldX, chunkWorldZ, skyLight, blockLight);
+  addBox(buffers, base + glm::vec3(0.5f, 0, 0), base + glm::vec3(0.5f, 1, 1), tiles,
+         cutoutClass(type), chunkWorldX, chunkWorldZ, skyLight, blockLight);
+}
+
+// A cactus: a box a little inside its cell, so a stack of them shows ridges.
+void addCactus(MeshBuffers &buffers, int x, int y, int z, BlockType type,
+               int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight) {
+  constexpr float s = 1.0f / 16.0f;
+  const BlockTexture &tex = block_data.at(type);
+  const glm::vec3 cell(x, y, z);
+  addBox(buffers, cell + glm::vec3(s, 0, s), cell + glm::vec3(1 - s, 1, 1 - s),
+         {tex.top, tex.top, tex.side, tex.side, tex.side, tex.side}, kCutoutNone, chunkWorldX,
+         chunkWorldZ, skyLight, blockLight);
+}
+
+// A cake: a low round of sponge, with the eaten slices gone from its +X
+// end, which shows the inside where it's been cut.
+void addCake(MeshBuffers &buffers, int x, int y, int z, BlockType type,
+             int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight) {
+  constexpr float s = 1.0f / 16.0f;
+  const BlockTexture &tex = block_data.at(type); // bottom holds the cut
+  const int slices = cakeSlices(type);
+  const float end = s + 14 * s * static_cast<float>(slices) / kCakeSlices;
+  const glm::ivec2 cut = slices < kCakeSlices ? tex.bottom : tex.side;
+  const glm::vec3 cell(x, y, z);
+  addBox(buffers, cell + glm::vec3(s, 0, s), cell + glm::vec3(end, kCakeHeight, 1 - s),
+         {tex.top, tex.side, tex.side, tex.side, cut, tex.side}, kCutoutNone, chunkWorldX,
+         chunkWorldZ, skyLight, blockLight);
 }
 
 } // namespace
@@ -547,7 +589,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[x][y]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR || isDoor(type) || isBed(type) || isCrop(type))
+        if (type == BlockType::AIR || hasOwnShape(type))
           continue; // addDoor, addBed, addCrop
 
         if (sideShows(type, x, y, z + 1)) {
@@ -604,7 +646,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[x][y]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR || isDoor(type) || isBed(type) || isCrop(type))
+        if (type == BlockType::AIR || hasOwnShape(type))
           continue; // addDoor, addBed, addCrop
 
         if (sideShows(type, x, y, z - 1)) {
@@ -661,7 +703,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[z][x]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR || isDoor(type) || isBed(type) || isCrop(type))
+        if (type == BlockType::AIR || hasOwnShape(type))
           continue; // addDoor, addBed, addCrop
 
         BlockType neighbor = getBlock(world, chunk, x, y + 1, z);
@@ -727,7 +769,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[z][x]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR || isDoor(type) || isBed(type) || isCrop(type))
+        if (type == BlockType::AIR || hasOwnShape(type))
           continue; // addDoor, addBed, addCrop
         if (isLiquid(type)) continue;
 
@@ -785,7 +827,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[y][z]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR || isDoor(type) || isBed(type) || isCrop(type))
+        if (type == BlockType::AIR || hasOwnShape(type))
           continue; // addDoor, addBed, addCrop
 
         if (sideShows(type, x + 1, y, z)) {
@@ -842,7 +884,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         if (mask[y][z]) continue;
 
         BlockType type = chunk.at(x, y, z);
-        if (type == BlockType::AIR || isDoor(type) || isBed(type) || isCrop(type))
+        if (type == BlockType::AIR || hasOwnShape(type))
           continue; // addDoor, addBed, addCrop
 
         if (sideShows(type, x - 1, y, z)) {
@@ -891,7 +933,8 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
     }
   }
 
-  // Doors, beds and crops, which the passes above leave out.
+  // Doors, beds, crops, plants, torches, cactus and cake, which the passes
+  // above leave out.
   for (int y = 0; y < kChunkHeight; ++y)
     for (int z = 0; z < kChunkDepth; ++z)
       for (int x = 0; x < kChunkWidth; ++x) {
@@ -902,8 +945,17 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         else if (isBed(type))
           addBed(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
                  getSkyLight(world, chunk, x, y, z), getBlockLight(world, chunk, x, y, z));
-        else if (isCrop(type))
+        else if (isCrop(type) || isPlant(type))
           addCrop(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
+                  getSkyLight(world, chunk, x, y, z), getBlockLight(world, chunk, x, y, z));
+        else if (isTorch(type))
+          addTorch(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
+                   getSkyLight(world, chunk, x, y, z), getBlockLight(world, chunk, x, y, z));
+        else if (type == BlockType::CACTUS)
+          addCactus(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
+                    getSkyLight(world, chunk, x, y, z), getBlockLight(world, chunk, x, y, z));
+        else if (isCake(type))
+          addCake(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
                   getSkyLight(world, chunk, x, y, z), getBlockLight(world, chunk, x, y, z));
       }
 
