@@ -300,7 +300,8 @@ the shore if there's some close by, or into the water beside the boat.
 From a boat you can look all round, fish, eat and use your inventory, but
 not build, break or fight. A boat stops at the shore and won't move on land.
 Hit an empty boat to pick it up again. Boats never break, and a boat you
-leave stays where you left it, even after you quit.
+leave stays where you left it, even after you quit. Quit while you're in one
+and you'll be back in your seat when you return.
 
 ## Farming
 

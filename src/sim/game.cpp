@@ -97,9 +97,13 @@ bool Game::load(const std::string &dir) {
     setAside("farms.dat");
   }
   // Without boats.dat (a world from before boats) there are none.
+  saved_seats.clear();
   if (std::vector<WorldSave::BoatRecord> bs; WorldSave::loadBoats(dir, bs)) {
     for (const auto &r : bs)
-      if (auto id = entities_.spawn(EntityKind::Boat, r.position)) entities_.find(*id)->yaw = r.yaw;
+      if (auto id = entities_.spawn(EntityKind::Boat, r.position)) {
+        entities_.find(*id)->yaw = r.yaw;
+        if (r.seats != SavedSeats{}) saved_seats[*id] = r.seats;
+      }
   } else {
     setAside("boats.dat");
   }
@@ -154,9 +158,20 @@ bool Game::save() {
   WorldSave::Farms farms;
   for (const auto &[pos, c] : crops_) farms.crops.push_back({pos, c.left_ms});
   for (const auto &[pos, s] : soil_) farms.soil.push_back({pos, s.wet_ms, s.by_water});
+  // Each boat with who's in it: riders here now, else ones still to come back.
   std::vector<WorldSave::BoatRecord> boats;
-  for (const auto &[id, e] : entities_.all())
-    if (e.kind == EntityKind::Boat) boats.push_back({e.body.position, e.yaw});
+  for (const auto &[id, e] : entities_.all()) {
+    if (e.kind != EntityKind::Boat) continue;
+    WorldSave::BoatRecord r{e.body.position, e.yaw};
+    if (auto it = saved_seats.find(id); it != saved_seats.end()) r.seats = it->second;
+    for (const auto &[pid, ps] : players) {
+      if (!ps.riding || ps.riding->boat != id) continue;
+      r.seats[ps.riding->seat] =
+          &ps == host ? WorldSave::BoatRecord::Seat{WorldSave::BoatRecord::Rider::Host, ""}
+                      : WorldSave::BoatRecord::Seat{WorldSave::BoatRecord::Rider::Guest, ps.name};
+    }
+    boats.push_back(r);
+  }
 
   if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits()) ||
       !WorldSave::saveFurnaces(save_dir, furnaces) ||
@@ -646,6 +661,7 @@ void Game::apply(Client &client, const Join &cmd) {
   ++next_player_id;
   const WorldSave::GuestRecord *rec =
       client.role == Role::Guest ? guestRecord(ps.name) : nullptr;
+  const bool saved_host = !rec && client.role == Role::Host && saved_player;
   if (rec) {
     ps.position = rec->player.position;
     ps.yaw = rec->player.yaw;
@@ -701,6 +717,7 @@ void Game::apply(Client &client, const Join &cmd) {
   client.link->deliver(Joined{joined.id, joined.position, joined.yaw, joined.pitch,
                               joined.selected_slot, joined.fly, mode_});
   sendInventory(client, joined);
+  retakeSeat(client, joined, saved_host);
   size_t skip = chat_history.size() > kChatOnJoin ? chat_history.size() - kChatOnJoin : 0;
   for (size_t i = skip; i < chat_history.size(); ++i) {
     ChatMessage old = chat_history[i];
@@ -2020,6 +2037,7 @@ void Game::pickUpBoat(Client &client, PlayerState &ps, EntityId id) {
     if (riderIn(id, seat)) return reject(client, "boat: someone's in it");
   const glm::ivec3 cell = glm::floor(boat->body.position + glm::vec3(0.0f, 0.5f, 0.0f));
   entities_.remove(id);
+  saved_seats.erase(id);
   giveOrDrop(ps, {ItemId::BOAT, 1}, cell);
   sendInventory(client, ps);
 }
@@ -2142,4 +2160,28 @@ void Game::tickBoats() {
     }
     ps->position = seatPosition(boat->body.position, boat->yaw, ps->riding->seat);
   }
+}
+
+void Game::retakeSeat(Client &client, PlayerState &ps, bool saved_host) {
+  using Rider = WorldSave::BoatRecord::Rider;
+  for (auto it = saved_seats.begin(); it != saved_seats.end(); ++it)
+    for (int seat = 0; seat < kBoatSeats; ++seat) {
+      WorldSave::BoatRecord::Seat &s = it->second[seat];
+      bool mine = (s.rider == Rider::Host && saved_host) ||
+                  (s.rider == Rider::Guest && client.role == Role::Guest && s.name == ps.name);
+      if (!mine) continue;
+      s = {};
+      const EntityId id = it->first;
+      if (it->second == SavedSeats{}) saved_seats.erase(it);
+      // Gone, or someone else sat down: they stay where they were saved,
+      // beside it.
+      const Entity *boat = entities_.find(id);
+      if (!boat || riderIn(id, seat)) return;
+      ps.riding = PlayerState::Riding{id, seat};
+      ps.position = seatPosition(boat->body.position, boat->yaw, seat);
+      ++ps.respawn;
+      client.link->deliver(Riding{id, static_cast<uint8_t>(seat), boat->body.position, boat->yaw});
+      client.link->deliver(Respawned{ps.position, ps.respawn});
+      return;
+    }
 }

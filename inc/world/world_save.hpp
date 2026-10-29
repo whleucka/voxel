@@ -9,6 +9,7 @@
 #include "world/pin.hpp"
 #include "world/worldgen_version.hpp"
 #include <cstdint>
+#include <array>
 #include <map>
 #include <optional>
 #include <glm/glm.hpp>
@@ -123,11 +124,19 @@ struct Farms {
 bool loadFarms(const std::string &dir, Farms &out);
 bool saveFarms(const std::string &dir, const Farms &farms);
 
-// boats.dat — every boat, where it was left. Worlds from before boats have
-// none.
+// boats.dat — every boat, where it was left, and who was sitting in it so
+// they sit back down when they return. Worlds from before boats have none.
 struct BoatRecord {
   glm::vec3 position{0.0f};
   float yaw = 0.0f;
+  // Each seat (0 drives): empty, the host's, or a guest's by name.
+  enum class Rider : uint8_t { None, Host, Guest };
+  struct Seat {
+    Rider rider = Rider::None;
+    std::string name; // guests only
+    bool operator==(const Seat &) const = default;
+  };
+  std::array<Seat, 2> seats{};
 };
 bool loadBoats(const std::string &dir, std::vector<BoatRecord> &out);
 bool saveBoats(const std::string &dir, std::span<const BoatRecord> boats);
