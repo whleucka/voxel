@@ -4,13 +4,16 @@
 #include "doctest/doctest.h"
 #include "biome/biome.hpp"
 #include "biome/caves.hpp"
+#include "biome/biome_manager.hpp"
 #include "block/block_data.hpp"
 #include "chunk/chunk.hpp"
 #include "core/constants.hpp"
 #include "core/seed.hpp"
 #include "core/settings.hpp"
+#include "test_util.hpp"
 #include <algorithm>
 #include <map>
+#include <set>
 #include <thread>
 #include <vector>
 
@@ -645,4 +648,165 @@ TEST_CASE("version 6 has about as much cave water as version 5") {
   CAPTURE(water[1]);
   CHECK(water[1] * 2 >= water[0]);
   CHECK(water[1] <= water[0] * 2);
+}
+
+// ─── Plants (version 7) ────────────────────────────────────────────────
+
+namespace {
+
+bool grownWild(BlockType b) {
+  return isPlant(b) || b == BlockType::CACTUS || isCoral(b);
+}
+
+// The chunks round the first one of `biome` that are that biome too.
+std::vector<glm::ivec2> chunksOf(BiomeType biome, int want) {
+  std::vector<glm::ivec2> out;
+  auto home = findBiomeChunk(biome);
+  REQUIRE(home);
+  for (int r = 0; r < 12 && static_cast<int>(out.size()) < want; ++r)
+    for (int dx = -r; dx <= r; ++dx)
+      for (int dz = -r; dz <= r; ++dz) {
+        if (std::abs(dx) != r && std::abs(dz) != r) continue;
+        glm::ivec2 c = *home + glm::ivec2(dx, dz);
+        if (static_cast<int>(out.size()) < want &&
+            BiomeManager::getBiomeForChunk(c.x, c.y) == biome)
+          out.push_back(c);
+      }
+  return out;
+}
+
+// How many of each block grew in `chunks`, above and below the ground.
+struct Census {
+  std::map<BlockType, int> surface, caves;
+};
+Census census(const std::vector<glm::ivec2> &chunks) {
+  Census n;
+  for (glm::ivec2 pos : chunks) {
+    Chunk c(pos.x, pos.y);
+    c.init();
+    for (int z = 0; z < kChunkDepth; ++z)
+      for (int x = 0; x < kChunkWidth; ++x) {
+        int h = surfaceOf(pos.x * kChunkWidth + x, pos.y * kChunkDepth + z);
+        for (int y = 1; y < kChunkHeight; ++y) {
+          BlockType b = c.at(x, y, z);
+          if (grownWild(b)) ++(y < h - 3 ? n.caves : n.surface)[b];
+        }
+      }
+  }
+  return n;
+}
+
+} // namespace
+
+TEST_CASE("version 7 is version 6 with plants added in the air and water") {
+  for (const glm::ivec2 &pos : kSample) {
+    std::vector<BlockType> v6, v7;
+    {
+      SeededWorld world(12345, worldgen::kPools);
+      v6 = generate(pos.x, pos.y);
+    }
+    {
+      SeededWorld world(12345, worldgen::kPlants);
+      v7 = generate(pos.x, pos.y);
+    }
+    CAPTURE(pos.x);
+    CAPTURE(pos.y);
+    long other = 0;
+    for (size_t i = 0; i < v6.size(); ++i)
+      if (v6[i] != v7[i])
+        other += !grownWild(v7[i]) ||
+                 (v6[i] != BlockType::AIR && v6[i] != BlockType::WATER);
+    CHECK(other == 0);
+  }
+}
+
+TEST_CASE("version 7 plants sit on their own ground") {
+  SeededWorld world(12345, worldgen::kPlants);
+  long plants = 0;
+  for (const glm::ivec2 &pos : kSample) {
+    Chunk c(pos.x, pos.y);
+    c.init();
+    for (int z = 0; z < kChunkDepth; ++z)
+      for (int x = 0; x < kChunkWidth; ++x)
+        for (int y = 1; y < kChunkHeight; ++y) {
+          BlockType b = c.at(x, y, z), below = c.at(x, y - 1, z);
+          if (!grownWild(b)) continue;
+          ++plants;
+          CAPTURE(blockName(b));
+          CAPTURE(blockName(below));
+          if (isCoral(b))
+            CHECK((blocksMovement(below)));
+          else
+            CHECK(growsOn(b, below, isSolidGround(below)));
+        }
+  }
+  CHECK(plants > 0);
+}
+
+TEST_CASE("each biome grows its own plants in version 7") {
+  SeededWorld world(12345, worldgen::kPlants);
+  using enum BlockType;
+  auto has = [](const std::map<BlockType, int> &m, std::initializer_list<BlockType> any) {
+    for (BlockType b : any)
+      if (m.count(b)) return true;
+    return false;
+  };
+  auto only = [](const std::map<BlockType, int> &m, std::set<BlockType> allowed) {
+    for (const auto &[b, n] : m)
+      if (!allowed.count(b)) {
+        CAPTURE(blockName(b));
+        return false;
+      }
+    return true;
+  };
+
+  SUBCASE("plains: tall grass, and patches of poppies, buttercups and cornflowers") {
+    Census n = census(chunksOf(BiomeType::PLAINS, 12));
+    CHECK(n.surface[TALL_GRASS] >= 12 * 5);
+    CHECK(n.surface[TALL_GRASS] <= 12 * 30);
+    CHECK(has(n.surface, {POPPY, BUTTERCUP, CORNFLOWER}));
+    CHECK(only(n.surface, {TALL_GRASS, POPPY, BUTTERCUP, CORNFLOWER, SHELLS}));
+  }
+  SUBCASE("cherry groves: tulips and daisies") {
+    Census n = census(chunksOf(BiomeType::CHERRY, 12));
+    CHECK(n.surface[TALL_GRASS] > 0);
+    CHECK(has(n.surface, {PINK_TULIP, DAISY}));
+    CHECK(only(n.surface, {TALL_GRASS, PINK_TULIP, DAISY, SHELLS}));
+  }
+  SUBCASE("mountains: ferns, lavender, and mushrooms under the pines") {
+    Census n = census(chunksOf(BiomeType::MOUNTAIN, 16));
+    CHECK(n.surface[FERN] > 0);
+    CHECK(has(n.surface, {RED_MUSHROOM, BROWN_MUSHROOM}));
+    CHECK(only(n.surface, {FERN, LAVENDER, RED_MUSHROOM, BROWN_MUSHROOM}));
+  }
+  SUBCASE("tropics: hibiscus and berry bushes") {
+    Census n = census(chunksOf(BiomeType::TROPICAL, 12));
+    CHECK(n.surface[BERRY_BUSH] > 0);
+    CHECK(has(n.surface, {HIBISCUS}));
+    CHECK(only(n.surface, {TALL_GRASS, HIBISCUS, BERRY_BUSH, SHELLS}));
+  }
+  SUBCASE("deserts: cactus and dead bushes") {
+    Census n = census(chunksOf(BiomeType::DESERT, 12));
+    CHECK(n.surface[CACTUS] > 0);
+    CHECK(n.surface[DEAD_BUSH] > 0);
+    CHECK(only(n.surface, {CACTUS, DEAD_BUSH}));
+  }
+  SUBCASE("oceans: coral on the sea floor") {
+    Census n = census(chunksOf(BiomeType::OCEAN, 16));
+    CHECK(has(n.surface, {PINK_CORAL, BLUE_CORAL, YELLOW_CORAL}));
+  }
+}
+
+TEST_CASE("version 7 has shells on beaches and mushrooms in caves") {
+  SeededWorld world(12345, worldgen::kPlants);
+  std::vector<glm::ivec2> all;
+  for (int cx = -6; cx < 6; ++cx)
+    for (int cz = -6; cz < 6; ++cz) all.push_back({cx, cz});
+  Census n = census(all);
+  CHECK(n.caves[BlockType::BROWN_MUSHROOM] > 0);
+  CHECK(n.surface.count(BlockType::SHELLS) + n.caves.count(BlockType::SHELLS) > 0);
+  for (const auto &[b, count] : n.caves) {
+    CAPTURE(blockName(b));
+    CHECK((b == BlockType::BROWN_MUSHROOM || isCoral(b)));
+  }
 }

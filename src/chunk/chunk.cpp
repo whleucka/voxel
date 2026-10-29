@@ -3,6 +3,7 @@
 #include "render/texture_manager.hpp"
 #include "biome/biome_manager.hpp"
 #include "biome/caves.hpp"
+#include "biome/plants.hpp"
 #include "core/constants.hpp"
 #include "core/settings.hpp"
 #include "util/worldgen_rng.hpp"
@@ -33,6 +34,7 @@ void Chunk::init() {
   if (g_settings.worldgen >= worldgen::kChests) caves::placeTreasure(*this, surfaces);
   if (g_settings.worldgen >= worldgen::kPockets) caves::placeGemPockets(*this, surfaces);
   if (g_settings.worldgen >= worldgen::kPools) caves::placePools(*this, surfaces);
+  if (g_settings.worldgen >= worldgen::kPlants) plants::place(*this, biome_type, surfaces);
   computeSkyLight();
   computeBlockLight();
 }
