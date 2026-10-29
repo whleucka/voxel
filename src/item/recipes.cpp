@@ -1,5 +1,6 @@
 #include "item/recipes.hpp"
 #include "block/block_type.hpp"
+#include "block/stairs.hpp"
 #include "item/tools.hpp"
 #include <algorithm>
 #include <limits>
@@ -124,6 +125,13 @@ const std::vector<Recipe> &recipes() {
     list.push_back(atTable({block(BlockType::CAKE_4), 1},
                            {{{ItemId::WHEAT}, 3}, {{ItemId::STRAWBERRY}, 2},
                             {{ItemId::SWEET_PETALS}, 1}}));
+    // Stairs and slabs of each building material: 6 make 4 stairs, and 3
+    // make 6 slabs (which make the 3 blocks again, stacked in pairs).
+    for (int m = 0; m < kShapeMaterials; ++m) {
+      const ItemId material = block(kShapeMaterial[m]);
+      list.push_back(atTable({block(stairBlock(m, DoorFacing::North)), 4}, {{{material}, 6}}));
+      list.push_back(atTable({block(slabBlock(m)), 6}, {{{material}, 3}}));
+    }
     return list;
   }();
   return all;
