@@ -178,6 +178,7 @@ template <class IO> void fields(IO &io, UseBed &m) { io(m.pos); }
 template <class IO> void fields(IO &, LeaveBed &) {}
 template <class IO> void fields(IO &io, UseItemOn &m) { io(m.pos); }
 template <class IO> void fields(IO &io, Chat &m) { io(m.text); }
+template <class IO> void fields(IO &, TogglePin &) {}
 
 // Events
 template <class IO> void fields(IO &io, Joined &m) {
@@ -200,6 +201,8 @@ template <class IO> void fields(IO &io, SleepState &m) {
   io(m.in_bed, m.bed, m.sleepers, m.living);
 }
 template <class IO> void fields(IO &io, Notice &m) { io(m.text); }
+template <class IO> void fields(IO &io, Pin &m) { io(m.pos, m.colour); }
+template <class IO> void fields(IO &io, Waypoints &m) { io(m.home, m.pins); }
 template <class IO> void fields(IO &io, ChatMessage &m) {
   io(m.minute, m.from, m.name, m.text, m.history);
 }

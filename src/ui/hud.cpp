@@ -645,3 +645,109 @@ void Hud::drawDeathScreen() {
   shadowText(fg, sub_size, ImVec2((d.x - sub_ext.x) * 0.5f, d.y * 0.38f + size * 1.3f),
              rgba(230, 230, 230, 1.0f), 1.0f, sub);
 }
+
+// ─── Minimap ───────────────────────────────────────────────────────────
+
+namespace {
+
+// Pin colours, by Pin::colour.
+constexpr ImU32 kPinColours[kMaxPins] = {
+    IM_COL32(230, 60, 60, 255),  IM_COL32(60, 130, 240, 255), IM_COL32(250, 210, 50, 255),
+    IM_COL32(170, 90, 220, 255), IM_COL32(250, 140, 40, 255), IM_COL32(60, 210, 210, 255),
+    IM_COL32(250, 130, 190, 255), IM_COL32(245, 245, 245, 255)};
+
+// A little house: a square with a roof.
+void drawHouse(ImDrawList *dl, ImVec2 c, float s) {
+  const ImU32 wall = IM_COL32(250, 236, 200, 255), roof = IM_COL32(200, 64, 48, 255);
+  const ImU32 edge = IM_COL32(0, 0, 0, 220);
+  ImVec2 a(c.x - s * 0.6f, c.y - s * 0.05f), b(c.x + s * 0.6f, c.y + s * 0.8f);
+  dl->AddRectFilled(a, b, wall);
+  dl->AddRect(a, b, edge, 0.0f, 0, 1.5f);
+  ImVec2 r0(c.x - s * 0.9f, c.y), r1(c.x + s * 0.9f, c.y), r2(c.x, c.y - s * 0.85f);
+  dl->AddTriangleFilled(r0, r1, r2, roof);
+  dl->AddTriangle(r0, r1, r2, edge, 1.5f);
+  dl->AddRectFilled(ImVec2(c.x - s * 0.18f, c.y + s * 0.35f), ImVec2(c.x + s * 0.18f, c.y + s * 0.8f),
+                    IM_COL32(120, 80, 40, 255));
+}
+
+} // namespace
+
+void Hud::drawMinimap(const HudLayout &layout, const Minimap &map, glm::vec3 feet, float yaw,
+                      const Waypoints *waypoints) {
+  ImDrawList *dl = ImGui::GetBackgroundDrawList();
+  const Rect area = layout.minimapArea();
+  const glm::vec2 mid = area.center();
+  const float radius = area.w * 0.5f;
+  const float scale = radius / Minimap::kRadius; // pixels per block
+  const ImVec2 c = iv(mid);
+  constexpr float kMapRadius = Minimap::kRadius;
+
+  dl->AddCircleFilled(c, radius + 3.0f, rgba(20, 18, 24, 0.75f), 64);
+
+  // The cells, each turned with the map. Anti-aliased edges would show as
+  // seams between them.
+  const ImDrawListFlags flags = dl->Flags;
+  dl->Flags &= ~ImDrawListFlags_AntiAliasedFill;
+  const glm::vec2 ex = mapOffset({1.0f, 0.0f}, yaw) * scale * 0.5f;
+  const glm::vec2 ez = mapOffset({0.0f, 1.0f}, yaw) * scale * 0.5f;
+  const glm::ivec3 centre = map.centre();
+  const glm::vec2 here(feet.x, feet.z);
+  for (int dz = -Minimap::kRadius; dz <= Minimap::kRadius; ++dz)
+    for (int dx = -Minimap::kRadius; dx <= Minimap::kRadius; ++dx) {
+      const glm::u8vec4 col = map.cell(dx, dz);
+      if (col.a == 0) continue;
+      const glm::vec2 cell(centre.x + dx + 0.5f, centre.z + dz + 0.5f);
+      const glm::vec2 off = mapOffset(cell - here, yaw);
+      if (glm::length(off) > kMapRadius - 0.5f) continue;
+      const glm::vec2 p = mid + off * scale;
+      dl->AddQuadFilled(iv(p - ex - ez), iv(p + ex - ez), iv(p + ex + ez), iv(p - ex + ez),
+                        IM_COL32(col.r, col.g, col.b, 255));
+    }
+  dl->Flags = flags;
+  dl->AddCircle(c, radius, rgba(235, 225, 200, 0.95f), 64, 3.0f);
+
+  // North, on the rim.
+  {
+    const glm::vec2 n = mid + placeMarker(mapOffset({0.0f, -1e4f}, yaw), kMapRadius - 3.5f).at * scale;
+    const float size = std::max(13.0f, radius * 0.16f);
+    dl->AddCircleFilled(iv(n), size * 0.7f, rgba(20, 18, 24, 0.85f));
+    ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, "N");
+    shadowText(dl, size, ImVec2(n.x - ext.x * 0.5f, n.y - ext.y * 0.5f), rgba(255, 90, 80, 1.0f),
+               1.0f, "N");
+  }
+
+  // Home and the pins: where they are, or on the rim with the distance.
+  const float icon = std::max(7.0f, radius * 0.09f);
+  const float text = std::max(12.0f, radius * 0.13f);
+  auto marker = [&](glm::ivec3 at, auto draw) {
+    const glm::vec2 delta = glm::vec2(at.x + 0.5f, at.z + 0.5f) - here;
+    const MarkerSpot spot = placeMarker(mapOffset(delta, yaw), kMapRadius - 3.5f);
+    const glm::vec2 p = mid + spot.at * scale;
+    draw(iv(p));
+    if (!spot.on_rim) return;
+    // How far, just inside the rim.
+    const std::string label = std::to_string(static_cast<int>(std::lround(glm::length(delta))));
+    const glm::vec2 in = mid + spot.at * scale * (1.0f - (icon * 2.6f) / radius);
+    ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(text, FLT_MAX, 0.0f, label.c_str());
+    shadowText(dl, text, ImVec2(in.x - ext.x * 0.5f, in.y - ext.y * 0.5f), rgba(255, 255, 255, 1.0f),
+               1.0f, label.c_str());
+  };
+  if (waypoints) {
+    for (const Pin &pin : waypoints->pins)
+      marker(pin.pos, [&](ImVec2 p) {
+        dl->AddCircleFilled(p, icon * 0.75f, kPinColours[pin.colour % kMaxPins]);
+        dl->AddCircle(p, icon * 0.75f, IM_COL32(0, 0, 0, 230), 0, 2.0f);
+      });
+    marker(waypoints->home, [&](ImVec2 p) { drawHouse(dl, p, icon); });
+  }
+
+  // The player, pointing the way they face (always up).
+  const float s = std::max(6.0f, radius * 0.08f);
+  ImVec2 tip(c.x, c.y - s * 1.2f), l(c.x - s * 0.8f, c.y + s * 0.8f), r(c.x + s * 0.8f, c.y + s * 0.8f),
+      notch(c.x, c.y + s * 0.35f);
+  // Two triangles: the notch makes it concave.
+  dl->AddTriangleFilled(tip, r, notch, IM_COL32(255, 255, 255, 255));
+  dl->AddTriangleFilled(tip, notch, l, IM_COL32(255, 255, 255, 255));
+  const ImVec2 outline[] = {tip, r, notch, l};
+  dl->AddPolyline(outline, 4, IM_COL32(0, 0, 0, 230), ImDrawFlags_Closed, 1.5f);
+}

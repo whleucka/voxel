@@ -35,6 +35,7 @@ bool SettingsPage::draw(Settings &s, bool difficulty_locked) {
   ImGui::Checkbox("Clouds", &s.clouds_enabled);
   ImGui::SameLine(0, 40 + ImGui::CalcTextSize("Fullscreen").x - ImGui::CalcTextSize("Clouds").x);
   ImGui::Checkbox("Shadows", &s.shadows_enabled);
+  ImGui::Checkbox("Minimap", &s.show_minimap);
   ImGui::PopItemWidth();
 
   ImGui::Spacing();

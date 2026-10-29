@@ -131,6 +131,33 @@ void readBed(std::istream &in, WorldSave::PlayerData &p) {
   if (rd(in, has) && has == 1 && rd(in, x) && rd(in, y) && rd(in, z)) p.bed = glm::ivec3(x, y, z);
 }
 
+// The map pins: a count, then each one's cell and colour.
+void writePins(std::ostream &o, const WorldSave::PlayerData &p) {
+  wr(o, static_cast<uint8_t>(p.pins.size()));
+  for (const Pin &pin : p.pins) {
+    wr(o, static_cast<int32_t>(pin.pos.x));
+    wr(o, static_cast<int32_t>(pin.pos.y));
+    wr(o, static_cast<int32_t>(pin.pos.z));
+    wr(o, pin.colour);
+  }
+}
+
+// Missing (an older file): none. Too many, or a colour out of range or
+// already taken, and the extra pins are dropped.
+void readPins(std::istream &in, WorldSave::PlayerData &p) {
+  uint8_t n = 0;
+  if (!rd(in, n)) return;
+  for (uint8_t i = 0; i < n; ++i) {
+    int32_t x = 0, y = 0, z = 0;
+    uint8_t colour = 0;
+    if (!rd(in, x) || !rd(in, y) || !rd(in, z) || !rd(in, colour)) return;
+    bool taken = false;
+    for (const Pin &pin : p.pins) taken |= pin.colour == colour;
+    if (colour < kMaxPins && !taken && p.pins.size() < kMaxPins)
+      p.pins.push_back({glm::ivec3(x, y, z), colour});
+  }
+}
+
 void writeSlots(std::ostream &o, std::span<const ItemStack> slots) {
   wr(o, static_cast<uint16_t>(slots.size()));
   for (const ItemStack &s : slots) {
@@ -240,6 +267,7 @@ bool loadPlayer(const std::string &dir, PlayerData &out) {
   if (!in || !checkHeader(in, kPlayerMagic)) return false;
   if (!readPlayer(in, out)) return false;
   readBed(in, out);
+  readPins(in, out);
   return true;
 }
 
@@ -290,6 +318,7 @@ bool save(const std::string &dir, const LevelData &level,
                        writeHeader(o, kPlayerMagic);
                        writePlayer(o, player);
                        writeBed(o, player);
+                       writePins(o, player);
                      }) &&
          writeAtomic(dir + "/edits.dat", [&](std::ostream &o) {
            writeHeader(o, kEditMagic);
@@ -426,6 +455,7 @@ bool saveGuest(const std::string &dir, const std::string &name, const GuestRecor
     writeIds(o, rec.discovered);
     writeWear(o, rec.inventory);
     writeBed(o, rec.player);
+    writePins(o, rec.player);
   });
 }
 
@@ -450,6 +480,7 @@ bool loadGuests(const std::string &dir, std::map<std::string, GuestRecord> &out)
     else {
       readWear(in, rec.inventory); // from before tools: unworn
       readBed(in, rec.player);     // from before beds: none
+      readPins(in, rec.player);    // from before the map: none
     }
     out[name] = std::move(rec);
   }

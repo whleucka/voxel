@@ -105,10 +105,22 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
 *   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
 *   **T:** Chat. Type and press Enter (or click Send); Esc closes it.
+*   **P:** Drop a map pin where you stand, or pick up the one next to you.
 *   **ESC:** Close the inventory, or open the pause menu (Resume, Settings,
     Save game, Return to title screen, Exit game). Single player pauses.
 *   **F5:** Save the world. **F11:** Toggle fullscreen.
 *   **F12:** Debug panel (info, stats, wireframe, V-sync and host cheats).
+
+## The map
+
+The minimap in the top-right corner turns with you, so straight ahead is
+always up. Outside it shows the land from above; underground it shows the
+caves around your feet instead, open space light and rock dark, so you can find
+your way back out. A little house marks home (your bed, or where the world
+began if you haven't slept in one), and when home is too far to fit, the house
+waits on the edge of the map, pointing the way, with how many blocks it is.
+Press **P** to drop up to eight coloured pins at places worth finding again,
+like a cave mouth. They're saved with you. The map can be turned off in Settings.
 
 ## Game modes
 

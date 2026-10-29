@@ -179,6 +179,7 @@ private:
   void apply(Client &client, const LeaveBed &cmd);
   void apply(Client &client, const UseItemOn &cmd);
   void apply(Client &client, const Chat &cmd);
+  void apply(Client &client, const TogglePin &cmd);
   // Bobbers float, bites come and go, and lines break.
   void tickFishing();
   // Takes the player's bobber out of the world and ends their fishing.
@@ -318,6 +319,10 @@ private:
   void tickSleep();
   // Send SleepState to every owner whose shown state changed.
   void flushSleep();
+  // Sends each player their Waypoints when home or their pins change.
+  void flushWaypoints();
+  // Where a player's map points home: their bed, or the world spawn.
+  glm::ivec3 home(const PlayerState &ps);
   Client *clientOf(PlayerId id);
   // A Treasure Key held: it's used up and the chest is filled with loot.
   // False (nothing changed) without a key.

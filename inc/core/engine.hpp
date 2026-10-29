@@ -51,6 +51,9 @@ private:
   bool bed_keys_released = false, leave_sent = false;
   bool inBed() const { return sleep_view && sleep_view->in_bed; }
   Hud hud;
+  // The minimap's picture, and the Game's latest Waypoints for it.
+  Minimap minimap;
+  std::optional<Waypoints> waypoints;
   EntityRenderer entity_renderer;
   BlockOutline block_outline;
   EntityInterpolator entity_interp;

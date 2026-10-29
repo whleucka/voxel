@@ -5,6 +5,7 @@
 #include "ui/crafting_panel.hpp"
 #include "ui/hud_layout.hpp"
 #include "ui/inventory_screen.hpp"
+#include "ui/minimap.hpp"
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <string>
@@ -82,6 +83,12 @@ public:
 
   // How far the block being mined has got, 0..1, as a ring round the crosshair.
   void drawMiningRing(float progress);
+
+  // The minimap in its corner, turned so that `yaw` (the camera's) is up:
+  // the player's arrow in the middle, north, home and the pins. Markers too
+  // far away sit on the rim with how far they are.
+  void drawMinimap(const HudLayout &layout, const Minimap &map, glm::vec3 feet, float yaw,
+                   const Waypoints *waypoints);
 
 private:
   static constexpr double kNameShowSeconds = 1.5;

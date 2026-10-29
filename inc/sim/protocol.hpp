@@ -7,6 +7,7 @@
 #include "item/chest.hpp"
 #include "inventory/inventory.hpp"
 #include "world/block_edit.hpp"
+#include "world/pin.hpp"
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <string>
@@ -99,6 +100,8 @@ struct LeaveBed {};
 struct UseItemOn { glm::ivec3 pos{0}; };
 // Say something to everyone. The Game cleans and rate-limits it.
 struct Chat { std::string text; };
+// Drop a pin where the player stands, or pick up their pin close by.
+struct TogglePin {};
 
 using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SelectSlot, Save, SetTimeOfDay, GiveItem,
@@ -106,7 +109,7 @@ using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SpawnDebugEntity, InteractEntity, EatItem, Craft,
                              OpenContainer, CloseContainer, StartBreak,
                              CastLine, ReelIn, UseDoor, UseBed, LeaveBed, UseItemOn,
-                             Chat>;
+                             Chat, TogglePin>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 
@@ -154,6 +157,14 @@ struct ChatMessage {
   std::string text;
   bool history = false;
   bool operator==(const ChatMessage &) const = default;
+};
+
+// What the owner's map marks: home (their bed, or the world spawn without
+// one) and their pins. Sent on joining and whenever either changes.
+struct Waypoints {
+  glm::ivec3 home{0};
+  std::vector<Pin> pins;
+  bool operator==(const Waypoints &) const = default;
 };
 
 // The host's clock, once a second, so every guest's sky matches.
@@ -258,4 +269,4 @@ using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            Respawned, EntitySnapshot, KnockedBack, JoinRefused,
                            Welcome, TimeSync, Disconnected, KnownItems,
                            ContainerView, ToolBroke, Caught, SleepState, Notice,
-                           ChatMessage>;
+                           ChatMessage, Waypoints>;

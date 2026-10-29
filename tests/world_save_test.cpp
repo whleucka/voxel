@@ -47,9 +47,9 @@ TEST_CASE("level, player and edits round-trip through save/load") {
   CHECK(player2.fly_mode == player.fly_mode);
   CHECK(player2.bed == player.bed);
 
-  // A player.dat from before beds (no trailing section) loads with none.
+  // A player.dat from before beds (no trailing sections) loads with none.
   const auto file = dir.path / "player.dat";
-  std::filesystem::resize_file(file, std::filesystem::file_size(file) - 13);
+  std::filesystem::resize_file(file, std::filesystem::file_size(file) - 14);
   WorldSave::PlayerData old;
   REQUIRE(WorldSave::loadPlayer(dir.path.string(), old));
   CHECK(old.position == player.position);
@@ -141,7 +141,7 @@ TEST_CASE("a missing or truncated inventory.dat fails to load") {
 TEST_CASE("guest records round-trip, one file per name") {
   TempDir dir;
   WorldSave::GuestRecord bea;
-  bea.player = {{1.5f, 70.0f, -3.25f}, 45.0f, -10.0f, 3, 1, glm::ivec3(2, 64, -3)};
+  bea.player = {{1.5f, 70.0f, -3.25f}, 45.0f, -10.0f, 3, 1, glm::ivec3(2, 64, -3), {}};
   bea.inventory = {{ItemId::COAL, 5}, {}, {ItemId::DIAMOND, 1}};
   WorldSave::GuestRecord cy;
   cy.player.position = {-8.0f, 90.0f, 2.0f};
@@ -400,4 +400,41 @@ TEST_CASE("an unreadable guest file is set aside, so their next save can't repla
   CHECK(loaded.empty());
   CHECK(std::filesystem::exists(dir.path / "players" / "broken.dat.unreadable"));
   CHECK_FALSE(std::filesystem::exists(dir.path / "players" / "broken.dat"));
+}
+
+TEST_CASE("map pins round-trip for the host and guests; older files have none") {
+  TempDir dir;
+  const std::vector<Pin> pins{{{-40, 65, 12}, 0}, {{7, 30, -900}, 5}};
+  WorldSave::PlayerData player;
+  player.pins = pins;
+  REQUIRE(WorldSave::save(dir.path.string(), {}, player, {}));
+  WorldSave::PlayerData back;
+  REQUIRE(WorldSave::loadPlayer(dir.path.string(), back));
+  CHECK(back.pins == pins);
+
+  WorldSave::GuestRecord guest;
+  guest.player.pins = pins;
+  guest.player.bed = glm::ivec3(1, 2, 3);
+  REQUIRE(WorldSave::saveGuest(dir.path.string(), "Bea", guest));
+  std::map<std::string, WorldSave::GuestRecord> loaded;
+  REQUIRE(WorldSave::loadGuests(dir.path.string(), loaded));
+  CHECK(loaded.at("Bea").player.pins == pins);
+  CHECK(loaded.at("Bea").player.bed == glm::ivec3(1, 2, 3));
+
+  // From before the map: the file ends after the bed.
+  const auto file = dir.path / "player.dat";
+  std::filesystem::resize_file(file, std::filesystem::file_size(file) - (1 + 2 * 13));
+  WorldSave::PlayerData old;
+  REQUIRE(WorldSave::loadPlayer(dir.path.string(), old));
+  CHECK(old.pins.empty());
+}
+
+TEST_CASE("pins with a colour out of range or already taken are dropped") {
+  TempDir dir;
+  WorldSave::PlayerData player;
+  player.pins = {{{1, 1, 1}, 2}, {{2, 2, 2}, 2}, {{3, 3, 3}, kMaxPins}, {{4, 4, 4}, 3}};
+  REQUIRE(WorldSave::save(dir.path.string(), {}, player, {}));
+  WorldSave::PlayerData back;
+  REQUIRE(WorldSave::loadPlayer(dir.path.string(), back));
+  CHECK(back.pins == std::vector<Pin>{{{1, 1, 1}, 2}, {{4, 4, 4}, 3}});
 }

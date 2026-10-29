@@ -21,6 +21,7 @@ struct Settings {
 
   // UI
   bool show_debug;
+  bool show_minimap;
 
   // Rendering
   int   window_width;  // windowed-mode width  (ignored while fullscreen)
@@ -58,7 +59,7 @@ struct Settings {
         render_distance(320),
         difficulty(Difficulty::Easy),
         player_name("Player"), server_port(47800),
-        show_debug(false),
+        show_debug(false), show_minimap(true),
         window_width(1600), window_height(900),
         wireframe(false), vsync(false), fullscreen(true), show_cursor(false),
         fov(70.0f), fog_start(80.0f), fog_end(260.0f),
