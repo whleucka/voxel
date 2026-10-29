@@ -1,11 +1,14 @@
 // Plants, torches, cactus and cake in the Game: placing, popping, picking,
 // eating and pricking, through a LocalConnection as Engine drives it.
 #include "doctest/doctest.h"
+#include "biome/biome_manager.hpp"
+#include "biome/plants.hpp"
 #include "block/block_data.hpp"
 #include "item/mining.hpp"
 #include "sim/game.hpp"
 #include "sim/local_connection.hpp"
 #include "test_util.hpp"
+#include <algorithm>
 
 namespace {
 
@@ -245,4 +248,170 @@ TEST_CASE_FIXTURE(Garden, "picking a flower doesn't wear the tool in hand") {
   put(kGrass + kUp, BlockType::POPPY);
   mine(kGrass + kUp);
   CHECK(ps(ida).inventory.slot(ps(ida).selected_slot).wear == 0);
+}
+
+// ─── Berry bushes ──────────────────────────────────────────────────────
+
+TEST_CASE_FIXTURE(Garden, "a ripe berry bush gives two berries and ripens again in five minutes") {
+  const glm::ivec3 bush = kGrass + kUp;
+  put(bush, BlockType::BERRY_BUSH);
+  hold(ItemId::NONE, 0);
+  CHECK(reason(run(UseItemOn{bush})).empty());
+  CHECK(have(ItemId::BERRIES) == Game::kBerriesPicked);
+  CHECK(at(bush) == BlockType::BERRY_BUSH_BARE);
+  CHECK(game.cropTimeLeft(bush) == Game::kBushRipenMs);
+
+  // Bare, it has nothing to give yet.
+  auto evs = run(UseItemOn{bush});
+  REQUIRE(find<Notice>(evs));
+  CHECK(have(ItemId::BERRIES) == Game::kBerriesPicked);
+
+  game.growFarms(Game::kBushRipenMs - 1000);
+  CHECK(at(bush) == BlockType::BERRY_BUSH_BARE);
+  game.growFarms(1000);
+  CHECK(at(bush) == BlockType::BERRY_BUSH);
+  CHECK_FALSE(game.cropTimeLeft(bush));
+}
+
+TEST_CASE_FIXTURE(Garden, "a picked bush's time is saved with the farms") {
+  ScopedSeed seed;
+  TempDir dir;
+  CHECK_FALSE(game.load(dir.path.string()));
+  const glm::ivec3 bush = kGrass + kUp;
+  put(bush, BlockType::BERRY_BUSH);
+  run(UseItemOn{bush});
+  game.growFarms(60'000);
+  run(Save{});
+
+  ScopedRenderDistance rd2{0};
+  Game loaded;
+  REQUIRE(loaded.load(dir.path.string()));
+  CHECK(loaded.cropTimeLeft(bush) == Game::kBushRipenMs - 60'000);
+  // It ripens where nobody is, too.
+  loaded.growFarms(Game::kBushRipenMs);
+  loaded.world().loadChunkSync(0, 0);
+  loaded.world().flushPendingEdits();
+  CHECK(loaded.world().getBlockAt(glm::vec3(bush) + 0.5f) == BlockType::BERRY_BUSH);
+}
+
+TEST_CASE_FIXTURE(Garden, "a bare bush nobody was timing starts ripening when tried") {
+  const glm::ivec3 bush = kGrass + kUp;
+  put(bush, BlockType::BERRY_BUSH_BARE);
+  CHECK_FALSE(game.cropTimeLeft(bush));
+  run(UseItemOn{bush});
+  CHECK(game.cropTimeLeft(bush) == Game::kBushRipenMs);
+}
+
+// ─── Cake ──────────────────────────────────────────────────────────────
+
+TEST_CASE_FIXTURE(Garden, "a cake is shared a slice at a time, by whoever is hungry") {
+  game.setMode(GameMode::Survival);
+  const glm::ivec3 cake = kGrass + kUp;
+  hold(BlockType::CAKE_4);
+  REQUIRE(reason(run(PlaceBlock{cake})).empty());
+  CHECK(at(cake) == BlockType::CAKE_4);
+
+  // Full up: no thanks.
+  ps(ida).vitals.reset();
+  ps(ida).vitals.feed(Vitals::kMaxFedMs / Vitals::kFedPerPointMs + 1);
+  CHECK(reason(run(UseItemOn{cake})) == "eat: not hungry");
+  CHECK(at(cake) == BlockType::CAKE_4);
+
+  ps(ida).vitals.damage(10);
+  ps(idb).vitals.damage(10);
+  const int a_before = ps(ida).vitals.health();
+  CHECK(reason(run(UseItemOn{cake})).empty());
+  CHECK(ps(ida).vitals.health() == a_before + Game::kCakeSliceHeal);
+  CHECK(at(cake) == BlockType::CAKE_3);
+
+  // The other player has some too, then it's finished between them.
+  CHECK(reason(run(b, UseItemOn{cake})).empty());
+  CHECK(at(cake) == BlockType::CAKE_2);
+  run(UseItemOn{cake});
+  run(b, UseItemOn{cake});
+  CHECK(at(cake) == BlockType::AIR);
+}
+
+// ─── Compost ───────────────────────────────────────────────────────────
+
+TEST_CASE_FIXTURE(Garden, "compost grows a crop one stage and is used up") {
+  game.setMode(GameMode::Survival);
+  put(kGrass, BlockType::FARMLAND_WET);
+  put(kGrass + kUp, BlockType::WHEAT_0);
+  hold(ItemId::COMPOST, 2);
+  CHECK(reason(run(UseItemOn{kGrass + kUp})).empty());
+  CHECK(at(kGrass + kUp) == BlockType::WHEAT_1);
+  CHECK(have(ItemId::COMPOST) == 1);
+  CHECK(game.cropTimeLeft(kGrass + kUp).has_value());
+}
+
+TEST_CASE_FIXTURE(Garden, "compost ripens a picked bush at once") {
+  put(kGrass + kUp, BlockType::BERRY_BUSH);
+  run(UseItemOn{kGrass + kUp});
+  hold(ItemId::COMPOST);
+  run(UseItemOn{kGrass + kUp});
+  CHECK(at(kGrass + kUp) == BlockType::BERRY_BUSH);
+  CHECK_FALSE(game.cropTimeLeft(kGrass + kUp));
+}
+
+TEST_CASE_FIXTURE(Garden, "compost on grass sprouts the biome's plants round it") {
+  const BiomeType biome = BiomeManager::getBiomeForChunk(0, 0);
+  const plants::Wild &wild = plants::wildFor(biome);
+  hold(ItemId::COMPOST);
+  auto evs = run(UseItemOn{kGrass});
+  if (wild.greens.empty() && wild.flowers.empty()) {
+    CHECK(reason(evs) == "compost: nothing grows here");
+    return;
+  }
+  CHECK(reason(evs).empty());
+  int sprouted = 0;
+  for (int dz = -Game::kCompostReach; dz <= Game::kCompostReach; ++dz)
+    for (int dx = -Game::kCompostReach; dx <= Game::kCompostReach; ++dx) {
+      BlockType b = at(kGrass + glm::ivec3(dx, 1, dz));
+      if (b == BlockType::AIR) continue;
+      CAPTURE(blockName(b));
+      bool wild_here =
+          std::find(wild.greens.begin(), wild.greens.end(), b) != wild.greens.end() ||
+          std::find(wild.flowers.begin(), wild.flowers.end(), b) != wild.flowers.end();
+      CHECK(wild_here);
+      ++sprouted;
+    }
+  CHECK(sprouted >= 1);
+  CHECK(sprouted <= Game::kCompostSprouts);
+}
+
+TEST_CASE_FIXTURE(Garden, "compost on stone does nothing and isn't used") {
+  put(kGrass, BlockType::STONE);
+  hold(ItemId::COMPOST);
+  CHECK(reason(run(UseItemOn{kGrass})) == "compost: on a crop, a bush, grass or sand");
+  CHECK(have(ItemId::COMPOST) == 1);
+}
+
+// ─── Cactus ────────────────────────────────────────────────────────────
+
+TEST_CASE_FIXTURE(Garden, "touching a cactus pricks for one point, at most once a second") {
+  game.setMode(GameMode::Survival);
+  const glm::ivec3 feet(glm::floor(kStand));
+  put(feet + glm::ivec3(1, 0, 0), BlockType::CACTUS);
+  game.tick();
+  CHECK(ps(ida).vitals.health() == Vitals::kMax); // a step away: fine
+
+  stand(a, ida, kStand + glm::vec3(0.5f - kPlayerHalfWidth, 0, 0)); // leaning on it
+  const int full = ps(ida).vitals.health();
+  game.tick();
+  CHECK(ps(ida).vitals.health() == full - Game::kPrickDamage);
+  for (int t = 0; t < Game::kPrickCooldownMs / Game::kTickMs - 1; ++t) game.tick();
+  CHECK(ps(ida).vitals.health() == full - Game::kPrickDamage);
+  game.tick();
+  CHECK(ps(ida).vitals.health() == full - 2 * Game::kPrickDamage);
+  CHECK(ps(ida).hurt_by == "was pricked by a cactus");
+}
+
+TEST_CASE_FIXTURE(Garden, "a cactus doesn't prick in creative") {
+  game.setMode(GameMode::Creative);
+  const glm::ivec3 feet(glm::floor(kStand));
+  put(feet + glm::ivec3(1, 0, 0), BlockType::CACTUS);
+  stand(a, ida, kStand + glm::vec3(0.5f - kPlayerHalfWidth, 0, 0));
+  for (int t = 0; t < 40; ++t) game.tick();
+  CHECK(ps(ida).vitals.health() == Vitals::kMax);
 }

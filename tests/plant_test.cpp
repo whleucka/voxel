@@ -1,4 +1,5 @@
 #include "doctest/doctest.h"
+#include "biome/plants.hpp"
 #include "block/block_data.hpp"
 #include "chunk/chunk.hpp"
 #include "chunk/chunk_mesh.hpp"
@@ -7,6 +8,7 @@
 #include "item/item.hpp"
 #include "item/mining.hpp"
 #include <algorithm>
+#include <set>
 
 namespace {
 
@@ -240,4 +242,36 @@ TEST_CASE("an eaten cake is shorter and shows where it was cut") {
   Drawn half = drawnWith(world, kCakeTopTile);
   CHECK(half.hi.x < whole);
   CHECK(half.hi.y == doctest::Approx(kSky + kCakeHeight));
+}
+
+// ─── What grows where ──────────────────────────────────────────────────
+
+TEST_CASE("compost sprouts each biome's own plants on its own ground") {
+  std::mt19937 rng(7);
+  auto sprouts = [&](BiomeType biome, BlockType ground) {
+    std::set<BlockType> got;
+    for (int i = 0; i < 300; ++i)
+      if (auto p = plants::sprout(biome, ground, rng)) got.insert(*p);
+    return got;
+  };
+  using enum BlockType;
+  CHECK(sprouts(BiomeType::PLAINS, GRASS) ==
+        std::set<BlockType>{TALL_GRASS, POPPY, BUTTERCUP, CORNFLOWER});
+  CHECK(sprouts(BiomeType::CHERRY, GRASS) == std::set<BlockType>{TALL_GRASS, PINK_TULIP, DAISY});
+  CHECK(sprouts(BiomeType::MOUNTAIN, GRASS) == std::set<BlockType>{FERN, LAVENDER});
+  CHECK(sprouts(BiomeType::TROPICAL, GRASS) == std::set<BlockType>{TALL_GRASS, HIBISCUS});
+  CHECK(sprouts(BiomeType::DESERT, SAND) == std::set<BlockType>{DEAD_BUSH, CACTUS});
+  CHECK(sprouts(BiomeType::OCEAN, SAND) == std::set<BlockType>{SHELLS});
+  CHECK(sprouts(BiomeType::DESERT, GRASS).empty());
+  CHECK(sprouts(BiomeType::MOUNTAIN, SAND).empty());
+  CHECK(sprouts(BiomeType::PLAINS, STONE).empty());
+}
+
+TEST_CASE("every flower colour grows wild somewhere") {
+  std::set<BlockType> flowers;
+  for (BiomeType b : {BiomeType::PLAINS, BiomeType::MOUNTAIN, BiomeType::DESERT,
+                      BiomeType::OCEAN, BiomeType::TROPICAL, BiomeType::CHERRY})
+    for (BlockType f : plants::wildFor(b).flowers) flowers.insert(f);
+  for (int v = static_cast<int>(BlockType::POPPY); v <= static_cast<int>(BlockType::HIBISCUS); ++v)
+    CHECK(flowers.count(static_cast<BlockType>(v)) == 1);
 }

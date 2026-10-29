@@ -92,11 +92,14 @@ enum class ItemId : uint16_t {
   STRAWBERRY,
   WATERING_CAN,
   BOAT,              // placed on water as a Boat entity
+  COMPOST,           // grows a crop a stage, or sprouts plants on grass or sand
+  MUSHROOM_STEW,
+  BERRY_COOKIE,
   // Append only: the numeric value is persisted in inventory saves.
 };
 
 constexpr ItemId kFirstMaterialItem = ItemId::COAL;
-constexpr ItemId kLastMaterialItem = ItemId::BOAT;
+constexpr ItemId kLastMaterialItem = ItemId::BERRY_COOKIE;
 
 struct ItemIcon {
   enum class Atlas : uint8_t { Block, Item };

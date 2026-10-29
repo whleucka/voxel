@@ -385,6 +385,36 @@ def boat():
     return img
 
 
+def compost():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.ellipse([4, 12, 28, 28], fill=(88, 62, 38, 255), outline=(44, 30, 16, 255))  # a heap
+    for x, y in [(10, 17), (16, 15), (21, 19), (13, 22), (19, 24), (24, 22)]:
+        d.ellipse([x - 2, y - 1, x + 2, y + 1], fill=(92, 140, 50, 255))           # leaf bits
+    d.line([(16, 12), (14, 6)], fill=(60, 120, 40, 255), width=2)                   # a sprout
+    d.ellipse([10, 3, 16, 8], fill=(80, 160, 60, 255))
+    return img
+
+
+def mushroom_stew():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.pieslice([3, 6, 29, 30], 0, 180, fill=(150, 104, 62, 255), outline=(80, 52, 26, 255))  # bowl
+    d.ellipse([5, 13, 27, 21], fill=(176, 120, 76, 255))                                    # stew
+    d.ellipse([9, 14, 14, 18], fill=(210, 50, 44, 255))                                     # mushroom bits
+    d.ellipse([17, 15, 22, 19], fill=(206, 170, 128, 255))
+    return img
+
+
+def berry_cookie():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.ellipse([5, 5, 27, 27], fill=(214, 160, 96, 255), outline=(140, 92, 44, 255))
+    for x, y in [(11, 11), (19, 10), (14, 19), (21, 20), (10, 17)]:
+        d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=(150, 40, 110, 255))
+    return img
+
+
 FISHING = [fishing_rod] + [fish(*c, cooked=cooked) for c in FISH for cooked in (False, True)] + [soggy_boot]
 
 # Animal products, crafted and smelted items, after the shape-based
@@ -393,7 +423,8 @@ DRAWN = [wool, berries, shell, petals, sticks,
          ingot((200, 200, 206), (110, 110, 118), (236, 236, 242)),   # iron
          ingot((214, 120, 64), (120, 60, 28), (246, 170, 120)),     # copper
          ingot((240, 200, 60), (150, 110, 20), (255, 236, 140)),    # gold
-         charcoal] + TOOLS + FISHING + [treasure_key, wooden_door] + [bed(c) for c in BED_COLOURS] + FARMING + [boat]
+         charcoal] + TOOLS + FISHING + [treasure_key, wooden_door] + [bed(c) for c in BED_COLOURS] + FARMING + [boat] + [
+         compost, mushroom_stew, berry_cookie]
 
 
 def main():

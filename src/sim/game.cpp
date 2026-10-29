@@ -1,6 +1,8 @@
 #include "sim/game.hpp"
 #include "block/block_data.hpp"
 #include "block/door.hpp"
+#include "biome/biome_manager.hpp"
+#include "biome/plants.hpp"
 #include "item/farming.hpp"
 #include "item/mining.hpp"
 #include "item/tools.hpp"
@@ -420,6 +422,7 @@ void Game::tick() {
     PlayerState *ps = playerFor(client);
     if (!ps) continue;
     ps->attack_cooldown_ms = std::max(0, ps->attack_cooldown_ms - kTickMs);
+    ps->prick_cooldown_ms = std::max(0, ps->prick_cooldown_ms - kTickMs);
     if (ps->vitals.dead()) {
       ps->dead_ms += kTickMs;
       if (ps->dead_ms >= kRespawnDelayMs) respawn(client, *ps);
@@ -440,6 +443,7 @@ void Game::tick() {
   tickFishing();
   removeEnemies();
   enemyAttacks();
+  prickPlayers();
   spawner_.tick(entities_, world_, rng_, positions, clock_.fractionOfDay(),
                 g_settings.difficulty);
   releaseAnimalProducts();
@@ -1301,7 +1305,17 @@ void Game::apply(Client &client, const UseItemOn &cmd) {
   if (!inReach(*ps, cmd.pos)) return reject(client, "use: out of reach");
   if (!chunkLoaded(world_, cmd.pos)) return reject(client, "use: chunk not loaded");
 
+  // A ripe bush is picked and a cake eaten, whatever's in hand.
+  const BlockType target = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
   const ItemId held = ps->inventory.slot(ps->selected_slot).id;
+  if (target == BlockType::BERRY_BUSH) return pickBerries(client, *ps, cmd.pos);
+  if (isCake(target)) return eatCake(client, *ps, cmd.pos);
+  if (held == ItemId::COMPOST) return useCompost(client, *ps, cmd.pos);
+  if (target == BlockType::BERRY_BUSH_BARE) {
+    // One picked before its time was kept (a lost farms.dat): it starts now.
+    if (!crops_.count(cmd.pos)) crops_[cmd.pos] = {kBushRipenMs};
+    return client.link->deliver(Notice{"No berries yet. Come back later!"});
+  }
   if (held == ItemId::BOAT) return placeBoat(client, *ps, cmd.pos);
   if (toolOf(held).kind == ToolKind::Hoe) return till(client, *ps, cmd.pos);
   if (cropForSeed(held)) return plant(client, *ps, cmd.pos);
@@ -1400,6 +1414,16 @@ void Game::growFarms(int ms) {
   for (auto it = crops_.begin(); it != crops_.end();) {
     const glm::ivec3 pos = it->first;
     const std::optional<BlockType> b = farmBlockAt(pos);
+    // A picked berry bush ripens again in its time, watered or not.
+    if (b == BlockType::BERRY_BUSH_BARE) {
+      if ((it->second.left_ms -= ms) > 0) {
+        ++it;
+        continue;
+      }
+      setFarmBlock(pos, BlockType::BERRY_BUSH);
+      it = crops_.erase(it);
+      continue;
+    }
     if (!b || !isCrop(*b) || cropRipe(*b)) {
       it = crops_.erase(it);
       continue;
@@ -1446,6 +1470,68 @@ void Game::popCropAbove(glm::ivec3 below) {
   if (rules().block_drops)
     dropItem({seedFor(cropKind(b)), 1}, glm::vec3(cell) + glm::vec3(0.5f, 0.3f, 0.5f),
              {0.0f, 3.0f, 0.0f}, kBreakDropDelayMs);
+}
+
+void Game::pickBerries(Client &client, PlayerState &ps, glm::ivec3 pos) {
+  setFarmBlock(pos, BlockType::BERRY_BUSH_BARE);
+  crops_[pos] = {kBushRipenMs};
+  giveOrDrop(ps, {ItemId::BERRIES, kBerriesPicked}, pos);
+  sendInventory(client, ps);
+}
+
+void Game::eatCake(Client &client, PlayerState &ps, glm::ivec3 pos) {
+  // The same rule as eating from your hand.
+  if (ps.vitals.health() >= Vitals::kMax && ps.vitals.fedMs() >= Vitals::kMaxFedMs)
+    return reject(client, "eat: not hungry");
+  const int left = cakeSlices(world_.getBlockAt(glm::vec3(pos) + 0.5f)) - 1;
+  const BlockType now = left > 0 ? cakeBlock(left) : BlockType::AIR;
+  world_.setBlockAt(pos, now);
+  broadcast(BlockChanged{pos, now});
+  ps.vitals.heal(kCakeSliceHeal);
+  ps.vitals.feed(kCakeSliceHeal);
+}
+
+void Game::useCompost(Client &client, PlayerState &ps, glm::ivec3 pos) {
+  auto at = [&](glm::ivec3 p) { return world_.getBlockAt(glm::vec3(p) + 0.5f); };
+  const BlockType target = at(pos);
+  bool used = false;
+  if (isCrop(target) && !cropRipe(target)) {
+    // A growing crop goes up a stage.
+    const BlockType next = cropBlock(cropKind(target), cropStage(target) + 1);
+    setFarmBlock(pos, next);
+    if (cropRipe(next)) crops_.erase(pos);
+    else crops_[pos] = {stageMs(rng_)};
+    used = true;
+  } else if (target == BlockType::BERRY_BUSH_BARE) {
+    setFarmBlock(pos, BlockType::BERRY_BUSH);
+    crops_.erase(pos);
+    used = true;
+  } else if (target == BlockType::GRASS || target == BlockType::SAND) {
+    // The biome's plants sprout round it, on the same ground with room above.
+    const int cx = static_cast<int>(std::floor(static_cast<float>(pos.x) / kChunkWidth));
+    const int cz = static_cast<int>(std::floor(static_cast<float>(pos.z) / kChunkDepth));
+    const BiomeType biome = BiomeManager::getBiomeForChunk(cx, cz);
+    std::uniform_int_distribution<int> off(-kCompostReach, kCompostReach);
+    int grown = 0;
+    for (int i = 0; i < kCompostSprouts * 4 && grown < kCompostSprouts; ++i) {
+      const glm::ivec3 ground = i == 0 ? pos : pos + glm::ivec3(off(rng_), 0, off(rng_));
+      const glm::ivec3 cell = ground + kUp;
+      if (at(ground) != target || at(cell) != BlockType::AIR || !chunkLoaded(world_, cell))
+        continue;
+      std::optional<BlockType> plant = plants::sprout(biome, target, rng_);
+      if (!plant) break; // nothing grows on this ground here
+      world_.setBlockAt(cell, *plant);
+      broadcast(BlockChanged{cell, *plant});
+      ++grown;
+    }
+    if (grown == 0) return reject(client, "compost: nothing grows here");
+    used = true;
+  }
+  if (!used) return reject(client, "compost: on a crop, a bush, grass or sand");
+  if (rules().consume_blocks) {
+    ps.inventory.take(ps.selected_slot, 1);
+    sendInventory(client, ps);
+  }
 }
 
 void Game::popUnsupported(glm::ivec3 gone) {
@@ -1992,6 +2078,27 @@ float boxGap(glm::vec3 a_lo, glm::vec3 a_hi, glm::vec3 b_lo, glm::vec3 b_hi) {
 }
 
 } // namespace
+
+void Game::prickPlayers() {
+  if (!rules().damage) return;
+  for (auto &[id, ps] : players) {
+    if (ps.vitals.dead() || ps.riding || ps.prick_cooldown_ms > 0) continue;
+    // The cells round the player's box, a hair bigger, so leaning on a
+    // cactus counts.
+    const glm::vec3 reach(kPlayerHalfWidth + kPrickRange, 0.0f, kPlayerHalfWidth + kPrickRange);
+    const glm::ivec3 lo(glm::floor(ps.position - reach - glm::vec3(0, kPrickRange, 0)));
+    const glm::ivec3 hi(glm::floor(ps.position + reach + glm::vec3(0, ps.height(), 0)));
+    bool touching = false;
+    for (int y = lo.y; y <= hi.y && !touching; ++y)
+      for (int z = lo.z; z <= hi.z && !touching; ++z)
+        for (int x = lo.x; x <= hi.x && !touching; ++x)
+          touching = world_.getBlockAt(glm::vec3(x, y, z) + 0.5f) == BlockType::CACTUS;
+    if (!touching) continue;
+    ps.vitals.damage(kPrickDamage);
+    ps.hurt_by = "was pricked by a cactus";
+    ps.prick_cooldown_ms = kPrickCooldownMs;
+  }
+}
 
 // An enemy touching a living player hurts them and knocks them away, then
 // waits out its own cooldown.
