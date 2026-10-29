@@ -1,5 +1,7 @@
 #include "doctest/doctest.h"
 #include "block/block_data.hpp"
+#include "chunk/chunk.hpp"
+#include "chunk/chunk_mesh.hpp"
 #include "item/item.hpp"
 #include "item/mining.hpp"
 #include "player/player.hpp"
@@ -213,4 +215,58 @@ TEST_CASE("a creature's body walks up a stair too") {
   }
   CHECK(b.position.z < 6.5f); // over the high step
   CHECK(restsAt(b.position.y, kBase + 2.0f));
+}
+
+// ─── Meshing ───────────────────────────────────────────────────────────
+
+namespace {
+
+// The corners of every quad drawn above the rig's floor wearing `tile`.
+std::vector<glm::vec3> cornersWith(World &world, glm::ivec2 tile) {
+  auto chunk = world.getChunk(0, 0);
+  REQUIRE(chunk);
+  ChunkMesh mesh;
+  TextureManager unused; // generateCPU makes no GL calls
+  mesh.generateCPU(&world, *chunk, unused);
+  std::vector<glm::vec3> out;
+  for (const BlockVertex &v : mesh.vertexData())
+    if (v.tileX == tile.x && v.tileY == tile.y && v.posY > (kBase + 0.5f) * kPosScale)
+      out.push_back(glm::vec3(v.posX, v.posY, v.posZ) / kPosScale);
+  return out;
+}
+
+} // namespace
+
+TEST_CASE("a slab's faces stop halfway up its cell") {
+  Rig r;
+  r.set(5, kBase + 1, 5, BlockType::COBBLESTONE_SLAB);
+  const auto corners = cornersWith(r.world, block_data.at(BlockType::COBBLESTONE).side);
+  CHECK(corners.size() == 6 * 4);
+  for (glm::vec3 c : corners) {
+    CHECK(c.y >= kBase + 1);
+    CHECK(c.y <= kBase + 1.5f);
+  }
+}
+
+TEST_CASE("a stair draws its two boxes, the step at its back") {
+  Rig r;
+  r.set(5, kBase + 1, 5, BlockType::COBBLESTONE_STAIRS_N); // step toward -Z
+  const auto corners = cornersWith(r.world, block_data.at(BlockType::COBBLESTONE).side);
+  CHECK(corners.size() == 2 * 6 * 4);
+  float top = 0.0f;
+  for (glm::vec3 c : corners) {
+    top = std::max(top, c.y);
+    if (c.y > kBase + 1.5f) CHECK(c.z <= 5.5f); // only the step rises above the slab
+  }
+  CHECK(top == kBase + 2.0f);
+}
+
+TEST_CASE("a full block beside a slab still shows its face") {
+  Rig r;
+  r.set(5, kBase + 1, 5, BlockType::OAK_SLAB);
+  r.set(6, kBase + 1, 5, BlockType::STONE_BRICKS);
+  bool faces_slab = false;
+  for (glm::vec3 c : cornersWith(r.world, block_data.at(BlockType::STONE_BRICKS).side))
+    faces_slab |= c.x == 6.0f && c.y == kBase + 2.0f; // the corners of its -X face
+  CHECK(faces_slab);
 }

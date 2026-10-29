@@ -468,6 +468,18 @@ void addCake(MeshBuffers &buffers, int x, int y, int z, BlockType type,
          chunkWorldZ, skyLight, blockLight);
 }
 
+// A slab or a stair: its solid boxes (blockBoxes), in its material's tiles.
+// A half-height side shows the whole tile, squeezed, as a bed's does.
+void addShape(MeshBuffers &buffers, int x, int y, int z, BlockType type,
+              int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight) {
+  const BlockTexture &tex = block_data.at(type);
+  const BoxTiles tiles{tex.top, tex.bottom, tex.side, tex.side, tex.side, tex.side};
+  const glm::vec3 cell(x, y, z);
+  for (const DoorBox &box : blockBoxes(type))
+    addBox(buffers, cell + box.lo, cell + box.hi, tiles, kCutoutNone, chunkWorldX, chunkWorldZ,
+           skyLight, blockLight);
+}
+
 } // namespace
 
 ChunkMesh::ChunkMesh() {
@@ -957,6 +969,9 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         else if (isCake(type))
           addCake(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
                   getSkyLight(world, chunk, x, y, z), getBlockLight(world, chunk, x, y, z));
+        else if (isHalfShape(type))
+          addShape(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
+                   getSkyLight(world, chunk, x, y, z), getBlockLight(world, chunk, x, y, z));
       }
 
   cpuReady = !vertices.empty() || !transparentVertices.empty();
