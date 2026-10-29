@@ -28,6 +28,15 @@ void Player::respawnAt(glm::vec3 pos) {
   camera.position = getEyePosition();
 }
 
+void Player::sitAt(glm::vec3 seat, float eye_height) {
+  body.position = seat;
+  body.velocity = glm::vec3(0.0f);
+  body.on_ground = true;
+  body.underwater = body.at_water_surface = false;
+  crouching = sprinting = false;
+  camera.position = seat + glm::vec3(0.0f, eye_height, 0.0f);
+}
+
 void Player::knock(glm::vec3 velocity) {
   if (fly_mode) return;
   constexpr float kKnockbackSteerDelay = 0.2f;

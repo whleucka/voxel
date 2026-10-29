@@ -1,6 +1,8 @@
 #include "doctest/doctest.h"
 #include "entity/boat.hpp"
+#include "entity/entity_interp.hpp"
 #include "entity/entity_store.hpp"
+#include "entity/player_model.hpp"
 #include "physics/physics_body.hpp"
 #include "block/block_data.hpp"
 #include "sim/game.hpp"
@@ -203,6 +205,15 @@ TEST_CASE_FIXTURE(Canal, "it stops at the bank instead of going into it") {
   CHECK(boat.position.x > 44.0f);
   CHECK_FALSE(inBlock());
   CHECK(afloat(world, boat.position)); // and it didn't climb out
+}
+
+TEST_CASE_FIXTURE(Canal, "it won't sail off the edge of the water over a hole") {
+  fill(world, {46, kBase - 3, 5}, {47, kBase, 10}, BlockType::AIR); // dug out past the end
+  boat.position.x = 38.0f;
+  drive(3.0f, ahead());
+  CHECK(boat.speed == 0.0f);
+  CHECK(afloat(world, boat.position));
+  CHECK(boat.position.x < 46.0f);
 }
 
 TEST_CASE_FIXTURE(Canal, "a long frame still stops at the bank") {
@@ -705,4 +716,52 @@ TEST_CASE("a world from before boats loads with none, and a damaged boats.dat is
   REQUIRE(game.load(dir.path.string())); // the rest of the world still loads
   CHECK(game.entities().size() == 0);
   CHECK(std::filesystem::exists(dir.path / "boats.dat.unreadable"));
+}
+
+// ─── Drawing riders ────────────────────────────────────────────────────
+
+TEST_CASE("a sitting figure fits in a boat: legs out in front, nothing swinging") {
+  auto model = seatedPlayerModel(playerColor("Bea"));
+  REQUIRE(model.size() == playerModel(playerColor("Bea")).size());
+  float top = 0.0f, bottom = 1.0f, front = 0.0f;
+  for (const ModelBox &b : model) {
+    top = std::max(top, b.offset.y + b.size.y);
+    bottom = std::min(bottom, b.offset.y);
+    front = std::min(front, b.offset.z);
+    CHECK(b.swing == 0);
+  }
+  CHECK(bottom == 0.0f);
+  CHECK(top == doctest::Approx(kSeatedHeight).epsilon(0.05));
+  CHECK(front < -0.4f); // the feet reach forward
+  // The front seat's rider keeps their feet inside the bow.
+  const EntityTypeDef &boat = entityType(EntityKind::Boat);
+  float bow = 0.0f;
+  for (const ModelBox &b : boat.model) bow = std::min(bow, b.offset.z);
+  CHECK(-kBoatSeatOffset + front > bow);
+}
+
+TEST_CASE("riders are drawn in their seats on the boat as drawn, facing its way") {
+  std::vector<EntityView> entities(2);
+  entities[0].id = 5;
+  entities[0].kind = EntityKind::Boat;
+  entities[0].position = {10.0f, 60.85f, 4.0f};
+  entities[0].yaw = 90.0f;
+  entities[1].id = 6;
+  entities[1].kind = EntityKind::Woolly;
+
+  std::vector<PlayerView> players(3);
+  players[0].riding = 5;
+  players[0].seat = 1;
+  players[0].position = {0.0f, 0.0f, 0.0f}; // a snapshot behind the boat
+  players[0].moving = true;
+  players[1].position = {3.0f, 70.0f, 3.0f}; // on foot
+  players[2].riding = 99;                    // a boat out of sight
+  players[2].position = {7.0f, 7.0f, 7.0f};
+
+  placeRiders(players, entities);
+  CHECK(players[0].position == seatPosition(entities[0].position, 90.0f, 1));
+  CHECK(playerModelYaw(players[0].yaw) == doctest::Approx(90.0f));
+  CHECK_FALSE(players[0].moving);
+  CHECK(players[1].position == glm::vec3(3.0f, 70.0f, 3.0f));
+  CHECK(players[2].position == glm::vec3(7.0f, 7.0f, 7.0f));
 }

@@ -59,6 +59,9 @@ public:
   void setSprintAllowed(bool allowed) { sprint_allowed = allowed; }
   // Put the player somewhere new (respawn) with no momentum carried over.
   void respawnAt(glm::vec3 pos);
+  // Sitting in a boat: on the seat, eyes a sitting height above it. No
+  // physics runs while riding; this is called every frame instead.
+  void sitAt(glm::vec3 seat, float eye_height);
   // Pushed by an enemy hit (the Game's KnockedBack). Input doesn't steer for
   // a moment afterwards, so the push isn't cancelled straight away.
   void knock(glm::vec3 velocity);

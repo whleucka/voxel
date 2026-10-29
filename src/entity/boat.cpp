@@ -59,6 +59,10 @@ void step(BoatState &boat, const BoatInput &in, const World &world, float dt) {
   body.velocity = {ahead.x, floating ? 0.0f : boat.fall_speed, ahead.z};
   body.glide(dt, &world);
 
+  // Afloat, the edge of the water is a wall too: it doesn't sail off over
+  // a hole (the Game wouldn't take that move either).
+  if (floating && !afloat(world, body.position)) body.position = boat.position;
+
   // Bumped into something: it stops rather than scraping along.
   const float wanted = std::abs(boat.speed) * dt;
   const glm::vec2 moved(body.position.x - boat.position.x, body.position.z - boat.position.z);

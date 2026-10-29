@@ -22,3 +22,7 @@ private:
   EntitySnapshot prev, curr;
   bool have_prev = false;
 };
+
+// Players sitting in a boat are drawn in their seat on the boat as drawn,
+// facing its way, so they never lag behind it (whatever the snapshots say).
+void placeRiders(std::vector<PlayerView> &players, const std::vector<EntityView> &entities);
