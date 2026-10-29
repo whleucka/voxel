@@ -58,6 +58,11 @@ inline BlockType cakeBlock(int slices) {
 }
 constexpr float kCakeHeight = 7.0f / 16.0f;
 
+// The way from a plant, cactus, torch or cake to the block holding it up.
+inline glm::ivec3 supportOf(BlockType b) {
+  return isTorch(b) ? torchSupport(b) : glm::ivec3(0, -1, 0);
+}
+
 // Whatever pops off when its support goes.
 inline bool needsSupport(BlockType b) {
   return isPlant(b) || b == BlockType::CACTUS || isTorch(b) || isCake(b);

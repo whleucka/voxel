@@ -318,6 +318,11 @@ private:
   void setFarmBlock(glm::ivec3 pos, BlockType type);
   // Something went from under a crop: it pops off as its seed.
   void popCropAbove(glm::ivec3 below);
+  // The block at `gone` went: plants, cactus, torches and cake it held up
+  // pop off (and what they held, in turn), dropping what they drop.
+  void popUnsupported(glm::ivec3 gone);
+  // What breaking `b` gives, by the roll for one that's chancy (tall grass).
+  std::optional<ItemId> dropOf(BlockType b);
   // A block placed on farmland packs it back into dirt.
   void packSoilUnder(glm::ivec3 placed);
   // Gives a player items, popping out at `pos` what doesn't fit.

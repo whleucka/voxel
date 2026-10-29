@@ -838,6 +838,7 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
   popDoorAbove(cmd.pos);
   popBedAbove(cmd.pos);
   popCropAbove(cmd.pos);
+  popUnsupported(cmd.pos);
   crops_.erase(cmd.pos);
   soil_.erase(cmd.pos);
 
@@ -846,7 +847,7 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
   if (!rules().block_drops) return;
   if (isCrop(target)) {
     for (const ItemStack &got : harvest(target, rng_)) giveOrDrop(*ps, got, cmd.pos);
-  } else if (auto drop = dropFor(target); drop && dropsWith(target, held)) {
+  } else if (auto drop = dropOf(target); drop && dropsWith(target, held)) {
     ItemStack got{*drop, 1};
     // Emerald pickaxe: a one in three chance of a second from ore.
     if (held == ItemId::EMERALD_PICKAXE && isOre(target) &&
@@ -854,7 +855,8 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
       got.count = 2;
     giveOrDrop(*ps, got, cmd.pos);
   }
-  if (rules().timed_mining && !isCrop(target)) wearHeldTool(client, *ps);
+  // What's picked at once (crops, plants, torches) doesn't wear the tool.
+  if (rules().timed_mining && toughness(target).hand_ms > 0) wearHeldTool(client, *ps);
   sendInventory(client, *ps);
 }
 
@@ -908,12 +910,27 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
   BlockType existing = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
   if (existing != BlockType::AIR && !isLiquid(existing))
     return reject(client, "place: cell occupied");
-  if (overlapsAnyPlayer(cmd.pos))
+  // A plant, a torch or a cake goes on its own ground (a torch on a floor or
+  // a wall), in the air.
+  BlockType placed = *block;
+  if (needsSupport(placed)) {
+    if (isLiquid(existing)) return reject(client, "place: not in water");
+    if (placed == BlockType::TORCH) {
+      std::optional<BlockType> torch = torchFor(cmd.against);
+      if (!torch) return reject(client, "place: torches go on floors and walls");
+      placed = *torch;
+    }
+    const BlockType ground = world_.getBlockAt(glm::vec3(cmd.pos + supportOf(placed)) + 0.5f);
+    if (!growsOn(placed, ground, isSolidGround(ground)))
+      return reject(client, "place: it can't go there");
+  }
+  // What's walked through can go where someone stands.
+  if (blocksMovement(placed) && overlapsAnyPlayer(cmd.pos))
     return reject(client, "place: inside a player");
   if (overlapsBoat(cmd.pos)) return reject(client, "place: a boat is there");
 
-  world_.setBlockAt(cmd.pos, *block);
-  broadcast(BlockChanged{cmd.pos, *block});
+  world_.setBlockAt(cmd.pos, placed);
+  broadcast(BlockChanged{cmd.pos, placed});
   packSoilUnder(cmd.pos);
   if (*block == BlockType::FURNACE) furnaces_[cmd.pos] = Furnace{};
   if (*block == BlockType::CHEST) chests_[cmd.pos] = Chest{};
@@ -1429,6 +1446,36 @@ void Game::popCropAbove(glm::ivec3 below) {
   if (rules().block_drops)
     dropItem({seedFor(cropKind(b)), 1}, glm::vec3(cell) + glm::vec3(0.5f, 0.3f, 0.5f),
              {0.0f, 3.0f, 0.0f}, kBreakDropDelayMs);
+}
+
+void Game::popUnsupported(glm::ivec3 gone) {
+  const BlockType ground = world_.getBlockAt(glm::vec3(gone) + 0.5f);
+  const glm::ivec3 around[] = {{0, 1, 0}, {0, 0, -1}, {1, 0, 0}, {0, 0, 1}, {-1, 0, 0}};
+  for (glm::ivec3 step : around) {
+    const glm::ivec3 cell = gone + step;
+    if (cell.y < 0 || cell.y >= kChunkHeight) continue;
+    const BlockType b = world_.getBlockAt(glm::vec3(cell) + 0.5f);
+    // Only what `gone` held up: the thing above, or a torch on its side.
+    if (!needsSupport(b) || cell + supportOf(b) != gone) continue;
+    if (growsOn(b, ground, isSolidGround(ground))) continue;
+    world_.setBlockAt(cell, BlockType::AIR);
+    broadcast(BlockChanged{cell, BlockType::AIR});
+    crops_.erase(cell); // a picked bush's regrowing
+    if (rules().block_drops)
+      if (std::optional<ItemId> drop = dropOf(b))
+        dropItem({*drop, 1}, glm::vec3(cell) + glm::vec3(0.5f, 0.3f, 0.5f), {0.0f, 3.0f, 0.0f},
+                 kBreakDropDelayMs);
+    popUnsupported(cell); // a cactus stack goes all the way up
+  }
+}
+
+std::optional<ItemId> Game::dropOf(BlockType b) {
+  constexpr int kGrassSeedOdds = 8; // one in this many
+  if (b == BlockType::TALL_GRASS)
+    return std::uniform_int_distribution<int>(1, kGrassSeedOdds)(rng_) == 1
+               ? std::optional(ItemId::WHEAT_SEEDS)
+               : std::nullopt;
+  return dropFor(b);
 }
 
 void Game::packSoilUnder(glm::ivec3 placed) {

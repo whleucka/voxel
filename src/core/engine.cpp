@@ -1377,7 +1377,7 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     else if (!held.empty() && itemDef(held.id).food_heal > 0)
       engine->connection().send(EatItem{});
     else if (ray.hit)
-      engine->connection().send(PlaceBlock{ray.block_pos + ray.normal});
+      engine->connection().send(PlaceBlock{ray.block_pos + ray.normal, -ray.normal});
   }
 }
 
