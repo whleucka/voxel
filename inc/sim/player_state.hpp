@@ -50,6 +50,7 @@ struct PlayerState {
   Activity activity;       // from the latest MovePlayer
   int dead_ms = 0;         // time spent dead, toward respawn
   int attack_cooldown_ms = 0;
+  int prick_cooldown_ms = 0; // until a cactus can prick them again
   std::optional<VitalsChanged> vitals_sent; // last snapshot sent to the owner
   // For the death line in chat: what last hurt them ("fell too far",
   // "was beaten by a Zombie"), and whether this death has been told.

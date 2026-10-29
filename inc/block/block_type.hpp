@@ -87,8 +87,20 @@ enum class BlockType : uint8_t {
   WHEAT_0, WHEAT_1, WHEAT_2, WHEAT_3, // crops, sprout to ripe
   CARROT_0, CARROT_1, CARROT_2, CARROT_3,
   STRAWBERRY_0, STRAWBERRY_1, STRAWBERRY_2, STRAWBERRY_3,
+  // Wild plants (worldgen v7; see block/plant.hpp): small, drawn as crossed
+  // planes and walked through, from TALL_GRASS to SHELLS.
+  TALL_GRASS, POPPY, BUTTERCUP, CORNFLOWER, PINK_TULIP, DAISY, LAVENDER, HIBISCUS,
+  FERN, RED_MUSHROOM, BROWN_MUSHROOM, DEAD_BUSH,
+  BERRY_BUSH, BERRY_BUSH_BARE, // ripe, then picked
+  SHELLS,                      // on beaches; a Sea Shell when picked up
+  CACTUS,
+  PINK_CORAL, BLUE_CORAL, YELLOW_CORAL,
+  TORCH,                             // on the floor
+  TORCH_N, TORCH_E, TORCH_S, TORCH_W, // on the side of the block to its N, E, S, W
+  CAKE_4, CAKE_3, CAKE_2, CAKE_1,    // slices left
+  SANDSTONE_BRICKS, SNOW_BRICKS,
 };
 
 // The highest BlockType value. Update it when appending a type; a test in
 // tests/item_test.cpp fails if a named type exists past it.
-constexpr BlockType kLastBlockType = BlockType::STRAWBERRY_3;
+constexpr BlockType kLastBlockType = BlockType::SNOW_BRICKS;

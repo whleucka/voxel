@@ -10,6 +10,7 @@
 
 - **A world to explore:** endless terrain streamed in chunks across plains, mountains, deserts, oceans, tropical islands and cherry groves. It has trees, a day/night cycle, clouds and shadows.
 - **Caves:** new worlds have winding tunnels with glow crystals, shallow pools and gems in the walls ([more below](#caves)).
+- **Wild plants:** every biome grows its own flowers, ferns, mushrooms, cactus, berry bushes or coral. Flowers make the dyes, and there are torches, stew, cookies and a cake to share ([more below](#wild-plants)).
 - **Survival:** break blocks to collect them and place them to build. Watch your health, stamina and breath, and dig for coal, iron, copper, gold, emerald, ruby and diamond.
 - **Creatures:**
   - Friendly Woollies, Bunnies, Shell Turtles and Blossom Deer. Feed them and they give you something back: a Woolly eats any leaves and gives you wool.
@@ -102,7 +103,7 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **W, A, S, D:** Move. **Space:** Jump. **Mouse:** Look around.
 *   **Left Ctrl:** Sprint (uses stamina). **Left Shift:** Crouch, or get out of a boat.
 *   **Left click:** Hit a creature, pick up an empty boat, or break a block (hold it in survival).
-*   **Right click:** Place a block, put a boat on the water or get into one, feed an animal, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, open and shut a door, sleep in a bed, or till, plant and water with a hoe, seeds or a watering can.
+*   **Right click:** Place a block, put a boat on the water or get into one, feed an animal, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, open and shut a door, sleep in a bed, pick berries, eat a slice of cake, till, plant and water with a hoe, seeds or a watering can, or use compost.
 *   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
 *   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
 *   **T:** Chat. Type and press Enter (or click Send); Esc closes it.
@@ -173,10 +174,12 @@ Recipes are *discovered*: one shows up once you've held every ingredient,
 and the rest stay as **???** until you find what they need. Each player
 discovers their own.
 
-*   **Anywhere:** planks from logs, sticks, and a **Crafting Table**.
-*   **At a Crafting Table** (right-click it, or stand next to it): stone
-    bricks, white blocks, colored blocks dyed with gems and things animals
-    give you, lamps, and the Furnace.
+*   **Anywhere:** planks from logs, sticks, a **Crafting Table**, a boat,
+    **torches** (4 from a coal or charcoal and a stick) and **compost**
+    (4 leaves of any kind).
+*   **At a Crafting Table** (right-click it, or stand next to it): stone,
+    sandstone and snow bricks, white blocks, colored blocks dyed with
+    flowers, lamps, the Furnace, and the plant foods.
 
 Click a recipe to make one, shift-click to make as many as you can.
 Crouch and right-click to build against a table instead of opening it.
@@ -255,8 +258,8 @@ in. Breaking either half gives the door back.
 
 Make a **White Bed** from 3 wool (feed a Woolly some leaves) and 3 planks
 (any wood) at a Crafting Table, then dye it with one of the coloured blocks' dyes for a **red**
-(ruby), **orange** (raw copper), **yellow** (raw gold), **green** (emerald),
-**blue** (sea shell), **purple** (berries) or **pink** (sweet petals) one.
+(poppy), **orange** (hibiscus), **yellow** (buttercup), **green** (cactus),
+**blue** (cornflower), **purple** (lavender) or **pink** (pink tulip) one.
 Place it on the floor: its head goes the way you're looking. A bed is low,
 so you can climb on and bounce about on it.
 
@@ -329,6 +332,48 @@ packs it back into dirt.
 The crop and soil tiles are placeholders with GIMP sources in `assets/blocks/`,
 for repainting.
 
+## Wild plants
+
+Worlds made from now on grow **wild plants**, different in every biome, so
+you can tell where you are from what's growing:
+
+| Biome | What grows |
+|---|---|
+| Plains | tall grass, patches of poppies, buttercups and cornflowers |
+| Cherry groves | tall grass, pink tulips and daisies |
+| Mountains | ferns, lavender, and red and brown mushrooms under the pines |
+| Tropics | hibiscus and **berry bushes** |
+| Desert | **cactus** (it pricks!) and dead bushes |
+| Ocean | pink, blue and yellow **coral** on the sea floor |
+| Beaches | **shells** at the waterline |
+| Caves | brown mushrooms |
+
+Plants break at once and you walk through them. Break the ground under
+one and it pops off. Put them back on the ground they grow on (flowers on
+grass, cactus on sand). Tall grass sometimes gives a Wheat Seed, a dead bush
+a stick, and shells a Sea Shell.
+
+*   **Dyes:** each colour comes from its flower: red poppy, orange
+    hibiscus, yellow buttercup, green cactus, blue cornflower, purple
+    lavender, pink tulip. 8 white blocks and a flower make 8 coloured
+    ones. **White blocks** come from 8 sand and wool, a daisy or a sea shell.
+*   **Berry bushes:** right-click a ripe one for 2 Berries. It ripens again
+    in 5 minutes.
+*   **Torches:** right-click the floor or the side of a block. They light up
+    caves and keep monsters away.
+*   **Food:** **Mushroom Stew** (a red and a brown mushroom), **Berry
+    Cookies** (4 from 2 wheat and a berry), and a **Cake** (3 wheat, 2
+    strawberries and sweet petals). Put the cake down and anyone hungry can
+    right-click it for a slice; it lasts 4 slices.
+*   **Compost:** right-click a growing crop to grow it a stage, a picked
+    bush to ripen it, or grass or sand to sprout that biome's plants. It
+    works in older worlds too, which is how they get flowers.
+*   **Bricks:** 4 sandstone or 4 snow make 4 bricks (snow bricks make good
+    igloos).
+
+The plant tiles are placeholders with GIMP sources in `assets/blocks/`,
+for repainting.
+
 ## Caves
 
 Worlds made from now on have **natural caves**: winding tunnels, some
@@ -342,7 +387,7 @@ ore in the walls. Deep down, far below the sea, there are rare **gem
 pockets**: a clump of rubies, emeralds or diamonds together. Most are in a
 cave wall, the rest buried in the rock. Bedrock is only the floor of the
 world. Cave Grumbles only appear
-in the dark, so a crystal or lamp keeps the area around it safe.
+in the dark, so a crystal, lamp or torch keeps the area around it safe.
 
 Worlds made before caves keep exactly the terrain they had: each world
 remembers which generator made it.

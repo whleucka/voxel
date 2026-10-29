@@ -1,6 +1,8 @@
 #include "sim/game.hpp"
 #include "block/block_data.hpp"
 #include "block/door.hpp"
+#include "biome/biome_manager.hpp"
+#include "biome/plants.hpp"
 #include "item/farming.hpp"
 #include "item/mining.hpp"
 #include "item/tools.hpp"
@@ -331,7 +333,8 @@ void Game::sendInventory(Client &client, PlayerState &ps) {
 
 Inventory Game::starterKit() {
   Inventory kit;
-  // Glowstone is the only light source and never generates naturally.
+  // Lamps for the first night: torches need coal, and glowstone never
+  // generates naturally.
   kit.set(0, {itemForBlock(BlockType::GLOWSTONE), 8});
   return kit;
 }
@@ -420,6 +423,7 @@ void Game::tick() {
     PlayerState *ps = playerFor(client);
     if (!ps) continue;
     ps->attack_cooldown_ms = std::max(0, ps->attack_cooldown_ms - kTickMs);
+    ps->prick_cooldown_ms = std::max(0, ps->prick_cooldown_ms - kTickMs);
     if (ps->vitals.dead()) {
       ps->dead_ms += kTickMs;
       if (ps->dead_ms >= kRespawnDelayMs) respawn(client, *ps);
@@ -440,6 +444,7 @@ void Game::tick() {
   tickFishing();
   removeEnemies();
   enemyAttacks();
+  prickPlayers();
   spawner_.tick(entities_, world_, rng_, positions, clock_.fractionOfDay(),
                 g_settings.difficulty);
   releaseAnimalProducts();
@@ -838,6 +843,7 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
   popDoorAbove(cmd.pos);
   popBedAbove(cmd.pos);
   popCropAbove(cmd.pos);
+  popUnsupported(cmd.pos);
   crops_.erase(cmd.pos);
   soil_.erase(cmd.pos);
 
@@ -846,7 +852,7 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
   if (!rules().block_drops) return;
   if (isCrop(target)) {
     for (const ItemStack &got : harvest(target, rng_)) giveOrDrop(*ps, got, cmd.pos);
-  } else if (auto drop = dropFor(target); drop && dropsWith(target, held)) {
+  } else if (auto drop = dropOf(target); drop && dropsWith(target, held)) {
     ItemStack got{*drop, 1};
     // Emerald pickaxe: a one in three chance of a second from ore.
     if (held == ItemId::EMERALD_PICKAXE && isOre(target) &&
@@ -854,7 +860,8 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
       got.count = 2;
     giveOrDrop(*ps, got, cmd.pos);
   }
-  if (rules().timed_mining && !isCrop(target)) wearHeldTool(client, *ps);
+  // What's picked at once (crops, plants, torches) doesn't wear the tool.
+  if (rules().timed_mining && toughness(target).hand_ms > 0) wearHeldTool(client, *ps);
   sendInventory(client, *ps);
 }
 
@@ -904,16 +911,31 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
   int cz = static_cast<int>(std::floor(static_cast<float>(cmd.pos.z) / kChunkDepth));
   if (!world_.getChunk(cx, cz)) return reject(client, "place: chunk not loaded");
 
-  // Only air or liquid can be replaced.
+  // Only air, liquid or grassy plants can be replaced.
   BlockType existing = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
-  if (existing != BlockType::AIR && !isLiquid(existing))
+  if (existing != BlockType::AIR && !isLiquid(existing) && !isReplaceable(existing))
     return reject(client, "place: cell occupied");
-  if (overlapsAnyPlayer(cmd.pos))
+  // A plant, a torch or a cake goes on its own ground (a torch on a floor or
+  // a wall), in the air.
+  BlockType placed = *block;
+  if (needsSupport(placed)) {
+    if (isLiquid(existing)) return reject(client, "place: not in water");
+    if (placed == BlockType::TORCH) {
+      std::optional<BlockType> torch = torchFor(cmd.against);
+      if (!torch) return reject(client, "place: torches go on floors and walls");
+      placed = *torch;
+    }
+    const BlockType ground = world_.getBlockAt(glm::vec3(cmd.pos + supportOf(placed)) + 0.5f);
+    if (!growsOn(placed, ground, isSolidGround(ground)))
+      return reject(client, "place: it can't go there");
+  }
+  // What's walked through can go where someone stands.
+  if (blocksMovement(placed) && overlapsAnyPlayer(cmd.pos))
     return reject(client, "place: inside a player");
   if (overlapsBoat(cmd.pos)) return reject(client, "place: a boat is there");
 
-  world_.setBlockAt(cmd.pos, *block);
-  broadcast(BlockChanged{cmd.pos, *block});
+  world_.setBlockAt(cmd.pos, placed);
+  broadcast(BlockChanged{cmd.pos, placed});
   packSoilUnder(cmd.pos);
   if (*block == BlockType::FURNACE) furnaces_[cmd.pos] = Furnace{};
   if (*block == BlockType::CHEST) chests_[cmd.pos] = Chest{};
@@ -946,7 +968,7 @@ void Game::placeDoor(Client &client, PlayerState &ps, glm::ivec3 pos) {
   const glm::ivec3 top = pos + glm::ivec3(0, 1, 0);
   for (glm::ivec3 cell : {pos, top}) {
     BlockType existing = world_.getBlockAt(glm::vec3(cell) + 0.5f);
-    if (existing != BlockType::AIR && !isLiquid(existing))
+    if (existing != BlockType::AIR && !isLiquid(existing) && !isReplaceable(existing))
       return reject(client, "place: no room for a door");
     if (overlapsAnyPlayer(cell)) return reject(client, "place: inside a player");
     if (overlapsBoat(cell)) return reject(client, "place: a boat is there");
@@ -1012,7 +1034,8 @@ void Game::placeBed(Client &client, PlayerState &ps, glm::ivec3 pos) {
     if (!world_.getChunk(cx, cz)) return reject(client, "place: chunk not loaded");
   }
   for (glm::ivec3 cell : {pos, head}) {
-    if (world_.getBlockAt(glm::vec3(cell) + 0.5f) != BlockType::AIR)
+    const BlockType existing = world_.getBlockAt(glm::vec3(cell) + 0.5f);
+    if (existing != BlockType::AIR && !isReplaceable(existing))
       return reject(client, "place: no room for a bed");
     if (overlapsAnyPlayer(cell)) return reject(client, "place: inside a player");
     if (overlapsBoat(cell)) return reject(client, "place: a boat is there");
@@ -1284,7 +1307,17 @@ void Game::apply(Client &client, const UseItemOn &cmd) {
   if (!inReach(*ps, cmd.pos)) return reject(client, "use: out of reach");
   if (!chunkLoaded(world_, cmd.pos)) return reject(client, "use: chunk not loaded");
 
+  // A ripe bush is picked and a cake eaten, whatever's in hand.
+  const BlockType target = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
   const ItemId held = ps->inventory.slot(ps->selected_slot).id;
+  if (target == BlockType::BERRY_BUSH) return pickBerries(client, *ps, cmd.pos);
+  if (isCake(target)) return eatCake(client, *ps, cmd.pos);
+  if (held == ItemId::COMPOST) return useCompost(client, *ps, cmd.pos);
+  if (target == BlockType::BERRY_BUSH_BARE) {
+    // One picked before its time was kept (a lost farms.dat): it starts now.
+    if (!crops_.count(cmd.pos)) crops_[cmd.pos] = {kBushRipenMs};
+    return client.link->deliver(Notice{"No berries yet. Come back later!"});
+  }
   if (held == ItemId::BOAT) return placeBoat(client, *ps, cmd.pos);
   if (toolOf(held).kind == ToolKind::Hoe) return till(client, *ps, cmd.pos);
   if (cropForSeed(held)) return plant(client, *ps, cmd.pos);
@@ -1383,6 +1416,16 @@ void Game::growFarms(int ms) {
   for (auto it = crops_.begin(); it != crops_.end();) {
     const glm::ivec3 pos = it->first;
     const std::optional<BlockType> b = farmBlockAt(pos);
+    // A picked berry bush ripens again in its time, watered or not.
+    if (b == BlockType::BERRY_BUSH_BARE) {
+      if ((it->second.left_ms -= ms) > 0) {
+        ++it;
+        continue;
+      }
+      setFarmBlock(pos, BlockType::BERRY_BUSH);
+      it = crops_.erase(it);
+      continue;
+    }
     if (!b || !isCrop(*b) || cropRipe(*b)) {
       it = crops_.erase(it);
       continue;
@@ -1429,6 +1472,98 @@ void Game::popCropAbove(glm::ivec3 below) {
   if (rules().block_drops)
     dropItem({seedFor(cropKind(b)), 1}, glm::vec3(cell) + glm::vec3(0.5f, 0.3f, 0.5f),
              {0.0f, 3.0f, 0.0f}, kBreakDropDelayMs);
+}
+
+void Game::pickBerries(Client &client, PlayerState &ps, glm::ivec3 pos) {
+  setFarmBlock(pos, BlockType::BERRY_BUSH_BARE);
+  crops_[pos] = {kBushRipenMs};
+  giveOrDrop(ps, {ItemId::BERRIES, kBerriesPicked}, pos);
+  sendInventory(client, ps);
+}
+
+void Game::eatCake(Client &client, PlayerState &ps, glm::ivec3 pos) {
+  // The same rule as eating from your hand.
+  if (ps.vitals.health() >= Vitals::kMax && ps.vitals.fedMs() >= Vitals::kMaxFedMs)
+    return reject(client, "eat: not hungry");
+  const int left = cakeSlices(world_.getBlockAt(glm::vec3(pos) + 0.5f)) - 1;
+  const BlockType now = left > 0 ? cakeBlock(left) : BlockType::AIR;
+  world_.setBlockAt(pos, now);
+  broadcast(BlockChanged{pos, now});
+  ps.vitals.heal(kCakeSliceHeal);
+  ps.vitals.feed(kCakeSliceHeal);
+}
+
+void Game::useCompost(Client &client, PlayerState &ps, glm::ivec3 pos) {
+  auto at = [&](glm::ivec3 p) { return world_.getBlockAt(glm::vec3(p) + 0.5f); };
+  const BlockType target = at(pos);
+  bool used = false;
+  if (isCrop(target) && !cropRipe(target)) {
+    // A growing crop goes up a stage.
+    const BlockType next = cropBlock(cropKind(target), cropStage(target) + 1);
+    setFarmBlock(pos, next);
+    if (cropRipe(next)) crops_.erase(pos);
+    else crops_[pos] = {stageMs(rng_)};
+    used = true;
+  } else if (target == BlockType::BERRY_BUSH_BARE) {
+    setFarmBlock(pos, BlockType::BERRY_BUSH);
+    crops_.erase(pos);
+    used = true;
+  } else if (target == BlockType::GRASS || target == BlockType::SAND) {
+    // The biome's plants sprout round it, on the same ground with room above.
+    const int cx = static_cast<int>(std::floor(static_cast<float>(pos.x) / kChunkWidth));
+    const int cz = static_cast<int>(std::floor(static_cast<float>(pos.z) / kChunkDepth));
+    const BiomeType biome = BiomeManager::getBiomeForChunk(cx, cz);
+    std::uniform_int_distribution<int> off(-kCompostReach, kCompostReach);
+    int grown = 0;
+    for (int i = 0; i < kCompostSprouts * 4 && grown < kCompostSprouts; ++i) {
+      const glm::ivec3 ground = i == 0 ? pos : pos + glm::ivec3(off(rng_), 0, off(rng_));
+      const glm::ivec3 cell = ground + kUp;
+      if (at(ground) != target || at(cell) != BlockType::AIR || !chunkLoaded(world_, cell))
+        continue;
+      std::optional<BlockType> plant = plants::sprout(biome, target, rng_);
+      if (!plant) break; // nothing grows on this ground here
+      world_.setBlockAt(cell, *plant);
+      broadcast(BlockChanged{cell, *plant});
+      ++grown;
+    }
+    if (grown == 0) return reject(client, "compost: nothing grows here");
+    used = true;
+  }
+  if (!used) return reject(client, "compost: on a crop, a bush, grass or sand");
+  if (rules().consume_blocks) {
+    ps.inventory.take(ps.selected_slot, 1);
+    sendInventory(client, ps);
+  }
+}
+
+void Game::popUnsupported(glm::ivec3 gone) {
+  const BlockType ground = world_.getBlockAt(glm::vec3(gone) + 0.5f);
+  const glm::ivec3 around[] = {{0, 1, 0}, {0, 0, -1}, {1, 0, 0}, {0, 0, 1}, {-1, 0, 0}};
+  for (glm::ivec3 step : around) {
+    const glm::ivec3 cell = gone + step;
+    if (cell.y < 0 || cell.y >= kChunkHeight) continue;
+    const BlockType b = world_.getBlockAt(glm::vec3(cell) + 0.5f);
+    // Only what `gone` held up: the thing above, or a torch on its side.
+    if (!needsSupport(b) || cell + supportOf(b) != gone) continue;
+    if (growsOn(b, ground, isSolidGround(ground))) continue;
+    world_.setBlockAt(cell, BlockType::AIR);
+    broadcast(BlockChanged{cell, BlockType::AIR});
+    crops_.erase(cell); // a picked bush's regrowing
+    if (rules().block_drops)
+      if (std::optional<ItemId> drop = dropOf(b))
+        dropItem({*drop, 1}, glm::vec3(cell) + glm::vec3(0.5f, 0.3f, 0.5f), {0.0f, 3.0f, 0.0f},
+                 kBreakDropDelayMs);
+    popUnsupported(cell); // a cactus stack goes all the way up
+  }
+}
+
+std::optional<ItemId> Game::dropOf(BlockType b) {
+  constexpr int kGrassSeedOdds = 8; // one in this many
+  if (b == BlockType::TALL_GRASS)
+    return std::uniform_int_distribution<int>(1, kGrassSeedOdds)(rng_) == 1
+               ? std::optional(ItemId::WHEAT_SEEDS)
+               : std::nullopt;
+  return dropFor(b);
 }
 
 void Game::packSoilUnder(glm::ivec3 placed) {
@@ -1945,6 +2080,27 @@ float boxGap(glm::vec3 a_lo, glm::vec3 a_hi, glm::vec3 b_lo, glm::vec3 b_hi) {
 }
 
 } // namespace
+
+void Game::prickPlayers() {
+  if (!rules().damage) return;
+  for (auto &[id, ps] : players) {
+    if (ps.vitals.dead() || ps.riding || ps.prick_cooldown_ms > 0) continue;
+    // The cells round the player's box, a hair bigger, so leaning on a
+    // cactus counts.
+    const glm::vec3 reach(kPlayerHalfWidth + kPrickRange, 0.0f, kPlayerHalfWidth + kPrickRange);
+    const glm::ivec3 lo(glm::floor(ps.position - reach - glm::vec3(0, kPrickRange, 0)));
+    const glm::ivec3 hi(glm::floor(ps.position + reach + glm::vec3(0, ps.height(), 0)));
+    bool touching = false;
+    for (int y = lo.y; y <= hi.y && !touching; ++y)
+      for (int z = lo.z; z <= hi.z && !touching; ++z)
+        for (int x = lo.x; x <= hi.x && !touching; ++x)
+          touching = world_.getBlockAt(glm::vec3(x, y, z) + 0.5f) == BlockType::CACTUS;
+    if (!touching) continue;
+    ps.vitals.damage(kPrickDamage);
+    ps.hurt_by = "was pricked by a cactus";
+    ps.prick_cooldown_ms = kPrickCooldownMs;
+  }
+}
 
 // An enemy touching a living player hurts them and knocks them away, then
 // waits out its own cooldown.

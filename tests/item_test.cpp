@@ -31,7 +31,9 @@ TEST_CASE("every placeable block has an item that places it") {
   for (uint16_t v = 1; v <= kLastBlock; ++v) {
     BlockType b = static_cast<BlockType>(v);
     if (b == BlockType::WATER || b == BlockType::FURNACE_LIT ||
-        b == BlockType::TREASURE_CHEST || isDoor(b) || isBed(b) || isFarmland(b) || isCrop(b))
+        b == BlockType::TREASURE_CHEST || isDoor(b) || isBed(b) || isFarmland(b) || isCrop(b) ||
+        b == BlockType::BERRY_BUSH_BARE || b == BlockType::SHELLS ||
+        (isTorch(b) && b != BlockType::TORCH) || (isCake(b) && b != BlockType::CAKE_4))
       continue;
     ItemId id = itemForBlock(b);
     CAPTURE(blockName(b));
@@ -47,7 +49,7 @@ TEST_CASE("every placeable block has an item that places it") {
 
 TEST_CASE("the material items are defined with unique item-atlas tiles") {
   auto mats = materials();
-  CHECK(mats.size() == 78);
+  CHECK(mats.size() == 81);
 
   std::set<std::pair<int, int>> tiles;
   for (ItemId id : mats) {
@@ -133,14 +135,16 @@ TEST_CASE("every other block drops itself, and every drop is a valid item") {
       BlockType::COAL_ORE,    BlockType::DIAMOND_ORE, BlockType::EMERALD_ORE,
       BlockType::RUBY_ORE,    BlockType::IRON_ORE,    BlockType::GOLD_ORE,
       BlockType::COPPER_ORE,  BlockType::FURNACE_LIT, BlockType::TREASURE_CHEST,
-      BlockType::FARMLAND_DRY, BlockType::FARMLAND_WET,
+      BlockType::FARMLAND_DRY, BlockType::FARMLAND_WET, BlockType::TALL_GRASS,
+      BlockType::DEAD_BUSH,   BlockType::BERRY_BUSH_BARE, BlockType::SHELLS,
   };
   for (uint16_t v = 0; v <= kLastBlock; ++v) {
     BlockType b = static_cast<BlockType>(v);
     CAPTURE(blockName(b));
     auto drop = dropFor(b);
     if (drop) CHECK(isValidItem(*drop));
-    if (!special.count(b) && !isDoor(b) && !isBed(b) && !isCrop(b)) CHECK(drop == itemForBlock(b));
+    if (!special.count(b) && !isDoor(b) && !isBed(b) && !isCrop(b) && !isTorch(b) && !isCake(b))
+      CHECK(drop == itemForBlock(b));
   }
 }
 
@@ -217,7 +221,7 @@ TEST_CASE("split takes up to n") {
   CHECK(split(empty, 5) == ItemStack{});
 }
 
-TEST_CASE("berries, sweet petals, fish and crops are the only food") {
+TEST_CASE("berries, sweet petals, fish, crops, stew and cookies are the only food") {
   CHECK(itemDef(ItemId::BERRIES).food_heal == 4);
   CHECK(itemDef(ItemId::SWEET_PETALS).food_heal == 6);
   for (uint16_t v = 1; v <= static_cast<uint16_t>(kLastMaterialItem); ++v) {
@@ -225,6 +229,7 @@ TEST_CASE("berries, sweet petals, fish and crops are the only food") {
     if (!isValidItem(id) || id == ItemId::BERRIES || id == ItemId::SWEET_PETALS) continue;
     if (id >= ItemId::RAW_PEBBLEFISH && id <= ItemId::COOKED_GLOWFIN) continue;
     if (id == ItemId::BREAD || id == ItemId::CARROT || id == ItemId::STRAWBERRY) continue;
+    if (id == ItemId::MUSHROOM_STEW || id == ItemId::BERRY_COOKIE) continue;
     CAPTURE(itemDef(id).name);
     CHECK(itemDef(id).food_heal == 0);
   }

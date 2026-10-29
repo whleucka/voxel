@@ -50,8 +50,12 @@ struct MovePlayer {
 
 struct BreakBlock { glm::ivec3 pos{0}; };
 // Places the block item held in the selected hotbar slot; the Game decides
-// what that is, not the client.
-struct PlaceBlock { glm::ivec3 pos{0}; };
+// what that is, not the client. `against` is the step from `pos` to the
+// block clicked on, which a torch hangs from (down: the floor).
+struct PlaceBlock {
+  glm::ivec3 pos{0};
+  glm::ivec3 against{0, -1, 0};
+};
 struct SelectSlot { int slot = 0; };
 struct Save {};
 struct SetTimeOfDay { float seconds = 0.0f; }; // debug panel

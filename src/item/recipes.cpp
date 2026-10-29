@@ -43,15 +43,18 @@ const std::vector<Recipe> &recipes() {
       anywhere({ItemId::STICKS, 4}, {{anyPlanks(), 2}}),
       anywhere({block(BlockType::CRAFTING_TABLE), 1}, {{anyPlanks(), 4}}),
       atTable({block(BlockType::STONE_BRICKS), 4}, {{{block(BlockType::COBBLESTONE)}, 4}}),
+      // White from sand and anything white; then each colour from its
+      // flower. (Gems, ores and creature drops were the dyes before plants.)
       atTable({block(BlockType::WHITE_BLOCK), 8},
-              {{{block(BlockType::SAND)}, 8}, {{ItemId::WOOL}, 1}}),
-      dyed(BlockType::RED_BLOCK, ItemId::RUBY),
-      dyed(BlockType::ORANGE_BLOCK, ItemId::RAW_COPPER),
-      dyed(BlockType::YELLOW_BLOCK, ItemId::RAW_GOLD),
-      dyed(BlockType::GREEN_BLOCK, ItemId::EMERALD),
-      dyed(BlockType::BLUE_BLOCK, ItemId::SEA_SHELL),
-      dyed(BlockType::PURPLE_BLOCK, ItemId::BERRIES),
-      dyed(BlockType::PINK_BLOCK, ItemId::SWEET_PETALS),
+              {{{block(BlockType::SAND)}, 8},
+               {{ItemId::WOOL, block(BlockType::DAISY), ItemId::SEA_SHELL}, 1}}),
+      dyed(BlockType::RED_BLOCK, block(BlockType::POPPY)),
+      dyed(BlockType::ORANGE_BLOCK, block(BlockType::HIBISCUS)),
+      dyed(BlockType::YELLOW_BLOCK, block(BlockType::BUTTERCUP)),
+      dyed(BlockType::GREEN_BLOCK, block(BlockType::CACTUS)),
+      dyed(BlockType::BLUE_BLOCK, block(BlockType::CORNFLOWER)),
+      dyed(BlockType::PURPLE_BLOCK, block(BlockType::LAVENDER)),
+      dyed(BlockType::PINK_BLOCK, block(BlockType::PINK_TULIP)),
       atTable({block(BlockType::GLOWSTONE), 1},
               {{{block(BlockType::GLOW_CRYSTAL)}, 1}, {{ItemId::COPPER_INGOT}, 1}}),
       atTable({block(BlockType::FURNACE), 1}, {{{block(BlockType::COBBLESTONE)}, 8}}),
@@ -83,10 +86,13 @@ const std::vector<Recipe> &recipes() {
     // A white bed, then dyed with the coloured blocks' dyes.
     list.push_back(atTable({ItemId::WHITE_BED, 1}, {{{ItemId::WOOL}, 3}, {anyPlanks(), 3}}));
     const std::pair<BedColour, ItemId> dyes[] = {
-        {BedColour::Red, ItemId::RUBY},         {BedColour::Orange, ItemId::RAW_COPPER},
-        {BedColour::Yellow, ItemId::RAW_GOLD},  {BedColour::Green, ItemId::EMERALD},
-        {BedColour::Blue, ItemId::SEA_SHELL},   {BedColour::Purple, ItemId::BERRIES},
-        {BedColour::Pink, ItemId::SWEET_PETALS}};
+        {BedColour::Red, block(BlockType::POPPY)},
+        {BedColour::Orange, block(BlockType::HIBISCUS)},
+        {BedColour::Yellow, block(BlockType::BUTTERCUP)},
+        {BedColour::Green, block(BlockType::CACTUS)},
+        {BedColour::Blue, block(BlockType::CORNFLOWER)},
+        {BedColour::Purple, block(BlockType::LAVENDER)},
+        {BedColour::Pink, block(BlockType::PINK_TULIP)}};
     for (const auto &[colour, dye] : dyes)
       list.push_back(atTable({bedItem(colour), 1}, {{{ItemId::WHITE_BED}, 1}, {{dye}, 1}}));
     // Farming: hoes like the other tools, bread from wheat, strawberry seeds
@@ -99,6 +105,25 @@ const std::vector<Recipe> &recipes() {
     list.push_back(atTable({ItemId::WATERING_CAN, 1}, {{{ItemId::COPPER_INGOT}, 3}}));
     // A boat, made anywhere so it can be made at the shore.
     list.push_back(anywhere({ItemId::BOAT, 1}, {{anyPlanks(), 5}}));
+    // Biome plants: torches made anywhere (you'll want them in a cave),
+    // bricks for the sand and snow, compost from leaves, and food.
+    list.push_back(anywhere({block(BlockType::TORCH), 4},
+                            {{{ItemId::COAL, ItemId::CHARCOAL}, 1}, {{ItemId::STICKS}, 1}}));
+    list.push_back(atTable({block(BlockType::SANDSTONE_BRICKS), 4},
+                           {{{block(BlockType::SANDSTONE)}, 4}}));
+    list.push_back(atTable({block(BlockType::SNOW_BRICKS), 4}, {{{block(BlockType::SNOW)}, 4}}));
+    list.push_back(anywhere({ItemId::COMPOST, 1},
+                            {{{block(BlockType::OAK_LEAF), block(BlockType::PINE_LEAF),
+                               block(BlockType::PALM_LEAF), block(BlockType::CHERRY_LEAF)},
+                              4}}));
+    list.push_back(atTable({ItemId::MUSHROOM_STEW, 1},
+                           {{{block(BlockType::RED_MUSHROOM)}, 1},
+                            {{block(BlockType::BROWN_MUSHROOM)}, 1}}));
+    list.push_back(atTable({ItemId::BERRY_COOKIE, 4},
+                           {{{ItemId::WHEAT}, 2}, {{ItemId::BERRIES}, 1}}));
+    list.push_back(atTable({block(BlockType::CAKE_4), 1},
+                           {{{ItemId::WHEAT}, 3}, {{ItemId::STRAWBERRY}, 2},
+                            {{ItemId::SWEET_PETALS}, 1}}));
     return list;
   }();
   return all;

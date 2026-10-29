@@ -23,12 +23,13 @@ std::optional<glm::ivec3> Spawner::groundAt(const World &world, int x, int z) {
   if (!columnLoaded(world, x, z)) return std::nullopt;
 
   auto block = [&](int y) { return world.getBlockAt(glm::vec3(x + 0.5f, y + 0.5f, z + 0.5f)); };
+  // Grass and flowers are stood in, like air.
   for (int y = kChunkHeight - 3; y >= 0; --y) {
     BlockType b = block(y);
-    if (b == BlockType::AIR) continue;
-    // The first non-air block from the top must be solid ground, not water.
+    if (isPassable(b)) continue;
+    // The first such block from the top must be solid ground, not water.
     if (isLiquid(b)) return std::nullopt;
-    if (block(y + 1) == BlockType::AIR && block(y + 2) == BlockType::AIR)
+    if (isPassable(block(y + 1)) && isPassable(block(y + 2)))
       return glm::ivec3(x, y, z);
     return std::nullopt;
   }
@@ -44,8 +45,8 @@ std::optional<glm::ivec3> Spawner::caveAt(const World &world, int x, int z, Rng 
 
   std::vector<int> floors;
   for (int y = top - 3; y >= 0; --y)
-    if (world.isSolidBlock(x, y, z) && !isBed(block(y)) && block(y + 1) == BlockType::AIR &&
-        block(y + 2) == BlockType::AIR)
+    if (world.isSolidBlock(x, y, z) && !isBed(block(y)) && isPassable(block(y + 1)) &&
+        isPassable(block(y + 2)))
       floors.push_back(y);
   if (floors.empty()) return std::nullopt;
   size_t pick = std::uniform_int_distribution<size_t>(0, floors.size() - 1)(rng);

@@ -88,6 +88,9 @@ constexpr std::array<Material, kMaterialCount> kMaterials = {{
     {"Strawberry", 4},
     {"Watering Can", 0, 1},
     {"Boat", 0, 1},
+    {"Compost", 0},
+    {"Mushroom Stew", 8},
+    {"Berry Cookie", 2},
 }};
 constexpr int kItemAtlasCols = 8;
 
@@ -95,11 +98,14 @@ bool isPlaceableBlock(uint16_t v) {
   if (v == 0 || v > static_cast<uint16_t>(kLastBlockType)) return false;
   // Water is never held, a lit furnace is a furnace that's burning, a
   // treasure chest is only ever found, door and bed halves come from a door
-  // or a bed, farmland from a hoe and crops from seeds.
+  // or a bed, farmland from a hoe and crops from seeds. A picked bush is a
+  // bush, shells are picked up as a Sea Shell, a torch is turned to its wall
+  // when placed, and a cake is only ever placed whole.
   BlockType b = static_cast<BlockType>(v);
   return b != BlockType::WATER && b != BlockType::FURNACE_LIT &&
          b != BlockType::TREASURE_CHEST && !isDoor(b) && !isBed(b) && !isFarmland(b) &&
-         !isCrop(b);
+         !isCrop(b) && b != BlockType::BERRY_BUSH_BARE && b != BlockType::SHELLS &&
+         (!isTorch(b) || b == BlockType::TORCH) && (!isCake(b) || b == BlockType::CAKE_4);
 }
 
 bool isMaterial(uint16_t v) {
@@ -171,7 +177,15 @@ std::optional<ItemId> dropFor(BlockType b) {
     case BlockType::GOLD_ORE:    return ItemId::RAW_GOLD;
     case BlockType::COPPER_ORE:  return ItemId::RAW_COPPER;
     case BlockType::FURNACE_LIT: return itemForBlock(BlockType::FURNACE);
+    // Tall grass now and then gives a seed (the Game's roll), never itself.
+    case BlockType::TALL_GRASS:  return std::nullopt;
+    case BlockType::DEAD_BUSH:   return ItemId::STICKS;
+    case BlockType::SHELLS:      return ItemId::SEA_SHELL;
+    case BlockType::BERRY_BUSH_BARE: return itemForBlock(BlockType::BERRY_BUSH);
     default:
+      if (isTorch(b)) return itemForBlock(BlockType::TORCH);
+      // A cake is eaten, not picked up: breaking it loses the rest.
+      if (isCake(b)) return std::nullopt;
       // One door from its bottom half; the Game clears the top with it.
       if (isDoor(b)) return doorTop(b) ? std::nullopt : std::optional(ItemId::WOODEN_DOOR);
       // Likewise one bed, of its colour, from its foot.

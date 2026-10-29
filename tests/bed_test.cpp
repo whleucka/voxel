@@ -126,12 +126,16 @@ TEST_CASE("3 wool and 3 planks of any wood make a white bed at a table") {
   CHECK(r->needs[1].count == 3);
 }
 
-TEST_CASE("a white bed takes the coloured blocks' dyes") {
+TEST_CASE("a white bed takes the coloured blocks' dyes: their flowers") {
+  auto flower = [](BlockType b) { return itemForBlock(b); };
   const std::pair<ItemId, ItemId> dyed[] = {
-      {ItemId::RED_BED, ItemId::RUBY},         {ItemId::ORANGE_BED, ItemId::RAW_COPPER},
-      {ItemId::YELLOW_BED, ItemId::RAW_GOLD},  {ItemId::GREEN_BED, ItemId::EMERALD},
-      {ItemId::BLUE_BED, ItemId::SEA_SHELL},   {ItemId::PURPLE_BED, ItemId::BERRIES},
-      {ItemId::PINK_BED, ItemId::SWEET_PETALS}};
+      {ItemId::RED_BED, flower(BlockType::POPPY)},
+      {ItemId::ORANGE_BED, flower(BlockType::HIBISCUS)},
+      {ItemId::YELLOW_BED, flower(BlockType::BUTTERCUP)},
+      {ItemId::GREEN_BED, flower(BlockType::CACTUS)},
+      {ItemId::BLUE_BED, flower(BlockType::CORNFLOWER)},
+      {ItemId::PURPLE_BED, flower(BlockType::LAVENDER)},
+      {ItemId::PINK_BED, flower(BlockType::PINK_TULIP)}};
   for (const auto &[bed, dye] : dyed) {
     CAPTURE(itemDef(bed).name);
     const Recipe *r = recipeFor(bed);

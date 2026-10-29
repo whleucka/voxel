@@ -2,6 +2,7 @@
 #include "block/bed.hpp"
 #include "block/crop.hpp"
 #include "block/door.hpp"
+#include "block/plant.hpp"
 
 Toughness toughness(BlockType b) {
   using enum BlockType;
@@ -33,8 +34,13 @@ Toughness toughness(BlockType b) {
     case CRAFTING_TABLE: case CHEST:
       return {true, 3000, ToolKind::Axe};
 
+    case CACTUS:
+      return {true, 400, ToolKind::Axe};
+    case PINK_CORAL: case BLUE_CORAL: case YELLOW_CORAL: case SNOW_BRICKS:
+      return {true, 1000, ToolKind::Pickaxe};
+
     case STONE: case COBBLESTONE: case SANDSTONE: case SNOW_STONE:
-    case BRICKS: case STONE_BRICKS: case FURNACE: case FURNACE_LIT:
+    case BRICKS: case STONE_BRICKS: case SANDSTONE_BRICKS: case FURNACE: case FURNACE_LIT:
       return {true, 7500, ToolKind::Pickaxe, ToolKind::None, Tier::Wood};
 
     case COAL_ORE: case COPPER_ORE:
@@ -46,7 +52,8 @@ Toughness toughness(BlockType b) {
 
     default:
       if (isDoor(b) || isBed(b)) return {true, 3000, ToolKind::Axe}; // like planks
-      if (isCrop(b)) return {true, 0}; // picked at once
+      // Picked at once.
+      if (isCrop(b) || isPlant(b) || isTorch(b) || isCake(b)) return {true, 0};
       return {true, 1000};
   }
 }

@@ -57,6 +57,15 @@ public:
   static constexpr float kSleepEnemyRange = 8.0f; // no sleeping with one this close
   static constexpr int kSleepMs = 2000;           // everyone this long in bed: morning
   static constexpr float kWakeTime = 6.5f * 3600; // 6:30
+  // Wild plants
+  static constexpr int kBerriesPicked = 2;
+  static constexpr int kBushRipenMs = 5 * 60 * 1000; // a picked bush ripens again
+  static constexpr int kCakeSliceHeal = 4;
+  static constexpr int kCompostSprouts = 4;        // plants it tries to sprout
+  static constexpr int kCompostReach = 2;          // round the block it's used on
+  static constexpr int kPrickDamage = 1;
+  static constexpr int kPrickCooldownMs = 1000;
+  static constexpr float kPrickRange = 0.05f;      // gap between player and cactus
 
   Game(); // registers natural spawning (animals and enemies)
 
@@ -310,6 +319,13 @@ private:
   std::map<glm::ivec3, GrowingCrop, BlockLess> crops_;
   std::map<glm::ivec3, Soil, BlockLess> soil_;
   void till(Client &client, PlayerState &ps, glm::ivec3 pos);
+  // Wild plants: picking a ripe berry bush (it ripens again with the crops),
+  // a slice of cake, and compost on a crop, a bush, grass or sand.
+  void pickBerries(Client &client, PlayerState &ps, glm::ivec3 pos);
+  void eatCake(Client &client, PlayerState &ps, glm::ivec3 pos);
+  void useCompost(Client &client, PlayerState &ps, glm::ivec3 pos);
+  // A cactus touching a living player pricks them, at most once a second.
+  void prickPlayers();
   void plant(Client &client, PlayerState &ps, glm::ivec3 pos);
   void water(Client &client, PlayerState &ps, glm::ivec3 pos);
   // The block at a farm cell, loaded or not: an unloaded one is its edit,
@@ -318,6 +334,11 @@ private:
   void setFarmBlock(glm::ivec3 pos, BlockType type);
   // Something went from under a crop: it pops off as its seed.
   void popCropAbove(glm::ivec3 below);
+  // The block at `gone` went: plants, cactus, torches and cake it held up
+  // pop off (and what they held, in turn), dropping what they drop.
+  void popUnsupported(glm::ivec3 gone);
+  // What breaking `b` gives, by the roll for one that's chancy (tall grass).
+  std::optional<ItemId> dropOf(BlockType b);
   // A block placed on farmland packs it back into dirt.
   void packSoilUnder(glm::ivec3 placed);
   // Gives a player items, popping out at `pos` what doesn't fit.

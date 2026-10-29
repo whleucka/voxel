@@ -148,7 +148,7 @@ template <class IO> void fields(IO &io, MovePlayer &m) {
      m.eyes_underwater, m.respawn, m.boat, m.boat_position, m.boat_yaw);
 }
 template <class IO> void fields(IO &io, BreakBlock &m) { io(m.pos); }
-template <class IO> void fields(IO &io, PlaceBlock &m) { io(m.pos); }
+template <class IO> void fields(IO &io, PlaceBlock &m) { io(m.pos, m.against); }
 template <class IO> void fields(IO &io, SelectSlot &m) {
   int32_t slot = m.slot;
   io(slot);

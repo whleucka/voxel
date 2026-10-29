@@ -53,6 +53,12 @@ void Hud::drawIcon(ImDrawList *dl, const Rect &r, ItemId id, float alpha) const 
     if (tex == block_data.end()) return;
     UvRect top = tileUv(tex->second.top, kBlockAtlasTiles);
     UvRect side = tileUv(tex->second.side, kBlockAtlasTiles);
+    if (hasFlatIcon(*def.places)) {
+      dl->AddImage(static_cast<ImTextureID>(block_tex), ImVec2(r.x + pad, r.y + pad),
+                   ImVec2(r.right() - pad, r.bottom() - pad), iv(side.uv0), iv(side.uv1),
+                   rgba(255, 255, 255, alpha));
+      return;
+    }
     CubeQuads c = cubeQuads(r, pad);
     ImTextureID t = static_cast<ImTextureID>(block_tex);
     auto face = [&](const Quad &q, const UvRect &uv, int shade) {

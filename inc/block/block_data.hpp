@@ -4,6 +4,7 @@
 #include "block/bed.hpp"
 #include "block/crop.hpp"
 #include "block/door.hpp"
+#include "block/plant.hpp"
 #include "robin_hood/robin_hood.h"
 #include <glm/glm.hpp>
 #include <string_view>
@@ -28,16 +29,33 @@ inline bool isLiquid(BlockType type) {
 }
 
 // Whether a block stops bodies and creatures: anything but air, water, an
-// open door and a crop. A closed door fills its whole cell; a bed only its lower part
-// (blockHeight).
+// open door, a crop, a plant and a torch. A closed door fills its whole cell;
+// a bed or a cake only its lower part (blockHeight).
 inline bool blocksMovement(BlockType type) {
   return type != BlockType::AIR && !isLiquid(type) && !(isDoor(type) && doorOpen(type)) &&
-         !isCrop(type);
+         !isCrop(type) && !isPlant(type) && !isTorch(type);
 }
+
+// Open to walk through, like air: bodies, paths and spawns pass these.
+inline bool isPassable(BlockType type) { return !blocksMovement(type) && !isLiquid(type); }
 
 // How high up its cell a block that blocksMovement stops bodies: the top a
 // foot lands on.
-inline float blockHeight(BlockType type) { return isBed(type) ? kBedHeight : 1.0f; }
+inline float blockHeight(BlockType type) {
+  return isBed(type) ? kBedHeight : isCake(type) ? kCakeHeight : 1.0f;
+}
+
+// A full, solid block that a torch, a mushroom or a cake can sit on.
+inline bool isSolidGround(BlockType type) {
+  return blocksMovement(type) && blockHeight(type) == 1.0f && !isDoor(type) &&
+         !needsSupport(type);
+}
+
+// Drawn by a shape of their own in the chunk mesh, not as a cube.
+inline bool hasOwnShape(BlockType type) {
+  return isDoor(type) || isBed(type) || isCrop(type) || isPlant(type) || isTorch(type) ||
+         isCake(type) || type == BlockType::CACTUS;
+}
 
 // Cutout blocks discard the faint texels of their tile instead of drawing them,
 // which turns the soft edges of the leaf art into see-through holes.  They stay
@@ -69,8 +87,11 @@ inline uint8_t cutoutClass(BlockType type) {
     case BlockType::CHERRY_LEAF: return kCutoutMid;
     case BlockType::PINE_LEAF:   return kCutoutHigh;
     default:
-      // A door's top half has a window in it, and a crop is leaves on air.
-      return (isDoor(type) && doorTop(type)) || isCrop(type) ? kCutoutLow : kCutoutNone;
+      // A door's top half has a window in it, and a crop, a plant or a
+      // torch is leaves (or a stick) on air.
+      return (isDoor(type) && doorTop(type)) || isCrop(type) || isPlant(type) || isTorch(type)
+                 ? kCutoutLow
+                 : kCutoutNone;
   }
 }
 
@@ -81,8 +102,10 @@ inline bool isCutout(BlockType type) {
 // Determine if a face should be rendered between current block and neighbor
 inline bool shouldRenderFace(BlockType current, BlockType neighbor) {
   if (neighbor == BlockType::AIR) return true;
-  // A door is a thin panel and a bed is low: whatever is round them shows.
-  if (isDoor(neighbor) || isBed(neighbor)) return true;
+  // A door is a thin panel, and a bed, a cake and a cactus don't fill
+  // their cell: whatever is round them shows.
+  if (isDoor(neighbor) || isBed(neighbor) || isCake(neighbor) || neighbor == BlockType::CACTUS)
+    return true;
   // Panes of glass side by side read as one window, so the face between them
   // is hidden.  Leaves keep their inner faces (below).
   if (current == BlockType::GLASS && neighbor == BlockType::GLASS) return false;
@@ -112,7 +135,11 @@ inline uint8_t skyLightOpacity(BlockType type) {
     case BlockType::PALM_LEAF:
     case BlockType::CHERRY_LEAF: return 1;
     default: // light gets round these
-      return isDoor(type) || isBed(type) || isCrop(type) ? 0 : 15;
+      // (and round a cactus, which doesn't fill its cell either)
+      return isDoor(type) || isBed(type) || isCrop(type) || isPlant(type) || isTorch(type) ||
+                     isCake(type) || type == BlockType::CACTUS
+                 ? 0
+                 : 15;
   }
 }
 
@@ -123,7 +150,7 @@ inline uint8_t blockLightEmission(BlockType type) {
     case BlockType::GLOWSTONE:    return 15;
     case BlockType::GLOW_CRYSTAL: return 10; // softer than the lamp
     case BlockType::FURNACE_LIT:  return 13;
-    default:                   return 0;
+    default:                   return isTorch(type) ? 13 : 0;
   }
 }
 
@@ -190,7 +217,30 @@ inline std::string_view blockName(BlockType type) {
     case BlockType::CARROT_2: case BlockType::CARROT_3: return "Carrots";
     case BlockType::STRAWBERRY_0: case BlockType::STRAWBERRY_1:
     case BlockType::STRAWBERRY_2: case BlockType::STRAWBERRY_3: return "Strawberries";
+    case BlockType::TALL_GRASS:    return "Tall Grass";
+    case BlockType::POPPY:         return "Poppy";
+    case BlockType::BUTTERCUP:     return "Buttercup";
+    case BlockType::CORNFLOWER:    return "Cornflower";
+    case BlockType::PINK_TULIP:    return "Pink Tulip";
+    case BlockType::DAISY:         return "Daisy";
+    case BlockType::LAVENDER:      return "Lavender";
+    case BlockType::HIBISCUS:      return "Hibiscus";
+    case BlockType::FERN:          return "Fern";
+    case BlockType::RED_MUSHROOM:  return "Red Mushroom";
+    case BlockType::BROWN_MUSHROOM: return "Brown Mushroom";
+    case BlockType::DEAD_BUSH:     return "Dead Bush";
+    case BlockType::BERRY_BUSH:
+    case BlockType::BERRY_BUSH_BARE: return "Berry Bush";
+    case BlockType::SHELLS:        return "Shells";
+    case BlockType::CACTUS:        return "Cactus";
+    case BlockType::PINK_CORAL:    return "Pink Coral";
+    case BlockType::BLUE_CORAL:    return "Blue Coral";
+    case BlockType::YELLOW_CORAL:  return "Yellow Coral";
+    case BlockType::SANDSTONE_BRICKS: return "Sandstone Bricks";
+    case BlockType::SNOW_BRICKS:   return "Snow Bricks";
     default:
+      if (isTorch(type)) return "Torch";
+      if (isCake(type)) return "Cake";
       if (isDoor(type)) return "Wooden Door";
       if (isBed(type)) return kBedNames[static_cast<int>(bedColour(type))];
       return "Unknown";
@@ -208,6 +258,30 @@ inline glm::ivec2 bedBlanketTile(BedColour colour) {
   int i = 15 + static_cast<int>(colour); // counted from (0, 3)
   return {i % 16, 3 + i / 16};
 }
+
+// Plant, cactus, coral, torch, cake and brick tiles, counted on from the
+// last crop's at (8, 5) in tools/gen_building_tiles.py order.
+inline glm::ivec2 tileAfterCrops(int n) {
+  int i = 25 + n; // counted from (0, 4)
+  return {i % 16, 4 + i / 16};
+}
+inline glm::ivec2 plantTile(BlockType plant) {
+  return tileAfterCrops(static_cast<int>(plant) - static_cast<int>(BlockType::TALL_GRASS));
+}
+inline const glm::ivec2 kCactusTopTile = tileAfterCrops(15);
+inline const glm::ivec2 kCactusSideTile = tileAfterCrops(16);
+inline const glm::ivec2 kPinkCoralTile = tileAfterCrops(17);
+inline const glm::ivec2 kBlueCoralTile = tileAfterCrops(18);
+inline const glm::ivec2 kYellowCoralTile = tileAfterCrops(19);
+inline const glm::ivec2 kTorchTile = tileAfterCrops(20);
+inline const glm::ivec2 kCakeTopTile = tileAfterCrops(21);
+inline const glm::ivec2 kCakeSideTile = tileAfterCrops(22);
+inline const glm::ivec2 kCakeCutTile = tileAfterCrops(23);
+inline const glm::ivec2 kSandstoneBricksTile = tileAfterCrops(24);
+inline const glm::ivec2 kSnowBricksTile = tileAfterCrops(25);
+
+// Shown flat in a slot (the plant's own picture), not as a little cube.
+inline bool hasFlatIcon(BlockType type) { return isPlant(type) || isTorch(type); }
 
 static robin_hood::unordered_map<BlockType, BlockTexture> block_data = [] {
   robin_hood::unordered_map<BlockType, BlockTexture> d = {
@@ -289,5 +363,23 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = [] {
     BlockType b = static_cast<BlockType>(v);
     d[b] = {kCropTopTile, kCropTopTile, cropTile(b)};
   }
+  // Plants: the plant round the sides, clear on top and below (like crops);
+  // then cactus, corals, torches, cake and the bricks (tools/gen_building_tiles.py).
+  for (int v = static_cast<int>(BlockType::TALL_GRASS);
+       v <= static_cast<int>(BlockType::SHELLS); ++v)
+    d[static_cast<BlockType>(v)] = {kCropTopTile, kCropTopTile,
+                                    plantTile(static_cast<BlockType>(v))};
+  d[BlockType::CACTUS] = {kCactusTopTile, kCactusTopTile, kCactusSideTile};
+  d[BlockType::PINK_CORAL] = {kPinkCoralTile, kPinkCoralTile, kPinkCoralTile};
+  d[BlockType::BLUE_CORAL] = {kBlueCoralTile, kBlueCoralTile, kBlueCoralTile};
+  d[BlockType::YELLOW_CORAL] = {kYellowCoralTile, kYellowCoralTile, kYellowCoralTile};
+  for (int v = static_cast<int>(BlockType::TORCH); v <= static_cast<int>(BlockType::TORCH_W); ++v)
+    d[static_cast<BlockType>(v)] = {kCropTopTile, kCropTopTile, kTorchTile};
+  // A cake's top, its side, and where it's been cut (the "bottom" slot).
+  for (int v = static_cast<int>(BlockType::CAKE_4); v <= static_cast<int>(BlockType::CAKE_1); ++v)
+    d[static_cast<BlockType>(v)] = {kCakeTopTile, kCakeCutTile, kCakeSideTile};
+  d[BlockType::SANDSTONE_BRICKS] = {kSandstoneBricksTile, kSandstoneBricksTile,
+                                    kSandstoneBricksTile};
+  d[BlockType::SNOW_BRICKS] = {kSnowBricksTile, kSnowBricksTile, kSnowBricksTile};
   return d;
 }();

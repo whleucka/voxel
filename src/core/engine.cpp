@@ -1344,6 +1344,10 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     // Open or shut a door (crouch to place against it instead).
     else if (ray.hit && isDoor(ray.block_type) && !player->isCrouching())
       engine->connection().send(UseDoor{ray.block_pos});
+    // Pick berries or eat a slice of cake (crouch to place against it instead).
+    else if (ray.hit && !player->isCrouching() &&
+             (isBerryBush(ray.block_type) || isCake(ray.block_type)))
+      engine->connection().send(UseItemOn{ray.block_pos});
     // Use a Crafting Table, furnace or chest (crouch to place against it instead).
     else if (ray.hit && ray.block_type == BlockType::CRAFTING_TABLE && !player->isCrouching())
       engine->setInventoryOpen(true);
@@ -1372,12 +1376,16 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
       else if (wet.hit)
         engine->connection().send(UseItemOn{wet.block_pos});
     }
-    else if (ray.hit && (toolOf(held.id).kind == ToolKind::Hoe || cropForSeed(held.id)))
+    else if (ray.hit && (toolOf(held.id).kind == ToolKind::Hoe || cropForSeed(held.id) ||
+                         held.id == ItemId::COMPOST))
       engine->connection().send(UseItemOn{ray.block_pos});
     else if (!held.empty() && itemDef(held.id).food_heal > 0)
       engine->connection().send(EatItem{});
+    // Tall grass and the like are built over: the block goes in their place.
+    else if (ray.hit && isReplaceable(ray.block_type))
+      engine->connection().send(PlaceBlock{ray.block_pos, {0, -1, 0}});
     else if (ray.hit)
-      engine->connection().send(PlaceBlock{ray.block_pos + ray.normal});
+      engine->connection().send(PlaceBlock{ray.block_pos + ray.normal, -ray.normal});
   }
 }
 

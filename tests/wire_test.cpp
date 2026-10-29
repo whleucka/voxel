@@ -57,6 +57,7 @@ TEST_CASE("commands round-trip with real values") {
   CHECK(back.eyes_underwater);
   roundTrip(BreakBlock{{-30000, 0, 30000}});
   roundTrip(PlaceBlock{{1, 255, -1}});
+  roundTrip(PlaceBlock{{1, 70, -1}, {1, 0, 0}});
   roundTrip(SelectSlot{9});
   roundTrip(MoveItems{39, 0, 64});
   roundTrip(GiveItem{ItemId::SWEET_PETALS, 999});

@@ -197,7 +197,15 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities,
       glm::mat4 m = glm::rotate(glm::translate(glm::mat4(1.0f), e.position),
                                 glm::radians(spin), glm::vec3(0, 1, 0));
       const ItemDef &def = itemDef(e.item);
-      if (def.places) {
+      if (def.places && hasFlatIcon(*def.places)) {
+        // A flat picture, like the item icons, cut from the block atlas.
+        glBindTexture(GL_TEXTURE_2D, block_tex);
+        shader->setInt("uMode", 2);
+        shader->setFloat("uTileSpan", 1.0f / kBlockAtlasTiles);
+        glm::vec2 t = glm::vec2(block_data.at(*def.places).side) / float(kBlockAtlasTiles);
+        glUniform2fv(glGetUniformLocation(shader->ID, "uTileSide"), 1, &t[0]);
+        drawBox(m, {-0.175f, bob, -0.015f}, {0.35f, 0.35f, 0.03f});
+      } else if (def.places) {
         auto tex = block_data.find(*def.places);
         if (tex == block_data.end()) continue;
         glBindTexture(GL_TEXTURE_2D, block_tex);
