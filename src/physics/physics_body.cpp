@@ -4,18 +4,6 @@
 #include <algorithm>
 #include <cmath>
 
-namespace {
-
-// How far up the cell is solid: 0 for none, 1 for a whole block.
-float solidHeightAt(const World *world, int bx, int by, int bz) {
-  if (!world) return 0.0f;
-  if (by < 0 || by >= kChunkHeight) return 0.0f;
-  BlockType block = world->getBlockAt(glm::vec3(bx + 0.5f, by + 0.5f, bz + 0.5f));
-  return blocksMovement(block) ? blockHeight(block) : 0.0f;
-}
-
-} // namespace
-
 // ─── Water Detection ───────────────────────────────────────────────────
 
 void PhysicsBody::updateWater(const World *world) {
@@ -146,25 +134,25 @@ void PhysicsBody::glide(float dt, const World *world) {
 // ─── Auto-Step ─────────────────────────────────────────────────────────
 
 bool PhysicsBody::tryAutoStep(const World *world, glm::vec3 &pos) const {
-  // Try stepping up by increments up to step_height.
-  // If the body can fit at the stepped-up position, accept it.
+  // Step up onto whatever is in the way, if the body fits up to step_height
+  // above it, landing on its top: the lowest clear height, so a half step
+  // (a slab, a stair) is climbed without a hop, and the body stays on the
+  // ground to take the next one.
   glm::vec3 stepped = pos;
   stepped.y += step_height;
+  if (collidesAt(world, stepped)) return false;
 
-  // Check that the stepped-up position is clear
-  if (!collidesAt(world, stepped)) {
-    // Find the actual ground level by stepping back down
-    for (float dy = step_height; dy >= 0.0f; dy -= 0.05f) {
-      glm::vec3 test = pos;
-      test.y += dy;
-      if (!collidesAt(world, test)) {
-        pos.y += dy;
-        return true;
-      }
+  constexpr float kStep = 1.0f / 64.0f;
+  for (float dy = kStep; dy < step_height; dy += kStep) {
+    glm::vec3 test = pos;
+    test.y += dy;
+    if (!collidesAt(world, test)) {
+      pos.y += dy;
+      return true;
     }
   }
-
-  return false;
+  pos.y = stepped.y;
+  return true;
 }
 
 // ─── Collision Detection ───────────────────────────────────────────────
@@ -190,14 +178,16 @@ bool PhysicsBody::collidesAt(const World *world, glm::vec3 pos) const {
   for (int bx = bx0; bx <= bx1; ++bx) {
     for (int by = by0; by <= by1; ++by) {
       for (int bz = bz0; bz <= bz1; ++bz) {
-        if (float h = solidHeightAt(world, bx, by, bz); h > 0.0f) {
-          // Block occupies [bx, bx+1] x [by, by+h] x [bz, bz+1]; check the
-          // actual overlap, not just grid overlap.
-          bool overlaps =
-              minX < bx + 1.0f && maxX > static_cast<float>(bx) &&
-              minY < by + h && maxY > static_cast<float>(by) &&
-              minZ < bz + 1.0f && maxZ > static_cast<float>(bz);
-          if (overlaps) return true;
+        if (by < 0 || by >= kChunkHeight) continue;
+        const BlockType block = world->getBlockAt(glm::vec3(bx + 0.5f, by + 0.5f, bz + 0.5f));
+        // Check the solid boxes in the cell (a slab's half, a stair's two
+        // steps), not just the grid cell.
+        const glm::vec3 cell(bx, by, bz);
+        for (const DoorBox &box : blockBoxes(block)) {
+          const glm::vec3 lo = cell + box.lo, hi = cell + box.hi;
+          if (minX < hi.x && maxX > lo.x && minY < hi.y && maxY > lo.y && minZ < hi.z &&
+              maxZ > lo.z)
+            return true;
         }
       }
     }
