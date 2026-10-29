@@ -297,15 +297,17 @@ struct Harbour {
   LocalConnection a, b, c;
   PlayerId ida = 0, idb = 0, idc = 0;
   static constexpr float kSurface = kBase + 1.0f;
-  static constexpr glm::vec3 kBank{2.5f, kBase + 1.0f, 7.5f};
-  static constexpr glm::ivec3 kWater{6, kBase, 7}; // the pool's top, two blocks out
+  static inline const glm::vec3 kBank{2.5f, kBase + 1.0f, 7.5f};
+  static inline const glm::ivec3 kWater{6, kBase, 7}; // the pool's top, two blocks out
 
   Harbour() {
     game.spawner() = Spawner{};
     ida = join(a);
     idb = join(b);
     idc = join(c);
-    for (auto [conn, id] : {std::pair{&a, ida}, {&b, idb}, {&c, idc}}) stand(*conn, id, kBank);
+    stand(a, ida, kBank);
+    stand(b, idb, kBank);
+    stand(c, idc, kBank);
     game.world().loadChunkSync(0, 0);
     fill(game.world(), {0, kBase - 3, 0}, {15, kBase, 15}, BlockType::STONE);
     fill(game.world(), {4, kBase - 2, 4}, {11, kBase, 11}, BlockType::WATER);
