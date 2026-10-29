@@ -911,34 +911,45 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
   int cz = static_cast<int>(std::floor(static_cast<float>(cmd.pos.z) / kChunkDepth));
   if (!world_.getChunk(cx, cz)) return reject(client, "place: chunk not loaded");
 
-  // Only air, liquid or grassy plants can be replaced.
-  BlockType existing = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
-  if (existing != BlockType::AIR && !isLiquid(existing) && !isReplaceable(existing))
-    return reject(client, "place: cell occupied");
-  // A plant, a torch or a cake goes on its own ground (a torch on a floor or
-  // a wall), in the air.
   BlockType placed = *block;
-  if (needsSupport(placed)) {
-    if (isLiquid(existing)) return reject(client, "place: not in water");
-    if (placed == BlockType::TORCH) {
-      std::optional<BlockType> torch = torchFor(cmd.against);
-      if (!torch) return reject(client, "place: torches go on floors and walls");
-      placed = *torch;
+  glm::ivec3 pos = cmd.pos;
+  // A slab put on top of the same slab makes the two one full block.
+  const glm::ivec3 under = cmd.pos - glm::ivec3(0, 1, 0);
+  if (isSlab(placed) && cmd.against == glm::ivec3(0, -1, 0) &&
+      world_.getBlockAt(glm::vec3(under) + 0.5f) == placed) {
+    pos = under;
+    placed = shapeMaterial(placed);
+  } else {
+    // Only air, liquid or grassy plants can be replaced.
+    BlockType existing = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
+    if (existing != BlockType::AIR && !isLiquid(existing) && !isReplaceable(existing))
+      return reject(client, "place: cell occupied");
+    // A plant, a torch or a cake goes on its own ground (a torch on a floor
+    // or a wall), in the air.
+    if (needsSupport(placed)) {
+      if (isLiquid(existing)) return reject(client, "place: not in water");
+      if (placed == BlockType::TORCH) {
+        std::optional<BlockType> torch = torchFor(cmd.against);
+        if (!torch) return reject(client, "place: torches go on floors and walls");
+        placed = *torch;
+      }
+      const BlockType ground = world_.getBlockAt(glm::vec3(cmd.pos + supportOf(placed)) + 0.5f);
+      if (!growsOn(placed, ground, isSolidGround(ground)))
+        return reject(client, "place: it can't go there");
     }
-    const BlockType ground = world_.getBlockAt(glm::vec3(cmd.pos + supportOf(placed)) + 0.5f);
-    if (!growsOn(placed, ground, isSolidGround(ground)))
-      return reject(client, "place: it can't go there");
+    // A stair's high side goes away from whoever places it.
+    if (isStair(placed)) placed = turned(placed, doorFacingForYaw(ps->yaw));
   }
   // What's walked through can go where someone stands.
-  if (blocksMovement(placed) && overlapsAnyPlayer(cmd.pos))
+  if (blocksMovement(placed) && overlapsAnyPlayer(pos))
     return reject(client, "place: inside a player");
-  if (overlapsBoat(cmd.pos)) return reject(client, "place: a boat is there");
+  if (overlapsBoat(pos)) return reject(client, "place: a boat is there");
 
-  world_.setBlockAt(cmd.pos, placed);
-  broadcast(BlockChanged{cmd.pos, placed});
-  packSoilUnder(cmd.pos);
-  if (*block == BlockType::FURNACE) furnaces_[cmd.pos] = Furnace{};
-  if (*block == BlockType::CHEST) chests_[cmd.pos] = Chest{};
+  world_.setBlockAt(pos, placed);
+  broadcast(BlockChanged{pos, placed});
+  packSoilUnder(pos);
+  if (*block == BlockType::FURNACE) furnaces_[pos] = Furnace{};
+  if (*block == BlockType::CHEST) chests_[pos] = Chest{};
   if (rules().consume_blocks) {
     ps->inventory.take(ps->selected_slot, 1);
     sendInventory(client, *ps);

@@ -221,3 +221,26 @@ TEST_CASE("a cactus is a wall to a path") {
   REQUIRE(p);
   CHECK(std::find(p->begin(), p->end(), glm::ivec3(8, kBase + 1, 13)) != p->end());
 }
+
+TEST_CASE("a creature finds its way up a staircase onto a ledge") {
+  PathRig r;
+  r.floor({1, 0, 1}, {14, 0, 14});
+  // A ledge three blocks up, climbed only by the stairs at x = 8.
+  fill(r.world, {1, kBase + 1, 1}, {14, kBase + 3, 4}, BlockType::STONE);
+  for (int i = 0; i < 3; ++i) {
+    const int z = 7 - i;
+    fill(r.world, {8, kBase + 1, z}, {8, kBase + i, z}, BlockType::STONE); // what it's built on
+    fill(r.world, {8, kBase + 1 + i, z}, {8, kBase + 1 + i, z}, BlockType::OAK_STAIRS_N);
+  }
+  glm::ivec3 from{8, kBase + 1, 11}, to{8, kBase + 4, 2};
+  auto p = r.path(from, to);
+  REQUIRE(p);
+  CHECK(p->back() == to);
+  checkSteps(from, *p);
+  for (int i = 0; i < 3; ++i) // standing on each stair in turn
+    CHECK(std::find(p->begin(), p->end(), glm::ivec3(8, kBase + 2 + i, 7 - i)) != p->end());
+
+  // And a slab is ground to stand on.
+  fill(r.world, {8, kBase + 1, 10}, {8, kBase + 1, 10}, BlockType::OAK_SLAB);
+  CHECK(standable(r.world, {8, kBase + 2, 10}, 2));
+}

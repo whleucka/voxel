@@ -732,11 +732,12 @@ void Engine::renderNameTags(const glm::mat4 &view_projection) {
 
 void Engine::renderCrosshair() {
   // Dark overlay when the camera eye is inside a solid block (e.g. clipping
-  // into a wall). Behind the HUD and menus, so the pause menu stays readable.
+  // into a wall), not just its cell (the open half of a slab). Behind the HUD
+  // and menus, so the pause menu stays readable.
   {
     glm::vec3 eyePos = player->getEyePosition();
     BlockType eyeBlock = world().getBlockAt(eyePos);
-    if (blocksMovement(eyeBlock)) {
+    if (insideBlock(eyeBlock, eyePos - glm::floor(eyePos))) {
       ImDrawList* overlay = ImGui::GetBackgroundDrawList();
       overlay->AddRectFilled(ImVec2(0, 0), ImVec2((float)win_width, (float)win_height),
                              IM_COL32(0, 0, 0, 200));

@@ -65,6 +65,7 @@ glm::u8vec4 mapColour(BlockType type) {
   if (isTorch(type)) return rgb(250, 214, 100);
   if (isCake(type)) return rgb(244, 230, 220);
   if (isFarmland(type)) return rgb(110, 76, 46);
+  if (isHalfShape(type)) return mapColour(shapeMaterial(type));
   switch (type) {
     case B::AIR: return kNothing;
     case B::GRASS: return rgb(96, 160, 60);

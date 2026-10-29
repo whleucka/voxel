@@ -237,3 +237,26 @@ TEST_CASE("nothing new is a dead end: every plant and find is used for something
   CHECK(itemDef(ItemId::MUSHROOM_STEW).food_heal > 0);
   CHECK(itemDef(ItemId::BERRY_COOKIE).food_heal > 0);
 }
+
+// ─── Stairs and slabs ──────────────────────────────────────────────────
+
+TEST_CASE("6 of a material make 4 stairs, and 3 make 6 slabs, at a table") {
+  for (int m = 0; m < kShapeMaterials; ++m) {
+    const ItemId material = block(kShapeMaterial[m]);
+    const ItemId stairs = block(stairBlock(m, DoorFacing::North)), slab = block(slabBlock(m));
+    CAPTURE(itemDef(material).name);
+    CHECK(made(stairs, {{material, 6}}) == 4);
+    CHECK(made(slab, {{material, 3}}) == 6);
+    for (ItemId id : {stairs, slab}) {
+      const Recipe &r = recipeMaking(id);
+      CHECK(r.needs_table);
+      CHECK(r.needs.size() == 1);
+      CHECK(r.needs[0].any_of.size() == 1); // oak stairs from oak planks only
+      // Learned once you've held the material.
+      SeenItems seen;
+      CHECK_FALSE(knows(r, seen));
+      seen.set(static_cast<size_t>(material));
+      CHECK(knows(r, seen));
+    }
+  }
+}
