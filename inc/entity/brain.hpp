@@ -17,6 +17,7 @@ struct Intent {
   bool jump = false;
   float rise = 0.0f;        // swimmers: vertical, -1..1
   float yaw = 0.0f;         // degrees; 0 faces -Z
+  bool halt = false;        // stop dead rather than coast (on the ground)
 };
 
 // What a brain can see: the world, the Game's RNG and where the living
@@ -95,6 +96,7 @@ public:
   static constexpr int kReplanMs = 1000;
   static constexpr float kReplanMove = 2.0f;
   static constexpr float kWaypointReached = 0.3f; // horizontal, from the cell centre
+  static constexpr float kTouching = 0.1f;        // gap to the player it stops at
 
   explicit ChaseBrain(ChaseOptions options = {});
   Intent think(const Entity &self, const BrainContext &ctx) override;
