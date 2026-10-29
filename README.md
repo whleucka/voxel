@@ -19,6 +19,7 @@
 - **Crafting:** discover recipes as you collect things, and build a Crafting Table for the bigger ones ([more below](#crafting)).
 - **Smelting:** a furnace that cooks raw ore into ingots, and sand into glass, while you're off exploring ([more below](#smelting)).
 - **Doors:** craft wooden doors, right-click to open and shut them; nothing gets through a closed one ([more below](#doors)).
+- **Stairs and slabs:** half-block steps and floors in planks, cobblestone and four kinds of brick; walk up them without jumping ([more below](#stairs-and-slabs)).
 - **Beds:** craft a bed in one of 8 colours, sleep through the night, and wake up there after you die ([more below](#beds)).
 - **Chests:** craft chests to keep your things in, and hunt deep caves for locked treasure chests ([more below](#chests-and-treasure)).
 - **Fishing:** make a rod, cast it, and reel in when the bobber dips. Cook your catch, or find treasure ([more below](#fishing)).
@@ -37,7 +38,6 @@
 ## Ideas for next time
 
 - **Pets:** tame an animal by feeding it, and it follows you around.
-- **Doors, slabs and stairs**
 - **Your own look:** pick a color and a hat, so players can tell each other apart on the network
 - **Quick-chat:** a wheel of "Hi!", "Follow me!" and "Help!" messages, with no typing needed
 - **Hide-and-seek:** a network mini-game
@@ -179,7 +179,7 @@ discovers their own.
     (4 leaves of any kind).
 *   **At a Crafting Table** (right-click it, or stand next to it): stone,
     sandstone and snow bricks, white blocks, colored blocks dyed with
-    flowers, lamps, the Furnace, and the plant foods.
+    flowers, lamps, the Furnace, stairs and slabs, and the plant foods.
 
 Click a recipe to make one, shift-click to make as many as you can.
 Crouch and right-click to build against a table instead of opening it.
@@ -253,6 +253,22 @@ A **closed door is a wall** to everything: players, enemies and
 animals. Only players can open or break a door, so a house with one is a
 safe place to spend the night. Leave it open and enemies can follow you
 in. Breaking either half gives the door back.
+
+## Stairs and slabs
+
+Make them at a Crafting Table from oak, pine, palm or cherry **planks**,
+**cobblestone**, **stone bricks**, **bricks**, **sandstone bricks** or
+**snow bricks**: 6 make 4 **stairs**, and 3 make 6 **slabs**.
+
+*   A **slab** is half a block high. Walk onto it without jumping, or use a
+    row of them for a porch or a low floor. Put a slab on top of the same
+    kind of slab and the two become one full block.
+*   A **stair** is two half steps. It goes down with its high side away
+    from you, so walking forward goes up. Walk up a staircase without
+    pressing jump. From behind or the sides it's a wall a block tall.
+
+Creatures walk up them too. They break like the block they're made of,
+and a stair always gives back the same stair, whichever way it faced.
 
 ## Beds
 
