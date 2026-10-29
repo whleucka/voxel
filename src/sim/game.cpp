@@ -333,7 +333,8 @@ void Game::sendInventory(Client &client, PlayerState &ps) {
 
 Inventory Game::starterKit() {
   Inventory kit;
-  // Glowstone is the only light source and never generates naturally.
+  // Lamps for the first night: torches need coal, and glowstone never
+  // generates naturally.
   kit.set(0, {itemForBlock(BlockType::GLOWSTONE), 8});
   return kit;
 }
