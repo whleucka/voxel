@@ -35,7 +35,6 @@ TEST_CASE("plant block ids are pinned: saves store them as numbers") {
   CHECK(static_cast<int>(BlockType::TORCH) == 162);
   CHECK(static_cast<int>(BlockType::CAKE_4) == 167);
   CHECK(static_cast<int>(BlockType::SNOW_BRICKS) == 172);
-  CHECK(kLastBlockType == BlockType::SNOW_BRICKS);
 }
 
 TEST_CASE("wild plants are named cutouts you walk through and pick at once") {

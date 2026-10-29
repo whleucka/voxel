@@ -3,6 +3,7 @@
 #include "block/crop.hpp"
 #include "block/door.hpp"
 #include "block/plant.hpp"
+#include "block/stairs.hpp"
 
 Toughness toughness(BlockType b) {
   using enum BlockType;
@@ -52,6 +53,7 @@ Toughness toughness(BlockType b) {
 
     default:
       if (isDoor(b) || isBed(b)) return {true, 3000, ToolKind::Axe}; // like planks
+      if (isHalfShape(b)) return toughness(shapeMaterial(b));
       // Picked at once.
       if (isCrop(b) || isPlant(b) || isTorch(b) || isCake(b)) return {true, 0};
       return {true, 1000};

@@ -5,6 +5,7 @@
 #include "block/crop.hpp"
 #include "block/door.hpp"
 #include "block/plant.hpp"
+#include "block/stairs.hpp"
 #include "robin_hood/robin_hood.h"
 #include <glm/glm.hpp>
 #include <string_view>
@@ -40,21 +41,49 @@ inline bool blocksMovement(BlockType type) {
 inline bool isPassable(BlockType type) { return !blocksMovement(type) && !isLiquid(type); }
 
 // How high up its cell a block that blocksMovement stops bodies: the top a
-// foot lands on.
+// foot lands on (a stair's back step is higher still).
 inline float blockHeight(BlockType type) {
-  return isBed(type) ? kBedHeight : isCake(type) ? kCakeHeight : 1.0f;
+  return isBed(type)    ? kBedHeight
+         : isCake(type) ? kCakeHeight
+         : isSlab(type) || isStair(type) ? kSlabHeight
+                                         : 1.0f;
+}
+
+// The solid parts of a cell, in cell space (0..1): what bodies bump into,
+// and what the mesh draws for a slab or a stair. None for what's walked
+// through; a closed door fills its whole cell.
+struct CellBoxes {
+  DoorBox box[2];
+  int count = 0;
+  const DoorBox *begin() const { return box; }
+  const DoorBox *end() const { return box + count; }
+};
+
+inline CellBoxes blockBoxes(BlockType type) {
+  if (!blocksMovement(type)) return {};
+  CellBoxes boxes{{{{0, 0, 0}, {1, blockHeight(type), 1}}}, 1};
+  if (isStair(type)) boxes.box[boxes.count++] = stairStep(stairFacing(type));
+  return boxes;
+}
+
+// Whether `local` (in cell space) is inside a solid part of the cell.
+inline bool insideBlock(BlockType type, glm::vec3 local) {
+  for (const DoorBox &b : blockBoxes(type))
+    if (glm::all(glm::greaterThanEqual(local, b.lo)) && glm::all(glm::lessThan(local, b.hi)))
+      return true;
+  return false;
 }
 
 // A full, solid block that a torch, a mushroom or a cake can sit on.
 inline bool isSolidGround(BlockType type) {
   return blocksMovement(type) && blockHeight(type) == 1.0f && !isDoor(type) &&
-         !needsSupport(type);
+         !needsSupport(type) && !isHalfShape(type);
 }
 
 // Drawn by a shape of their own in the chunk mesh, not as a cube.
 inline bool hasOwnShape(BlockType type) {
   return isDoor(type) || isBed(type) || isCrop(type) || isPlant(type) || isTorch(type) ||
-         isCake(type) || type == BlockType::CACTUS;
+         isCake(type) || type == BlockType::CACTUS || isHalfShape(type);
 }
 
 // Cutout blocks discard the faint texels of their tile instead of drawing them,
@@ -102,9 +131,10 @@ inline bool isCutout(BlockType type) {
 // Determine if a face should be rendered between current block and neighbor
 inline bool shouldRenderFace(BlockType current, BlockType neighbor) {
   if (neighbor == BlockType::AIR) return true;
-  // A door is a thin panel, and a bed, a cake and a cactus don't fill
-  // their cell: whatever is round them shows.
-  if (isDoor(neighbor) || isBed(neighbor) || isCake(neighbor) || neighbor == BlockType::CACTUS)
+  // A door is a thin panel, and a bed, a cake, a cactus, a slab and a stair
+  // don't fill their cell: whatever is round them shows.
+  if (isDoor(neighbor) || isBed(neighbor) || isCake(neighbor) || neighbor == BlockType::CACTUS ||
+      isHalfShape(neighbor))
     return true;
   // Panes of glass side by side read as one window, so the face between them
   // is hidden.  Leaves keep their inner faces (below).
@@ -135,9 +165,10 @@ inline uint8_t skyLightOpacity(BlockType type) {
     case BlockType::PALM_LEAF:
     case BlockType::CHERRY_LEAF: return 1;
     default: // light gets round these
-      // (and round a cactus, which doesn't fill its cell either)
+      // (and round a cactus, a slab or a stair, which don't fill their
+      // cells either)
       return isDoor(type) || isBed(type) || isCrop(type) || isPlant(type) || isTorch(type) ||
-                     isCake(type) || type == BlockType::CACTUS
+                     isCake(type) || type == BlockType::CACTUS || isHalfShape(type)
                  ? 0
                  : 15;
   }
@@ -243,6 +274,8 @@ inline std::string_view blockName(BlockType type) {
       if (isCake(type)) return "Cake";
       if (isDoor(type)) return "Wooden Door";
       if (isBed(type)) return kBedNames[static_cast<int>(bedColour(type))];
+      if (isSlab(type)) return kSlabNames[shapeMaterialIndex(type)];
+      if (isStair(type)) return kStairNames[shapeMaterialIndex(type)];
       return "Unknown";
   }
 }
@@ -381,5 +414,11 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = [] {
   d[BlockType::SANDSTONE_BRICKS] = {kSandstoneBricksTile, kSandstoneBricksTile,
                                     kSandstoneBricksTile};
   d[BlockType::SNOW_BRICKS] = {kSnowBricksTile, kSnowBricksTile, kSnowBricksTile};
+  // Slabs and stairs wear their material's tiles.
+  for (int v = static_cast<int>(BlockType::OAK_SLAB);
+       v <= static_cast<int>(BlockType::SNOW_BRICK_STAIRS_W); ++v) {
+    const BlockTexture material = d.at(shapeMaterial(static_cast<BlockType>(v))); // a copy: d may grow
+    d[static_cast<BlockType>(v)] = material;
+  }
   return d;
 }();
