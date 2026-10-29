@@ -50,6 +50,12 @@ Rect HudLayout::chatPanel() const {
   return {area.x, top, area.w, area.bottom() - top};
 }
 
+Rect HudLayout::minimapArea() const {
+  float margin = gap_ * 3;
+  float size = std::clamp(std::round(h * 0.22f), 120.0f, 260.0f);
+  return {w - margin - size, margin, size, size};
+}
+
 Rect HudLayout::nameArea() const {
   Rect strip = breathStrip();
   float name_h = std::round(slot * 0.4f);

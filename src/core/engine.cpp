@@ -293,6 +293,8 @@ void Engine::startSession(std::unique_ptr<Session> s) {
   inventory_view = {};
   vitals_view = {Vitals::kMax, Vitals::kMax, Vitals::kMax, true, false};
   sleep_view.reset();
+  minimap = Minimap{};
+  waypoints.reset();
   chat_log.clear();
   setChatOpen(false);
   entity_interp = EntityInterpolator{};
@@ -381,6 +383,7 @@ void Engine::update() {
   move.respawn = respawn_count;
   connection().send(move);
   session->follow(player->getPosition());
+  if (g_settings.show_minimap) minimap.update(world(), player->getPosition(), delta_time);
 
   session->frame(delta_time, glfwGetTime());
   handleEvents();
@@ -444,6 +447,9 @@ void Engine::handleEvents() {
       // The backlog from joining is in the panel, but doesn't pop up.
       chat_log.add({chat->minute, chat->from, chat->name, chat->text,
                     chat->history ? -kChatLineSeconds : glfwGetTime()});
+    }
+    else if (const auto *wp = std::get_if<Waypoints>(&ev)) {
+      waypoints = *wp;
     }
     else if (const auto *sleep = std::get_if<SleepState>(&ev)) {
       if (sleep->in_bed && !inBed()) {
@@ -577,6 +583,9 @@ void Engine::render() {
     hud.drawHotbar(layout, inventory_view, player->getSelectedHotbarSlot(),
                    glfwGetTime());
     hud.drawVitals(layout, vitals_view, glfwGetTime());
+    if (g_settings.show_minimap && !vitals_view.dead)
+      hud.drawMinimap(layout, minimap, player->getPosition(), player->getCamera().yaw,
+                      waypoints ? &*waypoints : nullptr);
     if (chat_open) {
       ChatPanelResult said = drawChatPanel(layout.chatPanel(), chat_log, chat_buf, chat_opening);
       chat_opening = false;
@@ -1040,6 +1049,12 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
     // Quick-save the world
     case GLFW_KEY_F5:
       engine->connection().send(Save{});
+      break;
+
+    // Drop a map pin here, or pick up the one close by
+    case GLFW_KEY_P:
+      if (!engine->player->isInventoryOpen() && !engine->vitals_view.dead)
+        engine->connection().send(TogglePin{});
       break;
 
     // Inventory toggle

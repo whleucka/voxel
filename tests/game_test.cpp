@@ -39,11 +39,12 @@ Joined join(Game &game, LocalConnection &conn) {
   auto events = pollAll(conn);
   // Chat (the backlog and "joined the game") is checked on its own.
   std::erase_if(events, [](const Event &e) { return std::holds_alternative<ChatMessage>(e); });
-  REQUIRE(events.size() == 4);
+  REQUIRE(events.size() == 5);
   REQUIRE(std::holds_alternative<Joined>(events[0]));
   REQUIRE(std::holds_alternative<InventoryContents>(events[1]));
   REQUIRE(std::holds_alternative<KnownItems>(events[2])); // the starter kit, at least
   REQUIRE(std::holds_alternative<VitalsChanged>(events[3]));
+  REQUIRE(std::holds_alternative<Waypoints>(events[4]));
   return std::get<Joined>(events[0]);
 }
 
@@ -3737,4 +3738,136 @@ TEST_CASE_FIXTURE(SleepGame, "getting into bed is news, with how many are sleepi
   pollAll(conn);
   otherSleeps();
   CHECK(chatTexts(pollAll(conn)) == std::vector<std::string>{them().name + " is sleeping (2 of 2)"});
+}
+
+// ─── Map ───────────────────────────────────────────────────────────────
+
+namespace {
+
+std::optional<Waypoints> lastWaypoints(const std::vector<Event> &evs) {
+  std::optional<Waypoints> out;
+  for (const Event &e : evs)
+    if (const auto *w = std::get_if<Waypoints>(&e)) out = *w;
+  return out;
+}
+
+// EditGame's player stands at (5.5, ground + 1, 8.5).
+struct PinGame : EditGame {
+  glm::ivec3 feet() const { return {5, ground + 1, 8}; }
+  std::vector<Event> pinAt(glm::vec3 pos) {
+    moveTo(pos);
+    pollAll(conn);
+    return run(TogglePin{});
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(SmallGame, "joining sends the map's home: the world spawn, with no bed") {
+  LocalConnection conn;
+  game.addClient(conn);
+  conn.send(Join{});
+  game.pump();
+  auto wp = lastWaypoints(pollAll(conn));
+  REQUIRE(wp);
+  CHECK(wp->home == glm::ivec3(glm::floor(game.world().findSpawn())));
+  CHECK(wp->pins.empty());
+  // Nothing changed: nothing more is sent.
+  game.tick();
+  CHECK_FALSE(lastWaypoints(pollAll(conn)));
+}
+
+TEST_CASE_FIXTURE(PinGame, "P drops a pin at your feet, and P beside it picks it up") {
+  pollAll(conn);
+  auto evs = run(TogglePin{});
+  CHECK(notices(evs) == std::vector<std::string>{"Pin dropped"});
+  REQUIRE(lastWaypoints(evs));
+  CHECK(lastWaypoints(evs)->pins == std::vector<Pin>{{feet(), 0}});
+  CHECK(game.findPlayer(id)->pins.size() == 1);
+
+  // Two blocks off is close enough.
+  evs = pinAt({7.5f, ground + 1.0f, 9.5f});
+  CHECK(notices(evs) == std::vector<std::string>{"Pin picked up"});
+  REQUIRE(lastWaypoints(evs));
+  CHECK(lastWaypoints(evs)->pins.empty());
+}
+
+TEST_CASE_FIXTURE(PinGame, "a pin far enough away is a new pin, in the next free colour") {
+  run(TogglePin{});
+  // Straight below, deeper than reach: a cave under the first pin.
+  auto evs = pinAt({5.5f, ground - 4.0f, 8.5f});
+  CHECK(notices(evs) == std::vector<std::string>{"Pin dropped"});
+  evs = pinAt({40.5f, ground + 1.0f, 8.5f});
+  REQUIRE(lastWaypoints(evs));
+  CHECK(lastWaypoints(evs)->pins ==
+        std::vector<Pin>{{feet(), 0}, {{5, ground - 4, 8}, 1}, {{40, ground + 1, 8}, 2}});
+
+  // Picking up the first frees red; the next pin takes it, and the others keep theirs.
+  pinAt({5.5f, ground + 1.0f, 8.5f});
+  evs = pinAt({-30.5f, ground + 1.0f, 8.5f});
+  CHECK(lastWaypoints(evs)->pins == std::vector<Pin>{{{5, ground - 4, 8}, 1},
+                                                    {{40, ground + 1, 8}, 2},
+                                                    {{-31, ground + 1, 8}, 0}});
+}
+
+TEST_CASE_FIXTURE(PinGame, "there are only so many pins") {
+  for (int i = 0; i < kMaxPins; ++i) pinAt({5.5f + 10.0f * i, ground + 1.0f, 8.5f});
+  auto evs = pinAt({5.5f + 10.0f * kMaxPins, ground + 1.0f, 8.5f});
+  CHECK(notices(evs) == std::vector<std::string>{"All your pins are out. Pick one up first"});
+  CHECK_FALSE(lastWaypoints(evs));
+  CHECK(game.findPlayer(id)->pins.size() == kMaxPins);
+}
+
+TEST_CASE_FIXTURE(PinGame, "the dead can't drop pins") {
+  game.findPlayer(id)->vitals.damage(1000);
+  pollAll(conn);
+  CHECK(reason(run(TogglePin{})) == "pin: dead");
+  CHECK(game.findPlayer(id)->pins.empty());
+}
+
+TEST_CASE_FIXTURE(PinGame, "pins are each player's own") {
+  run(TogglePin{});
+  pollAll(other);
+  other.send(MovePlayer{{5.5f, ground + 1.0f, 8.5f}, 0.0f, 0.0f, false, false});
+  other.send(TogglePin{});
+  game.pump();
+  auto wp = lastWaypoints(pollAll(other));
+  REQUIRE(wp);
+  CHECK(wp->pins == std::vector<Pin>{{feet(), 0}}); // a new pin, not picking up ours
+  CHECK(game.findPlayer(id)->pins.size() == 1);
+}
+
+TEST_CASE_FIXTURE(BedGame, "home on the map is your bed while it stands") {
+  const glm::ivec3 spawn(glm::floor(game.world().findSpawn()));
+  placeBed(foot);
+  run(SetTimeOfDay{12 * 3600.0f});
+  auto evs = run(UseBed{foot});
+  REQUIRE(lastWaypoints(evs));
+  CHECK(lastWaypoints(evs)->home == foot);
+
+  game.world().setBlockAt(foot, BlockType::AIR);
+  game.world().setBlockAt(head(), BlockType::AIR);
+  game.tick();
+  evs = pollAll(conn);
+  REQUIRE(lastWaypoints(evs));
+  CHECK(lastWaypoints(evs)->home == spawn);
+}
+
+TEST_CASE_FIXTURE(PinGame, "the host's pins are saved") {
+  ScopedSeed seed;
+  TempDir dir;
+  CHECK_FALSE(game.load(dir.path.string()));
+  run(TogglePin{});
+  pinAt({40.5f, ground + 1.0f, 8.5f});
+  run(Save{});
+
+  Game loaded;
+  REQUIRE(loaded.load(dir.path.string()));
+  LocalConnection again;
+  loaded.addClient(again);
+  again.send(Join{});
+  loaded.pump();
+  auto wp = lastWaypoints(pollAll(again));
+  REQUIRE(wp);
+  CHECK(wp->pins == std::vector<Pin>{{feet(), 0}, {{40, ground + 1, 8}, 1}});
 }

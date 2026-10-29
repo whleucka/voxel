@@ -6,6 +6,7 @@
 #include "item/item_stack.hpp"
 #include "item/smelting.hpp"
 #include "robin_hood/robin_hood.h"
+#include "world/pin.hpp"
 #include "world/worldgen_version.hpp"
 #include <cstdint>
 #include <map>
@@ -48,6 +49,8 @@ struct PlayerData {
   // The foot of the bed they respawn at. A trailing section, in player.dat
   // and in guest records: older files load with none.
   std::optional<glm::ivec3> bed;
+  // Their map pins: another trailing section, after the bed.
+  std::vector<Pin> pins;
 };
 
 // Resolves a world name to its directory, e.g. "world" -> "saves/world".

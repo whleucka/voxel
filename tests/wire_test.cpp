@@ -295,6 +295,13 @@ TEST_CASE("chat messages round-trip") {
   CHECK(std::get<ChatMessage>(*wire::decodeEvent(enc(Event{m}))) == m);
 }
 
+TEST_CASE("map messages round-trip") {
+  roundTrip(TogglePin{});
+  Waypoints w{{-40, 65, 12}, {{{1, 2, 3}, 0}, {{-9, 30, 400}, 7}}};
+  roundTrip(w);
+  CHECK(std::get<Waypoints>(*wire::decodeEvent(enc(Event{w}))) == w);
+}
+
 TEST_CASE("bed messages round-trip") {
   roundTrip(UseBed{{-4, 70, 12}});
   roundTrip(LeaveBed{});

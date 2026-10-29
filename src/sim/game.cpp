@@ -122,6 +122,7 @@ bool Game::save() {
     pd.selected_slot = host->selected_slot;
     pd.fly_mode      = host->fly ? 1 : 0;
     pd.bed           = host->bed;
+    pd.pins          = host->pins;
   }
 
   // Same rule for the inventory; with neither a host nor a saved one there is
@@ -202,7 +203,7 @@ const WorldSave::GuestRecord *Game::guestRecord(const std::string &name) const {
 void Game::storeGuest(const PlayerState &ps) {
   WorldSave::GuestRecord rec;
   rec.player = {ps.position, ps.yaw, ps.pitch, ps.selected_slot,
-                static_cast<uint8_t>(ps.fly ? 1 : 0), ps.bed};
+                static_cast<uint8_t>(ps.fly ? 1 : 0), ps.bed, ps.pins};
   rec.inventory.assign(ps.inventory.slots().begin(), ps.inventory.slots().end());
   rec.discovered = seenList(ps.seen);
   guest_records[ps.name] = std::move(rec);
@@ -362,6 +363,7 @@ void Game::pump() {
   updateInterestPoints();
   flushVitals();
   flushSleep();
+  flushWaypoints();
 }
 
 void Game::updateInterestPoints() {
@@ -424,6 +426,7 @@ void Game::tick() {
   ++tick_count;
   flushVitals();
   flushSleep();
+  flushWaypoints();
   sendEntitySnapshots();
   if (tick_count % kTimeSyncTicks == 0)
     for (Client &client : clients)
@@ -635,6 +638,7 @@ void Game::apply(Client &client, const Join &cmd) {
     ps.selected_slot = rec->player.selected_slot;
     ps.fly = rec->player.fly_mode != 0;
     ps.bed = rec->player.bed;
+    ps.pins = rec->player.pins;
   } else if (client.role == Role::Host && saved_player) {
     ps.position = saved_player->position;
     ps.yaw = saved_player->yaw;
@@ -642,9 +646,10 @@ void Game::apply(Client &client, const Join &cmd) {
     ps.selected_slot = saved_player->selected_slot;
     ps.fly = saved_player->fly_mode != 0;
     ps.bed = saved_player->bed;
+    ps.pins = saved_player->pins;
     saved_player.reset();
   } else {
-    ps.position = world_.findSpawn();
+    ps.position = respawnPoint();
   }
   // A guest gets their record's inventory and the host takes over the saved
   // one, like the saved player; anyone without one starts with the kit.
@@ -1146,6 +1151,53 @@ void Game::flushSleep() {
     // Nobody in bed, and never was: nothing worth sending.
     if (!ps->sleep_sent && sleepers == 0) continue;
     ps->sleep_sent = now;
+    client.link->deliver(now);
+  }
+}
+
+// ─── Map ───────────────────────────────────────────────────────────────
+
+namespace {
+// How close (in blocks) a player has to stand to pick a pin back up.
+constexpr int kPinReach = 3;
+} // namespace
+
+void Game::apply(Client &client, const TogglePin &) {
+  PlayerState *ps = playerFor(client);
+  if (!ps) return;
+  if (ps->vitals.dead()) return reject(client, "pin: dead");
+  const glm::ivec3 here(glm::floor(ps->position));
+  auto &pins = ps->pins;
+  auto near = std::find_if(pins.begin(), pins.end(), [&](const Pin &p) {
+    const glm::ivec3 d = p.pos - here;
+    return d.x * d.x + d.y * d.y + d.z * d.z <= kPinReach * kPinReach;
+  });
+  if (near != pins.end()) {
+    pins.erase(near);
+    return client.link->deliver(Notice{"Pin picked up"});
+  }
+  if (pins.size() >= kMaxPins)
+    return client.link->deliver(Notice{"All your pins are out. Pick one up first"});
+  // The first colour not in use, so a pin keeps its colour while others come and go.
+  uint8_t colour = 0;
+  while (std::any_of(pins.begin(), pins.end(), [&](const Pin &p) { return p.colour == colour; }))
+    ++colour;
+  pins.push_back({here, colour});
+  client.link->deliver(Notice{"Pin dropped"});
+}
+
+glm::ivec3 Game::home(const PlayerState &ps) {
+  if (ps.bed && bedStillAt(*ps.bed)) return *ps.bed;
+  return glm::ivec3(glm::floor(respawnPoint()));
+}
+
+void Game::flushWaypoints() {
+  for (Client &client : clients) {
+    PlayerState *ps = playerFor(client);
+    if (!ps) continue;
+    Waypoints now{home(*ps), ps->pins};
+    if (ps->waypoints_sent == now) continue;
+    ps->waypoints_sent = now;
     client.link->deliver(now);
   }
 }

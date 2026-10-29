@@ -37,6 +37,8 @@ struct PlayerState {
   int sleep_ms = 0;        // time in bed, toward skipping the night
   int sleep_health = 0;    // health when last checked in bed: losing any wakes them
   std::optional<SleepState> sleep_sent; // last SleepState sent to the owner
+  std::vector<Pin> pins;   // their map pins (see TogglePin)
+  std::optional<Waypoints> waypoints_sent; // last Waypoints sent to the owner
 
   Vitals vitals;
   FallTracker fall;

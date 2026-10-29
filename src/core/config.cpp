@@ -87,6 +87,8 @@ std::string serializeSettings(const Settings &s, bool blank_seed) {
     << "\n"
     << "# ─── View ────────────────────────────────────────────────\n"
     << "fov=" << s.fov << "\n"
+    << "# The map in the top-right corner (P drops a pin on it).\n"
+    << "minimap=" << (s.show_minimap ? "true" : "false") << "\n"
     << "fog-start=" << s.fog_start << "\n"
     << "fog-end=" << s.fog_end << "\n"
     << "mouse-sensitivity=" << s.mouse_sensitivity << "\n"
@@ -182,6 +184,7 @@ void loadServerProperties(const std::string &path) {
     else if (k == "window-width")      applyInt(k, v, g_settings.window_width);
     else if (k == "window-height")     applyInt(k, v, g_settings.window_height);
     else if (k == "fov")               applyFloat(k, v, g_settings.fov);
+    else if (k == "minimap")           applyBool(k, v, g_settings.show_minimap);
     else if (k == "fog-start")         applyFloat(k, v, g_settings.fog_start);
     else if (k == "fog-end")           applyFloat(k, v, g_settings.fog_end);
     else if (k == "mouse-sensitivity") applyFloat(k, v, g_settings.mouse_sensitivity);
