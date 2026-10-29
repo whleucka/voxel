@@ -3,6 +3,7 @@
 #include "world/world_save.hpp"
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <ctime>
 
@@ -124,7 +125,15 @@ std::optional<std::string> deleteWorld(const fs::path &root, const std::string &
 }
 
 std::chrono::system_clock::time_point toSystemTime(fs::file_time_type t) {
+#if defined(__cpp_lib_chrono) && __cpp_lib_chrono >= 201907L
   return std::chrono::clock_cast<std::chrono::system_clock>(t);
+#else
+  // Older standard libraries (GCC < 13, e.g. Ubuntu 22.04) lack clock_cast:
+  // shift by the offset between the two clocks' "now".
+  using namespace std::chrono;
+  return time_point_cast<system_clock::duration>(
+      system_clock::now() + (t - fs::file_time_type::clock::now()));
+#endif
 }
 
 std::string lastPlayedText(std::chrono::system_clock::time_point when,
