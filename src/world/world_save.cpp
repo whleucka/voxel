@@ -556,6 +556,20 @@ bool loadBoats(const std::string &dir, std::vector<BoatRecord> &out) {
       return false;
     boats.push_back(r);
   }
+  // Then who sat where. A file from before riders were kept ends here.
+  if (in.peek() != std::char_traits<char>::eof()) {
+    for (BoatRecord &r : boats)
+      for (BoatRecord::Seat &seat : r.seats) {
+        uint8_t rider = 0, len = 0;
+        if (!rd(in, rider) || rider > static_cast<uint8_t>(BoatRecord::Rider::Guest) ||
+            !rd(in, len))
+          return false;
+        seat.rider = static_cast<BoatRecord::Rider>(rider);
+        seat.name.resize(len);
+        if (len && !in.read(seat.name.data(), len)) return false;
+        if (seat.rider == BoatRecord::Rider::Guest && !safeName(seat.name)) return false;
+      }
+  }
   out = std::move(boats);
   return true;
 }
@@ -570,6 +584,13 @@ bool saveBoats(const std::string &dir, std::span<const BoatRecord> boats) {
       wr(o, r.position.z);
       wr(o, r.yaw);
     }
+    for (const BoatRecord &r : boats)
+      for (const BoatRecord::Seat &seat : r.seats) {
+        const std::string name = seat.name.substr(0, 255);
+        wr(o, static_cast<uint8_t>(seat.rider));
+        wr(o, static_cast<uint8_t>(name.size()));
+        o.write(name.data(), static_cast<std::streamsize>(name.size()));
+      }
   });
 }
 

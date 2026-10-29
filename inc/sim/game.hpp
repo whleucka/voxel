@@ -199,6 +199,11 @@ private:
   glm::vec3 standingPosition(const PlayerState &ps) const;
   // Riders who died or lost their boat get out; the rest follow their seats.
   void tickBoats();
+  // Seats saved with the world whose riders haven't come back yet, by boat.
+  // A returning rider sits back down if their seat is still free.
+  using SavedSeats = std::array<WorldSave::BoatRecord::Seat, kBoatSeats>;
+  std::map<EntityId, SavedSeats> saved_seats;
+  void retakeSeat(Client &client, PlayerState &ps, bool saved_host);
   // Bobbers float, bites come and go, and lines break.
   void tickFishing();
   // Takes the player's bobber out of the world and ends their fishing.

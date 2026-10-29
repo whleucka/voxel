@@ -767,3 +767,155 @@ TEST_CASE("riders are drawn in their seats on the boat as drawn, facing its way"
   CHECK(players[1].position == glm::vec3(3.0f, 70.0f, 3.0f));
   CHECK(players[2].position == glm::vec3(7.0f, 7.0f, 7.0f));
 }
+
+// ─── Loading back into the boat ────────────────────────────────────────
+
+TEST_CASE("boats.dat keeps who sat where, and an older one without them still loads") {
+  using Rider = WorldSave::BoatRecord::Rider;
+  TempDir dir;
+  const std::string d = dir.path.string();
+  std::vector<WorldSave::BoatRecord> boats(2);
+  boats[0].position = {1.5f, 62.85f, -40.5f};
+  boats[0].seats = {{{Rider::Host, ""}, {Rider::Guest, "Sam"}}};
+  boats[1].position = {9.5f, 62.85f, 3.5f};
+  REQUIRE(WorldSave::saveBoats(d, boats));
+  std::vector<WorldSave::BoatRecord> back;
+  REQUIRE(WorldSave::loadBoats(d, back));
+  REQUIRE(back.size() == 2);
+  CHECK(back[0].seats == boats[0].seats);
+  CHECK(back[1].seats == WorldSave::BoatRecord{}.seats);
+
+  // As the first version with boats wrote it: the boats and nothing more.
+  {
+    std::ofstream o(dir.path / "boats.dat", std::ios::binary | std::ios::trunc);
+    o.write("VXBO", 4);
+    const uint32_t version = 1, n = 1;
+    const float rec[4] = {1.5f, 62.85f, -40.5f, 90.0f};
+    o.write(reinterpret_cast<const char *>(&version), 4);
+    o.write(reinterpret_cast<const char *>(&n), 4);
+    o.write(reinterpret_cast<const char *>(rec), sizeof rec);
+  }
+  std::vector<WorldSave::BoatRecord> old;
+  REQUIRE(WorldSave::loadBoats(d, old));
+  REQUIRE(old.size() == 1);
+  CHECK(old[0].yaw == 90.0f);
+  CHECK(old[0].seats == WorldSave::BoatRecord{}.seats);
+}
+
+namespace {
+
+// A Harbour game saved with the host driving and b riding in front.
+struct SavedAtSea : Harbour {
+  ScopedSeed seed;
+  TempDir dir;
+  glm::vec3 boat_at{0.0f};
+  float boat_yaw = 0.0f;
+  std::string b_name;
+
+  SavedAtSea() {
+    game.load(dir.path.string());
+    EntityId boat = launch();
+    board(a, ida, boat);
+    board(b, idb, boat);
+    boat_at = boats()[0]->body.position;
+    boat_yaw = boats()[0]->yaw;
+    b_name = ps(idb).name;
+    REQUIRE(game.save());
+  }
+
+  // The world loaded again, with its pool rebuilt where the boat floats.
+  struct Reloaded {
+    ScopedRenderDistance rd{0};
+    Game game;
+    explicit Reloaded(const std::string &dir) {
+      game.spawner() = Spawner{};
+      REQUIRE(game.load(dir));
+    }
+    EntityId boat() const {
+      for (const auto &[id, e] : game.entities().all())
+        if (e.kind == EntityKind::Boat) return id;
+      FAIL("no boat");
+      return 0;
+    }
+  };
+
+  // Joins and returns everything the Game sent.
+  static std::vector<Event> joinAs(Game &game, LocalConnection &conn, std::string name,
+                                   Game::Role role) {
+    game.addClient(conn, role);
+    conn.send(Join{std::move(name)});
+    game.pump();
+    return pollAll(conn);
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(SavedAtSea, "the host loads back into the seat they saved in") {
+  Reloaded world(dir.path.string());
+  LocalConnection host;
+  auto evs = joinAs(world.game, host, "", Game::Role::Host);
+  auto riding = find<Riding>(evs);
+  REQUIRE(riding);
+  CHECK(riding->boat == world.boat());
+  CHECK(riding->seat == 0);
+  const PlayerState &me = *world.game.findPlayer(find<Joined>(evs)->id);
+  REQUIRE(me.riding);
+  CHECK(me.position == seatPosition(boat_at, boat_yaw, 0));
+  auto sat = find<Respawned>(evs);
+  REQUIRE(sat);
+  CHECK(sat->position == me.position);
+}
+
+TEST_CASE_FIXTURE(SavedAtSea, "a guest loads back into their seat, and it stays saved") {
+  Reloaded world(dir.path.string());
+  LocalConnection host, guest;
+  joinAs(world.game, host, "", Game::Role::Host);
+  auto riding = find<Riding>(joinAs(world.game, guest, b_name, Game::Role::Guest));
+  REQUIRE(riding);
+  CHECK(riding->seat == 1);
+
+  // A second save keeps them both in, for the next time.
+  REQUIRE(world.game.save());
+  std::vector<WorldSave::BoatRecord> boats;
+  REQUIRE(WorldSave::loadBoats(dir.path.string(), boats));
+  REQUIRE(boats.size() == 1);
+  CHECK(boats[0].seats[0].rider == WorldSave::BoatRecord::Rider::Host);
+  CHECK(boats[0].seats[1].name == b_name);
+}
+
+TEST_CASE_FIXTURE(SavedAtSea, "a guest who wasn't back yet keeps their seat through another save") {
+  {
+    Reloaded world(dir.path.string());
+    LocalConnection host;
+    joinAs(world.game, host, "", Game::Role::Host);
+    REQUIRE(world.game.save());
+  }
+  Reloaded world(dir.path.string());
+  LocalConnection host, guest;
+  joinAs(world.game, host, "", Game::Role::Host);
+  auto riding = find<Riding>(joinAs(world.game, guest, b_name, Game::Role::Guest));
+  REQUIRE(riding);
+  CHECK(riding->seat == 1);
+}
+
+TEST_CASE_FIXTURE(SavedAtSea, "a seat taken in the meantime leaves you standing where you were saved") {
+  Reloaded world(dir.path.string());
+  LocalConnection host, other, guest;
+  joinAs(world.game, host, "", Game::Role::Host);
+  // Someone else climbs into the passenger seat first.
+  auto other_evs = joinAs(world.game, other, "Zed", Game::Role::Guest);
+  PlayerState &zed = *world.game.findPlayer(find<Joined>(other_evs)->id);
+  MovePlayer near;
+  near.position = boat_at + glm::vec3(-1.0f, 0.2f, 0.0f);
+  near.respawn = zed.respawn;
+  other.send(near);
+  other.send(BoardBoat{world.boat()});
+  world.game.pump();
+  REQUIRE(zed.riding);
+  REQUIRE(zed.riding->seat == 1);
+
+  auto evs = joinAs(world.game, guest, b_name, Game::Role::Guest);
+  CHECK_FALSE(find<Riding>(evs));
+  CHECK_FALSE(world.game.findPlayer(find<Joined>(evs)->id)->riding);
+}
