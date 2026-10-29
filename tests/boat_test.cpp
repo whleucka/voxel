@@ -5,6 +5,9 @@
 #include "block/block_data.hpp"
 #include "sim/game.hpp"
 #include "sim/local_connection.hpp"
+#include "world/world_save.hpp"
+#include <filesystem>
+#include <fstream>
 #include "item/item.hpp"
 #include "item/recipes.hpp"
 #include "test_util.hpp"
@@ -624,4 +627,82 @@ TEST_CASE_FIXTURE(Harbour, "a rider can't go to bed") {
   EntityId boat = launch();
   board(a, ida, boat);
   CHECK(rejected(run(a, UseBed{{3, kBase, 7}})));
+}
+
+// ─── Saving ────────────────────────────────────────────────────────────
+
+TEST_CASE("boats.dat round-trips, and a missing or damaged one loads nothing") {
+  TempDir dir;
+  const std::string d = dir.path.string();
+  std::vector<WorldSave::BoatRecord> none;
+  CHECK_FALSE(WorldSave::loadBoats(d, none)); // a world from before boats
+
+  const std::vector<WorldSave::BoatRecord> boats{{{1.5f, 62.85f, -40.5f}, 90.0f},
+                                                 {{-300.5f, 10.85f, 7.5f}, 271.5f}};
+  REQUIRE(WorldSave::saveBoats(d, boats));
+  std::vector<WorldSave::BoatRecord> back;
+  REQUIRE(WorldSave::loadBoats(d, back));
+  REQUIRE(back.size() == 2);
+  CHECK(back[1].position == boats[1].position);
+  CHECK(back[1].yaw == boats[1].yaw);
+
+  // Cut short.
+  std::filesystem::resize_file(dir.path / "boats.dat", 20);
+  std::vector<WorldSave::BoatRecord> cut;
+  CHECK_FALSE(WorldSave::loadBoats(d, cut));
+  CHECK(cut.empty());
+}
+
+TEST_CASE_FIXTURE(Harbour, "boats are saved with the world, and riders are saved standing beside them") {
+  ScopedSeed seed;
+  TempDir dir;
+  game.load(dir.path.string()); // binds the save directory (nothing there yet)
+  EntityId boat = launch();
+  board(a, ida, boat); // the host, in the boat
+  const glm::vec3 at = boats()[0]->body.position;
+  const float yaw = boats()[0]->yaw;
+  REQUIRE(game.save());
+
+  WorldSave::PlayerData host;
+  REQUIRE(WorldSave::loadPlayer(dir.path.string(), host));
+  CHECK(host.position.y == doctest::Approx(kBase + 1.0f)); // on the bank, not in the seat
+  CHECK(host.position != ps(ida).position);
+
+  Game loaded;
+  loaded.spawner() = Spawner{};
+  REQUIRE(loaded.load(dir.path.string()));
+  int n = 0;
+  for (const auto &[id, e] : loaded.entities().all())
+    if (e.kind == EntityKind::Boat) {
+      ++n;
+      CHECK(e.body.position == at);
+      CHECK(e.yaw == yaw);
+    }
+  CHECK(n == 1);
+}
+
+TEST_CASE("a world from before boats loads with none, and a damaged boats.dat is set aside") {
+  ScopedSeed seed;
+  ScopedRenderDistance rd{0};
+  TempDir dir;
+  {
+    Game game;
+    game.load(dir.path.string());
+    REQUIRE(game.save());
+  }
+  std::filesystem::remove(dir.path / "boats.dat"); // as an older version left it
+  {
+    Game game;
+    REQUIRE(game.load(dir.path.string()));
+    CHECK(game.entities().size() == 0);
+    CHECK_FALSE(std::filesystem::exists(dir.path / "boats.dat.unreadable"));
+  }
+  {
+    std::ofstream junk(dir.path / "boats.dat", std::ios::binary);
+    junk << "not a boat file";
+  }
+  Game game;
+  REQUIRE(game.load(dir.path.string())); // the rest of the world still loads
+  CHECK(game.entities().size() == 0);
+  CHECK(std::filesystem::exists(dir.path / "boats.dat.unreadable"));
 }

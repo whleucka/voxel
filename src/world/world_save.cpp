@@ -48,6 +48,7 @@ constexpr char kKnownMagic[4]  = {'V', 'X', 'D', 'I'};
 constexpr char kFurnaceMagic[4] = {'V', 'X', 'F', 'U'};
 constexpr char kChestMagic[4]   = {'V', 'X', 'C', 'H'};
 constexpr char kFarmMagic[4]    = {'V', 'X', 'F', 'A'};
+constexpr char kBoatMagic[4]    = {'V', 'X', 'B', 'O'};
 
 constexpr uint32_t kChunkVolume = kChunkWidth * kChunkDepth * kChunkHeight;
 
@@ -533,6 +534,41 @@ bool saveFarms(const std::string &dir, const Farms &farms) {
       wr(o, r.pos.z);
       wr(o, r.wet_ms);
       wr(o, static_cast<uint8_t>(r.by_water ? 1 : 0));
+    }
+  });
+}
+
+// ─── boats.dat ──────────────────────────────────────────────────────────────
+
+bool loadBoats(const std::string &dir, std::vector<BoatRecord> &out) {
+  std::ifstream in(dir + "/boats.dat", std::ios::binary);
+  if (!in || !checkHeader(in, kBoatMagic)) return false;
+  uint32_t n = 0;
+  if (!rd(in, n) || n > 100'000) return false;
+  std::vector<BoatRecord> boats;
+  for (uint32_t i = 0; i < n; ++i) {
+    BoatRecord r;
+    if (!rd(in, r.position.x) || !rd(in, r.position.y) || !rd(in, r.position.z) ||
+        !rd(in, r.yaw))
+      return false;
+    if (!std::isfinite(r.position.x) || !std::isfinite(r.position.y) ||
+        !std::isfinite(r.position.z) || !std::isfinite(r.yaw))
+      return false;
+    boats.push_back(r);
+  }
+  out = std::move(boats);
+  return true;
+}
+
+bool saveBoats(const std::string &dir, std::span<const BoatRecord> boats) {
+  return writeAtomic(dir + "/boats.dat", [&](std::ostream &o) {
+    writeHeader(o, kBoatMagic);
+    wr(o, static_cast<uint32_t>(boats.size()));
+    for (const BoatRecord &r : boats) {
+      wr(o, r.position.x);
+      wr(o, r.position.y);
+      wr(o, r.position.z);
+      wr(o, r.yaw);
     }
   });
 }

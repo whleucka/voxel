@@ -21,7 +21,7 @@ namespace {
 // The files of a saved world, other than its guests.
 constexpr const char *kWorldFiles[] = {"level.dat",     "player.dat",     "edits.dat",
                                        "inventory.dat", "discovered.dat", "furnaces.dat",
-                                       "chests.dat",    "farms.dat"};
+                                       "chests.dat",    "farms.dat",      "boats.dat"};
 
 std::vector<ItemId> seenList(const SeenItems &seen) {
   std::vector<ItemId> out;
@@ -96,6 +96,13 @@ bool Game::load(const std::string &dir) {
   } else {
     setAside("farms.dat");
   }
+  // Without boats.dat (a world from before boats) there are none.
+  if (std::vector<WorldSave::BoatRecord> bs; WorldSave::loadBoats(dir, bs)) {
+    for (const auto &r : bs)
+      if (auto id = entities_.spawn(EntityKind::Boat, r.position)) entities_.find(*id)->yaw = r.yaw;
+  } else {
+    setAside("boats.dat");
+  }
   WorldSave::loadGuests(dir, guest_records);
   return true;
 }
@@ -117,7 +124,7 @@ bool Game::save() {
   for (const auto &[id, ps] : players)
     if (!host || id < host->id) host = &ps;
   if (host) {
-    pd.position      = host->position;
+    pd.position      = standingPosition(*host); // a rider stands beside their boat
     pd.yaw           = host->yaw;
     pd.pitch         = host->pitch;
     pd.selected_slot = host->selected_slot;
@@ -147,11 +154,15 @@ bool Game::save() {
   WorldSave::Farms farms;
   for (const auto &[pos, c] : crops_) farms.crops.push_back({pos, c.left_ms});
   for (const auto &[pos, s] : soil_) farms.soil.push_back({pos, s.wet_ms, s.by_water});
+  std::vector<WorldSave::BoatRecord> boats;
+  for (const auto &[id, e] : entities_.all())
+    if (e.kind == EntityKind::Boat) boats.push_back({e.body.position, e.yaw});
 
   if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits()) ||
       !WorldSave::saveFurnaces(save_dir, furnaces) ||
       !WorldSave::saveChests(save_dir, chests) ||
       !WorldSave::saveFarms(save_dir, farms) ||
+      !WorldSave::saveBoats(save_dir, boats) ||
       (inv && !WorldSave::saveInventory(save_dir, *inv)) ||
       (discovered && !WorldSave::saveDiscovered(save_dir, *discovered)) || !guests_ok) {
     std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";
@@ -203,7 +214,7 @@ const WorldSave::GuestRecord *Game::guestRecord(const std::string &name) const {
 
 void Game::storeGuest(const PlayerState &ps) {
   WorldSave::GuestRecord rec;
-  rec.player = {ps.position, ps.yaw, ps.pitch, ps.selected_slot,
+  rec.player = {standingPosition(ps), ps.yaw, ps.pitch, ps.selected_slot,
                 static_cast<uint8_t>(ps.fly ? 1 : 0), ps.bed, ps.pins};
   rec.inventory.assign(ps.inventory.slots().begin(), ps.inventory.slots().end());
   rec.discovered = seenList(ps.seen);
