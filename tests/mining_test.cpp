@@ -1,5 +1,6 @@
 #include "doctest/doctest.h"
 #include "block/crop.hpp"
+#include "block/plant.hpp"
 #include "item/mining.hpp"
 
 TEST_CASE("bare hands: slow, and stone and ore give nothing") {
@@ -69,7 +70,7 @@ TEST_CASE("every breakable block breaks in a sensible time") {
     CAPTURE(v);
     int ms = breakMs(b, ItemId::NONE);
     if (ms < 0) continue;
-    if (isCrop(b)) { // picked at once
+    if (isCrop(b) || isPlant(b) || isTorch(b) || isCake(b)) { // picked at once
       CHECK(ms == 0);
       continue;
     }

@@ -16,7 +16,6 @@
 TEST_CASE("farming block ids are pinned") {
   CHECK(static_cast<int>(BlockType::FARMLAND_DRY) == 129);
   CHECK(static_cast<int>(BlockType::STRAWBERRY_3) == 142);
-  CHECK(kLastBlockType == BlockType::STRAWBERRY_3);
 }
 
 TEST_CASE("every crop round-trips through its block type") {

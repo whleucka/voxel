@@ -62,6 +62,8 @@ glm::u8vec4 mapColour(BlockType type) {
   }
   if (isDoor(type)) return rgb(150, 110, 64);
   if (isCrop(type)) return rgb(150, 176, 64);
+  if (isTorch(type)) return rgb(250, 214, 100);
+  if (isCake(type)) return rgb(244, 230, 220);
   if (isFarmland(type)) return rgb(110, 76, 46);
   switch (type) {
     case B::AIR: return kNothing;
@@ -93,6 +95,23 @@ glm::u8vec4 mapColour(BlockType type) {
     case B::PURPLE_BLOCK: return rgb(132, 72, 184);
     case B::PINK_BLOCK: return rgb(236, 140, 180);
     case B::BEDROCK: return rgb(60, 60, 64);
+    case B::TALL_GRASS: case B::FERN: return rgb(96, 160, 60); // like the grass under it
+    case B::POPPY: return rgb(214, 46, 46);
+    case B::BUTTERCUP: return rgb(246, 214, 46);
+    case B::CORNFLOWER: return rgb(72, 110, 220);
+    case B::PINK_TULIP: case B::PINK_CORAL: return rgb(240, 140, 186);
+    case B::DAISY: case B::SHELLS: return rgb(240, 238, 228);
+    case B::LAVENDER: return rgb(150, 110, 210);
+    case B::HIBISCUS: return rgb(240, 120, 40);
+    case B::RED_MUSHROOM: return rgb(200, 40, 40);
+    case B::BROWN_MUSHROOM: return rgb(150, 110, 80);
+    case B::DEAD_BUSH: return rgb(150, 112, 70);
+    case B::BERRY_BUSH: case B::BERRY_BUSH_BARE: return rgb(56, 120, 50);
+    case B::CACTUS: return rgb(70, 140, 60);
+    case B::BLUE_CORAL: return rgb(60, 120, 230);
+    case B::YELLOW_CORAL: return rgb(240, 210, 60);
+    case B::SANDSTONE_BRICKS: return rgb(206, 186, 128);
+    case B::SNOW_BRICKS: return rgb(230, 236, 244);
     default: return rgb(128, 128, 132); // stone, ores, cobble and the rest
   }
 }

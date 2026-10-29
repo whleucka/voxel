@@ -542,6 +542,198 @@ def strawberry(stage):
     return draw_tile
 
 
+def tall_grass(rng):
+    """Blades of grass leaning this way and that."""
+    img = new_tile()
+    d = ImageDraw.Draw(img)
+    for x in range(2, TILE - 1, 3):
+        x += rng.randint(-1, 1)
+        h = rng.randint(10, 24)
+        d.line([(x, TILE - 1), (x + rng.randint(-3, 3), TILE - 1 - h)],
+               fill=shade((84, 156, 56), rng.randint(-20, 14)) + (255,), width=2)
+    return img
+
+
+def flower(petal, centre, kind="round"):
+    """A stem with leaves and a bloom on top: round, a tulip cup, a spike or a big hibiscus."""
+    def draw_tile(rng):
+        img = new_tile()
+        d = ImageDraw.Draw(img)
+        stem = (60, 140, 50)
+        for x, h in ((9, 17), (21, 21), (15, 13)):
+            x += rng.randint(-1, 1)
+            top = (x, TILE - 1 - h)
+            d.line([(x, TILE - 1), top], fill=stem + (255,), width=2)
+            d.ellipse([x - 4, TILE - 8, x, TILE - 5], fill=shade(stem, 10) + (255,))
+            cx, cy = top
+            if kind == "tulip":
+                d.polygon([(cx - 3, cy - 5), (cx + 3, cy - 5), (cx + 3, cy), (cx - 3, cy)],
+                          fill=petal + (255,))
+                d.polygon([(cx - 3, cy - 5), (cx - 1, cy - 7), (cx, cy - 5), (cx + 1, cy - 7),
+                           (cx + 3, cy - 5)], fill=petal + (255,))
+            elif kind == "spike":
+                for k in range(5):
+                    d.ellipse([cx - 2, cy - 2 - k * 2, cx + 2, cy + 1 - k * 2],
+                              fill=shade(petal, rng.randint(-20, 10)) + (255,))
+            else:
+                r = 5 if kind == "big" else 3
+                for ox, oy in ((-r, 0), (r, 0), (0, -r), (0, r)):
+                    d.ellipse([cx + ox - r + 1, cy + oy - r + 1, cx + ox + r - 1, cy + oy + r - 1],
+                              fill=petal + (255,))
+                d.ellipse([cx - 1, cy - 1, cx + 1, cy + 1], fill=centre + (255,))
+        return img
+    return draw_tile
+
+
+def fern(rng):
+    """Arching fronds with little leaflets."""
+    img = new_tile()
+    d = ImageDraw.Draw(img)
+    green = (52, 128, 60)
+    for lean in (-10, -4, 4, 10):
+        top = (16 + lean, 8 + abs(lean) // 2)
+        d.line([(16, TILE - 1), top], fill=green + (255,), width=1)
+        for t in range(1, 6):
+            px_ = 16 + lean * t // 6
+            py_ = TILE - 1 - (TILE - 1 - top[1]) * t // 6
+            d.line([(px_ - 2, py_ + 1), (px_ + 2, py_ - 1)],
+                   fill=shade(green, rng.randint(-10, 20)) + (255,))
+    return img
+
+
+def mushroom(cap, spots):
+    def draw_tile(rng):
+        img = new_tile()
+        d = ImageDraw.Draw(img)
+        for x, w, h in ((11, 6, 12), (22, 4, 8)):
+            d.rectangle([x - 1, TILE - h, x + 1, TILE - 1], fill=(236, 226, 206, 255))
+            d.pieslice([x - w, TILE - h - w, x + w, TILE - h + w], 180, 360, fill=cap + (255,))
+            if spots:
+                d.point((x - 2, TILE - h - 2), fill=(250, 250, 250, 255))
+                d.point((x + 2, TILE - h - 3), fill=(250, 250, 250, 255))
+        return img
+    return draw_tile
+
+
+def dead_bush(rng):
+    """Dry, bare twigs."""
+    img = new_tile()
+    d = ImageDraw.Draw(img)
+    brown = (140, 100, 60)
+    for lean in (-9, -4, 2, 8):
+        top = (16 + lean, 10 + rng.randint(0, 6))
+        d.line([(16, TILE - 1), top], fill=shade(brown, rng.randint(-15, 10)) + (255,))
+        mid = ((16 + top[0]) // 2, (TILE - 1 + top[1]) // 2)
+        d.line([mid, (mid[0] + (3 if lean > 0 else -3), mid[1] - 4)], fill=brown + (255,))
+    return img
+
+
+def berry_bush(ripe):
+    def draw_tile(rng):
+        img = new_tile()
+        d = ImageDraw.Draw(img)
+        leaf = (50, 120, 48)
+        for _ in range(40):
+            x, y = rng.randint(4, 27), rng.randint(10, 29)
+            d.ellipse([x - 3, y - 2, x + 3, y + 2], fill=shade(leaf, rng.randint(-18, 16)) + (255,))
+        if ripe:
+            for _ in range(9):
+                x, y = rng.randint(6, 25), rng.randint(12, 27)
+                d.ellipse([x - 2, y - 2, x + 1, y + 1], fill=(196, 30, 60, 255))
+                d.point((x - 1, y - 1), fill=(255, 150, 160, 255))
+        return img
+    return draw_tile
+
+
+def shells(rng):
+    """A few seashells lying on the sand, at the bottom of the tile."""
+    img = new_tile()
+    d = ImageDraw.Draw(img)
+    for x, c in ((8, (246, 230, 214)), (19, (240, 180, 170)), (26, (236, 236, 226))):
+        d.pieslice([x - 4, TILE - 8, x + 4, TILE], 180, 360, fill=c + (255,),
+                   outline=shade(c, -60) + (255,))
+        for k in (-2, 0, 2):
+            d.line([(x, TILE - 1), (x + k, TILE - 7)], fill=shade(c, -50) + (255,))
+    return img
+
+
+def cactus_side(rng):
+    img = new_tile()
+    px = pixels(img)
+    green = (62, 138, 58)
+    for y in range(TILE):
+        for x in range(TILE):
+            c = shade(green, rng.randint(-8, 8) + (-24 if x % 8 == 0 else 0))
+            if x % 8 == 4 and y % 6 == 2:
+                c = (236, 230, 190)  # a spine
+            px[x, y] = c + (255,)
+    return img
+
+
+def cactus_top(rng):
+    img = new_tile()
+    px = pixels(img)
+    for y in range(TILE):
+        for x in range(TILE):
+            ring = max(abs(x - 15.5), abs(y - 15.5)) > 13
+            px[x, y] = shade((76, 150, 66), rng.randint(-8, 8) - (20 if ring else 0)) + (255,)
+    return img
+
+
+def coral(base, rng):
+    """Knobbly, bumpy coral."""
+    img = new_tile()
+    px = pixels(img)
+    for y in range(TILE):
+        for x in range(TILE):
+            px[x, y] = shade(base, rng.randint(-14, 8)) + (255,)
+    d = ImageDraw.Draw(img)
+    for _ in range(14):
+        x, y = rng.randint(0, 31), rng.randint(0, 31)
+        d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=shade(base, 30) + (255,),
+                  outline=shade(base, -40) + (255,))
+    return img
+
+
+def torch(rng):
+    """A stick with a flame on top, in the middle of a clear tile."""
+    img = new_tile()
+    d = ImageDraw.Draw(img)
+    d.rectangle([15, 12, 16, 31], fill=(120, 84, 48, 255))
+    d.ellipse([13, 5, 18, 13], fill=(250, 170, 40, 255))
+    d.ellipse([14, 8, 17, 12], fill=(255, 236, 140, 255))
+    return img
+
+
+def cake_top(rng):
+    img = new_tile()
+    px = pixels(img)
+    for y in range(TILE):
+        for x in range(TILE):
+            px[x, y] = shade((248, 244, 240), rng.randint(-6, 4)) + (255,)
+    d = ImageDraw.Draw(img)
+    for x, y in ((8, 8), (22, 10), (12, 22), (24, 24), (16, 15)):
+        d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=(216, 34, 52, 255))
+    return img
+
+
+def cake_side(cut):
+    """Icing on top, sponge with a jam layer below; cut shows the inside."""
+    def draw_tile(rng):
+        img = new_tile()
+        px = pixels(img)
+        for y in range(TILE):
+            for x in range(TILE):
+                if y < 8:
+                    c = (248, 244, 240)
+                elif 18 <= y < 21:
+                    c = (210, 40, 60)
+                else:
+                    c = (236, 200, 140) if cut else (226, 184, 120)
+                px[x, y] = shade(c, rng.randint(-6, 4)) + (255,)
+        return img
+    return draw_tile
+
 
 # (file name, drawing) in row-2 order, matching block_data.hpp.
 TILES = [
@@ -596,7 +788,36 @@ TILES = [
     ("crop_top",            crop_top),
 ] + [(f"wheat_{i}", wheat(i)) for i in range(4)] + [
     (f"carrot_{i}", carrot(i)) for i in range(4)] + [
-    (f"strawberry_{i}", strawberry(i)) for i in range(4)]
+    (f"strawberry_{i}", strawberry(i)) for i in range(4)] + [
+    # Wild plants (block/plant.hpp order), then the blocks after them.
+    ("tall_grass",          tall_grass),
+    ("poppy",               flower((214, 40, 40), (40, 30, 20))),
+    ("buttercup",           flower((250, 214, 40), (230, 150, 30))),
+    ("cornflower",          flower((70, 110, 230), (30, 40, 120))),
+    ("pink_tulip",          flower((244, 140, 190), (0, 0, 0), "tulip")),
+    ("daisy",               flower((250, 250, 246), (246, 200, 40))),
+    ("lavender",            flower((150, 100, 210), (0, 0, 0), "spike")),
+    ("hibiscus",            flower((244, 120, 36), (250, 220, 80), "big")),
+    ("fern",                fern),
+    ("red_mushroom",        mushroom((210, 40, 40), True)),
+    ("brown_mushroom",      mushroom((150, 106, 72), False)),
+    ("dead_bush",           dead_bush),
+    ("berry_bush",          berry_bush(True)),
+    ("berry_bush_bare",     berry_bush(False)),
+    ("shells",              shells),
+    ("cactus_top",          cactus_top),
+    ("cactus_side",         cactus_side),
+    ("pink_coral",          lambda r: coral((236, 120, 170), r)),
+    ("blue_coral",          lambda r: coral((60, 120, 226), r)),
+    ("yellow_coral",        lambda r: coral((236, 200, 60), r)),
+    ("torch",               torch),
+    ("cake_top",            cake_top),
+    ("cake_side",           cake_side(False)),
+    ("cake_cut",            cake_side(True)),
+    ("sandstone_bricks",    lambda r: bricks((214, 196, 140), (176, 154, 100), r)),
+    ("snow_bricks",         lambda r: bricks((236, 242, 248), (190, 204, 220), r,
+                                             h=16, bevel=True)),
+]
 
 
 def cell(index):
