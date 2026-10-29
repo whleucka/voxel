@@ -911,9 +911,9 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
   int cz = static_cast<int>(std::floor(static_cast<float>(cmd.pos.z) / kChunkDepth));
   if (!world_.getChunk(cx, cz)) return reject(client, "place: chunk not loaded");
 
-  // Only air or liquid can be replaced.
+  // Only air, liquid or grassy plants can be replaced.
   BlockType existing = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
-  if (existing != BlockType::AIR && !isLiquid(existing))
+  if (existing != BlockType::AIR && !isLiquid(existing) && !isReplaceable(existing))
     return reject(client, "place: cell occupied");
   // A plant, a torch or a cake goes on its own ground (a torch on a floor or
   // a wall), in the air.
@@ -968,7 +968,7 @@ void Game::placeDoor(Client &client, PlayerState &ps, glm::ivec3 pos) {
   const glm::ivec3 top = pos + glm::ivec3(0, 1, 0);
   for (glm::ivec3 cell : {pos, top}) {
     BlockType existing = world_.getBlockAt(glm::vec3(cell) + 0.5f);
-    if (existing != BlockType::AIR && !isLiquid(existing))
+    if (existing != BlockType::AIR && !isLiquid(existing) && !isReplaceable(existing))
       return reject(client, "place: no room for a door");
     if (overlapsAnyPlayer(cell)) return reject(client, "place: inside a player");
     if (overlapsBoat(cell)) return reject(client, "place: a boat is there");
@@ -1034,7 +1034,8 @@ void Game::placeBed(Client &client, PlayerState &ps, glm::ivec3 pos) {
     if (!world_.getChunk(cx, cz)) return reject(client, "place: chunk not loaded");
   }
   for (glm::ivec3 cell : {pos, head}) {
-    if (world_.getBlockAt(glm::vec3(cell) + 0.5f) != BlockType::AIR)
+    const BlockType existing = world_.getBlockAt(glm::vec3(cell) + 0.5f);
+    if (existing != BlockType::AIR && !isReplaceable(existing))
       return reject(client, "place: no room for a bed");
     if (overlapsAnyPlayer(cell)) return reject(client, "place: inside a player");
     if (overlapsBoat(cell)) return reject(client, "place: a boat is there");

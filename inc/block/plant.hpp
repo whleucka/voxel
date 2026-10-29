@@ -13,6 +13,12 @@ inline bool isPlant(BlockType b) { return b >= BlockType::TALL_GRASS && b <= Blo
 
 inline bool isFlower(BlockType b) { return b >= BlockType::POPPY && b <= BlockType::HIBISCUS; }
 
+// Grassy plants a placed block simply replaces, so building on a meadow
+// isn't a block too high.
+inline bool isReplaceable(BlockType b) {
+  return b == BlockType::TALL_GRASS || b == BlockType::FERN || b == BlockType::DEAD_BUSH;
+}
+
 inline bool isMushroom(BlockType b) {
   return b == BlockType::RED_MUSHROOM || b == BlockType::BROWN_MUSHROOM;
 }

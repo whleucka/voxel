@@ -415,3 +415,26 @@ TEST_CASE_FIXTURE(Garden, "a cactus doesn't prick in creative") {
   for (int t = 0; t < 40; ++t) game.tick();
   CHECK(ps(ida).vitals.health() == Vitals::kMax);
 }
+
+TEST_CASE_FIXTURE(Garden, "a block put on tall grass takes its place, but not a flower's") {
+  put(kGrass + kUp, BlockType::TALL_GRASS);
+  hold(BlockType::DIRT, 2);
+  CHECK(reason(run(PlaceBlock{kGrass + kUp})).empty());
+  CHECK(at(kGrass + kUp) == BlockType::DIRT);
+
+  const glm::ivec3 next = kGrass + glm::ivec3(1, 1, 0);
+  put(next, BlockType::POPPY);
+  CHECK(reason(run(PlaceBlock{next})) == "place: cell occupied");
+  CHECK(at(next) == BlockType::POPPY);
+}
+
+TEST_CASE_FIXTURE(Garden, "doors and beds go up in tall grass too") {
+  for (int x = 3; x <= 5; ++x) put({x, kBase + 1, 5}, BlockType::TALL_GRASS);
+  hold(ItemId::WOODEN_DOOR);
+  CHECK(reason(run(PlaceBlock{{3, kBase + 1, 5}})).empty());
+  CHECK(isDoor(at({3, kBase + 1, 5})));
+  hold(ItemId::RED_BED);
+  stand(a, ida, {4.5f, kBase + 1.0f, 3.5f}); // facing north: the head goes to z 4
+  CHECK(reason(run(PlaceBlock{{5, kBase + 1, 5}})).empty());
+  CHECK(isBed(at({5, kBase + 1, 5})));
+}
