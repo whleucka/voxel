@@ -218,7 +218,16 @@ Intent ChaseBrain::think(const Entity &self, const BrainContext &ctx) {
   glm::vec2 face(target->x - pos.x, target->z - pos.z);
 
   Intent in;
+  in.yaw = self.yaw; // with nowhere to look, it keeps its facing
   if (glm::length(face) > 1e-3f) in.yaw = glm::degrees(std::atan2(face.x, -face.y));
+  // Touching the player (on their level): it stands there facing them, and
+  // contact does the hitting. Closing in further only walks it through
+  // them, turning round every tick.
+  if (std::abs(target->y - pos.y) < 0.5f &&
+      glm::length(face) <= self.body.half_width + kPlayerHalfWidth + kTouching) {
+    in.halt = true;
+    return in;
+  }
   if (glm::length(to) < 0.05f) return in;
   in.move_dir = glm::normalize(to);
   in.yaw = glm::degrees(std::atan2(in.move_dir.x, -in.move_dir.y));

@@ -97,6 +97,8 @@ void EntityStore::tick(const World &world, Rng &rng, std::span<const glm::vec3> 
       if (glm::length(in.move_dir) > 0.0f) {
         e.body.velocity.x = in.move_dir.x * speed;
         e.body.velocity.z = in.move_dir.y * speed;
+      } else if (in.halt && e.body.on_ground) {
+        e.body.velocity.x = e.body.velocity.z = 0.0f;
       }
       if (e.body.swims && e.body.inWater()) e.body.velocity.y = in.rise * speed;
       if (in.jump && e.body.on_ground) {

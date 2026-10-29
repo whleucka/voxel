@@ -55,6 +55,23 @@ TEST_CASE("a chaser reaches a player 10 blocks away on flat ground") {
   CHECK(r.brain().chasing());
 }
 
+TEST_CASE("a chaser that reaches the player stands touching them, facing them, not spinning") {
+  ChaseRig r;
+  r.players = {{14.5f, kBase + 1.0f, 8.5f}};
+  r.spawn({4.5f, kBase + 1.0f, 8.5f});
+  REQUIRE(r.reaches(1.0f, 20 * 10));
+  const float touching = r.e().body.half_width + kPlayerHalfWidth;
+  for (int i = 0; i < 40; ++i) {
+    r.store.tick(r.world, r.rng, r.players, r.players);
+    CAPTURE(i);
+    // Close enough to hit (the Game's contact range is 0.3), but not inside.
+    CHECK(r.gap() >= touching - 0.05f);
+    CHECK(r.gap() <= touching + 0.3f);
+    // Facing the player: they're at +X, a yaw of 90.
+    CHECK(r.e().yaw == doctest::Approx(90.0f).epsilon(0.1));
+  }
+}
+
 TEST_CASE("a chaser finds the gap in a wall") {
   ChaseRig r;
   // A wall across x = 8, open only at z = 13.
