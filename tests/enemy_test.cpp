@@ -463,3 +463,20 @@ TEST_CASE("enemies walk slower when the hostile speed is scaled") {
   REQUIRE(normal > 1.0f);
   CHECK(easy / normal == doctest::Approx(0.8f).epsilon(0.03));
 }
+
+TEST_CASE("creatures spawn on the ground under tall grass and flowers, not on top of them") {
+  SpawnSpots s;
+  fill(s.world, s.surface + glm::ivec3(0, 1, 0), s.surface + glm::ivec3(0, 1, 0),
+       BlockType::TALL_GRASS);
+  auto g = Spawner::groundAt(s.world, s.surface.x, s.surface.z);
+  REQUIRE(g);
+  CHECK(*g == s.surface);
+}
+
+TEST_CASE("a torch's light keeps enemies from spawning, like a lamp's") {
+  SpawnSpots s;
+  const glm::ivec3 feet = s.cave + glm::ivec3(0, 1, 0);
+  fill(s.world, feet + glm::ivec3(1, 0, 0), feet + glm::ivec3(1, 0, 0), BlockType::TORCH);
+  CHECK(s.world.getBlockLightAt(feet) == 12);
+  CHECK_FALSE(enemyCanSpawn(EntityKind::CaveGrumble, s.world, s.cave, kMidnight));
+}

@@ -199,3 +199,25 @@ TEST_CASE("creatures go round a bed, never over it") {
   fill(w.world, {8, kBase + 1, 4}, {8, kBase + 1, 4}, bedBlock(BedColour::Blue, false, DoorFacing::East));
   CHECK_FALSE(w.path({4, kBase + 1, 4}, {12, kBase + 1, 4}));
 }
+
+TEST_CASE("a path walks straight through tall grass, flowers and torches") {
+  PathRig r;
+  r.floor({1, 0, 1}, {14, 0, 14});
+  fill(r.world, {8, kBase + 1, 1}, {8, kBase + 1, 14}, BlockType::TALL_GRASS);
+  fill(r.world, {9, kBase + 1, 1}, {9, kBase + 1, 14}, BlockType::POPPY);
+  fill(r.world, {10, kBase + 1, 1}, {10, kBase + 1, 14}, BlockType::TORCH);
+  glm::ivec3 from{4, kBase + 1, 8}, to{12, kBase + 1, 8};
+  auto p = r.path(from, to);
+  REQUIRE(p);
+  CHECK(p->size() == 8);
+}
+
+TEST_CASE("a cactus is a wall to a path") {
+  PathRig r;
+  r.floor({1, 0, 1}, {14, 0, 14});
+  fill(r.world, {8, kBase + 1, 1}, {8, kBase + 2, 12}, BlockType::CACTUS);
+  glm::ivec3 from{4, kBase + 1, 4}, to{12, kBase + 1, 4};
+  auto p = r.path(from, to);
+  REQUIRE(p);
+  CHECK(std::find(p->begin(), p->end(), glm::ivec3(8, kBase + 1, 13)) != p->end());
+}

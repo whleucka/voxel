@@ -10,10 +10,10 @@
 
 namespace {
 
-// Air, or an open door; a closed one is a wall.
+// Air, or something walked through: an open door (a closed one is a wall),
+// a crop, a plant or a torch.
 bool clear(const World &world, glm::ivec3 c) {
-  BlockType b = world.getBlockAt(glm::vec3(c) + 0.5f);
-  return b == BlockType::AIR || (isDoor(b) && doorOpen(b));
+  return isPassable(world.getBlockAt(glm::vec3(c) + 0.5f));
 }
 
 bool bodyClear(const World &world, glm::ivec3 c, int height) {
