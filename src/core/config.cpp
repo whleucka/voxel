@@ -87,7 +87,7 @@ std::string serializeSettings(const Settings &s, bool blank_seed) {
     << "\n"
     << "# ─── View ────────────────────────────────────────────────\n"
     << "fov=" << s.fov << "\n"
-    << "# The map in the top-right corner (P drops a pin on it).\n"
+    << "# The map in the top-left corner (P drops a pin on it).\n"
     << "minimap=" << (s.show_minimap ? "true" : "false") << "\n"
     << "fog-start=" << s.fog_start << "\n"
     << "fog-end=" << s.fog_end << "\n"

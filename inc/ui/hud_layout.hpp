@@ -43,7 +43,7 @@ public:
   // the taller panel with the text box while open.
   Rect chatArea() const;
   Rect chatPanel() const;
-  // The minimap, a square in the top-right corner.
+  // The minimap, a square in the top-left corner, above the chat.
   Rect minimapArea() const;
 
   // ─── Inventory screen ───────────────────────────────────────────────

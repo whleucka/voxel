@@ -113,7 +113,7 @@ Drawing blocks couldn't be *that* hard... *Right?*
 
 ## The map
 
-The minimap in the top-right corner turns with you, so straight ahead is
+The minimap in the top-left corner turns with you, so straight ahead is
 always up. Outside it shows the land from above; underground it shows the
 caves around your feet instead, open space light and rock dark, so you can find
 your way back out. A little house marks home (your bed, or where the world

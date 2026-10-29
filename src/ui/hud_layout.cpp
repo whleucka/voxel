@@ -53,7 +53,7 @@ Rect HudLayout::chatPanel() const {
 Rect HudLayout::minimapArea() const {
   float margin = gap_ * 3;
   float size = std::clamp(std::round(h * 0.22f), 120.0f, 260.0f);
-  return {w - margin - size, margin, size, size};
+  return {margin, margin, size, size};
 }
 
 Rect HudLayout::nameArea() const {
