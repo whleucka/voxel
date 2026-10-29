@@ -12,6 +12,9 @@ constexpr int kPlayerColors = 8;
 const glm::vec3 &playerColor(std::string_view name);
 // The figure (1.8 tall, 0.6 wide, facing -Z), legs and arms swinging.
 std::vector<ModelBox> playerModel(glm::vec3 shirt);
+// The same figure sitting: hips at the feet position (a seat's top), legs
+// out in front, arms down, nothing swinging.
+std::vector<ModelBox> seatedPlayerModel(glm::vec3 shirt);
 // PlayerView::yaw is the camera's (0 = +X, -90 = -Z); models use 0 = -Z.
 inline float playerModelYaw(float camera_yaw) { return camera_yaw + 90.0f; }
 

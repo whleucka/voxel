@@ -40,6 +40,28 @@ std::vector<ModelBox> playerModel(glm::vec3 shirt) {
   };
 }
 
+std::vector<ModelBox> seatedPlayerModel(glm::vec3 shirt) {
+  const glm::vec3 skin{0.93f, 0.76f, 0.60f}, pants{0.20f, 0.24f, 0.40f},
+      shoes{0.15f, 0.12f, 0.10f}, hair{0.30f, 0.20f, 0.12f}, eye{0.08f, 0.08f, 0.10f};
+  // Everything above the hips sits 0.75 lower than standing.
+  return {
+      {{-0.25f, 0.00f, -0.40f}, {0.24f, 0.24f, 0.52f}, pants},       // legs, out in front
+      {{0.01f, 0.00f, -0.40f}, {0.24f, 0.24f, 0.52f}, pants},
+      {{-0.25f, 0.00f, -0.48f}, {0.24f, 0.28f, 0.10f}, shoes},       // shoes
+      {{0.01f, 0.00f, -0.48f}, {0.24f, 0.28f, 0.10f}, shoes},
+      {{-0.26f, 0.00f, -0.13f}, {0.52f, 0.65f, 0.26f}, shirt},       // body
+      {{-0.40f, 0.03f, -0.12f}, {0.14f, 0.62f, 0.24f}, shirt},       // arms
+      {{0.26f, 0.03f, -0.12f}, {0.14f, 0.62f, 0.24f}, shirt},
+      {{-0.40f, 0.03f, -0.12f}, {0.14f, 0.12f, 0.24f}, skin},        // hands
+      {{0.26f, 0.03f, -0.12f}, {0.14f, 0.12f, 0.24f}, skin},
+      {{-0.20f, 0.65f, -0.20f}, {0.40f, 0.40f, 0.40f}, skin},        // head
+      {{-0.21f, 0.95f, -0.21f}, {0.42f, 0.12f, 0.42f}, hair},        // hair
+      {{-0.21f, 0.75f, 0.10f}, {0.42f, 0.25f, 0.11f}, hair},
+      {{-0.12f, 0.83f, -0.21f}, {0.07f, 0.07f, 0.02f}, eye},         // eyes
+      {{0.05f, 0.83f, -0.21f}, {0.07f, 0.07f, 0.02f}, eye},
+  };
+}
+
 std::optional<glm::vec2> projectToScreen(glm::vec3 point, const glm::mat4 &view_projection,
                                          float width, float height) {
   glm::vec4 clip = view_projection * glm::vec4(point, 1.0f);

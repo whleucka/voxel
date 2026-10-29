@@ -123,6 +123,15 @@ struct Farms {
 bool loadFarms(const std::string &dir, Farms &out);
 bool saveFarms(const std::string &dir, const Farms &farms);
 
+// boats.dat — every boat, where it was left. Worlds from before boats have
+// none.
+struct BoatRecord {
+  glm::vec3 position{0.0f};
+  float yaw = 0.0f;
+};
+bool loadBoats(const std::string &dir, std::vector<BoatRecord> &out);
+bool saveBoats(const std::string &dir, std::span<const BoatRecord> boats);
+
 // players/<name>.dat — a guest's state, kept in the host's world so they carry
 // on where they left off. The host's own record stays in player.dat and
 // inventory.dat. Names must be 1-16 of [A-Za-z0-9_-] (they're file names).

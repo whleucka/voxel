@@ -62,6 +62,8 @@ void EntityStore::tick(const World &world, Rng &rng, std::span<const glm::vec3> 
     e.product_delay_ms = std::max(0, e.product_delay_ms - kTickMs);
     e.attack_cooldown_ms = std::max(0, e.attack_cooldown_ms - kTickMs);
 
+    // Boats stay where they were left, and only the Game moves them.
+    if (def.vehicle) continue;
     if (def.despawn_age_ms > 0 && e.age_ms >= def.despawn_age_ms) {
       gone.push_back(id);
       continue;

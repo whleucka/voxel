@@ -21,6 +21,7 @@
 - **Beds:** craft a bed in one of 8 colours, sleep through the night, and wake up there after you die ([more below](#beds)).
 - **Chests:** craft chests to keep your things in, and hunt deep caves for locked treasure chests ([more below](#chests-and-treasure)).
 - **Fishing:** make a rod, cast it, and reel in when the bobber dips. Cook your catch, or find treasure ([more below](#fishing)).
+- **Boats:** make a boat from planks, put it on the water and sail it, with a friend in the front seat ([more below](#boats)).
 - **Farming:** till soil with a hoe, plant wheat, carrots and strawberries, keep them watered, and harvest them for food ([more below](#farming)).
 - **Tools and weapons:** pickaxes, axes, shovels, swords and hoes from wood to diamond; mining takes time and the best ore needs the best picks ([more below](#tools-and-weapons)).
 - **Creative mode:** fly, build without running out, and pick from every block, including planks, bricks, glass, eight bright colors and lamps.
@@ -99,9 +100,9 @@ Drawing blocks couldn't be *that* hard... *Right?*
 ## Controls
 
 *   **W, A, S, D:** Move. **Space:** Jump. **Mouse:** Look around.
-*   **Left Ctrl:** Sprint (uses stamina). **Left Shift:** Crouch.
-*   **Left click:** Hit a creature, or break a block (hold it in survival).
-*   **Right click:** Place a block, feed an animal, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, open and shut a door, sleep in a bed, or till, plant and water with a hoe, seeds or a watering can.
+*   **Left Ctrl:** Sprint (uses stamina). **Left Shift:** Crouch, or get out of a boat.
+*   **Left click:** Hit a creature, pick up an empty boat, or break a block (hold it in survival).
+*   **Right click:** Place a block, put a boat on the water or get into one, feed an animal, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, open and shut a door, sleep in a bed, or till, plant and water with a hoe, seeds or a watering can.
 *   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
 *   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
 *   **T:** Chat. Type and press Enter (or click Send); Esc closes it.
@@ -283,6 +284,23 @@ You'll mostly catch the fish that lives in that water, but now and then
 something else: a shell, some sticks, a soggy boot, or, if you're lucky,
 gold, an emerald or a diamond. Raw fish heal a little. Cook them in a
 furnace and they heal a lot more. A rod lasts 64 catches.
+
+## Boats
+
+Make a **Boat** from 5 planks of any wood. You don't need a Crafting Table,
+so you can make one at the shore. Right-click the water with it, and it
+floats there facing the way you're looking.
+
+Right-click the boat to get in. The first one in **drives** from the back
+seat and a friend can ride in the front. **W** goes, **S** slows down and
+then backs up, and the boat turns toward where you're looking. It's faster
+than sprinting, and it doesn't tire you out. **Shift** gets you out, onto
+the shore if there's some close by, or into the water beside the boat.
+
+From a boat you can look all round, fish, eat and use your inventory, but
+not build, break or fight. A boat stops at the shore and won't move on land.
+Hit an empty boat to pick it up again. Boats never break, and a boat you
+leave stays where you left it, even after you quit.
 
 ## Farming
 

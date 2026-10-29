@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/constants.hpp"
+#include "entity/boat.hpp"
 #include "inventory/inventory.hpp"
 #include "item/recipes.hpp"
 #include "vitals/vitals.hpp"
@@ -38,6 +39,10 @@ struct PlayerState {
   int sleep_health = 0;    // health when last checked in bed: losing any wakes them
   std::optional<SleepState> sleep_sent; // last SleepState sent to the owner
   std::vector<Pin> pins;   // their map pins (see TogglePin)
+  // The boat they're sitting in, and which seat (0 drives). Their position
+  // is the seat's, kept there by the Game.
+  struct Riding { EntityId boat = 0; int seat = 0; };
+  std::optional<Riding> riding;
   std::optional<Waypoints> waypoints_sent; // last Waypoints sent to the owner
 
   Vitals vitals;
@@ -52,9 +57,11 @@ struct PlayerState {
   bool death_told = false;
   ChatLimiter chat_limit;
 
-  float height() const { return crouch ? kPlayerCrouchHeight : kPlayerHeight; }
+  float height() const {
+    return riding ? kSeatedHeight : crouch ? kPlayerCrouchHeight : kPlayerHeight;
+  }
   glm::vec3 eyePosition() const {
-    return position +
-           glm::vec3(0.0f, crouch ? kPlayerCrouchEyeHeight : kPlayerEyeHeight, 0.0f);
+    float eye = riding ? kSeatedEyeHeight : crouch ? kPlayerCrouchEyeHeight : kPlayerEyeHeight;
+    return position + glm::vec3(0.0f, eye, 0.0f);
   }
 };

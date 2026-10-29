@@ -1,4 +1,5 @@
 #include "entity/entity_interp.hpp"
+#include "entity/boat.hpp"
 #include <algorithm>
 #include <cmath>
 #include <unordered_map>
@@ -66,4 +67,17 @@ std::vector<EntityView> EntityInterpolator::views(float alpha) const {
     out.push_back(v);
   }
   return out;
+}
+
+void placeRiders(std::vector<PlayerView> &players, const std::vector<EntityView> &entities) {
+  for (PlayerView &p : players) {
+    if (p.riding == 0) continue;
+    for (const EntityView &boat : entities)
+      if (boat.id == p.riding) {
+        p.position = seatPosition(boat.position, boat.yaw, p.seat);
+        p.yaw = boat.yaw - 90.0f; // a boat's yaw as a camera's
+        p.moving = false;
+        break;
+      }
+  }
 }

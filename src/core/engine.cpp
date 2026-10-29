@@ -293,6 +293,7 @@ void Engine::startSession(std::unique_ptr<Session> s) {
   inventory_view = {};
   vitals_view = {Vitals::kMax, Vitals::kMax, Vitals::kMax, true, false};
   sleep_view.reset();
+  riding_view.reset();
   minimap = Minimap{};
   waypoints.reset();
   chat_log.clear();
@@ -319,8 +320,24 @@ void Engine::endSession(std::string message) {
 // ─── Input Processing (polled every frame) ─────────────────────────────
 
 void Engine::processInput(GLFWwindow *window) {
+  boat_input = {};
   // Don't process movement when inventory or chat is open or while dead
   if (player->isInventoryOpen() || chat_open || vitals_view.dead || paused()) return;
+
+  // In a boat: Shift (pressed afresh) gets out; the driver's W and S drive,
+  // and the boat turns toward where they look.
+  if (riding()) {
+    bool shift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
+    if (!shift) boat_keys_released = true;
+    else if (boat_keys_released && !leave_boat_sent) {
+      connection().send(LeaveBoat{});
+      leave_boat_sent = true;
+    }
+    boat_input.forward = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
+    boat_input.back = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
+    boat_input.look_yaw = boatYawFor(player->getCamera().yaw);
+    return;
+  }
 
   // In bed: a movement key or jump (pressed afresh) gets us up.
   if (inBed()) {
@@ -358,8 +375,17 @@ void Engine::processInput(GLFWwindow *window) {
 void Engine::update() {
   if (!PauseMenu::worldRuns(session->mode() == Session::Mode::Single, paused())) return;
   // Physics runs locally; the Game is told where we ended up, and streams
-  // chunks around every player's reported position when it pumps.
-  player->update(delta_time, &world());
+  // chunks around every player's reported position when it pumps. In a
+  // boat, the driver steers it here and everyone sits in their seat.
+  std::optional<EntityView> boat;
+  if (riding()) {
+    if (driving()) steerBoat(my_boat, boat_input, world(), delta_time);
+    boat = rideView(glfwGetTime());
+  }
+  if (boat)
+    player->sitAt(seatPosition(boat->position, boat->yaw, riding_view->seat), kSeatedEyeHeight);
+  else
+    player->update(delta_time, &world());
   if (inBed()) {
     // Head on the pillow, at the far end of the head half.
     glm::ivec3 foot = sleep_view->bed;
@@ -381,6 +407,11 @@ void Engine::update() {
   move.in_water = player->isInWater();
   move.eyes_underwater = player->isUnderwater();
   move.respawn = respawn_count;
+  if (boat && driving()) {
+    move.boat = riding_view->boat;
+    move.boat_position = my_boat.position;
+    move.boat_yaw = my_boat.yaw;
+  }
   connection().send(move);
   session->follow(player->getPosition());
   if (g_settings.show_minimap) minimap.update(world(), player->getPosition(), delta_time);
@@ -417,6 +448,7 @@ void Engine::handleEvents() {
       game_mode = joined->mode;
       *player->getFlyModePtr() = joined->fly;
       player->setFlyAllowed(rulesFor(game_mode).fly);
+      riding_view.reset();
       known_items.reset();
       known_baseline = true;
       container_view.reset();
@@ -450,6 +482,20 @@ void Engine::handleEvents() {
     }
     else if (const auto *wp = std::get_if<Waypoints>(&ev)) {
       waypoints = *wp;
+    }
+    else if (const auto *ride = std::get_if<Riding>(&ev)) {
+      if (ride->boat == 0) {
+        riding_view.reset();
+      } else {
+        if (!riding()) {
+          boat_keys_released = false;
+          leave_boat_sent = false;
+          hud.notice("Press Shift to get out", glfwGetTime());
+        }
+        riding_view = *ride;
+        // Driving starts (or starts again) from where the Game has the boat.
+        my_boat = BoatState{ride->position, ride->yaw};
+      }
     }
     else if (const auto *sleep = std::get_if<SleepState>(&ev)) {
       if (sleep->in_bed && !inBed()) {
@@ -513,6 +559,28 @@ void Engine::handleEvents() {
   }
 }
 
+std::optional<EntityView> Engine::rideView(double now) const {
+  if (!riding_view) return std::nullopt;
+  if (driving()) {
+    EntityView v;
+    v.id = riding_view->boat;
+    v.kind = EntityKind::Boat;
+    v.position = my_boat.position;
+    v.yaw = my_boat.yaw;
+    return v;
+  }
+  float alpha = static_cast<float>((now - last_snapshot_time) / Game::kTickSeconds);
+  for (const EntityView &v : entity_interp.views(alpha))
+    if (v.id == riding_view->boat) return v;
+  // Not in a snapshot yet (just got in): where the Game said it was.
+  EntityView v;
+  v.id = riding_view->boat;
+  v.kind = EntityKind::Boat;
+  v.position = riding_view->position;
+  v.yaw = riding_view->yaw;
+  return v;
+}
+
 // ─── Render ────────────────────────────────────────────────────────────
 
 void Engine::render() {
@@ -533,6 +601,14 @@ void Engine::render() {
   float alpha = static_cast<float>((now - last_snapshot_time) / Game::kTickSeconds);
   entity_views = entity_interp.views(alpha);
   player_views = entity_interp.players(alpha);
+  // Our own boat is drawn where we steered it, not where the Game last had it.
+  if (driving())
+    for (EntityView &v : entity_views)
+      if (v.id == riding_view->boat) {
+        v.position = my_boat.position;
+        v.yaw = my_boat.yaw;
+      }
+  placeRiders(player_views, entity_views);
   // The rod's tip, just below and right of the view, starts our own line.
   const Camera &eye = player->getCamera();
   glm::vec3 hand = eye.position + eye.front * 0.6f + eye.right * 0.3f - eye.up * 0.25f;
@@ -633,7 +709,8 @@ void Engine::renderNameTags(const glm::mat4 &view_projection) {
   constexpr float kTagRange = 48.0f;
   ImDrawList *draw = ImGui::GetBackgroundDrawList();
   for (const PlayerView &p : player_views) {
-    glm::vec3 above = p.position + glm::vec3(0.0f, kPlayerHeight + 0.35f, 0.0f);
+    float height = p.riding ? kSeatedHeight : kPlayerHeight;
+    glm::vec3 above = p.position + glm::vec3(0.0f, height + 0.35f, 0.0f);
     if (glm::distance(above, player->getCamera().position) > kTagRange) continue;
     auto at = projectToScreen(above, view_projection, static_cast<float>(win_width),
                               static_cast<float>(win_height));
@@ -1211,8 +1288,23 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     return target;
   };
 
+  // In a boat: no hitting or building. A rod still fishes and food still
+  // gets eaten.
+  if (engine->riding()) {
+    if (button != GLFW_MOUSE_BUTTON_RIGHT) return;
+    const ItemStack &held = engine->inventory_view[player->getSelectedHotbarSlot()];
+    if (held.id == ItemId::FISHING_ROD)
+      engine->connection().send(engine->myBobber() ? Command{ReelIn{}} : Command{CastLine{cam.front}});
+    else if (!held.empty() && itemDef(held.id).food_heal > 0)
+      engine->connection().send(EatItem{});
+    return;
+  }
+
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
-    auto hittable = [](EntityKind k) { return entityType(k).max_health > 0; };
+    // Creatures get hit; an empty boat gets picked up.
+    auto hittable = [](EntityKind k) {
+      return entityType(k).max_health > 0 || k == EntityKind::Boat;
+    };
     engine->swinging = false;
     if (auto target = aimedEntity(hittable)) {
       engine->connection().send(AttackEntity{*target});
@@ -1226,8 +1318,19 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     // Feed an animal, else fish with a rod, else eat held food, else place
     // a block.
     const ItemStack &held = engine->inventory_view[player->getSelectedHotbarSlot()];
-    if (auto animal = aimedEntity(isAnimal))
+    auto isBoat = [](EntityKind k) { return k == EntityKind::Boat; };
+    if (auto boat = aimedEntity(isBoat))
+      engine->connection().send(BoardBoat{*boat});
+    else if (auto animal = aimedEntity(isAnimal))
       engine->connection().send(InteractEntity{*animal});
+    // A boat goes on the water aimed at (the Game finds its top).
+    else if (held.id == ItemId::BOAT) {
+      RaycastResult wet = engine->world().raycast(cam.position, cam.front, kPlayerReach, true);
+      if (wet.hit && isLiquid(wet.block_type))
+        engine->connection().send(UseItemOn{wet.block_pos});
+      else
+        engine->hud.notice("Boats go on water", glfwGetTime());
+    }
     else if (held.id == ItemId::FISHING_ROD) {
       if (engine->myBobber())
         engine->connection().send(ReelIn{});
@@ -1310,7 +1413,8 @@ void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
 void Engine::updateMining(float dt) {
   bool holding = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS &&
                  rulesFor(game_mode).timed_mining && !player->isInventoryOpen() &&
-                 !chat_open && !vitals_view.dead && !inBed() && !ImGui::GetIO().WantCaptureMouse;
+                 !chat_open && !vitals_view.dead && !inBed() && !riding() &&
+                 !ImGui::GetIO().WantCaptureMouse;
   if (!holding || swinging) {
     mining.reset();
     if (!holding) swinging = false;

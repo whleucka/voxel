@@ -87,6 +87,7 @@ constexpr std::array<Material, kMaterialCount> kMaterials = {{
     {"Carrot", 4},
     {"Strawberry", 4},
     {"Watering Can", 0, 1},
+    {"Boat", 0, 1},
 }};
 constexpr int kItemAtlasCols = 8;
 

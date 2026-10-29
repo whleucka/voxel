@@ -9,6 +9,7 @@
 #include "ui/pause_menu.hpp"
 #include "ui/title_menu.hpp"
 #include "render/menu_scene.hpp"
+#include "entity/boat.hpp"
 #include "entity/entity_interp.hpp"
 #include "render/block_outline.hpp"
 #include "render/entity_renderer.hpp"
@@ -50,6 +51,18 @@ private:
   double sleep_since = 0.0;
   bool bed_keys_released = false, leave_sent = false;
   bool inBed() const { return sleep_view && sleep_view->in_bed; }
+  // In a boat: the Game's latest Riding, whether Shift has been let go since
+  // getting in (so a held Shift doesn't get us straight out) and LeaveBoat
+  // sent. Driving, the boat as we steer it, and this frame's keys for it.
+  std::optional<Riding> riding_view;
+  bool boat_keys_released = false, leave_boat_sent = false;
+  BoatState my_boat;
+  BoatInput boat_input;
+  bool riding() const { return riding_view.has_value(); }
+  bool driving() const { return riding_view && riding_view->seat == 0; }
+  // The boat we're riding in, where it's drawn at `now`: our own steering
+  // when we drive, else between the last two snapshots.
+  std::optional<EntityView> rideView(double now) const;
   Hud hud;
   // The minimap's picture, and the Game's latest Waypoints for it.
   Minimap minimap;

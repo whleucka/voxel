@@ -29,6 +29,7 @@ enum class EntityKind : uint16_t {
   Bobber = 13,      // a fishing line's float
   Zombie = 14,      // more enemies
   Mummy = 15,
+  Boat = 16,        // ridden on water
 };
 
 // One cuboid of a box model, in blocks, relative to the entity's feet
@@ -87,6 +88,9 @@ struct EntityTypeDef {
   std::vector<ChanceDrop> chance_drops = {};
   std::optional<EnemyDef> enemy = std::nullopt;
   std::optional<FishDef> fish = std::nullopt;
+  // Boats: kept until picked up (never despawned) and moved only by the
+  // Game, so the EntityStore leaves them where they are.
+  bool vehicle = false;
 };
 
 const EntityTypeDef &entityType(EntityKind kind);
@@ -97,6 +101,10 @@ inline bool isAnimal(EntityKind kind) {
 
 inline bool isEnemy(EntityKind kind) {
   return isValidEntityKind(kind) && entityType(kind).enemy.has_value();
+}
+
+inline bool isVehicle(EntityKind kind) {
+  return isValidEntityKind(kind) && entityType(kind).vehicle;
 }
 
 inline bool isFish(EntityKind kind) {
