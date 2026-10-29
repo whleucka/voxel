@@ -5,6 +5,7 @@
 #include "item/mining.hpp"
 #include "item/tools.hpp"
 #include "entity/animals.hpp"
+#include "entity/boat.hpp"
 #include "entity/enemies.hpp"
 #include "entity/fish.hpp"
 #include "core/settings.hpp"
@@ -409,6 +410,7 @@ void Game::tick() {
     if (!ps.vitals.dead() && rules().enemies_target) living.push_back(ps.position);
   }
   entities_.tick(world_, rng_, positions, living, speedScale(g_settings.difficulty));
+  tickBoats();
   tickFishing();
   removeEnemies();
   enemyAttacks();
@@ -451,7 +453,9 @@ void Game::sendEntitySnapshots() {
       if (pid == ps->id || other.vitals.dead()) continue;
       if (glm::distance(other.position, ps->position) > kEntityViewRange) continue;
       snap.players.push_back({pid, other.name, other.position, other.yaw, other.pitch,
-                              other.crouch, other.sleeping_in.has_value(), false});
+                              other.crouch, other.sleeping_in.has_value(), false,
+                              other.riding ? other.riding->boat : 0,
+                              static_cast<uint8_t>(other.riding ? other.riding->seat : 0)});
     }
     client.link->deliver(std::move(snap));
   }
@@ -702,6 +706,28 @@ void Game::apply(Client &client, const MovePlayer &cmd) {
   if (!ps || ps->vitals.dead() || cmd.respawn != ps->respawn) return;
   // In bed, the Game holds them there; they get up with LeaveBed.
   if (ps->sleeping_in) return;
+  // In a boat, they sit in their seat and only look around; the driver
+  // also says where they steered the boat.
+  if (ps->riding) {
+    ps->yaw = cmd.yaw;
+    ps->pitch = cmd.pitch;
+    ps->crouch = false;
+    ps->activity = {};
+    ps->fall.reset();
+    Entity *boat = entities_.find(ps->riding->boat);
+    if (!boat) return;
+    if (ps->riding->seat == 0 && cmd.boat == boat->id) {
+      if (boatMoveAllowed(world_, boat->body.position, cmd.boat_position)) {
+        boat->body.position = cmd.boat_position;
+        boat->yaw = std::fmod(std::fmod(cmd.boat_yaw, 360.0f) + 360.0f, 360.0f);
+      } else {
+        // Back where the Game has it, so the two agree again.
+        client.link->deliver(Riding{boat->id, 0, boat->body.position, boat->yaw});
+      }
+    }
+    seatRiders(*boat);
+    return;
+  }
   if (cmd.position.y < kVoidY) {
     ps->position = cmd.position;
     return rescueFromVoid(client, *ps);
@@ -733,6 +759,7 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
   PlayerState *ps = playerFor(client);
   if (!ps || ps->vitals.dead()) return;
   if (ps->sleeping_in) return reject(client, "break: in bed");
+  if (ps->riding) return reject(client, "break: in a boat");
   if (cmd.pos.y < 0 || cmd.pos.y >= kChunkHeight)
     return reject(client, "break: outside world height");
   if (!inReach(*ps, cmd.pos)) return reject(client, "break: out of reach");
@@ -805,7 +832,7 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
 
 void Game::apply(Client &client, const StartBreak &cmd) {
   PlayerState *ps = playerFor(client);
-  if (!ps || ps->vitals.dead()) return;
+  if (!ps || ps->vitals.dead() || ps->riding) return;
   ps->breaking = PlayerState::Breaking{cmd.pos, nowMs()};
 }
 
@@ -831,6 +858,7 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
   PlayerState *ps = playerFor(client);
   if (!ps || ps->vitals.dead()) return;
   if (ps->sleeping_in) return reject(client, "place: in bed");
+  if (ps->riding) return reject(client, "place: in a boat");
 
   const ItemStack &held = ps->inventory.slot(ps->selected_slot);
   if (held.empty()) return reject(client, "place: nothing held");
@@ -854,6 +882,7 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
     return reject(client, "place: cell occupied");
   if (overlapsAnyPlayer(cmd.pos))
     return reject(client, "place: inside a player");
+  if (overlapsBoat(cmd.pos)) return reject(client, "place: a boat is there");
 
   world_.setBlockAt(cmd.pos, *block);
   broadcast(BlockChanged{cmd.pos, *block});
@@ -892,6 +921,7 @@ void Game::placeDoor(Client &client, PlayerState &ps, glm::ivec3 pos) {
     if (existing != BlockType::AIR && !isLiquid(existing))
       return reject(client, "place: no room for a door");
     if (overlapsAnyPlayer(cell)) return reject(client, "place: inside a player");
+    if (overlapsBoat(cell)) return reject(client, "place: a boat is there");
   }
   BlockType below = world_.getBlockAt(glm::vec3(pos) + glm::vec3(0.5f, -0.5f, 0.5f));
   if (!blocksMovement(below) || isDoor(below) || isBed(below))
@@ -957,6 +987,7 @@ void Game::placeBed(Client &client, PlayerState &ps, glm::ivec3 pos) {
     if (world_.getBlockAt(glm::vec3(cell) + 0.5f) != BlockType::AIR)
       return reject(client, "place: no room for a bed");
     if (overlapsAnyPlayer(cell)) return reject(client, "place: inside a player");
+    if (overlapsBoat(cell)) return reject(client, "place: a boat is there");
     BlockType below = world_.getBlockAt(glm::vec3(cell) + glm::vec3(0.5f, -0.5f, 0.5f));
     if (!blocksMovement(below) || isDoor(below) || isBed(below))
       return reject(client, "place: a bed needs ground under it");
@@ -1042,6 +1073,7 @@ Game::Client *Game::clientOf(PlayerId id) {
 void Game::apply(Client &client, const UseBed &cmd) {
   PlayerState *ps = playerFor(client);
   if (!ps || ps->vitals.dead() || ps->sleeping_in) return;
+  if (ps->riding) return reject(client, "bed: in a boat");
   if (cmd.pos.y < 0 || cmd.pos.y >= kChunkHeight) return reject(client, "bed: outside world height");
   BlockType hit = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
   if (!isBed(hit)) return reject(client, "bed: that isn't a bed");
@@ -1218,12 +1250,14 @@ void Game::apply(Client &client, const UseItemOn &cmd) {
   PlayerState *ps = playerFor(client);
   if (!ps || ps->vitals.dead()) return;
   if (ps->sleeping_in) return reject(client, "use: in bed");
+  if (ps->riding) return reject(client, "use: in a boat");
   if (cmd.pos.y < 0 || cmd.pos.y + 1 >= kChunkHeight)
     return reject(client, "use: outside world height");
   if (!inReach(*ps, cmd.pos)) return reject(client, "use: out of reach");
   if (!chunkLoaded(world_, cmd.pos)) return reject(client, "use: chunk not loaded");
 
   const ItemId held = ps->inventory.slot(ps->selected_slot).id;
+  if (held == ItemId::BOAT) return placeBoat(client, *ps, cmd.pos);
   if (toolOf(held).kind == ToolKind::Hoe) return till(client, *ps, cmd.pos);
   if (cropForSeed(held)) return plant(client, *ps, cmd.pos);
   if (held == ItemId::WATERING_CAN) return water(client, *ps, cmd.pos);
@@ -1624,8 +1658,10 @@ void Game::pickUpDroppedItems() {
 void Game::apply(Client &client, const AttackEntity &cmd) {
   PlayerState *ps = playerFor(client);
   if (!ps || ps->vitals.dead()) return;
+  if (ps->riding) return reject(client, "attack: in a boat");
   Entity *e = entities_.find(cmd.id);
   if (!e) return reject(client, "attack: no such entity");
+  if (e->kind == EntityKind::Boat) return pickUpBoat(client, *ps, cmd.id);
   const EntityTypeDef &def = entityType(e->kind);
   if (def.max_health <= 0) return reject(client, "attack: can't hit that");
   if (ps->attack_cooldown_ms > 0) return reject(client, "attack: too soon");
@@ -1912,5 +1948,187 @@ void Game::enemyAttacks() {
       client.link->deliver(KnockedBack{{away.x, kEnemyKnockUp, away.y}});
       if (ps->vitals.dead()) break;
     }
+  }
+}
+
+// ─── Boats ─────────────────────────────────────────────────────────────
+
+namespace {
+
+// A boat's box at `pos`.
+std::pair<glm::vec3, glm::vec3> boatBox(glm::vec3 pos) {
+  const EntityTypeDef &def = entityType(EntityKind::Boat);
+  const glm::vec3 half(def.half_width, 0.0f, def.half_width);
+  return {pos - half, pos + half + glm::vec3(0.0f, def.height, 0.0f)};
+}
+
+bool boxesOverlap(std::pair<glm::vec3, glm::vec3> a, std::pair<glm::vec3, glm::vec3> b) {
+  return a.first.x < b.second.x && a.second.x > b.first.x && a.first.y < b.second.y &&
+         a.second.y > b.first.y && a.first.z < b.second.z && a.second.z > b.first.z;
+}
+
+} // namespace
+
+void Game::placeBoat(Client &client, PlayerState &ps, glm::ivec3 pos) {
+  auto at = [&](glm::ivec3 p) { return world_.getBlockAt(glm::vec3(p) + 0.5f); };
+  if (!isLiquid(at(pos))) return reject(client, "boat: boats go on water");
+  // Aimed at the water from below its top: it goes on the top.
+  glm::ivec3 top = pos;
+  while (top.y + 1 < kChunkHeight && isLiquid(at(top + glm::ivec3(0, 1, 0)))) ++top.y;
+  const glm::vec3 spot{top.x + 0.5f, floatHeight(top.y + 1.0f), top.z + 0.5f};
+
+  const EntityTypeDef &def = entityType(EntityKind::Boat);
+  PhysicsBody body;
+  body.half_width = def.half_width;
+  body.height = def.height;
+  if (body.collidesAt(&world_, spot)) return reject(client, "boat: no room");
+  const auto box = boatBox(spot);
+  for (const auto &[id, e] : entities_.all())
+    if (e.kind == EntityKind::Boat && boxesOverlap(box, boatBox(e.body.position)))
+      return reject(client, "boat: there's a boat there");
+  for (const auto &[pid, other] : players) {
+    const glm::vec3 half(kPlayerHalfWidth, 0.0f, kPlayerHalfWidth);
+    const auto player = std::pair(other.position - half,
+                                  other.position + half + glm::vec3(0.0f, other.height(), 0.0f));
+    if (boxesOverlap(box, player)) return reject(client, "boat: a player is there");
+  }
+
+  auto id = entities_.spawn(EntityKind::Boat, spot);
+  if (!id) return reject(client, "boat: entity cap reached");
+  entities_.find(*id)->yaw = std::fmod(boatYawFor(ps.yaw) + 360.0f, 360.0f);
+  if (rules().consume_blocks) {
+    ps.inventory.take(ps.selected_slot, 1);
+    sendInventory(client, ps);
+  }
+}
+
+void Game::pickUpBoat(Client &client, PlayerState &ps, EntityId id) {
+  const Entity *boat = entities_.find(id);
+  if (!inReachOf(ps, *boat)) return reject(client, "boat: out of reach");
+  for (int seat = 0; seat < kBoatSeats; ++seat)
+    if (riderIn(id, seat)) return reject(client, "boat: someone's in it");
+  const glm::ivec3 cell = glm::floor(boat->body.position + glm::vec3(0.0f, 0.5f, 0.0f));
+  entities_.remove(id);
+  giveOrDrop(ps, {ItemId::BOAT, 1}, cell);
+  sendInventory(client, ps);
+}
+
+PlayerState *Game::riderIn(EntityId boat, int seat) {
+  for (auto &[pid, ps] : players)
+    if (ps.riding && ps.riding->boat == boat && ps.riding->seat == seat) return &ps;
+  return nullptr;
+}
+
+bool Game::overlapsBoat(const glm::ivec3 &block) const {
+  const auto cube = std::pair(glm::vec3(block), glm::vec3(block) + 1.0f);
+  for (const auto &[id, e] : entities_.all())
+    if (e.kind == EntityKind::Boat && boxesOverlap(cube, boatBox(e.body.position))) return true;
+  return false;
+}
+
+void Game::seatRiders(const Entity &boat) {
+  for (auto &[pid, ps] : players)
+    if (ps.riding && ps.riding->boat == boat.id)
+      ps.position = seatPosition(boat.body.position, boat.yaw, ps.riding->seat);
+}
+
+void Game::apply(Client &client, const BoardBoat &cmd) {
+  PlayerState *ps = playerFor(client);
+  if (!ps || ps->vitals.dead() || ps->sleeping_in) return;
+  if (ps->riding) return reject(client, "board: already in a boat");
+  const Entity *boat = entities_.find(cmd.id);
+  if (!boat || boat->kind != EntityKind::Boat) return reject(client, "board: that isn't a boat");
+  if (!inReachOf(*ps, *boat)) return reject(client, "board: out of reach");
+  // The first one in drives; the driver's seat is free again once they leave.
+  int seat = 0;
+  while (seat < kBoatSeats && riderIn(cmd.id, seat)) ++seat;
+  if (seat == kBoatSeats) return reject(client, "board: the boat is full");
+
+  ps->riding = PlayerState::Riding{cmd.id, seat};
+  ps->breaking.reset();
+  ps->crouch = false;
+  ps->fall.reset();
+  ps->position = seatPosition(boat->body.position, boat->yaw, seat);
+  // Moves sent before they sat down are stale.
+  ++ps->respawn;
+  client.link->deliver(Riding{cmd.id, static_cast<uint8_t>(seat), boat->body.position, boat->yaw});
+  client.link->deliver(Respawned{ps->position, ps->respawn});
+}
+
+void Game::apply(Client &client, const LeaveBoat &) {
+  PlayerState *ps = playerFor(client);
+  if (ps && ps->riding) unseat(client, *ps);
+}
+
+void Game::unseat(Client &client, PlayerState &ps) {
+  const Entity *boat = entities_.find(ps.riding->boat);
+  ps.riding.reset();
+  ps.position = boat ? besideBoat(boat->body.position, boat->yaw) : ps.position;
+  ps.fall.reset();
+  ++ps.respawn;
+  client.link->deliver(Riding{});
+  client.link->deliver(Respawned{ps.position, ps.respawn});
+}
+
+glm::vec3 Game::besideBoat(glm::vec3 boat, float yaw) const {
+  auto blocks = [&](glm::ivec3 c) { return blocksMovement(world_.getBlockAt(glm::vec3(c) + 0.5f)); };
+  auto liquid = [&](glm::ivec3 c) { return isLiquid(world_.getBlockAt(glm::vec3(c) + 0.5f)); };
+  const glm::ivec3 up(0, 1, 0);
+  const glm::vec3 ahead = boatForward(yaw), side(-ahead.z, 0.0f, ahead.x);
+  const glm::vec3 around[] = {side * 1.2f,           -side * 1.2f,
+                              ahead * 1.5f,          -ahead * 1.5f,
+                              (side + ahead) * 1.1f, (side - ahead) * 1.1f,
+                              (ahead - side) * 1.1f, (-side - ahead) * 1.1f};
+  const int hull = static_cast<int>(std::floor(boat.y + 0.05f)); // the row the hull sits in
+  auto cellAt = [&](glm::vec3 offset, int y) {
+    return glm::ivec3(std::floor(boat.x + offset.x), y, std::floor(boat.z + offset.z));
+  };
+  auto standOn = [](glm::ivec3 c, float y) { return glm::vec3(c.x + 0.5f, y, c.z + 0.5f); };
+
+  // Dry land beside it, or a block further off (pulled up near the shore):
+  // at the waterline, or a step up.
+  for (float reach : {1.0f, 2.0f})
+    for (int dy : {1, 2})
+      for (glm::vec3 o : around) {
+        glm::ivec3 c = cellAt(o * reach, hull + dy);
+        if (!blocks(c) && !blocks(c + up) && !liquid(c) && blocks(c - up) && !liquid(c - up))
+          return standOn(c, static_cast<float>(c.y));
+      }
+  // Else the water beside it, head above the surface.
+  for (glm::vec3 o : around) {
+    glm::ivec3 c = cellAt(o, hull);
+    if (liquid(c) && !blocks(c + up) && !blocks(c + up + up))
+      return standOn(c, hull + 0.4f);
+  }
+  // Hemmed in: straight up, to the first gap a player fits.
+  for (int y = hull + 1; y + 1 < kChunkHeight; ++y) {
+    glm::ivec3 c = cellAt(glm::vec3(0.0f), y);
+    if (!blocks(c) && !blocks(c + up)) return standOn(c, static_cast<float>(y));
+  }
+  return boat + glm::vec3(0.0f, 1.0f, 0.0f);
+}
+
+glm::vec3 Game::standingPosition(const PlayerState &ps) const {
+  if (!ps.riding) return ps.position;
+  const Entity *boat = entities_.find(ps.riding->boat);
+  return boat ? besideBoat(boat->body.position, boat->yaw) : ps.position;
+}
+
+void Game::tickBoats() {
+  for (Client &client : clients) {
+    PlayerState *ps = playerFor(client);
+    if (!ps || !ps->riding) continue;
+    if (ps->vitals.dead()) { // they respawn on foot
+      ps->riding.reset();
+      client.link->deliver(Riding{});
+      continue;
+    }
+    const Entity *boat = entities_.find(ps->riding->boat);
+    if (!boat) {
+      ps->riding.reset();
+      client.link->deliver(Riding{});
+      continue;
+    }
+    ps->position = seatPosition(boat->body.position, boat->yaw, ps->riding->seat);
   }
 }

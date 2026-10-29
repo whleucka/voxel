@@ -41,6 +41,11 @@ struct MovePlayer {
   // The latest Respawned counter this client has seen. Moves sent before a
   // respawn arrive with the old one and are ignored.
   uint32_t respawn = 0;
+  // Driving a boat (its id, 0 if not): where the client steered it to. A
+  // rider's own position is ignored; they sit in their seat.
+  EntityId boat = 0;
+  glm::vec3 boat_position{0.0f};
+  float boat_yaw = 0.0f;
 };
 
 struct BreakBlock { glm::ivec3 pos{0}; };
@@ -102,6 +107,10 @@ struct UseItemOn { glm::ivec3 pos{0}; };
 struct Chat { std::string text; };
 // Drop a pin where the player stands, or pick up their pin close by.
 struct TogglePin {};
+// Get into a boat in reach: the driver's seat if it's free, else the
+// passenger's. LeaveBoat gets out, beside it.
+struct BoardBoat { EntityId id = 0; };
+struct LeaveBoat {};
 
 using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SelectSlot, Save, SetTimeOfDay, GiveItem,
@@ -109,7 +118,7 @@ using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SpawnDebugEntity, InteractEntity, EatItem, Craft,
                              OpenContainer, CloseContainer, StartBreak,
                              CastLine, ReelIn, UseDoor, UseBed, LeaveBed, UseItemOn,
-                             Chat, TogglePin>;
+                             Chat, TogglePin, BoardBoat, LeaveBoat>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 
@@ -165,6 +174,16 @@ struct Waypoints {
   glm::ivec3 home{0};
   std::vector<Pin> pins;
   bool operator==(const Waypoints &) const = default;
+};
+
+// The owner got into a boat (`boat`, in `seat`: 0 drives), or out of one
+// (boat 0). A driver starts steering from `position` and `yaw`; it's sent
+// again to put the boat back when the Game refuses a move.
+struct Riding {
+  EntityId boat = 0;
+  uint8_t seat = 0;
+  glm::vec3 position{0.0f};
+  float yaw = 0.0f;
 };
 
 // The host's clock, once a second, so every guest's sky matches.
@@ -230,6 +249,8 @@ struct PlayerView {
   bool crouch = false;
   bool sleeping = false;    // lying on a bed, head along `yaw`
   bool moving = false;      // set client-side by the interpolator
+  EntityId riding = 0;      // sitting in this boat (0: on foot)
+  uint8_t seat = 0;
 };
 
 // Every entity and other player within range of this player, sent every tick.
@@ -269,4 +290,4 @@ using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            Respawned, EntitySnapshot, KnockedBack, JoinRefused,
                            Welcome, TimeSync, Disconnected, KnownItems,
                            ContainerView, ToolBroke, Caught, SleepState, Notice,
-                           ChatMessage, Waypoints>;
+                           ChatMessage, Waypoints, Riding>;

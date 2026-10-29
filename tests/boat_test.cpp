@@ -2,6 +2,9 @@
 #include "entity/boat.hpp"
 #include "entity/entity_store.hpp"
 #include "physics/physics_body.hpp"
+#include "block/block_data.hpp"
+#include "sim/game.hpp"
+#include "sim/local_connection.hpp"
 #include "item/item.hpp"
 #include "item/recipes.hpp"
 #include "test_util.hpp"
@@ -251,4 +254,374 @@ TEST_CASE_FIXTURE(Canal, "the Game takes moves along the water, and nothing else
   const glm::vec3 high{20.5f, kBase + 3.0f, 2.5f};
   CHECK(boatMoveAllowed(world, high, high - glm::vec3(0, 1.0f, 0)));
   CHECK_FALSE(boatMoveAllowed(world, high, high + glm::vec3(1.0f, -1.0f, 0)));
+}
+
+// ─── In the Game ───────────────────────────────────────────────────────
+
+namespace {
+
+std::vector<Event> pollAll(LocalConnection &conn) {
+  std::vector<Event> out;
+  conn.poll(out);
+  return out;
+}
+
+template <class T> std::optional<T> find(const std::vector<Event> &evs) {
+  for (const Event &e : evs)
+    if (const T *t = std::get_if<T>(&e)) return *t;
+  return std::nullopt;
+}
+
+bool rejected(const std::vector<Event> &evs) { return find<CommandRejected>(evs).has_value(); }
+
+// A harbour in the sky over chunk (0,0): stone from x/z 0 to 15 with a pool
+// of water 3 deep in x/z 4..11 (its top at kBase + 1, level with the
+// stone). Three players stand on the bank west of it, looking east.
+struct Harbour {
+  ScopedRenderDistance rd{0};
+  Game game;
+  LocalConnection a, b, c;
+  PlayerId ida = 0, idb = 0, idc = 0;
+  static constexpr float kSurface = kBase + 1.0f;
+  static constexpr glm::vec3 kBank{2.5f, kBase + 1.0f, 7.5f};
+  static constexpr glm::ivec3 kWater{6, kBase, 7}; // the pool's top, two blocks out
+
+  Harbour() {
+    game.spawner() = Spawner{};
+    ida = join(a);
+    idb = join(b);
+    idc = join(c);
+    for (auto [conn, id] : {std::pair{&a, ida}, {&b, idb}, {&c, idc}}) stand(*conn, id, kBank);
+    game.world().loadChunkSync(0, 0);
+    fill(game.world(), {0, kBase - 3, 0}, {15, kBase, 15}, BlockType::STONE);
+    fill(game.world(), {4, kBase - 2, 4}, {11, kBase, 11}, BlockType::WATER);
+    fill(game.world(), {0, kBase + 1, 0}, {15, kBase + 10, 15}, BlockType::AIR);
+  }
+
+  PlayerId join(LocalConnection &conn) {
+    game.addClient(conn);
+    conn.send(Join{});
+    game.pump();
+    auto joined = find<Joined>(pollAll(conn));
+    REQUIRE(joined);
+    return joined->id;
+  }
+
+  PlayerState &ps(PlayerId id) { return *game.findPlayer(id); }
+
+  std::vector<Event> run(LocalConnection &conn, Command cmd) {
+    conn.send(std::move(cmd));
+    game.pump();
+    return pollAll(conn);
+  }
+
+  MovePlayer move(PlayerId id, glm::vec3 at, float yaw = 0.0f) {
+    MovePlayer m;
+    m.position = at;
+    m.yaw = yaw;
+    m.respawn = ps(id).respawn;
+    return m;
+  }
+  void stand(LocalConnection &conn, PlayerId id, glm::vec3 at, float yaw = 0.0f) {
+    run(conn, move(id, at, yaw));
+  }
+
+  void hold(PlayerId id, ItemId item) {
+    ps(id).inventory.set(ps(id).selected_slot, {item, 1});
+  }
+
+  std::vector<const Entity *> boats() const {
+    std::vector<const Entity *> out;
+    for (const auto &[id, e] : game.entities().all())
+      if (e.kind == EntityKind::Boat) out.push_back(&e);
+    return out;
+  }
+
+  // Player a puts a boat on the pool two blocks out from the bank.
+  EntityId launch() {
+    hold(ida, ItemId::BOAT);
+    auto evs = run(a, UseItemOn{kWater});
+    REQUIRE_FALSE(rejected(evs));
+    REQUIRE(boats().size() == 1);
+    return boats()[0]->id;
+  }
+
+  // Steps a player up beside the boat and gets them in.
+  std::vector<Event> board(LocalConnection &conn, PlayerId id, EntityId boat) {
+    stand(conn, id, {3.6f, kBase + 1.0f, 7.5f});
+    return run(conn, BoardBoat{boat});
+  }
+
+  int count(PlayerId id, ItemId item) {
+    int n = 0;
+    for (const ItemStack &s : ps(id).inventory.slots()) n += s.id == item ? s.count : 0;
+    return n;
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(Harbour, "a boat goes on the water's top, facing the way you look, and is used up") {
+  hold(ida, ItemId::BOAT);
+  auto evs = run(a, UseItemOn{kWater});
+  CHECK_FALSE(rejected(evs));
+  REQUIRE(boats().size() == 1);
+  const Entity &boat = *boats()[0];
+  CHECK(boat.body.position == glm::vec3(6.5f, floatHeight(kSurface), 7.5f));
+  CHECK(boat.yaw == doctest::Approx(90.0f)); // looking east (+X)
+  CHECK(count(ida, ItemId::BOAT) == 0);
+  CHECK(find<InventoryContents>(evs));
+}
+
+TEST_CASE_FIXTURE(Harbour, "aimed at the water below its top, the boat still goes on top") {
+  hold(ida, ItemId::BOAT);
+  CHECK_FALSE(rejected(run(a, UseItemOn{kWater - glm::ivec3(0, 1, 0)})));
+  REQUIRE(boats().size() == 1);
+  CHECK(boats()[0]->body.position.y == floatHeight(kSurface));
+}
+
+TEST_CASE_FIXTURE(Harbour, "boats don't go on land, on a boat, or on a player") {
+  hold(ida, ItemId::BOAT);
+  CHECK(rejected(run(a, UseItemOn{{3, kBase, 7}}))); // the stone bank
+  CHECK(boats().empty());
+  CHECK(count(ida, ItemId::BOAT) == 1);
+
+  launch();
+  hold(ida, ItemId::BOAT);
+  CHECK(rejected(run(a, UseItemOn{kWater})));
+  CHECK(boats().size() == 1);
+
+  stand(b, idb, {7.5f, kBase + 0.4f, 9.5f}); // swimming there
+  CHECK(rejected(run(a, UseItemOn{{7, kBase, 9}})));
+  CHECK(boats().size() == 1);
+  CHECK(count(ida, ItemId::BOAT) == 1);
+}
+
+TEST_CASE_FIXTURE(Harbour, "in creative a boat isn't used up") {
+  game.setMode(GameMode::Creative);
+  launch();
+  CHECK(count(ida, ItemId::BOAT) == 1);
+}
+
+TEST_CASE_FIXTURE(Harbour, "the first in drives, the second rides in front, and a third can't get in") {
+  EntityId boat = launch();
+  auto evs = board(a, ida, boat);
+  auto riding = find<Riding>(evs);
+  REQUIRE(riding);
+  CHECK(riding->boat == boat);
+  CHECK(riding->seat == 0);
+  CHECK(riding->position == boats()[0]->body.position);
+  auto sat = find<Respawned>(evs);
+  REQUIRE(sat);
+  const glm::vec3 driver_seat = seatPosition(boats()[0]->body.position, boats()[0]->yaw, 0);
+  CHECK(sat->position == driver_seat);
+  CHECK(ps(ida).position == driver_seat);
+
+  auto evs_b = board(b, idb, boat);
+  REQUIRE(find<Riding>(evs_b));
+  CHECK(find<Riding>(evs_b)->seat == 1);
+  CHECK(ps(idb).position == seatPosition(boats()[0]->body.position, boats()[0]->yaw, 1));
+
+  auto evs_c = board(c, idc, boat);
+  CHECK(rejected(evs_c));
+  CHECK_FALSE(ps(idc).riding);
+}
+
+TEST_CASE_FIXTURE(Harbour, "a boat out of reach, or something that isn't a boat, can't be boarded") {
+  EntityId boat = launch();
+  stand(a, ida, {14.5f, kBase + 1.0f, 14.5f});
+  CHECK(rejected(run(a, BoardBoat{boat})));
+  CHECK(rejected(run(a, BoardBoat{boat + 100})));
+  CHECK_FALSE(ps(ida).riding);
+}
+
+TEST_CASE_FIXTURE(Harbour, "getting out puts you on the bank, never in a block") {
+  EntityId boat = launch();
+  board(a, ida, boat);
+  auto evs = run(a, LeaveBoat{});
+  auto riding = find<Riding>(evs);
+  REQUIRE(riding);
+  CHECK(riding->boat == 0);
+  auto stood = find<Respawned>(evs);
+  REQUIRE(stood);
+  CHECK_FALSE(ps(ida).riding);
+  CHECK(ps(ida).position == stood->position);
+  // Dry land: standing on the stone, at the waterline.
+  CHECK(stood->position.y == doctest::Approx(kBase + 1.0f));
+  CHECK(glm::distance(stood->position, glm::vec3(6.5f, kBase + 1.0f, 7.5f)) <= 3.0f);
+  const World &w = game.world();
+  CHECK_FALSE(blocksMovement(w.getBlockAt(stood->position + glm::vec3(0, 0.5f, 0))));
+  CHECK_FALSE(blocksMovement(w.getBlockAt(stood->position + glm::vec3(0, 1.5f, 0))));
+  CHECK(blocksMovement(w.getBlockAt(stood->position - glm::vec3(0, 0.5f, 0))));
+}
+
+TEST_CASE_FIXTURE(Harbour, "far from land, getting out puts you in the water beside the boat") {
+  EntityId boat = launch();
+  board(a, ida, boat);
+  // Drive to the middle of a bigger pool.
+  fill(game.world(), {4, kBase - 2, 4}, {14, kBase, 14}, BlockType::WATER);
+  for (glm::vec3 to : {glm::vec3(8.0f, floatHeight(kSurface), 8.5f),
+                       glm::vec3(9.5f, floatHeight(kSurface), 9.5f)}) { // in two short moves
+    MovePlayer m = move(ida, ps(ida).position);
+    m.boat = boat;
+    m.boat_position = to;
+    m.boat_yaw = 90.0f;
+    CHECK_FALSE(find<Riding>(run(a, m)));
+  }
+  REQUIRE(boats()[0]->body.position.x == 9.5f);
+  auto stood = find<Respawned>(run(a, LeaveBoat{}));
+  REQUIRE(stood);
+  CHECK(isLiquid(game.world().getBlockAt(stood->position + glm::vec3(0, 0.1f, 0))));
+  CHECK(game.world().getBlockAt(stood->position + glm::vec3(0, 1.0f, 0)) == BlockType::AIR);
+}
+
+TEST_CASE_FIXTURE(Harbour, "the driver steers the boat, and the passenger moves with it") {
+  EntityId boat = launch();
+  board(a, ida, boat);
+  board(b, idb, boat);
+  const glm::vec3 from = boats()[0]->body.position;
+  MovePlayer m = move(ida, {0, 0, 0}); // a rider's own position is ignored
+  m.boat = boat;
+  m.boat_position = from + glm::vec3(0.0f, 0.0f, 1.5f);
+  m.boat_yaw = 180.0f;
+  auto evs = run(a, m);
+  CHECK_FALSE(find<Riding>(evs)); // taken: nothing to put back
+  CHECK(boats()[0]->body.position == m.boat_position);
+  CHECK(boats()[0]->yaw == 180.0f);
+  CHECK(ps(ida).position == seatPosition(m.boat_position, 180.0f, 0));
+  CHECK(ps(idb).position == seatPosition(m.boat_position, 180.0f, 1));
+}
+
+TEST_CASE_FIXTURE(Harbour, "a move too far or onto land is refused, and the boat is put back") {
+  EntityId boat = launch();
+  board(a, ida, boat);
+  const glm::vec3 from = boats()[0]->body.position;
+  for (glm::vec3 to : {from + glm::vec3(0, 0, 4.0f),               // too far at once
+                       glm::vec3(2.5f, kBase + 1.0f, 7.5f)}) {     // up onto the bank
+    MovePlayer m = move(ida, {0, 0, 0});
+    m.boat = boat;
+    m.boat_position = to;
+    auto riding = find<Riding>(run(a, m));
+    REQUIRE(riding);
+    CHECK(riding->position == from);
+    CHECK(boats()[0]->body.position == from);
+  }
+}
+
+TEST_CASE_FIXTURE(Harbour, "only the driver steers") {
+  EntityId boat = launch();
+  board(a, ida, boat);
+  board(b, idb, boat);
+  const glm::vec3 from = boats()[0]->body.position;
+  MovePlayer m = move(idb, {0, 0, 0});
+  m.boat = boat;
+  m.boat_position = from + glm::vec3(0.0f, 0.0f, 1.0f);
+  run(b, m);
+  CHECK(boats()[0]->body.position == from);
+}
+
+TEST_CASE_FIXTURE(Harbour, "when the driver gets out, the passenger stays a passenger") {
+  EntityId boat = launch();
+  board(a, ida, boat);
+  board(b, idb, boat);
+  run(a, LeaveBoat{});
+  REQUIRE(ps(idb).riding);
+  CHECK(ps(idb).riding->seat == 1);
+  // The next one in drives.
+  auto riding = find<Riding>(board(c, idc, boat));
+  REQUIRE(riding);
+  CHECK(riding->seat == 0);
+}
+
+TEST_CASE_FIXTURE(Harbour, "riders can't break, place, use or hit, but can fish") {
+  EntityId boat = launch();
+  board(a, ida, boat);
+  CHECK(rejected(run(a, BreakBlock{{3, kBase, 7}})));
+  hold(ida, itemForBlock(BlockType::STONE));
+  CHECK(rejected(run(a, PlaceBlock{{3, kBase + 1, 6}})));
+  hold(ida, ItemId::BOAT);
+  CHECK(rejected(run(a, UseItemOn{{8, kBase, 9}})));
+  stand(b, idb, {5.5f, kBase + 1.0f, 7.5f});
+  CHECK(rejected(run(a, AttackEntity{boat}))); // nor pick their own boat up
+
+  hold(ida, ItemId::FISHING_ROD);
+  CHECK_FALSE(rejected(run(a, CastLine{{1.0f, 0.0f, 0.0f}})));
+  REQUIRE(ps(ida).fishing);
+  const Entity *bobber = game.entities().find(ps(ida).fishing->bobber);
+  REQUIRE(bobber);
+  // Cast from a seated rider's eyes, not a standing player's.
+  CHECK(bobber->body.position.y < ps(ida).position.y + kSeatedEyeHeight + 0.1f);
+}
+
+TEST_CASE_FIXTURE(Harbour, "an empty boat is picked up by a hit; one with someone in it isn't") {
+  EntityId boat = launch();
+  board(b, idb, boat);
+  stand(a, ida, {3.6f, kBase + 1.0f, 7.5f});
+  CHECK(rejected(run(a, AttackEntity{boat})));
+  CHECK(boats().size() == 1);
+
+  run(b, LeaveBoat{});
+  auto evs = run(a, AttackEntity{boat});
+  CHECK_FALSE(rejected(evs));
+  CHECK(boats().empty());
+  CHECK(count(ida, ItemId::BOAT) == 1);
+  CHECK(find<InventoryContents>(evs));
+}
+
+TEST_CASE_FIXTURE(Harbour, "with a full inventory, a picked-up boat drops beside you") {
+  EntityId boat = launch();
+  for (int i = 0; i < kInventorySlots; ++i) ps(ida).inventory.set(i, {ItemId::SOGGY_BOOT, 1});
+  stand(a, ida, {3.6f, kBase + 1.0f, 7.5f});
+  run(a, AttackEntity{boat});
+  CHECK(boats().empty());
+  int dropped = 0;
+  for (const auto &[id, e] : game.entities().all())
+    dropped += e.kind == EntityKind::DroppedItem && e.item.id == ItemId::BOAT;
+  CHECK(dropped == 1);
+}
+
+TEST_CASE_FIXTURE(Harbour, "dying or leaving the game gets you out") {
+  EntityId boat = launch();
+  board(a, ida, boat);
+  board(b, idb, boat);
+  ps(ida).vitals.damage(1000);
+  game.tick();
+  CHECK_FALSE(ps(ida).riding);
+  auto riding = find<Riding>(pollAll(a));
+  REQUIRE(riding);
+  CHECK(riding->boat == 0);
+
+  game.removeClient(b);
+  // Both seats are free again.
+  CHECK(find<Riding>(board(c, idc, boat))->seat == 0);
+}
+
+TEST_CASE_FIXTURE(Harbour, "nothing can be built inside a boat") {
+  launch();
+  game.setMode(GameMode::Creative);
+  hold(idb, itemForBlock(BlockType::STONE));
+  stand(b, idb, {3.6f, kBase + 1.0f, 7.5f});
+  CHECK(rejected(run(b, PlaceBlock{{6, kBase + 1, 7}})));
+  CHECK(game.world().getBlockAt({6.5f, kBase + 1.5f, 7.5f}) == BlockType::AIR);
+}
+
+TEST_CASE_FIXTURE(Harbour, "others see who's sitting in which boat") {
+  EntityId boat = launch();
+  board(b, idb, boat);
+  pollAll(a);
+  game.tick();
+  std::optional<PlayerView> view;
+  for (const Event &e : pollAll(a))
+    if (const auto *snap = std::get_if<EntitySnapshot>(&e))
+      for (const PlayerView &p : snap->players)
+        if (p.id == idb) view = p;
+  REQUIRE(view);
+  CHECK(view->riding == boat);
+  CHECK(view->seat == 0);
+}
+
+TEST_CASE_FIXTURE(Harbour, "a rider can't go to bed") {
+  EntityId boat = launch();
+  board(a, ida, boat);
+  CHECK(rejected(run(a, UseBed{{3, kBase, 7}})));
 }

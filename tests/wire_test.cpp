@@ -302,6 +302,34 @@ TEST_CASE("map messages round-trip") {
   CHECK(std::get<Waypoints>(*wire::decodeEvent(enc(Event{w}))) == w);
 }
 
+TEST_CASE("boat messages round-trip") {
+  roundTrip(BoardBoat{77});
+  roundTrip(LeaveBoat{});
+  roundTrip(Riding{77, 1, {-3.5f, 62.85f, 900.25f}, -135.0f});
+  roundTrip(Riding{});
+  MovePlayer m;
+  m.boat = 77;
+  m.boat_position = {10.5f, 62.85f, -4.0f};
+  m.boat_yaw = 271.5f;
+  auto back = std::get<MovePlayer>(*wire::decodeCommand(enc(Command{m})));
+  CHECK(back.boat == 77);
+  CHECK(back.boat_position == m.boat_position);
+  CHECK(back.boat_yaw == m.boat_yaw);
+  // A boat position that isn't a number is refused, like any other.
+  m.boat_position.x = std::numeric_limits<float>::quiet_NaN();
+  CHECK_FALSE(wire::decodeCommand(enc(Command{m})));
+
+  EntitySnapshot snap;
+  PlayerView rider;
+  rider.name = "Aa";
+  rider.riding = 77;
+  rider.seat = 1;
+  snap.players.push_back(rider);
+  auto snap_back = std::get<EntitySnapshot>(*wire::decodeEvent(enc(Event{snap})));
+  CHECK(snap_back.players[0].riding == 77);
+  CHECK(snap_back.players[0].seat == 1);
+}
+
 TEST_CASE("bed messages round-trip") {
   roundTrip(UseBed{{-4, 70, 12}});
   roundTrip(LeaveBed{});

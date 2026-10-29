@@ -21,6 +21,7 @@ constexpr int kBoatSeats = 2;
 constexpr float kBoatSeatHeight = 0.26f;  // the seats' top, above the bottom
 constexpr float kBoatSeatOffset = 0.3f;   // each seat's distance from the middle
 constexpr float kSeatedEyeHeight = 0.85f; // a rider's eyes above the seat
+constexpr float kSeatedHeight = 1.25f;    // a rider's head, above the seat
 // The Game refuses a reported move longer than this (a frame at 8 b/s is
 // a fraction of it; a lagging frame still fits).
 constexpr float kBoatMaxStep = 3.0f;

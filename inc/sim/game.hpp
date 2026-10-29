@@ -180,6 +180,25 @@ private:
   void apply(Client &client, const UseItemOn &cmd);
   void apply(Client &client, const Chat &cmd);
   void apply(Client &client, const TogglePin &cmd);
+  void apply(Client &client, const BoardBoat &cmd);
+  void apply(Client &client, const LeaveBoat &cmd);
+  // Boats: putting one on the water, picking one up, who sits where, and
+  // getting out.
+  void placeBoat(Client &client, PlayerState &ps, glm::ivec3 pos);
+  void pickUpBoat(Client &client, PlayerState &ps, EntityId id);
+  PlayerState *riderIn(EntityId boat, int seat);
+  bool overlapsBoat(const glm::ivec3 &block) const;
+  // Every rider of the boat goes to their seat on it.
+  void seatRiders(const Entity &boat);
+  // Out of the boat, standing beside it.
+  void unseat(Client &client, PlayerState &ps);
+  // Where to stand after getting out of a boat at `boat` facing `yaw`: dry
+  // land beside it, else the water beside it, else straight up.
+  glm::vec3 besideBoat(glm::vec3 boat, float yaw) const;
+  // Where a player stands, for saving: a rider stands beside their boat.
+  glm::vec3 standingPosition(const PlayerState &ps) const;
+  // Riders who died or lost their boat get out; the rest follow their seats.
+  void tickBoats();
   // Bobbers float, bites come and go, and lines break.
   void tickFishing();
   // Takes the player's bobber out of the world and ends their fishing.
