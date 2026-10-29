@@ -117,7 +117,7 @@ void TitleMenu::drawTitle() {
   // subtitle goes under it.
   Rect logo = logoLayout(kGameTitle, io.DisplaySize.x, io.DisplaySize.y).bounds();
 
-  const char *subtitle = "build  -  explore  -  survive";
+  const char *subtitle = "dig deep  -  sail far";
   float sub_size = std::max(16.0f, logo.h * 0.24f);
   ImVec2 sub_ext = ImGui::GetFont()->CalcTextSizeA(sub_size, FLT_MAX, 0.0f, subtitle);
   ImVec2 sub_at(io.DisplaySize.x * 0.5f - sub_ext.x * 0.5f, logo.bottom() + sub_size * 0.6f);
