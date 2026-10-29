@@ -187,3 +187,16 @@ TEST_CASE("chat sits bottom-left beside the hotbar, clear of the rest of the HUD
     CHECK(l.chatPanel().bottom() == l.chatArea().bottom());
   }
 }
+
+TEST_CASE("the minimap sits in the top-left corner, clear of the open chat") {
+  for (auto [w, h] : {std::pair{1600.0f, 900.0f}, {800.0f, 600.0f}, {3840.0f, 2160.0f}}) {
+    CAPTURE(w);
+    HudLayout l(w, h);
+    Rect map = l.minimapArea();
+    CHECK(map.w == map.h);
+    CHECK(map.x > 0.0f);
+    CHECK(map.y > 0.0f);
+    CHECK(map.right() < w * 0.5f);
+    CHECK(map.bottom() < l.chatPanel().y);
+  }
+}
