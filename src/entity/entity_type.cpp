@@ -160,7 +160,8 @@ EntityTypeDef makeBlossomDeer() {
       {{0.05f, 1.33f, -0.79f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},
   };
   addLegs(d.model, 0.26f, -0.40f, 0.40f, {0.12f, 0.70f, 0.12f}, leg);
-  d.animal = AnimalDef{{itemForBlock(BlockType::OAK_LEAF)}, {ItemId::SWEET_PETALS, 1},
+  d.animal = AnimalDef{{itemForBlock(BlockType::OAK_LEAF), itemForBlock(BlockType::FERN)},
+                       {ItemId::SWEET_PETALS, 1},
                        {BiomeType::CHERRY}, {BlockType::GRASS}};
   return d;
 }

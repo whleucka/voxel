@@ -53,7 +53,7 @@ TEST_CASE("recipe ids are stable: they travel on the wire") {
   CHECK(all[16].makes.id == block(BlockType::FURNACE));
 }
 
-TEST_CASE("only planks, sticks, the table and a boat can be made without a table") {
+TEST_CASE("only planks, sticks, the table, a boat, torches and compost need no table") {
   for (const Recipe &r : recipes()) {
     CAPTURE(itemDef(r.makes.id).name);
     bool basic = r.makes.id == ItemId::STICKS ||
@@ -62,7 +62,9 @@ TEST_CASE("only planks, sticks, the table and a boat can be made without a table
                  r.makes.id == block(BlockType::PINE_PLANKS) ||
                  r.makes.id == block(BlockType::PALM_PLANKS) ||
                  r.makes.id == block(BlockType::CHERRY_PLANKS) ||
-                 r.makes.id == ItemId::BOAT; // made at the shore
+                 r.makes.id == ItemId::BOAT || // made at the shore
+                 r.makes.id == block(BlockType::TORCH) || // made in a dark cave
+                 r.makes.id == ItemId::COMPOST;
     CHECK(r.needs_table == !basic);
   }
 }
@@ -73,7 +75,7 @@ TEST_CASE("a recipe is known once every ingredient has been seen") {
   CHECK_FALSE(knows(red, seen));
   see(seen, block(BlockType::WHITE_BLOCK));
   CHECK_FALSE(knows(red, seen));
-  see(seen, ItemId::RUBY);
+  see(seen, block(BlockType::POPPY));
   CHECK(knows(red, seen));
 
   // "Any planks": seeing one kind is enough.
@@ -137,4 +139,101 @@ TEST_CASE("storage is used before the hotbar") {
   auto after = craftOnce(recipeMaking(block(BlockType::STONE_BRICKS)), inv);
   REQUIRE(after);
   CHECK(after->slot(0) == ItemStack{block(BlockType::COBBLESTONE), 4});
+}
+
+// ─── Biome plants ──────────────────────────────────────────────────────
+
+namespace {
+
+// Whether some recipe makes `makes` from `needs` (as the only choice, or
+// one of them, for each ingredient), and how many.
+std::optional<uint16_t> made(ItemId makes, std::vector<std::pair<ItemId, uint16_t>> needs) {
+  for (const Recipe &r : recipes()) {
+    if (r.makes.id != makes || r.needs.size() != needs.size()) continue;
+    bool all = true;
+    for (size_t i = 0; i < needs.size(); ++i) {
+      const auto &any = r.needs[i].any_of;
+      all &= r.needs[i].count == needs[i].second &&
+             std::find(any.begin(), any.end(), needs[i].first) != any.end();
+    }
+    if (all) return r.makes.count;
+  }
+  return std::nullopt;
+}
+
+bool usedBySomething(ItemId id) {
+  for (const Recipe &r : recipes())
+    for (const Ingredient &in : r.needs)
+      if (std::find(in.any_of.begin(), in.any_of.end(), id) != in.any_of.end()) return true;
+  return false;
+}
+
+} // namespace
+
+TEST_CASE("each colour's dye is its flower, and gems no longer paint") {
+  const ItemId white = block(BlockType::WHITE_BLOCK);
+  const std::pair<BlockType, BlockType> colours[] = {
+      {BlockType::RED_BLOCK, BlockType::POPPY},     {BlockType::ORANGE_BLOCK, BlockType::HIBISCUS},
+      {BlockType::YELLOW_BLOCK, BlockType::BUTTERCUP}, {BlockType::GREEN_BLOCK, BlockType::CACTUS},
+      {BlockType::BLUE_BLOCK, BlockType::CORNFLOWER}, {BlockType::PURPLE_BLOCK, BlockType::LAVENDER},
+      {BlockType::PINK_BLOCK, BlockType::PINK_TULIP}};
+  for (const auto &[colour, plant] : colours) {
+    CAPTURE(blockName(colour));
+    CHECK(made(block(colour), {{white, 8}, {block(plant), 1}}) == 8);
+    CHECK(made(bedItem(static_cast<BedColour>(static_cast<int>(colour) -
+                                              static_cast<int>(BlockType::WHITE_BLOCK))),
+               {{ItemId::WHITE_BED, 1}, {block(plant), 1}}) == 1);
+  }
+  for (ItemId old : {ItemId::RUBY, ItemId::RAW_COPPER, ItemId::RAW_GOLD, ItemId::EMERALD,
+                     ItemId::BERRIES, ItemId::SWEET_PETALS})
+    for (const auto &[colour, plant] : colours) {
+      CAPTURE(itemDef(old).name);
+      CHECK_FALSE(made(block(colour), {{white, 8}, {old, 1}}));
+    }
+  // The red recipe keeps its id: it's the same recipe with a new dye.
+  CHECK(recipes()[8].makes.id == block(BlockType::RED_BLOCK));
+}
+
+TEST_CASE("white blocks come from sand and wool, a daisy or a sea shell") {
+  const ItemId sand = block(BlockType::SAND), white = block(BlockType::WHITE_BLOCK);
+  CHECK(made(white, {{sand, 8}, {ItemId::WOOL, 1}}) == 8);
+  CHECK(made(white, {{sand, 8}, {block(BlockType::DAISY), 1}}) == 8);
+  CHECK(made(white, {{sand, 8}, {ItemId::SEA_SHELL, 1}}) == 8);
+  CHECK(recipes()[7].makes.id == white);
+}
+
+TEST_CASE("torches, bricks, compost and the plant foods") {
+  CHECK(made(block(BlockType::TORCH), {{ItemId::COAL, 1}, {ItemId::STICKS, 1}}) == 4);
+  CHECK(made(block(BlockType::TORCH), {{ItemId::CHARCOAL, 1}, {ItemId::STICKS, 1}}) == 4);
+  CHECK(made(block(BlockType::SANDSTONE_BRICKS), {{block(BlockType::SANDSTONE), 4}}) == 4);
+  CHECK(made(block(BlockType::SNOW_BRICKS), {{block(BlockType::SNOW), 4}}) == 4);
+  for (BlockType leaf : {BlockType::OAK_LEAF, BlockType::PINE_LEAF, BlockType::PALM_LEAF,
+                         BlockType::CHERRY_LEAF})
+    CHECK(made(ItemId::COMPOST, {{block(leaf), 4}}) == 1);
+  CHECK(made(ItemId::MUSHROOM_STEW, {{block(BlockType::RED_MUSHROOM), 1},
+                                     {block(BlockType::BROWN_MUSHROOM), 1}}) == 1);
+  CHECK(made(ItemId::BERRY_COOKIE, {{ItemId::WHEAT, 2}, {ItemId::BERRIES, 1}}) == 4);
+  CHECK(made(block(BlockType::CAKE_4), {{ItemId::WHEAT, 3},
+                                        {ItemId::STRAWBERRY, 2},
+                                        {ItemId::SWEET_PETALS, 1}}) == 1);
+  CHECK(itemDef(ItemId::MUSHROOM_STEW).food_heal == 8);
+  CHECK(itemDef(ItemId::BERRY_COOKIE).food_heal == 2);
+}
+
+TEST_CASE("nothing new is a dead end: every plant and find is used for something") {
+  // In a recipe...
+  for (BlockType b : {BlockType::POPPY, BlockType::BUTTERCUP, BlockType::CORNFLOWER,
+                      BlockType::PINK_TULIP, BlockType::DAISY, BlockType::LAVENDER,
+                      BlockType::HIBISCUS, BlockType::RED_MUSHROOM, BlockType::BROWN_MUSHROOM,
+                      BlockType::CACTUS, BlockType::SANDSTONE, BlockType::SNOW,
+                      BlockType::OAK_LEAF, BlockType::PINE_LEAF})
+    CHECK(usedBySomething(block(b)));
+  for (ItemId id : {ItemId::SEA_SHELL, ItemId::BERRIES, ItemId::SWEET_PETALS, ItemId::RUBY,
+                    ItemId::EMERALD, ItemId::STICKS, ItemId::COAL, ItemId::WHEAT})
+    CHECK(usedBySomething(id));
+  // ...or useful in itself: placed, eaten, planted or used. (Ferns feed
+  // Blossom Deer, a berry bush is replanted, coral and torches are placed,
+  // dead bushes give sticks and tall grass seeds.)
+  CHECK(itemDef(ItemId::MUSHROOM_STEW).food_heal > 0);
+  CHECK(itemDef(ItemId::BERRY_COOKIE).food_heal > 0);
 }

@@ -593,7 +593,7 @@ TEST_CASE_FIXTURE(EditGame, "creative knows every recipe") {
   // Put the ingredients straight in, so neither counts as seen.
   PlayerState &me = *game.findPlayer(id);
   me.inventory.set(20, {itemForBlock(BlockType::WHITE_BLOCK), 8});
-  me.inventory.set(21, {ItemId::RUBY, 1});
+  me.inventory.set(21, {itemForBlock(BlockType::POPPY), 1});
   game.world().setBlockAt({5, ground + 1, 6}, BlockType::CRAFTING_TABLE);
   CHECK(reason(run(Craft{kRedRecipe, false})) == "craft: you haven't discovered that yet");
 
