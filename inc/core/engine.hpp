@@ -3,6 +3,7 @@
 #include "glad/glad.h"
 #include "player/player.hpp"
 #include "render/camera.hpp"
+#include "core/frame_profile.hpp"
 #include "core/session.hpp"
 #include "ui/chat_view.hpp"
 #include "ui/hud.hpp"
@@ -13,6 +14,7 @@
 #include "entity/entity_interp.hpp"
 #include "render/block_outline.hpp"
 #include "render/entity_renderer.hpp"
+#include "render/gpu_timer.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <memory>
@@ -101,6 +103,12 @@ private:
   TitleMenu menu;
   MenuScene scene; // the live world behind the menu
   double join_started = 0.0; // a guest waiting for Joined since then
+
+  // Where each played frame's time goes, for the debug panel.
+  FrameProfile frame_profile;
+  GpuTimer gpu_timer;
+  enum GpuSpan { kGpuScene, kGpuHud };
+  void endProfiledFrame();
 
   bool first_mouse = true;
   float last_frame = 0.0f;

@@ -25,6 +25,7 @@ Renderer::~Renderer() {
   if (cloud_ebo) glDeleteBuffers(1, &cloud_ebo);
   if (shadow_fbo) glDeleteFramebuffers(1, &shadow_fbo);
   if (shadow_depth_tex) glDeleteTextures(1, &shadow_depth_tex);
+  shadow_timer.shutdown();
 }
 
 void Renderer::init() {
@@ -40,6 +41,7 @@ void Renderer::init() {
   initSkybox();
   initCloudBuffers();
   initShadowMap();
+  shadow_timer.init();
 }
 
 void Renderer::initSkybox() {
@@ -208,6 +210,9 @@ void Renderer::shadowPass(
     const glm::vec3 &cameraPos, float timeOfDay,
     int viewportWidth, int viewportHeight)
 {
+  // Once a frame, whether or not there are shadows to draw.
+  stats.shadow_gpu_ms = shadow_timer.endFrame()[0];
+
   // Default to "nothing drawn" so the debug panel is correct on any early out.
   stats.shadow_chunks_total = static_cast<int>(chunks.size());
   stats.shadow_chunks_drawn = 0;
@@ -229,6 +234,7 @@ void Renderer::shadowPass(
   light_space_matrix = computeLightSpaceMatrix(sunDir, cameraPos);
 
   // Bind shadow FBO and render depth
+  shadow_timer.begin(0);
   glViewport(0, 0, shadow_map_size, shadow_map_size);
   glBindFramebuffer(GL_FRAMEBUFFER, shadow_fbo);
   glClear(GL_DEPTH_BUFFER_BIT);
@@ -265,6 +271,8 @@ void Renderer::shadowPass(
     chunk->getMesh().renderOpaque();
     ++stats.shadow_chunks_drawn;
   }
+
+  shadow_timer.end(0);
 
   // Restore state
   glDisable(GL_POLYGON_OFFSET_FILL);

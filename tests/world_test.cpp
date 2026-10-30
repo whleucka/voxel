@@ -339,6 +339,38 @@ TEST_CASE("streamed-in cave light matches one flood over the whole area") {
   g_settings = saved;
 }
 
+TEST_CASE("light after many edits by lights and borders matches one flood") {
+  ScopedRenderDistance rd{0};
+  Settings saved = g_settings;
+  g_settings.world_seed = 12345;
+  g_settings.noise_offset = noiseOffsetFor(12345);
+  g_settings.worldgen = worldgen::kCaves;
+  {
+    // The cave system with glow crystals, then lamps lit, put out and walled
+    // in across the inner chunks' borders and corners, in open air and in rock.
+    World world;
+    const int cx0 = -43, cz0 = -43, n = 7;
+    for (int i = 0; i < n; ++i)
+      for (int j = 0; j < n; ++j) world.loadChunkSync(cx0 + i, cz0 + j);
+    const BlockType kinds[] = {BlockType::GLOWSTONE, BlockType::TORCH, BlockType::GLOW_CRYSTAL,
+                               BlockType::AIR, BlockType::STONE, BlockType::WATER,
+                               BlockType::GLASS};
+    std::mt19937 rng(5);
+    const int lo = (cx0 + 2) * kChunkWidth, span = 3 * kChunkWidth;
+    for (int k = 0; k < 300; ++k) {
+      int x = lo + int(rng() % span), z = (cz0 + 2) * kChunkDepth + int(rng() % span);
+      if (k % 2) { // on a border
+        x = (x & ~(kChunkWidth - 1)) + (rng() % 2 ? 0 : kChunkWidth - 1);
+        z = (z & ~(kChunkDepth - 1)) + (rng() % 2 ? 0 : kChunkDepth - 1);
+      }
+      const int y = 20 + int(rng() % 120);
+      world.setBlockAt({x, y, z}, kinds[rng() % std::size(kinds)]);
+    }
+    checkInnerLightMatches(world, cx0, cz0, n, 2);
+  }
+  g_settings = saved;
+}
+
 TEST_CASE("walling a lamp in darkens the chunk next door too") {
   World world;
   world.loadChunkSync(0, 0);

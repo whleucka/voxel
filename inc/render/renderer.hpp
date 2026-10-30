@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chunk/chunk.hpp"
+#include "render/gpu_timer.hpp"
 #include "render/shader.hpp"
 #include "render/texture_manager.hpp"
 #include <memory>
@@ -13,6 +14,8 @@ struct RenderStats {
   int chunks_drawn = 0;         // opaque chunks submitted in the main pass
   int shadow_chunks_drawn = 0;  // chunks submitted into the shadow map
   int shadow_chunks_total = 0;  // chunks the shadow pass considered
+  // The shadow pass on the GPU some frames ago, when a timing came in.
+  std::optional<double> shadow_gpu_ms;
 };
 
 // Sun, ambient and fog for a time of day; shared by every world-space pass
@@ -97,6 +100,7 @@ private:
   int shadow_map_size = 2048;   // current allocated resolution
 
   RenderStats stats;
+  GpuTimer shadow_timer;
 
   TextureManager *texture_manager = nullptr;
 };
