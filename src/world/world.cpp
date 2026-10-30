@@ -537,6 +537,19 @@ void World::setBlockAt(const glm::ivec3& worldPos, BlockType type) {
   }
 }
 
+void sortNearestFirst(std::vector<Chunk *> &chunks, const glm::vec3 &viewer) {
+  std::vector<std::pair<float, Chunk *>> by_distance;
+  by_distance.reserve(chunks.size());
+  for (Chunk *c : chunks) {
+    glm::vec2 centre = (glm::vec2(c->getPos()) + 0.5f) * glm::vec2(kChunkWidth, kChunkDepth);
+    glm::vec2 d = centre - glm::vec2(viewer.x, viewer.z);
+    by_distance.emplace_back(glm::dot(d, d), c);
+  }
+  std::sort(by_distance.begin(), by_distance.end(),
+            [](const auto &a, const auto &b) { return a.first < b.first; });
+  for (size_t i = 0; i < chunks.size(); ++i) chunks[i] = by_distance[i].second;
+}
+
 bool World::isChunkInFrustum(const glm::vec4 planes[6], const glm::vec3 &min,
                              const glm::vec3 &max) {
   for (int i = 0; i < 6; i++) {
@@ -597,7 +610,10 @@ void World::render(glm::mat4 &view, glm::mat4 &projection, float timeOfDay,
       renderer->drawSky(view, projection, timeOfDay);
     }
 
-    renderer->drawOpaqueChunks(visible(), view, projection,
+    // Nearest first: the GPU skips shading what's already hidden.
+    std::vector<Chunk *> opaque = visible();
+    sortNearestFirst(opaque, viewer_pos);
+    renderer->drawOpaqueChunks(opaque, view, projection,
                                viewer_pos, viewer_underwater, timeOfDay);
   }
 
