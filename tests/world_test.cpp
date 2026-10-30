@@ -155,6 +155,31 @@ TEST_CASE("findSpawn picks a standable column") {
   CHECK(world.getBlockAt(spawn + glm::vec3(0, 1.5f, 0)) == BlockType::AIR);
 }
 
+TEST_CASE("findSpawn stands you on the surface, never in a cave") {
+  // Caves and plants (a flower on the top grass) once sent the search on
+  // down the column to a cave floor.
+  ScopedSeed seed;
+  const uint8_t saved_gen = g_settings.worldgen;
+  g_settings.worldgen = worldgen::kLatest;
+  for (int i = 0; i < 12; ++i) {
+    CAPTURE(i);
+    g_settings.world_seed = 1000 + i;
+    g_settings.noise_offset = {i * 9137.0f, i * -4211.0f};
+    World world;
+    glm::vec3 spawn = world.findSpawn();
+    int cx = static_cast<int>(std::floor(spawn.x / kChunkWidth));
+    int cz = static_cast<int>(std::floor(spawn.z / kChunkDepth));
+    world.loadChunkSync(cx, cz);
+    CAPTURE(spawn.y);
+    for (int y = static_cast<int>(spawn.y); y < kChunkHeight; ++y) {
+      BlockType b = world.getBlockAt({spawn.x, y + 0.5f, spawn.z});
+      CAPTURE(y);
+      REQUIRE_FALSE(blocksMovement(b)); // open to the sky
+    }
+  }
+  g_settings.worldgen = saved_gen;
+}
+
 // ─── Remote edits ──────────────────────────────────────────────────────
 
 TEST_CASE("an edit to a chunk that isn't loaded appears when it loads") {

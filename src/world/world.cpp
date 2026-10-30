@@ -57,15 +57,18 @@ glm::vec3 World::findSpawn() const {
   Chunk spawn_chunk(spawn_cx, spawn_cz);
   spawn_chunk.init();
 
-  // Scan all columns for grass/dirt with 2 clear air blocks above (player is
-  // 1.8 blocks tall so we need y+1 and y+2 both to be air).
+  // Each column's surface: its topmost block that you can't walk through
+  // (plants on top don't count). A spot there needs two passable blocks above
+  // (the player is 1.8 tall). Only the surface is looked at: going on down a
+  // column whose top doesn't suit finds cave floors.
   auto scanColumn = [&](int lx, int lz, auto predicate) -> int {
     for (int y = kChunkHeight - 3; y >= 1; --y) {
-      BlockType surface = spawn_chunk.at(lx, y,     lz);
-      BlockType above1  = spawn_chunk.at(lx, y + 1, lz);
-      BlockType above2  = spawn_chunk.at(lx, y + 2, lz);
-      if (predicate(surface) && above1 == BlockType::AIR && above2 == BlockType::AIR)
+      BlockType surface = spawn_chunk.at(lx, y, lz);
+      if (!blocksMovement(surface) && !isLiquid(surface)) continue;
+      if (predicate(surface) && isPassable(spawn_chunk.at(lx, y + 1, lz)) &&
+          isPassable(spawn_chunk.at(lx, y + 2, lz)))
         return y + 1;
+      return -1;
     }
     return -1;
   };
