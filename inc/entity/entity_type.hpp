@@ -30,6 +30,8 @@ enum class EntityKind : uint16_t {
   Zombie = 14,      // more enemies
   Mummy = 15,
   Boat = 16,        // ridden on water
+  Puppy = 17,       // pets: tamed with treats, then follow their owner
+  Kitten = 18,
 };
 
 // One cuboid of a box model, in blocks, relative to the entity's feet
@@ -41,7 +43,12 @@ struct ModelBox {
   int swing = 0;          // legs: +1 / -1 swing in opposite phases while moving
   bool glow = false;      // drawn at full brightness, unlit (glowing eyes)
   bool wag = false;       // tails: swing side to side about the box's front edge
+  bool collar = false;    // pets: drawn in the pet's collar colour, and only once tamed
 };
+
+// Collar colours, numbered 1..8 in the coloured beds' order (0: no collar).
+constexpr int kCollarColours = 8;
+glm::vec3 collarColour(uint8_t collar);
 
 // Friendly animals: fed, never hurt.
 struct AnimalDef {
@@ -49,6 +56,9 @@ struct AnimalDef {
   ItemStack product;               // what it gives when fed
   std::vector<BiomeType> biomes;   // where it spawns
   std::vector<BlockType> ground;   // what it spawns standing on
+  // Pets: a stray becomes yours after this many treats (`eats`). 0: not a
+  // pet. Pets give nothing back, so their product is empty.
+  int tame_treats = 0;
 };
 
 // Night and cave creatures: they chase players and hurt them on contact.
@@ -91,12 +101,17 @@ struct EntityTypeDef {
   // Boats: kept until picked up (never despawned) and moved only by the
   // Game, so the EntityStore leaves them where they are.
   bool vehicle = false;
+  float sit_drop = 0.0f; // pets: how far the body lowers when sitting (legs hidden)
 };
 
 const EntityTypeDef &entityType(EntityKind kind);
 bool isValidEntityKind(EntityKind kind);
 inline bool isAnimal(EntityKind kind) {
   return isValidEntityKind(kind) && entityType(kind).animal.has_value();
+}
+
+inline bool isPetKind(EntityKind kind) {
+  return isAnimal(kind) && entityType(kind).animal->tame_treats > 0;
 }
 
 inline bool isEnemy(EntityKind kind) {
@@ -116,5 +131,6 @@ constexpr EntityKind kAnimalKinds[] = {EntityKind::Woolly, EntityKind::Bunny,
 constexpr EntityKind kEnemyKinds[] = {EntityKind::Gloomling, EntityKind::ThornCrawler,
                                       EntityKind::CaveGrumble, EntityKind::Zombie,
                                       EntityKind::Mummy};
+constexpr EntityKind kPetKinds[] = {EntityKind::Puppy, EntityKind::Kitten};
 constexpr EntityKind kFishKinds[] = {EntityKind::Pebblefish, EntityKind::Sunfin,
                                      EntityKind::Glowfin};

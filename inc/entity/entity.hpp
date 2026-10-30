@@ -6,8 +6,18 @@
 #include "physics/physics_body.hpp"
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <string>
 
 using EntityId = uint32_t;
+
+// Whose pet it is: the host, or a guest by name (names outlast PlayerIds).
+struct PetOwner {
+  bool host = true;
+  std::string name; // guests only
+  uint8_t collar = 1; // 1..kCollarColours
+  bool sitting = false;
+};
 
 // Anything in the world that isn't a block or a player. Owned and simulated by
 // the Game's EntityStore; clients only ever see snapshots.
@@ -29,6 +39,11 @@ struct Entity {
   int happy_ms = 0;         // showing a heart
   int product_delay_ms = 0; // until the product pops out
   bool product_pending = false;
+
+  // Pets only
+  int treats = 0;                   // strays: toward taming
+  std::optional<PetOwner> pet;      // set once tamed
+  std::optional<glm::vec3> follow;  // the owner's feet, set by the Game each tick
 
   // Fish only
   int stranded_ms = 0; // out of water this long; it vanishes at kStrandedMs

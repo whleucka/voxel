@@ -112,3 +112,26 @@ private:
   glm::vec3 planned_for{0.0f};
   int replan_ms = 0;
 };
+
+// Pets. A stray wanders cautiously. A pet that's sitting, or whose owner
+// isn't here, stays put. Otherwise it walks over to its owner (`follow`)
+// once they're more than kFollowFrom away, along a path, and stops within
+// kStopAt. It counts how long it has gone without getting closer, so the
+// Game can bring a stuck pet along.
+class PetBrain : public Brain {
+public:
+  static constexpr float kFollowFrom = 3.0f;
+  static constexpr float kStopAt = 2.0f;
+  static constexpr float kProgress = 0.5f; // closer by this much resets the stuck timer
+
+  PetBrain();
+  Intent think(const Entity &self, const BrainContext &ctx) override;
+  int stuckMs() const { return stuck_ms; }
+
+private:
+  WanderBrain wander;
+  ChaseBrain walk; // aimed at the owner alone
+  bool going = false;
+  float best = 0.0f;
+  int stuck_ms = 0;
+};

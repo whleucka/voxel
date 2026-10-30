@@ -64,11 +64,12 @@ void EntityStore::tick(const World &world, Rng &rng, std::span<const glm::vec3> 
 
     // Boats stay where they were left, and only the Game moves them.
     if (def.vehicle) continue;
-    if (def.despawn_age_ms > 0 && e.age_ms >= def.despawn_age_ms) {
+    // Tamed pets are kept for good; strays come and go like other animals.
+    if (!e.pet && def.despawn_age_ms > 0 && e.age_ms >= def.despawn_age_ms) {
       gone.push_back(id);
       continue;
     }
-    if (!players.empty()) {
+    if (!e.pet && !players.empty()) {
       float nearest = kDespawnDistance + 1.0f;
       for (const glm::vec3 &p : players)
         nearest = std::min(nearest, glm::distance(p, e.body.position));
