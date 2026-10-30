@@ -96,10 +96,10 @@ public:
 private:
   void populateChunk(Chunk &chunk, const ChunkKey &key);
   void rebuildChunk(int cx, int cz);
-  // Cross-chunk block-light: recompute a 5x5 chunk box around (ccx,ccz) into a
-  // temp buffer and persist the inner 3x3. Correct when light must also go
-  // down (a torch placed, broken or walled in), but costly: for edits only.
-  void relightBlockRegion(int ccx, int ccz);
+  // Cross-chunk block-light: recompute the light within reach of an edit at
+  // `pos`. Correct when light must also go down (a torch placed, broken or
+  // walled in), but costlier than spreadBorderLight: for edits only.
+  void relightBlockRegion(const glm::ivec3 &pos);
   // Lets block light cross the borders between `origin` and its loaded
   // neighbours, and on through any chunk that brightens. Cheap, and safe on
   // any thread; light only rises. Returns the chunks other than `origin`

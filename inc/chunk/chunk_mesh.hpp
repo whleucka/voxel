@@ -17,11 +17,8 @@ public:
   ChunkMesh();
   ~ChunkMesh();
 
-  // A neighbouring cell; `unloaded` stands in for a chunk not loaded yet.
-  static BlockType  getBlock(World*, const Chunk&, int, int, int,
-                             BlockType unloaded = BlockType::AIR);
-  static uint8_t    getSkyLight(World*, const Chunk&, int, int, int);
-  static uint8_t    getBlockLight(World*, const Chunk&, int, int, int);
+  // Builds the vertices from a copy of the chunk and the edges of its
+  // neighbours, each copied under its own lock.
   void generateCPU(World* world, const Chunk& chunk, TextureManager& texture_manager); // CPU-only
   void upload();     // GL only (main thread)
   void renderOpaque();

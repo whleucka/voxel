@@ -8,6 +8,7 @@
 #include "block/plant.hpp"
 #include "block/stairs.hpp"
 #include "robin_hood/robin_hood.h"
+#include <array>
 #include <glm/glm.hpp>
 #include <string_view>
 
@@ -198,7 +199,9 @@ inline bool shouldRenderFace(BlockType current, BlockType neighbor) {
 
 // Returns the number of sky-light levels absorbed when light passes through
 // a block.  0 = fully transparent (air), 15 = fully opaque (stone, dirt…).
-inline uint8_t skyLightOpacity(BlockType type) {
+// The light floods ask this for every cell they reach, so it is looked up in
+// a table made from skyLightOpacityOf.
+inline uint8_t skyLightOpacityOf(BlockType type) {
   switch (type) {
     case BlockType::AIR:
     case BlockType::GLASS:
@@ -217,6 +220,16 @@ inline uint8_t skyLightOpacity(BlockType type) {
                  ? 0
                  : 15;
   }
+}
+
+inline const std::array<uint8_t, 256> kSkyLightOpacity = [] {
+  std::array<uint8_t, 256> t{};
+  for (int i = 0; i < 256; ++i) t[i] = skyLightOpacityOf(static_cast<BlockType>(i));
+  return t;
+}();
+
+inline uint8_t skyLightOpacity(BlockType type) {
+  return kSkyLightOpacity[static_cast<uint8_t>(type)];
 }
 
 // Light a block emits on its own, 0 (none) .. 15 (max, like glowstone).

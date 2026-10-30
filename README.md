@@ -112,7 +112,7 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **ESC:** Close the inventory, or open the pause menu (Resume, Settings,
     Save game, Return to title screen, Exit game). Single player pauses.
 *   **F5:** Save the world. **F11:** Toggle fullscreen.
-*   **F12:** Debug panel (info, stats, wireframe, V-sync and host cheats).
+*   **F12:** Debug panel (info, stats, where each frame's time goes on the CPU and GPU, wireframe, V-sync and host cheats).
 
 ## The map
 

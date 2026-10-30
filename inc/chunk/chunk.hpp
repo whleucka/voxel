@@ -70,11 +70,21 @@ public:
   // World writes cross-chunk light results back into this chunk).
   void setBlockLightLinear(uint32_t index, uint8_t value);
 
+  // The raw arrays (x fastest, then z, then y), for copying out in bulk.
+  const BlockType *blockData() const { return blocks.data(); }
+  const uint8_t *skyLightData() const { return skylight.data(); }
+  const uint8_t *blockLightData() const { return blocklight.data(); }
+
   ChunkMesh &getMesh() { return mesh; }
   glm::mat4 getModelMatrix() const;
   glm::ivec2 getPos() const { return pos; }
 
-  std::mutex data_mutex; // guards blocks[] during concurrent write/mesh-gen
+  // Guards blocks[] and the light during concurrent writes and copies. Hold
+  // only one chunk's at a time.
+  mutable std::mutex data_mutex;
+  // Held through a mesh build, so builds of one chunk run in turn and the last
+  // one queued sees the latest blocks.
+  std::mutex mesh_mutex;
 
 private:
   glm::ivec2 pos;
@@ -84,9 +94,13 @@ private:
   int emitter_count = 0; // number of light-emitting blocks in this chunk
   ChunkMesh mesh;
 
-  using LightQueue = std::queue<std::tuple<int, int, int>>;
-  // Spreads block light outward from every queued block, within this chunk.
-  void floodBlockLight(LightQueue &queue);
+  // Cells by linear index, flooded oldest first.
+  using LightQueue = std::vector<uint32_t>;
+  // Spreads `light` (sky or block) outward from every queued block, within
+  // this chunk.
+  void floodLight(std::vector<uint8_t> &light, LightQueue &queue);
+  // Whether the light at (x, y, z) would brighten a neighbour.
+  bool brightensNeighbour(const std::vector<uint8_t> &light, int x, int y, int z) const;
   // The (x, z) of the i-th block along `face`.
   static glm::ivec2 faceCell(int face, int i);
 };

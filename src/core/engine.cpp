@@ -122,6 +122,7 @@ bool Engine::init() {
   if (!entity_renderer.init())
     std::cerr << "Entity textures unavailable\n";
   block_outline.init();
+  gpu_timer.init();
 
   return true;
 }
@@ -135,20 +136,41 @@ void Engine::run() {
     applyDisplaySettings();
     updateCursor();
 
-    if (playing()) {
-      processInput(window);
+    const bool in_game = playing();
+    if (in_game) {
+      {
+        FrameProfile::Scoped t(frame_profile, FrameProfile::Update);
+        processInput(window);
+      }
       update();
       if (playing()) render(); // the update may have ended the game
     } else {
       menuFrame();
     }
 
+    const double swap_start = glfwGetTime();
     glfwSwapBuffers(window);
+    if (in_game) {
+      frame_profile.add(FrameProfile::Swap, (glfwGetTime() - swap_start) * 1000.0);
+      endProfiledFrame();
+    }
     glfwPollEvents();
   }
 
   endSession(); // persist on quit
   scene.close(); // while the GL context is still alive
+}
+
+// The GPU's timings come in some frames late, and are added to the frame
+// being closed.
+void Engine::endProfiledFrame() {
+  auto gpu = gpu_timer.endFrame();
+  if (gpu[kGpuScene]) frame_profile.add(FrameProfile::GpuScene, *gpu[kGpuScene]);
+  if (gpu[kGpuHud]) frame_profile.add(FrameProfile::GpuHud, *gpu[kGpuHud]);
+  if (playing())
+    if (auto shadows = world().getRenderStats().shadow_gpu_ms)
+      frame_profile.add(FrameProfile::GpuShadows, *shadows);
+  frame_profile.endFrame();
 }
 
 // ─── Display settings ──────────────────────────────────────────────────
@@ -375,6 +397,7 @@ void Engine::processInput(GLFWwindow *window) {
 
 void Engine::update() {
   if (!PauseMenu::worldRuns(session->mode() == Session::Mode::Single, paused())) return;
+  std::optional<FrameProfile::Scoped> moving(std::in_place, frame_profile, FrameProfile::Update);
   // Physics runs locally; the Game is told where we ended up, and streams
   // chunks around every player's reported position when it pumps. In a
   // boat, the driver steers it here and everyone sits in their seat.
@@ -416,12 +439,19 @@ void Engine::update() {
   connection().send(move);
   session->follow(player->getPosition());
   if (g_settings.show_minimap) minimap.update(world(), player->getPosition(), delta_time);
+  moving.reset();
 
-  session->frame(delta_time, glfwGetTime());
-  handleEvents();
+  {
+    FrameProfile::Scoped t(frame_profile, FrameProfile::Game);
+    session->frame(delta_time, glfwGetTime());
+    handleEvents();
+  }
   if (!session) return; // the game ended (host left, connection lost)
 
-  world().update(delta_time);
+  {
+    FrameProfile::Scoped t(frame_profile, FrameProfile::Uploads);
+    world().update(delta_time);
+  }
 
   if (g_settings.wireframe) {
     glLineWidth(2.0f);
@@ -588,6 +618,8 @@ std::optional<EntityView> Engine::rideView(double now) const {
 // ─── Render ────────────────────────────────────────────────────────────
 
 void Engine::render() {
+  std::optional<FrameProfile::Scoped> scene(std::in_place, frame_profile, FrameProfile::Scene);
+  gpu_timer.begin(kGpuScene);
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -641,6 +673,10 @@ void Engine::render() {
     if (auto aimed = BlockOutline::target(world(), eye.position, eye.front, reach))
       block_outline.draw(*aimed, BlockOutline::boxes(world(), *aimed), view, proj);
   }
+
+  gpu_timer.end(kGpuScene);
+  scene.reset();
+  FrameProfile::Scoped hud_time(frame_profile, FrameProfile::Hud);
 
   // ImGui frame must always be opened here so both renderCrosshair() and
   // debug() can safely submit widgets regardless of game state.
@@ -810,6 +846,26 @@ void Engine::debug() {
           ImGui::Text("Shadow     : %d / %d",  rs.shadow_chunks_drawn,
                       rs.shadow_chunks_total);
           ImGui::Text("Game time  : %02d:%02d", session->clock().hour(), session->clock().minute());
+
+          // Where the frame goes: each stage's average over the last
+          // FrameProfile::kWindow frames, and its worst frame among them.
+          if (ImGui::BeginTable("##stages", 3, ImGuiTableFlags_SizingFixedFit)) {
+            ImGui::TableSetupColumn("Stage");
+            ImGui::TableSetupColumn("avg ms");
+            ImGui::TableSetupColumn("worst");
+            ImGui::TableHeadersRow();
+            for (int s = 0; s < FrameProfile::kStages; ++s) {
+              auto stage = static_cast<FrameProfile::Stage>(s);
+              ImGui::TableNextRow();
+              ImGui::TableNextColumn();
+              ImGui::TextUnformatted(FrameProfile::name(stage));
+              ImGui::TableNextColumn();
+              ImGui::Text("%6.2f", frame_profile.average(stage));
+              ImGui::TableNextColumn();
+              ImGui::Text("%6.2f", frame_profile.worst(stage));
+            }
+            ImGui::EndTable();
+          }
         }
 
         // Player
@@ -1018,7 +1074,9 @@ void Engine::debug() {
     ImGui::End();
   }
   ImGui::Render();
+  gpu_timer.begin(kGpuHud);
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+  gpu_timer.end(kGpuHud);
 }
 
 // ─── Debug: Multiplayer ────────────────────────────────────────────────
@@ -1536,6 +1594,7 @@ void Engine::cleanup() {
   hud.shutdown(); // GL textures; must go before the context does
   block_outline.shutdown();
   entity_renderer.shutdown();
+  gpu_timer.shutdown();
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
