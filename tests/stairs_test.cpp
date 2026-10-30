@@ -56,7 +56,7 @@ TEST_CASE("slab and stair block ids are pinned: saves store them as numbers") {
   CHECK(static_cast<int>(BlockType::SNOW_BRICK_SLAB) == 181);
   CHECK(static_cast<int>(BlockType::OAK_STAIRS_N) == 182);
   CHECK(static_cast<int>(BlockType::SNOW_BRICK_STAIRS_W) == 217);
-  CHECK(kLastBlockType == BlockType::SNOW_BRICK_STAIRS_W);
+  CHECK(BlockType::SNOW_BRICK_STAIRS_W < kLastBlockType); // fences came after
 }
 
 TEST_CASE("slabs and stairs are named, mined and coloured like their material") {

@@ -54,6 +54,8 @@ constexpr int kHotbarSlots = 10;               // hotbar slots, keys 1..9 and 0
 
 // Collision
 constexpr float kCollisionEpsilon = 0.001f;    // small offset to prevent z-fighting with block faces
+constexpr float kLadderClimbSpeed = 2.5f;     // up a ladder, blocks / s
+constexpr float kLadderSlideSpeed = 1.5f;     // down one, letting go
 constexpr float kPlayerStepHeight = 0.6f;      // max height player can auto-step up (Minecraft-style)
 
 inline const std::string kAppTitle = "Grumblegrove";

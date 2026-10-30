@@ -72,6 +72,11 @@ void Player::update(float dt, World* world) {
   body.eye_height = getPlayerEyeHeight();
   knockback_left = std::max(0.0f, knockback_left - dt);
   body.updateWater(world);
+  body.climbing = !fly_mode && body.onLadder(world);
+  if (body.climbing)
+    body.velocity.y = climb_input > 0   ? kLadderClimbSpeed
+                      : climb_input < 0 ? -kLadderSlideSpeed
+                                        : 0.0f;
   if (fly_mode) {
     body.glide(dt, world);
     body.velocity = glm::vec3(0.0f); // flying has no momentum
@@ -106,6 +111,9 @@ void Player::processKeyboard(float /*dt*/, const PlayerInput& input) {
 
   // Crouch state
   crouching = input.crouch;
+  // On a ladder, pushing any way (or jumping) climbs, crouching holds on.
+  const bool pushing = input.forward || input.backward || input.left || input.right;
+  climb_input = crouching ? 0 : (pushing || input.jump) ? 1 : -1;
 
   // Sprint: only while moving forward, not crouching, and with stamina left
   sprinting = input.sprint && sprint_allowed && input.forward && !crouching;

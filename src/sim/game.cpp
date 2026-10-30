@@ -800,7 +800,12 @@ void Game::apply(Client &client, const MovePlayer &cmd) {
   ps->crouch = cmd.crouch;
   ps->activity = {cmd.sprinting, cmd.eyes_underwater, cmd.fly};
 
-  int fall = ps->fall.update(cmd.position.y, cmd.on_ground, cmd.in_water, cmd.fly);
+  // A ladder is safe, like water: a fall onto one hurts nothing, and the
+  // next is measured from there. The Game looks for itself.
+  PhysicsBody body;
+  body.position = cmd.position;
+  const bool on_ladder = body.onLadder(&world_);
+  int fall = ps->fall.update(cmd.position.y, cmd.on_ground, cmd.in_water || on_ladder, cmd.fly);
   if (fall > 0 && rules().damage) {
     ps->vitals.damage(fall);
     ps->hurt_by = "fell too far";
@@ -961,12 +966,22 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
         if (!torch) return reject(client, "place: torches go on floors and walls");
         placed = *torch;
       }
+      if (placed == BlockType::LADDER_N) {
+        std::optional<BlockType> ladder = ladderFor(cmd.against);
+        if (!ladder) return reject(client, "place: ladders go on the side of a block");
+        placed = *ladder;
+      }
       const BlockType ground = world_.getBlockAt(glm::vec3(cmd.pos + supportOf(placed)) + 0.5f);
       if (!growsOn(placed, ground, isSolidGround(ground)))
         return reject(client, "place: it can't go there");
     }
     // A stair's high side goes away from whoever places it.
     if (isStair(placed)) placed = turned(placed, doorFacingForYaw(ps->yaw));
+    // A gate goes across the way they look, shut.
+    if (isGate(placed)) {
+      const DoorFacing f = doorFacingForYaw(ps->yaw);
+      placed = gateBlock(f == DoorFacing::North || f == DoorFacing::South, false);
+    }
   }
   // What's walked through can go where someone stands.
   if (blocksMovement(placed) && overlapsAnyPlayer(pos))
@@ -1044,8 +1059,18 @@ void Game::apply(Client &client, const UseDoor &cmd) {
   if (cmd.pos.y < 0 || cmd.pos.y >= kChunkHeight)
     return reject(client, "door: outside world height");
   BlockType hit = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
-  if (!isDoor(hit)) return reject(client, "door: that isn't a door");
+  if (!isDoor(hit) && !isGate(hit)) return reject(client, "door: that isn't a door");
   if (!inReach(*ps, cmd.pos)) return reject(client, "door: out of reach");
+
+  // A gate is one cell: it swings open or shut where it is.
+  if (isGate(hit)) {
+    const BlockType swung = gateBlock(gateAlongX(hit), !gateOpen(hit));
+    if (!gateOpen(swung) && overlapsAnyPlayer(cmd.pos))
+      return reject(client, "door: someone's in the way");
+    world_.setBlockAt(cmd.pos, swung);
+    broadcast(BlockChanged{cmd.pos, swung});
+    return;
+  }
 
   const glm::ivec3 bottom = cmd.pos - glm::ivec3(0, doorTop(hit) ? 1 : 0, 0);
   const BlockType swung = doorBlock(false, doorFacing(hit), !doorOpen(hit));

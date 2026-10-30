@@ -1,5 +1,6 @@
 #pragma once
 
+#include "block/block_data.hpp"
 #include "block/block_type.hpp"
 #include "chunk/chunk.hpp"
 #include "render/camera.hpp"
@@ -78,6 +79,9 @@ public:
   const RenderStats &getRenderStats() const { return renderer->getStats(); }
   BlockType getBlockAt(const glm::vec3& worldPos) const;
   bool isSolidBlock(int bx, int by, int bz) const;
+  // The solid boxes of the cell at `p` (cell space): blockBoxes, but a fence
+  // with the rails its neighbours give it.
+  CellBoxes boxesAt(glm::ivec3 p) const;
   void setBlockAt(const glm::ivec3& worldPos, BlockType type);
 
   // Light levels (0-15) at a world block position — used by the debug panel.

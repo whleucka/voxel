@@ -644,6 +644,15 @@ bool World::isSolidBlock(int bx, int by, int bz) const {
   return blocksMovement(getBlockAt(glm::vec3(bx + 0.5f, by + 0.5f, bz + 0.5f)));
 }
 
+CellBoxes World::boxesAt(glm::ivec3 p) const {
+  if (p.y < 0 || p.y >= kChunkHeight) return {};
+  const BlockType b = getBlockAt(glm::vec3(p) + 0.5f);
+  if (!isFence(b)) return blockBoxes(b);
+  BlockType around[4];
+  for (int i = 0; i < 4; ++i) around[i] = getBlockAt(glm::vec3(p + kSides[i]) + 0.5f);
+  return fenceBoxes(b, around);
+}
+
 uint8_t World::getSkyLightAt(const glm::ivec3 &p) const {
   if (p.y < 0 || p.y >= kChunkHeight) return 15;
   int cx = static_cast<int>(std::floor(static_cast<float>(p.x) / kChunkWidth));

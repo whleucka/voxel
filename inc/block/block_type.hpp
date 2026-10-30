@@ -112,8 +112,12 @@ enum class BlockType : uint8_t {
   BRICK_STAIRS_N, BRICK_STAIRS_E, BRICK_STAIRS_S, BRICK_STAIRS_W,
   SANDSTONE_BRICK_STAIRS_N, SANDSTONE_BRICK_STAIRS_E, SANDSTONE_BRICK_STAIRS_S, SANDSTONE_BRICK_STAIRS_W,
   SNOW_BRICK_STAIRS_N, SNOW_BRICK_STAIRS_E, SNOW_BRICK_STAIRS_S, SNOW_BRICK_STAIRS_W,
+  // Fences, the gate and ladders (see block/fence.hpp).
+  OAK_FENCE, PINE_FENCE, PALM_FENCE, CHERRY_FENCE,
+  FENCE_GATE_X_CLOSED, FENCE_GATE_X_OPEN, FENCE_GATE_Z_CLOSED, FENCE_GATE_Z_OPEN,
+  LADDER_N, LADDER_E, LADDER_S, LADDER_W, // on the side of the block to its N, E, S, W
 };
 
 // The highest BlockType value. Update it when appending a type; a test in
 // tests/item_test.cpp fails if a named type exists past it.
-constexpr BlockType kLastBlockType = BlockType::SNOW_BRICK_STAIRS_W;
+constexpr BlockType kLastBlockType = BlockType::LADDER_W;

@@ -81,6 +81,8 @@ private:
   bool sprint_allowed = true;
   bool crouching = false;
   float knockback_left = 0.0f; // seconds before input steers again
+  // On a ladder: +1 climb (moving or jumping), 0 hold (crouching), -1 slide.
+  int climb_input = -1;
 
   // Physics state (shared rules with entities)
   PhysicsBody body;

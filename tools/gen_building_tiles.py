@@ -705,6 +705,26 @@ def torch(rng):
     return img
 
 
+def ladder(rng):
+    """Two wooden rails with four rungs, clear between them."""
+    img = new_tile()
+    px = pixels(img)
+    wood, dark = (150, 108, 62), (104, 72, 40)
+
+    def plank(x0, y0, x1, y1):
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                edge = x in (x0, x1) or y in (y0, y1)
+                base = dark if edge else wood
+                px[x, y] = shade(base, rng.randint(-8, 8)) + (255,)
+
+    for y in (3, 11, 19, 27):
+        plank(5, y, 26, y + 2)
+    plank(3, 0, 7, 31)
+    plank(24, 0, 28, 31)
+    return img
+
+
 def cake_top(rng):
     img = new_tile()
     px = pixels(img)
@@ -817,6 +837,7 @@ TILES = [
     ("sandstone_bricks",    lambda r: bricks((214, 196, 140), (176, 154, 100), r)),
     ("snow_bricks",         lambda r: bricks((236, 242, 248), (190, 204, 220), r,
                                              h=16, bevel=True)),
+    ("ladder",              ladder),
 ]
 
 

@@ -101,13 +101,16 @@ bool isPlaceableBlock(uint16_t v) {
   // or a bed, farmland from a hoe and crops from seeds. A picked bush is a
   // bush, shells are picked up as a Sea Shell, a torch is turned to its wall
   // when placed, as a stair is to the way you look, and a cake is only ever
-  // placed whole.
+  // placed whole. Likewise a ladder (to its wall) and the gate (across your
+  // way, shut).
   BlockType b = static_cast<BlockType>(v);
   return b != BlockType::WATER && b != BlockType::FURNACE_LIT &&
          b != BlockType::TREASURE_CHEST && !isDoor(b) && !isBed(b) && !isFarmland(b) &&
          !isCrop(b) && b != BlockType::BERRY_BUSH_BARE && b != BlockType::SHELLS &&
          (!isTorch(b) || b == BlockType::TORCH) && (!isCake(b) || b == BlockType::CAKE_4) &&
-         (!isStair(b) || stairFacing(b) == DoorFacing::North);
+         (!isStair(b) || stairFacing(b) == DoorFacing::North) &&
+         (!isLadder(b) || b == BlockType::LADDER_N) &&
+         (!isGate(b) || b == BlockType::FENCE_GATE_X_CLOSED);
 }
 
 bool isMaterial(uint16_t v) {
@@ -187,6 +190,8 @@ std::optional<ItemId> dropFor(BlockType b) {
     default:
       if (isTorch(b)) return itemForBlock(BlockType::TORCH);
       if (isStair(b)) return itemForBlock(turned(b, DoorFacing::North));
+      if (isLadder(b)) return itemForBlock(BlockType::LADDER_N);
+      if (isGate(b)) return itemForBlock(BlockType::FENCE_GATE_X_CLOSED);
       // A cake is eaten, not picked up: breaking it loses the rest.
       if (isCake(b)) return std::nullopt;
       // One door from its bottom half; the Game clears the top with it.
