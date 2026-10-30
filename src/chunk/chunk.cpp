@@ -93,9 +93,6 @@ uint8_t Chunk::safeSkyLight(int x, int y, int z) const {
 void Chunk::computeSkyLight() {
   std::fill(skylight.begin(), skylight.end(), 0);
 
-  using Queue = std::queue<std::tuple<int,int,int>>;
-  Queue queue;
-
   // Phase 1 — top-down column scan.
   // Sky light (value 15) propagates straight down through transparent blocks.
   // Semi-transparent blocks (leaves, water) absorb some levels.
@@ -109,47 +106,22 @@ void Chunk::computeSkyLight() {
         if (opacity > 0) {
           light = (light > opacity) ? light - opacity : 0;
         }
-        int idx = x + kChunkWidth * (z + kChunkDepth * y);
-        skylight[idx] = light;
-        if (light > 0)
-          queue.push({x, y, z});
+        skylight[x + kChunkWidth * (z + kChunkDepth * y)] = light;
       }
     }
   }
 
-  // Phase 2 — BFS flood fill.
-  // Spreads light horizontally (and upward) under overhangs / into cave mouths.
-  static constexpr int DX[6] = {-1, 1,  0, 0,  0, 0};
-  static constexpr int DY[6] = { 0, 0, -1, 1,  0, 0};
-  static constexpr int DZ[6] = { 0, 0,  0, 0, -1, 1};
-
-  while (!queue.empty()) {
-    auto [x, y, z] = queue.front();
-    queue.pop();
-    uint8_t light = skylight[x + kChunkWidth * (z + kChunkDepth * y)];
-    if (light <= 1) continue;
-
-    for (int d = 0; d < 6; ++d) {
-      int nx = x + DX[d], ny = y + DY[d], nz = z + DZ[d];
-      if (nx < 0 || nx >= kChunkWidth || ny < 0 || ny >= kChunkHeight ||
-          nz < 0 || nz >= kChunkDepth) continue;
-
-      BlockType nb = at(nx, ny, nz);
-      uint8_t opacity = skyLightOpacity(nb);
-      if (opacity >= 15) continue;
-
-      // Each hop decays by 1; semi-transparent blocks decay by 1+opacity
-      uint8_t cost = 1 + opacity;
-      uint8_t newLight = (light > cost) ? static_cast<uint8_t>(light - cost) : 0;
-      if (newLight == 0) continue;
-
-      int idx = nx + kChunkWidth * (nz + kChunkDepth * ny);
-      if (newLight > skylight[idx]) {
-        skylight[idx] = newLight;
-        queue.push({nx, ny, nz});
+  // Phase 2 — flood fill.
+  // Spreads light horizontally (and upward) under overhangs / into cave mouths,
+  // from the cells that would brighten a neighbour (most open sky wouldn't).
+  LightQueue queue;
+  for (int y = 0; y < kChunkHeight; ++y)
+    for (int z = 0; z < kChunkDepth; ++z)
+      for (int x = 0; x < kChunkWidth; ++x) {
+        const uint32_t i = x + kChunkWidth * (z + kChunkDepth * y);
+        if (skylight[i] > 1 && brightensNeighbour(skylight, x, y, z)) queue.push_back(i);
       }
-    }
-  }
+  floodLight(skylight, queue);
 }
 
 uint8_t Chunk::getBlockLight(int x, int y, int z) const {
@@ -177,23 +149,41 @@ void Chunk::computeBlockLight() {
         uint8_t emit = blockLightEmission(at(x, y, z));
         if (emit > 0) {
           ++emitter_count;
-          blocklight[x + kChunkWidth * (z + kChunkDepth * y)] = emit;
-          queue.push({x, y, z});
+          const uint32_t i = x + kChunkWidth * (z + kChunkDepth * y);
+          blocklight[i] = emit;
+          queue.push_back(i);
         }
       }
-  floodBlockLight(queue);
+  floodLight(blocklight, queue);
 }
 
-void Chunk::floodBlockLight(LightQueue &queue) {
-  static constexpr int DX[6] = {-1, 1, 0, 0, 0, 0};
-  static constexpr int DY[6] = {0, 0, -1, 1, 0, 0};
-  static constexpr int DZ[6] = {0, 0, 0, 0, -1, 1};
+// How much light `light` at (x, y, z) gives its neighbour `d` (0 if none):
+// opaque blocks stop it, semi-transparent ones cost extra.
+static constexpr int DX[6] = {-1, 1, 0, 0, 0, 0};
+static constexpr int DY[6] = {0, 0, -1, 1, 0, 0};
+static constexpr int DZ[6] = {0, 0, 0, 0, -1, 1};
 
-  while (!queue.empty()) {
-    auto [x, y, z] = queue.front();
-    queue.pop();
-    uint8_t light = blocklight[x + kChunkWidth * (z + kChunkDepth * y)];
-    if (light <= 1) continue;
+bool Chunk::brightensNeighbour(const std::vector<uint8_t> &light, int x, int y, int z) const {
+  const uint8_t l = light[x + kChunkWidth * (z + kChunkDepth * y)];
+  for (int d = 0; d < 6; ++d) {
+    int nx = x + DX[d], ny = y + DY[d], nz = z + DZ[d];
+    if (nx < 0 || nx >= kChunkWidth || ny < 0 || ny >= kChunkHeight ||
+        nz < 0 || nz >= kChunkDepth) continue;
+    uint8_t opacity = skyLightOpacity(at(nx, ny, nz));
+    if (opacity >= 15) continue;
+    uint8_t cost = 1 + opacity;
+    if (l > cost && l - cost > light[nx + kChunkWidth * (nz + kChunkDepth * ny)]) return true;
+  }
+  return false;
+}
+
+void Chunk::floodLight(std::vector<uint8_t> &light, LightQueue &queue) {
+  for (size_t head = 0; head < queue.size(); ++head) {
+    const uint32_t i = queue[head];
+    const int x = i % kChunkWidth, z = i / kChunkWidth % kChunkDepth,
+              y = i / (kChunkWidth * kChunkDepth);
+    uint8_t l = light[i];
+    if (l <= 1) continue;
 
     for (int d = 0; d < 6; ++d) {
       int nx = x + DX[d], ny = y + DY[d], nz = z + DZ[d];
@@ -205,13 +195,13 @@ void Chunk::floodBlockLight(LightQueue &queue) {
       if (opacity >= 15) continue;
 
       uint8_t cost = 1 + opacity;
-      uint8_t newLight = (light > cost) ? static_cast<uint8_t>(light - cost) : 0;
+      uint8_t newLight = (l > cost) ? static_cast<uint8_t>(l - cost) : 0;
       if (newLight == 0) continue;
 
-      int idx = nx + kChunkWidth * (nz + kChunkDepth * ny);
-      if (newLight > blocklight[idx]) {
-        blocklight[idx] = newLight;
-        queue.push({nx, ny, nz});
+      const uint32_t n = nx + kChunkWidth * (nz + kChunkDepth * ny);
+      if (newLight > light[n]) {
+        light[n] = newLight;
+        queue.push_back(n);
       }
     }
   }
@@ -251,10 +241,10 @@ bool Chunk::acceptBorderLight(int face, const BorderLight &incoming) {
       uint8_t &here = blocklight[c.x + kChunkWidth * (c.y + kChunkDepth * y)];
       if (light > here) {
         here = light;
-        queue.push({c.x, y, c.y});
+        queue.push_back(c.x + kChunkWidth * (c.y + kChunkDepth * y));
       }
     }
   if (queue.empty()) return false;
-  floodBlockLight(queue);
+  floodLight(blocklight, queue);
   return true;
 }

@@ -94,9 +94,13 @@ private:
   int emitter_count = 0; // number of light-emitting blocks in this chunk
   ChunkMesh mesh;
 
-  using LightQueue = std::queue<std::tuple<int, int, int>>;
-  // Spreads block light outward from every queued block, within this chunk.
-  void floodBlockLight(LightQueue &queue);
+  // Cells by linear index, flooded oldest first.
+  using LightQueue = std::vector<uint32_t>;
+  // Spreads `light` (sky or block) outward from every queued block, within
+  // this chunk.
+  void floodLight(std::vector<uint8_t> &light, LightQueue &queue);
+  // Whether the light at (x, y, z) would brighten a neighbour.
+  bool brightensNeighbour(const std::vector<uint8_t> &light, int x, int y, int z) const;
   // The (x, z) of the i-th block along `face`.
   static glm::ivec2 faceCell(int face, int i);
 };
