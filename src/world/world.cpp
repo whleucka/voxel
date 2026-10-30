@@ -379,94 +379,108 @@ bool World::emitterInReach(const glm::ivec3 &pos) const {
   return false;
 }
 
-// Recompute block light over a 5x5 chunk box (so torches up to 2 chunks away
-// are accounted for) into a temp buffer, then persist the inner 3x3 and remesh
-// it. Clearing + reflooding makes both placement and removal correct, and light
-// crosses chunk borders. Runs on the main thread.
-void World::relightBlockRegion(int ccx, int ccz) {
-  constexpr int KEEP = 1;    // chunks we write back
-  constexpr int COMPUTE = 2; // chunks we flood
-  constexpr int SPAN = 2 * COMPUTE + 1;
-  const int W = SPAN * kChunkWidth;
-  const int D = SPAN * kChunkDepth;
-  const int H = kChunkHeight;
+// Recompute block light around an edit at `pos`. Light only changes within
+// kReach of the edit (the brightest light fades out by then), and light there
+// comes only from emitters within kReach of it, so flooding a box kReach * 2
+// out from the edit and keeping the inner kReach is exact. Clearing and
+// reflooding makes placement and removal both correct, and light crosses chunk
+// borders. Runs on the main thread.
+void World::relightBlockRegion(const glm::ivec3 &pos) {
+  constexpr int kReach = 14;           // the brightest light (15) fades out within this
+  constexpr int kMargin = 2 * kReach;  // emitters this far out can shine into it
+  constexpr int kSide = 2 * kMargin + 1;
+  const glm::ivec3 lo{pos.x - kMargin, std::max(0, pos.y - kMargin), pos.z - kMargin};
+  const int H = std::min(kChunkHeight - 1, pos.y + kMargin) - lo.y + 1;
 
-  // Snapshot the box's chunks once (nulls = unloaded → treated as opaque).
-  std::shared_ptr<Chunk> grid[SPAN][SPAN];
-  for (int i = 0; i < SPAN; ++i)
-    for (int j = 0; j < SPAN; ++j)
-      grid[i][j] = getChunk(ccx - COMPUTE + i, ccz - COMPUTE + j);
+  auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+  const int cx0 = floorDiv(lo.x, kChunkWidth), cz0 = floorDiv(lo.z, kChunkDepth);
+  constexpr int kGrid = kSide / kChunkWidth + 2; // chunks the box can touch, per side
+  static_assert(kChunkWidth == kChunkDepth);
+  std::shared_ptr<Chunk> grid[kGrid][kGrid];
+  for (int i = 0; i < kGrid; ++i)
+    for (int j = 0; j < kGrid; ++j) grid[i][j] = getChunk(cx0 + i, cz0 + j);
 
-  auto lidx = [&](int bx, int y, int bz) {
-    return static_cast<size_t>(bx) +
-           W * (static_cast<size_t>(bz) + static_cast<size_t>(D) * y);
+  auto lidx = [&](int bx, int by, int bz) {
+    return static_cast<size_t>(bx) + kSide * (static_cast<size_t>(bz) + kSide * by);
   };
-  std::vector<uint8_t> light(static_cast<size_t>(W) * D * H, 0);
+  const size_t cells = static_cast<size_t>(kSide) * kSide * H;
+  std::vector<uint8_t> light(cells, 0);
+  std::vector<uint8_t> opacity(cells, 15); // unloaded chunks are opaque
+  std::vector<uint32_t> queue;
 
-  // Opacity of a box-local voxel (box coords are always >= 0).
-  auto opacityAt = [&](int bx, int y, int bz) -> uint8_t {
-    if (y < 0 || y >= H) return 15;
-    const auto &c = grid[bx / kChunkWidth][bz / kChunkDepth];
-    if (!c) return 15;
-    return skyLightOpacity(c->at(bx % kChunkWidth, y, bz % kChunkDepth));
+  // Each loaded chunk's part of the box: its opacity, and its emitters as seeds.
+  auto overlap = [&](int i, int j, auto &&visit) {
+    const int bx = (cx0 + i) * kChunkWidth, bz = (cz0 + j) * kChunkDepth;
+    const int x0 = std::max(lo.x, bx), x1 = std::min(lo.x + kSide, bx + kChunkWidth) - 1;
+    const int z0 = std::max(lo.z, bz), z1 = std::min(lo.z + kSide, bz + kChunkDepth) - 1;
+    for (int y = 0; y < H; ++y)
+      for (int z = z0; z <= z1; ++z)
+        for (int x = x0; x <= x1; ++x)
+          visit(x - bx, lo.y + y, z - bz, lidx(x - lo.x, y, z - lo.z));
   };
-
-  // Seed from every emitter in the box.
-  std::queue<std::tuple<int, int, int>> q;
-  for (int i = 0; i < SPAN; ++i)
-    for (int j = 0; j < SPAN; ++j) {
+  for (int i = 0; i < kGrid; ++i)
+    for (int j = 0; j < kGrid; ++j) {
       const auto &c = grid[i][j];
-      if (!c || !c->hasEmitters()) continue;
-      for (int y = 0; y < H; ++y)
-        for (int lz = 0; lz < kChunkDepth; ++lz)
-          for (int lx = 0; lx < kChunkWidth; ++lx) {
-            uint8_t emit = blockLightEmission(c->at(lx, y, lz));
-            if (!emit) continue;
-            int bx = i * kChunkWidth + lx;
-            int bz = j * kChunkDepth + lz;
-            size_t k = lidx(bx, y, bz);
-            if (emit > light[k]) { light[k] = emit; q.push({bx, y, bz}); }
-          }
+      if (!c) continue;
+      const bool emitters = c->hasEmitters();
+      const BlockType *blocks = c->blockData();
+      overlap(i, j, [&](int lx, int y, int lz, size_t k) {
+        BlockType b = blocks[lx + kChunkWidth * (lz + kChunkDepth * y)];
+        opacity[k] = skyLightOpacity(b);
+        if (!emitters) return;
+        if (uint8_t emit = blockLightEmission(b)) {
+          light[k] = emit;
+          queue.push_back(static_cast<uint32_t>(k));
+        }
+      });
     }
 
   // Flood fill within the box.
-  static constexpr int DX[6] = {-1, 1, 0, 0, 0, 0};
-  static constexpr int DY[6] = {0, 0, -1, 1, 0, 0};
-  static constexpr int DZ[6] = {0, 0, 0, 0, -1, 1};
-  while (!q.empty()) {
-    auto [bx, by, bz] = q.front();
-    q.pop();
-    uint8_t l = light[lidx(bx, by, bz)];
+  const long step[6] = {-1, 1, -long(kSide) * kSide, long(kSide) * kSide, -kSide, kSide};
+  for (size_t head = 0; head < queue.size(); ++head) {
+    const size_t k = queue[head];
+    const uint8_t l = light[k];
     if (l <= 1) continue;
+    const int bx = static_cast<int>(k % kSide);
+    const int bz = static_cast<int>(k / kSide % kSide);
+    const int by = static_cast<int>(k / (static_cast<size_t>(kSide) * kSide));
+    const bool open[6] = {bx > 0, bx < kSide - 1, by > 0, by < H - 1, bz > 0, bz < kSide - 1};
     for (int d = 0; d < 6; ++d) {
-      int nx = bx + DX[d], ny = by + DY[d], nz = bz + DZ[d];
-      if (nx < 0 || nx >= W || ny < 0 || ny >= H || nz < 0 || nz >= D) continue;
-      uint8_t op = opacityAt(nx, ny, nz);
+      if (!open[d]) continue;
+      const size_t n = k + step[d];
+      const uint8_t op = opacity[n];
       if (op >= 15) continue;
-      uint8_t cost = 1 + op;
-      uint8_t nl = (l > cost) ? static_cast<uint8_t>(l - cost) : 0;
-      if (nl == 0) continue;
-      size_t k = lidx(nx, ny, nz);
-      if (nl > light[k]) { light[k] = nl; q.push({nx, ny, nz}); }
+      const uint8_t cost = 1 + op;
+      if (l <= cost) continue;
+      const uint8_t nl = static_cast<uint8_t>(l - cost);
+      if (nl > light[n]) { light[n] = nl; queue.push_back(static_cast<uint32_t>(n)); }
     }
   }
 
-  // Persist the inner KEEP region back into the chunks, then remesh them.
-  for (int i = COMPUTE - KEEP; i <= COMPUTE + KEEP; ++i)
-    for (int j = COMPUTE - KEEP; j <= COMPUTE + KEEP; ++j) {
+  // Persist the inner kReach back into the chunks.
+  const glm::ivec3 keep_lo{pos.x - kReach, std::max(0, pos.y - kReach), pos.z - kReach};
+  const glm::ivec3 keep_hi{pos.x + kReach, std::min(kChunkHeight - 1, pos.y + kReach),
+                           pos.z + kReach};
+  for (int i = 0; i < kGrid; ++i)
+    for (int j = 0; j < kGrid; ++j) {
       const auto &c = grid[i][j];
       if (!c) continue;
-      {
-        std::lock_guard lock(c->data_mutex);
-        for (int y = 0; y < H; ++y)
-          for (int lz = 0; lz < kChunkDepth; ++lz)
-            for (int lx = 0; lx < kChunkWidth; ++lx)
-              c->setBlockLightLinear(
-                  lx + kChunkWidth * (lz + kChunkDepth * y),
-                  light[lidx(i * kChunkWidth + lx, y, j * kChunkDepth + lz)]);
-      }
-      rebuildChunk(ccx - COMPUTE + i, ccz - COMPUTE + j);
+      const int bx = (cx0 + i) * kChunkWidth, bz = (cz0 + j) * kChunkDepth;
+      const int x0 = std::max(keep_lo.x, bx), x1 = std::min(keep_hi.x, bx + kChunkWidth - 1);
+      const int z0 = std::max(keep_lo.z, bz), z1 = std::min(keep_hi.z, bz + kChunkDepth - 1);
+      if (x0 > x1 || z0 > z1) continue;
+      std::lock_guard lock(c->data_mutex);
+      for (int y = keep_lo.y; y <= keep_hi.y; ++y)
+        for (int z = z0; z <= z1; ++z)
+          for (int x = x0; x <= x1; ++x)
+            c->setBlockLightLinear((x - bx) + kChunkWidth * ((z - bz) + kChunkDepth * y),
+                                   light[lidx(x - lo.x, y - lo.y, z - lo.z)]);
     }
+
+  // Remesh every chunk that holds changed light or borders on it.
+  for (int cx = floorDiv(keep_lo.x - 1, kChunkWidth); cx <= floorDiv(keep_hi.x + 1, kChunkWidth); ++cx)
+    for (int cz = floorDiv(keep_lo.z - 1, kChunkDepth); cz <= floorDiv(keep_hi.z + 1, kChunkDepth); ++cz)
+      rebuildChunk(cx, cz);
 }
 
 void World::setBlockAt(const glm::ivec3& worldPos, BlockType type) {
@@ -501,14 +515,14 @@ void World::setBlockAt(const glm::ivec3& worldPos, BlockType type) {
   }
 
   // Block light: if a torch is involved or close enough to shine here, run the
-  // cross-chunk relight (recomputes + remeshes the 3x3 around the edit), since
+  // cross-chunk relight (recomputes + remeshes around the edit), since
   // light may have to go down. Otherwise no light changes here: recompute the
   // chunk, take back what its neighbours shine in, and rebuild the edited
   // chunk (+ edge neighbors).
   bool emitterInvolved =
       blockLightEmission(type) > 0 || blockLightEmission(oldType) > 0;
   if (emitterInvolved || emitterInReach(worldPos)) {
-    relightBlockRegion(cx, cz);
+    relightBlockRegion(worldPos);
   } else {
     {
       std::lock_guard lock(chunk->data_mutex);
