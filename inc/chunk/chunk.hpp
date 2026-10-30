@@ -70,11 +70,21 @@ public:
   // World writes cross-chunk light results back into this chunk).
   void setBlockLightLinear(uint32_t index, uint8_t value);
 
+  // The raw arrays (x fastest, then z, then y), for copying out in bulk.
+  const BlockType *blockData() const { return blocks.data(); }
+  const uint8_t *skyLightData() const { return skylight.data(); }
+  const uint8_t *blockLightData() const { return blocklight.data(); }
+
   ChunkMesh &getMesh() { return mesh; }
   glm::mat4 getModelMatrix() const;
   glm::ivec2 getPos() const { return pos; }
 
-  std::mutex data_mutex; // guards blocks[] during concurrent write/mesh-gen
+  // Guards blocks[] and the light during concurrent writes and copies. Hold
+  // only one chunk's at a time.
+  mutable std::mutex data_mutex;
+  // Held through a mesh build, so builds of one chunk run in turn and the last
+  // one queued sees the latest blocks.
+  std::mutex mesh_mutex;
 
 private:
   glm::ivec2 pos;

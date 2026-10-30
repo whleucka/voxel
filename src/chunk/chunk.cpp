@@ -40,7 +40,7 @@ void Chunk::init() {
 }
 
 void Chunk::buildMeshData(World* world, TextureManager& texture_manager) {
-  std::lock_guard lock(data_mutex);
+  std::lock_guard lock(mesh_mutex);
   mesh.generateCPU(world, *this, texture_manager); // CPU-only
 }
 
