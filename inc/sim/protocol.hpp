@@ -109,7 +109,7 @@ struct LeaveBed {};
 struct UseItemOn { glm::ivec3 pos{0}; };
 // Say something to everyone. The Game cleans and rate-limits it.
 struct Chat { std::string text; };
-// Drop a pin where the player stands, or pick up their pin close by.
+// Drop a pin where the player stands, or pick up their own pin close by.
 struct TogglePin {};
 // Get into a boat in reach: the driver's seat if it's free, else the
 // passenger's. LeaveBoat gets out, beside it.
@@ -172,13 +172,34 @@ struct ChatMessage {
   bool operator==(const ChatMessage &) const = default;
 };
 
+// A pin another player dropped: on everyone's map, but only `owner` can pick
+// it up.
+struct SharedPin {
+  PlayerId owner = 0;
+  Pin pin;
+  bool operator==(const SharedPin &) const = default;
+};
+
 // What the owner's map marks: home (their bed, or the world spawn without
-// one) and their pins. Sent on joining and whenever either changes.
+// one), their pins, and the other players' pins (by owner, then colour).
+// Sent on joining and whenever any of it changes.
 struct Waypoints {
   glm::ivec3 home{0};
   std::vector<Pin> pins;
+  std::vector<SharedPin> others = {};
   bool operator==(const Waypoints &) const = default;
 };
+
+// Where each other living player is, at any distance, for the map: once a
+// second. (Those in view range come every tick in the EntitySnapshot.)
+struct MapPlayer {
+  PlayerId id = 0;
+  std::string name;
+  glm::vec3 position{0.0f}; // feet
+  float yaw = -90.0f;       // camera convention (degrees)
+  bool operator==(const MapPlayer &) const = default;
+};
+struct MapPlayers { std::vector<MapPlayer> players; };
 
 // The owner got into a boat (`boat`, in `seat`: 0 drives), or out of one
 // (boat 0). A driver starts steering from `position` and `yaw`; it's sent
@@ -294,4 +315,4 @@ using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            Respawned, EntitySnapshot, KnockedBack, JoinRefused,
                            Welcome, TimeSync, Disconnected, KnownItems,
                            ContainerView, ToolBroke, Caught, SleepState, Notice,
-                           ChatMessage, Waypoints, Riding>;
+                           ChatMessage, Waypoints, Riding, MapPlayers>;

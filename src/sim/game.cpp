@@ -465,6 +465,7 @@ void Game::tick() {
     for (Client &client : clients)
       if (client.player && client.role == Role::Guest)
         client.link->deliver(TimeSync{clock_.time_of_day, clock_.scale});
+  if (tick_count % kTimeSyncTicks == 0) sendMapPlayers();
   if (!save_dir.empty() && tick_count % kAutosaveTicks == 0) save();
 }
 
@@ -1286,13 +1287,38 @@ glm::ivec3 Game::home(const PlayerState &ps) {
 }
 
 void Game::flushWaypoints() {
+  std::vector<SharedPin> all;
+  for (const auto &[pid, other] : players)
+    for (const Pin &pin : other.pins) all.push_back({pid, pin});
+  std::sort(all.begin(), all.end(), [](const SharedPin &a, const SharedPin &b) {
+    return a.owner != b.owner ? a.owner < b.owner : a.pin.colour < b.pin.colour;
+  });
   for (Client &client : clients) {
     PlayerState *ps = playerFor(client);
     if (!ps) continue;
-    Waypoints now{home(*ps), ps->pins};
+    Waypoints now{home(*ps), ps->pins, {}};
+    for (const SharedPin &shared : all)
+      if (shared.owner != ps->id) now.others.push_back(shared);
     if (ps->waypoints_sent == now) continue;
     ps->waypoints_sent = now;
     client.link->deliver(now);
+  }
+}
+
+void Game::sendMapPlayers() {
+  for (Client &client : clients) {
+    PlayerState *ps = playerFor(client);
+    if (!ps) continue;
+    MapPlayers marks;
+    for (const auto &[pid, other] : players)
+      if (pid != ps->id && !other.vitals.dead())
+        marks.players.push_back({pid, other.name, other.position, other.yaw});
+    std::sort(marks.players.begin(), marks.players.end(),
+              [](const MapPlayer &a, const MapPlayer &b) { return a.id < b.id; });
+    // Nobody to show, again: nothing to say.
+    if (marks.players.empty() && !ps->map_players_sent) continue;
+    ps->map_players_sent = !marks.players.empty();
+    client.link->deliver(std::move(marks));
   }
 }
 

@@ -6,6 +6,7 @@
 #include "chunk/chunk.hpp"
 #include "core/constants.hpp"
 #include "world/world.hpp"
+#include <algorithm>
 #include <cmath>
 #include <memory>
 
@@ -201,4 +202,15 @@ void Minimap::sample(const World &world, glm::ivec3 centre, View view) {
 glm::u8vec4 Minimap::cell(int dx, int dz) const {
   if (std::abs(dx) > kRadius || std::abs(dz) > kRadius) return kNothing;
   return cells_[(dz + kRadius) * kSize + dx + kRadius];
+}
+
+std::vector<MapPlayer> mapPlayers(const std::vector<MapPlayer> &far,
+                                  const std::vector<PlayerView> &near) {
+  std::vector<MapPlayer> out = far;
+  for (const PlayerView &p : near) {
+    auto it = std::find_if(out.begin(), out.end(), [&](const MapPlayer &m) { return m.id == p.id; });
+    if (it == out.end()) out.push_back({p.id, p.name, p.position, p.yaw});
+    else it->position = p.position, it->yaw = p.yaw;
+  }
+  return out;
 }

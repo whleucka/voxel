@@ -296,6 +296,7 @@ void Engine::startSession(std::unique_ptr<Session> s) {
   riding_view.reset();
   minimap = Minimap{};
   waypoints.reset();
+  map_players.clear();
   chat_log.clear();
   setChatOpen(false);
   entity_interp = EntityInterpolator{};
@@ -483,6 +484,9 @@ void Engine::handleEvents() {
     else if (const auto *wp = std::get_if<Waypoints>(&ev)) {
       waypoints = *wp;
     }
+    else if (const auto *marks = std::get_if<MapPlayers>(&ev)) {
+      map_players = marks->players;
+    }
     else if (const auto *ride = std::get_if<Riding>(&ev)) {
       if (ride->boat == 0) {
         riding_view.reset();
@@ -661,7 +665,7 @@ void Engine::render() {
     hud.drawVitals(layout, vitals_view, glfwGetTime());
     if (g_settings.show_minimap && !vitals_view.dead)
       hud.drawMinimap(layout, minimap, player->getPosition(), player->getCamera().yaw,
-                      waypoints ? &*waypoints : nullptr);
+                      waypoints ? &*waypoints : nullptr, mapPlayers(map_players, player_views));
     if (chat_open) {
       ChatPanelResult said = drawChatPanel(layout.chatPanel(), chat_log, chat_buf, chat_opening);
       chat_opening = false;

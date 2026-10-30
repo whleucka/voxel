@@ -1,6 +1,7 @@
 #pragma once
 
 #include "block/block_type.hpp"
+#include "sim/protocol.hpp"
 #include <array>
 #include <glm/glm.hpp>
 
@@ -66,3 +67,9 @@ struct MarkerSpot {
   bool on_rim = false;
 };
 MarkerSpot placeMarker(glm::vec2 offset, float radius);
+
+// The other players to mark on the map: everyone in `far` (the once-a-second
+// MapPlayers), each moved to where `near` (this frame's, smooth) has them,
+// and anyone in `near` that `far` doesn't list yet.
+std::vector<MapPlayer> mapPlayers(const std::vector<MapPlayer> &far,
+                                  const std::vector<PlayerView> &near);

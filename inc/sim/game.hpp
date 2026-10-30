@@ -364,8 +364,10 @@ private:
   void tickSleep();
   // Send SleepState to every owner whose shown state changed.
   void flushSleep();
-  // Sends each player their Waypoints when home or their pins change.
+  // Sends each player their Waypoints when home or anyone's pins change.
   void flushWaypoints();
+  // Sends each player where the others are, for their map (once a second).
+  void sendMapPlayers();
   // Where a player's map points home: their bed, or the world spawn.
   glm::ivec3 home(const PlayerState &ps);
   Client *clientOf(PlayerId id);
