@@ -20,6 +20,7 @@
 - **Smelting:** a furnace that cooks raw ore into ingots, and sand into glass, while you're off exploring ([more below](#smelting)).
 - **Doors:** craft wooden doors, right-click to open and shut them; nothing gets through a closed one ([more below](#doors)).
 - **Stairs and slabs:** half-block steps and floors in planks, cobblestone and four kinds of brick; walk up them without jumping ([more below](#stairs-and-slabs)).
+- **Fences and ladders:** fence in a garden or a pen with a gate, and climb ladders up walls and down mine shafts ([more below](#fences-gates-and-ladders)).
 - **Beds:** craft a bed in one of 8 colours, sleep through the night, and wake up there after you die ([more below](#beds)).
 - **Chests:** craft chests to keep your things in, and hunt deep caves for locked treasure chests ([more below](#chests-and-treasure)).
 - **Fishing:** make a rod, cast it, and reel in when the bobber dips. Cook your catch, or find treasure ([more below](#fishing)).
@@ -103,7 +104,7 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **W, A, S, D:** Move. **Space:** Jump. **Mouse:** Look around.
 *   **Left Ctrl:** Sprint (uses stamina). **Left Shift:** Crouch, or get out of a boat.
 *   **Left click:** Hit a creature, pick up an empty boat, or break a block (hold it in survival).
-*   **Right click:** Place a block, put a boat on the water or get into one, feed an animal or pet, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, open and shut a door, sleep in a bed, pick berries, eat a slice of cake, till, plant and water with a hoe, seeds or a watering can, or use compost.
+*   **Right click:** Place a block, put a boat on the water or get into one, feed an animal or pet, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, open and shut a door or a gate, sleep in a bed, pick berries, eat a slice of cake, till, plant and water with a hoe, seeds or a watering can, or use compost.
 *   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
 *   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
 *   **T:** Chat. Type and press Enter (or click Send); Esc closes it.
@@ -272,6 +273,28 @@ Make them at a Crafting Table from oak, pine, palm or cherry **planks**,
 
 Creatures walk up them too. They break like the block they're made of,
 and a stair always gives back the same stair, whichever way it faced.
+
+## Fences, gates and ladders
+
+All three are made at a Crafting Table from planks and **Sticks**.
+
+| Recipe | Makes |
+|---|---|
+| 4 planks of one wood + 2 Sticks | 3 Oak, Pine, Palm or Cherry **Fences** |
+| 2 planks of any wood + 4 Sticks | 1 **Fence Gate** |
+| 7 Sticks | 3 **Ladders** |
+
+*   **Fences** join up by themselves, to other fences, to a gate in line
+    with them, and to walls. They're too tall to jump over, for you and for
+    creatures, so a fenced pen keeps Woollies and stray pets in and enemies
+    out.
+*   A **Fence Gate** goes across the way you're looking. Right-click it to
+    open and shut it. Only players can open gates, and a gate won't shut
+    on someone standing in it.
+*   A **Ladder** goes on the side of a block. Walk into it (or hold jump)
+    to climb, crouch to hold on, and let go to slide slowly down. You don't
+    get hurt falling onto a ladder. If the block behind it is broken, the
+    ladder drops off.
 
 ## Beds
 
