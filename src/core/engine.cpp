@@ -626,10 +626,21 @@ void Engine::render() {
                                         session->clock().fractionOfDay(), now, player_id, hand);
                  });
 
-  // Frame the block under the crosshair, while there's a crosshair to aim.
-  if (!player->isInventoryOpen() && !vitals_view.dead)
-    if (auto aimed = BlockOutline::target(world(), eye.position, eye.front))
-      block_outline.draw(*aimed, view, proj);
+  // Frame the block under the crosshair, while there's a crosshair to aim,
+  // unless a creature or a boat is in front of it.
+  if (!player->isInventoryOpen() && !vitals_view.dead) {
+    float reach = kPlayerReach;
+    for (const EntityView &v : entity_views) {
+      if (v.kind == EntityKind::DroppedItem || v.kind == EntityKind::Bobber) continue;
+      const EntityTypeDef &def = entityType(v.kind);
+      const glm::vec3 half(def.half_width, 0.0f, def.half_width);
+      if (auto t = rayAabb(eye.position, eye.front, v.position - half,
+                           v.position + half + glm::vec3(0.0f, def.height, 0.0f)))
+        reach = std::min(reach, *t);
+    }
+    if (auto aimed = BlockOutline::target(world(), eye.position, eye.front, reach))
+      block_outline.draw(*aimed, BlockOutline::boxes(world(), *aimed), view, proj);
+  }
 
   // ImGui frame must always be opened here so both renderCrosshair() and
   // debug() can safely submit widgets regardless of game state.
