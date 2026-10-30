@@ -28,6 +28,10 @@ struct RaycastResult {
   BlockType block_type = BlockType::AIR;
 };
 
+// Orders chunks nearest the viewer first (by their columns' centres), so
+// near terrain fills the depth buffer before far terrain behind it is shaded.
+void sortNearestFirst(std::vector<Chunk *> &chunks, const glm::vec3 &viewer);
+
 class World {
 public:
   World();

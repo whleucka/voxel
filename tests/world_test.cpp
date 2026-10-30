@@ -400,3 +400,10 @@ TEST_CASE("an edit far from any light leaves border light from neighbours in pla
   world.setBlockAt({kChunkWidth + 14, kChunkHeight - 20, 8}, BlockType::STONE);
   CHECK(world.getBlockLightAt(next_door) == 12);
 }
+
+TEST_CASE("chunks are drawn nearest the viewer first") {
+  Chunk far_east(5, 0), near(0, 0), mid_north(0, -2), behind(-1, 0);
+  std::vector<Chunk *> chunks{&far_east, &near, &mid_north, &behind};
+  sortNearestFirst(chunks, {8.0f, 70.0f, 8.0f}); // the middle of (0, 0)
+  CHECK(chunks == std::vector<Chunk *>{&near, &behind, &mid_north, &far_east});
+}
