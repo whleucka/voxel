@@ -141,6 +141,21 @@ struct BoatRecord {
 bool loadBoats(const std::string &dir, std::vector<BoatRecord> &out);
 bool saveBoats(const std::string &dir, std::span<const BoatRecord> boats);
 
+// pets.dat — every tamed pet, with whose it is. Strays aren't kept. Worlds
+// from before pets have none.
+struct PetRecord {
+  uint16_t kind = 0; // an EntityKind
+  glm::vec3 position{0.0f};
+  float yaw = 0.0f;
+  bool host = true;  // the host's pet, else a guest's by name
+  std::string name;
+  uint8_t collar = 1;
+  bool sitting = false;
+  bool operator==(const PetRecord &) const = default;
+};
+bool loadPets(const std::string &dir, std::vector<PetRecord> &out);
+bool savePets(const std::string &dir, std::span<const PetRecord> pets);
+
 // players/<name>.dat — a guest's state, kept in the host's world so they carry
 // on where they left off. The host's own record stays in player.dat and
 // inventory.dat. Names must be 1-16 of [A-Za-z0-9_-] (they're file names).

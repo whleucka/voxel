@@ -23,7 +23,8 @@ namespace {
 // The files of a saved world, other than its guests.
 constexpr const char *kWorldFiles[] = {"level.dat",     "player.dat",     "edits.dat",
                                        "inventory.dat", "discovered.dat", "furnaces.dat",
-                                       "chests.dat",    "farms.dat",      "boats.dat"};
+                                       "chests.dat",    "farms.dat",      "boats.dat",
+                                       "pets.dat"};
 
 std::vector<ItemId> seenList(const SeenItems &seen) {
   std::vector<ItemId> out;
@@ -109,6 +110,23 @@ bool Game::load(const std::string &dir) {
   } else {
     setAside("boats.dat");
   }
+  // Without pets.dat (a world from before pets) there are none. Kinds this
+  // build doesn't know as pets are skipped.
+  if (std::vector<WorldSave::PetRecord> ps; WorldSave::loadPets(dir, ps)) {
+    for (const auto &r : ps) {
+      const auto kind = static_cast<EntityKind>(r.kind);
+      if (!isPetKind(kind)) continue;
+      if (auto id = entities_.spawn(kind, r.position)) {
+        Entity &e = *entities_.find(*id);
+        e.yaw = r.yaw;
+        e.pet = PetOwner{r.host, r.name,
+                         static_cast<uint8_t>(std::clamp<int>(r.collar, 1, kCollarColours)),
+                         r.sitting};
+      }
+    }
+  } else {
+    setAside("pets.dat");
+  }
   WorldSave::loadGuests(dir, guest_records);
   return true;
 }
@@ -174,12 +192,18 @@ bool Game::save() {
     }
     boats.push_back(r);
   }
+  std::vector<WorldSave::PetRecord> pets;
+  for (const auto &[id, e] : entities_.all())
+    if (e.pet)
+      pets.push_back({static_cast<uint16_t>(e.kind), e.body.position, e.yaw, e.pet->host,
+                      e.pet->name, e.pet->collar, e.pet->sitting});
 
   if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits()) ||
       !WorldSave::saveFurnaces(save_dir, furnaces) ||
       !WorldSave::saveChests(save_dir, chests) ||
       !WorldSave::saveFarms(save_dir, farms) ||
       !WorldSave::saveBoats(save_dir, boats) ||
+      !WorldSave::savePets(save_dir, pets) ||
       (inv && !WorldSave::saveInventory(save_dir, *inv)) ||
       (discovered && !WorldSave::saveDiscovered(save_dir, *discovered)) || !guests_ok) {
     std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";

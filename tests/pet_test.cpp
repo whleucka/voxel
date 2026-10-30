@@ -389,3 +389,71 @@ TEST_CASE_FIXTURE(PetGame, "a pet whose owner is away waits where it is") {
         0.1f);
   CHECK_FALSE(pet()->follow);
 }
+
+// ─── Saving ────────────────────────────────────────────────────────────
+
+TEST_CASE("pets.dat round-trips host and guest pets") {
+  TempDir dir;
+  std::vector<WorldSave::PetRecord> pets{
+      {static_cast<uint16_t>(EntityKind::Puppy), {1.5f, 70.0f, -3.5f}, 45.0f, true, "", 3, false},
+      {static_cast<uint16_t>(EntityKind::Kitten), {-8.0f, 64.0f, 2.0f}, 180.0f, false, "Sam", 8,
+       true}};
+  REQUIRE(WorldSave::savePets(dir.path.string(), pets));
+  std::vector<WorldSave::PetRecord> back;
+  REQUIRE(WorldSave::loadPets(dir.path.string(), back));
+  CHECK(back == pets);
+}
+
+TEST_CASE("no pets.dat is no pets; a bad one won't load") {
+  TempDir dir;
+  std::vector<WorldSave::PetRecord> back;
+  CHECK_FALSE(WorldSave::loadPets(dir.path.string(), back));
+  std::ofstream(dir.path / "pets.dat", std::ios::binary) << "VXPE\x01junk";
+  CHECK_FALSE(WorldSave::loadPets(dir.path.string(), back));
+}
+
+TEST_CASE_FIXTURE(PetGame, "a pet is still there, still yours, after saving and loading") {
+  ScopedSeed seed;
+  TempDir dir;
+  game.load(dir.path.string());
+  tame(host, hid);
+  hold(hid, ItemId::NONE, 0);
+  run(host, InteractEntity{pup});
+  REQUIRE(pet()->pet->sitting);
+  const PetOwner owner = *pet()->pet;
+  const glm::vec3 at = pet()->body.position;
+  // And a stray, which isn't kept.
+  REQUIRE(game.entities().spawn(EntityKind::Kitten, kStand + glm::vec3(3, 0, 0)));
+  REQUIRE(game.save());
+
+  ScopedRenderDistance rd0{0};
+  Game again;
+  again.spawner() = Spawner{};
+  REQUIRE(again.load(dir.path.string()));
+  std::vector<const Entity *> pets;
+  for (const auto &[id, e] : again.entities().all()) pets.push_back(&e);
+  REQUIRE(pets.size() == 1);
+  CHECK(pets[0]->kind == EntityKind::Puppy);
+  CHECK(pets[0]->body.position == at);
+  REQUIRE(pets[0]->pet);
+  CHECK(pets[0]->pet->host == owner.host);
+  CHECK(pets[0]->pet->collar == owner.collar);
+  CHECK(pets[0]->pet->sitting);
+}
+
+TEST_CASE("a world with a corrupt pets.dat loads without pets and keeps the file aside") {
+  ScopedRenderDistance rd{0};
+  ScopedSeed seed;
+  TempDir dir;
+  {
+    Game g;
+    g.load(dir.path.string());
+    REQUIRE(g.save());
+  }
+  std::ofstream(dir.path / "pets.dat", std::ios::binary | std::ios::trunc) << "nonsense";
+  Game g;
+  g.spawner() = Spawner{};
+  REQUIRE(g.load(dir.path.string()));
+  CHECK(g.entities().size() == 0);
+  CHECK(std::filesystem::exists(dir.path / "pets.dat.unreadable"));
+}

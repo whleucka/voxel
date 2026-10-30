@@ -49,6 +49,7 @@ constexpr char kFurnaceMagic[4] = {'V', 'X', 'F', 'U'};
 constexpr char kChestMagic[4]   = {'V', 'X', 'C', 'H'};
 constexpr char kFarmMagic[4]    = {'V', 'X', 'F', 'A'};
 constexpr char kBoatMagic[4]    = {'V', 'X', 'B', 'O'};
+constexpr char kPetMagic[4]     = {'V', 'X', 'P', 'E'};
 
 constexpr uint32_t kChunkVolume = kChunkWidth * kChunkDepth * kChunkHeight;
 
@@ -591,6 +592,55 @@ bool saveBoats(const std::string &dir, std::span<const BoatRecord> boats) {
         wr(o, static_cast<uint8_t>(name.size()));
         o.write(name.data(), static_cast<std::streamsize>(name.size()));
       }
+  });
+}
+
+// ─── pets.dat ───────────────────────────────────────────────────────────────
+
+bool loadPets(const std::string &dir, std::vector<PetRecord> &out) {
+  std::ifstream in(dir + "/pets.dat", std::ios::binary);
+  if (!in || !checkHeader(in, kPetMagic)) return false;
+  uint32_t n = 0;
+  if (!rd(in, n) || n > 100'000) return false;
+  std::vector<PetRecord> pets;
+  for (uint32_t i = 0; i < n; ++i) {
+    PetRecord r;
+    uint8_t host = 0, len = 0, sitting = 0;
+    if (!rd(in, r.kind) || !rd(in, r.position.x) || !rd(in, r.position.y) ||
+        !rd(in, r.position.z) || !rd(in, r.yaw) || !rd(in, host) || !rd(in, len))
+      return false;
+    r.host = host != 0;
+    r.name.resize(len);
+    if (len && !in.read(r.name.data(), len)) return false;
+    if (!rd(in, r.collar) || !rd(in, sitting)) return false;
+    r.sitting = sitting != 0;
+    if (!std::isfinite(r.position.x) || !std::isfinite(r.position.y) ||
+        !std::isfinite(r.position.z) || !std::isfinite(r.yaw))
+      return false;
+    if (!r.host && !safeName(r.name)) return false;
+    pets.push_back(std::move(r));
+  }
+  out = std::move(pets);
+  return true;
+}
+
+bool savePets(const std::string &dir, std::span<const PetRecord> pets) {
+  return writeAtomic(dir + "/pets.dat", [&](std::ostream &o) {
+    writeHeader(o, kPetMagic);
+    wr(o, static_cast<uint32_t>(pets.size()));
+    for (const PetRecord &r : pets) {
+      const std::string name = r.name.substr(0, 255);
+      wr(o, r.kind);
+      wr(o, r.position.x);
+      wr(o, r.position.y);
+      wr(o, r.position.z);
+      wr(o, r.yaw);
+      wr(o, static_cast<uint8_t>(r.host ? 1 : 0));
+      wr(o, static_cast<uint8_t>(name.size()));
+      o.write(name.data(), static_cast<std::streamsize>(name.size()));
+      wr(o, r.collar);
+      wr(o, static_cast<uint8_t>(r.sitting ? 1 : 0));
+    }
   });
 }
 
