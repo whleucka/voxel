@@ -1353,7 +1353,8 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     else if (ray.hit && isBed(ray.block_type) && !player->isCrouching())
       engine->connection().send(UseBed{ray.block_pos});
     // Open or shut a door (crouch to place against it instead).
-    else if (ray.hit && isDoor(ray.block_type) && !player->isCrouching())
+    else if (ray.hit && (isDoor(ray.block_type) || isGate(ray.block_type)) &&
+             !player->isCrouching())
       engine->connection().send(UseDoor{ray.block_pos});
     // Pick berries or eat a slice of cake (crouch to place against it instead).
     else if (ray.hit && !player->isCrouching() &&
