@@ -48,6 +48,12 @@ public:
   static constexpr int kFedCooldownMs = 60000;
   static constexpr int kHappyMs = 2000;
   static constexpr int kProductDelayMs = 1000;
+  // Pets
+  static constexpr int kTreatCooldownMs = 1000;   // between treats to a stray
+  static constexpr int kMaxPets = 6;              // per player
+  static constexpr float kCatchUpDistance = 20.0f; // further than this: brought over
+  static constexpr int kStuckMs = 5000;           // no closer for this long: brought over
+  static constexpr int kCatchUpRange = 2;         // blocks from the owner it lands within
   // Enemies hitting players
   static constexpr float kEnemyContactRange = 0.3f; // gap between the boxes
   static constexpr int kEnemyAttackCooldownMs = 1000;
@@ -238,6 +244,17 @@ private:
   // Eye-to-box distance check shared by hitting and feeding.
   bool inReachOf(const PlayerState &ps, const Entity &e) const;
   void releaseAnimalProducts();
+  // Pets: a treat or a click on a stray (taming) or on a pet (sit / stay).
+  void interactPet(Client &client, PlayerState &ps, Entity &e);
+  static bool ownsPet(const Client &client, const PlayerState &ps, const PetOwner &owner);
+  int petsOf(const Client &client, const PlayerState &ps) const;
+  // Each pet's owner, if they're here and alive, is who it follows.
+  void setPetTargets();
+  // Pets far behind or stuck land beside their owner (checked once a second).
+  void catchUpPets();
+  // Open, solid-floored ground within kCatchUpRange of `near` for a body this
+  // size; the nearest such spot.
+  std::optional<glm::vec3> groundNear(glm::vec3 near, float half_width, float height) const;
   // Peaceful clears enemies; daylight clears surface enemies under the sky.
   void removeEnemies();
   // Gone: its drops pop out and it's removed.
