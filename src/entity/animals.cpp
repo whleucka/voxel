@@ -40,4 +40,8 @@ void registerAnimalSpawns(Spawner &spawner) {
                    canSpawn<EntityKind::ShellTurtle>});
   spawner.addRule({EntityKind::BlossomDeer, kAnimalsPerPlayer, kAnimalSpawnIntervalMs,
                    canSpawn<EntityKind::BlossomDeer>});
+  spawner.addRule({EntityKind::Puppy, kStraysPerPlayer, kStraySpawnIntervalMs,
+                   canSpawn<EntityKind::Puppy>});
+  spawner.addRule({EntityKind::Kitten, kStraysPerPlayer, kStraySpawnIntervalMs,
+                   canSpawn<EntityKind::Kitten>});
 }

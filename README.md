@@ -23,6 +23,7 @@
 - **Beds:** craft a bed in one of 8 colours, sleep through the night, and wake up there after you die ([more below](#beds)).
 - **Chests:** craft chests to keep your things in, and hunt deep caves for locked treasure chests ([more below](#chests-and-treasure)).
 - **Fishing:** make a rod, cast it, and reel in when the bobber dips. Cook your catch, or find treasure ([more below](#fishing)).
+- **Pets:** tame a stray Puppy or Kitten with three treats, and it wears a collar, follows you everywhere and sits when you ask ([more below](#pets)).
 - **Boats:** make a boat from planks, put it on the water and sail it, with a friend in the front seat ([more below](#boats)).
 - **Farming:** till soil with a hoe, plant wheat, carrots and strawberries, keep them watered, and harvest them for food ([more below](#farming)).
 - **Tools and weapons:** pickaxes, axes, shovels, swords and hoes from wood to diamond; mining takes time and the best ore needs the best picks ([more below](#tools-and-weapons)).
@@ -37,7 +38,6 @@
 
 ## Ideas for next time
 
-- **Pets:** tame an animal by feeding it, and it follows you around.
 - **Your own look:** pick a color and a hat, so players can tell each other apart on the network
 - **Quick-chat:** a wheel of "Hi!", "Follow me!" and "Help!" messages, with no typing needed
 - **Hide-and-seek:** a network mini-game
@@ -103,7 +103,7 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **W, A, S, D:** Move. **Space:** Jump. **Mouse:** Look around.
 *   **Left Ctrl:** Sprint (uses stamina). **Left Shift:** Crouch, or get out of a boat.
 *   **Left click:** Hit a creature, pick up an empty boat, or break a block (hold it in survival).
-*   **Right click:** Place a block, put a boat on the water or get into one, feed an animal, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, open and shut a door, sleep in a bed, pick berries, eat a slice of cake, till, plant and water with a hoe, seeds or a watering can, or use compost.
+*   **Right click:** Place a block, put a boat on the water or get into one, feed an animal or pet, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, open and shut a door, sleep in a bed, pick berries, eat a slice of cake, till, plant and water with a hoe, seeds or a watering can, or use compost.
 *   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
 *   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
 *   **T:** Chat. Type and press Enter (or click Send); Esc closes it.
@@ -324,6 +324,25 @@ not build, break or fight. A boat stops at the shore and won't move on land.
 Hit an empty boat to pick it up again. Boats never break, and a boat you
 leave stays where you left it, even after you quit. Quit while you're in one
 and you'll be back in your seat when you return.
+
+## Pets
+
+Stray **Puppies** wander the plains and mountains, and stray **Kittens**
+the plains, cherry groves and desert. Give one three treats, right-clicking
+it with each, and it's yours. It gets a coloured collar, and a heart pops up
+with every treat.
+
+| Pet | Treats (any one) |
+|---|---|
+| Puppy | Berries, Strawberry or Bread |
+| Kitten | Any raw fish |
+
+Your pet follows you around. If you run, fly or sail far ahead, or it gets
+stuck, it catches up and turns up beside you. Right-click it with anything
+that isn't a treat to make it **sit** and stay. Do it again and it follows
+you. Pets can't be hurt, never wander off, and are still there when you come
+back to the world. Each player can have up to 6 pets, and a friend's pet
+only sits for them.
 
 ## Farming
 

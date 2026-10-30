@@ -86,8 +86,9 @@ void Spawner::tick(EntityStore &store, const World &world, Rng &rng,
       int nearby = 0;
       for (const auto &[id, e] : store.all())
         // Horizontal, like the placement band: a creature in a valley far
-        // below the player still counts toward the cap.
-        if (e.kind == rule.kind &&
+        // below the player still counts toward the cap. Tamed pets don't:
+        // owning a puppy shouldn't stop strays turning up.
+        if (e.kind == rule.kind && !e.pet &&
             glm::length(glm::vec2(e.body.position.x - player.x,
                                   e.body.position.z - player.z)) <= kCountRange)
           ++nearby;

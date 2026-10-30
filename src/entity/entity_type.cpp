@@ -23,6 +23,8 @@ std::unique_ptr<Brain> makeSwimmer() {
   return std::make_unique<WanderBrain>(o);
 }
 
+std::unique_ptr<Brain> makePet() { return std::make_unique<PetBrain>(); }
+
 std::unique_ptr<Brain> makeSwimBrain() { return std::make_unique<SwimBrain>(); }
 std::unique_ptr<Brain> makeChaser() { return std::make_unique<ChaseBrain>(); }
 std::unique_ptr<Brain> makeHoppingChaser() {
@@ -163,6 +165,66 @@ EntityTypeDef makeBlossomDeer() {
   d.animal = AnimalDef{{itemForBlock(BlockType::OAK_LEAF), itemForBlock(BlockType::FERN)},
                        {ItemId::SWEET_PETALS, 1},
                        {BiomeType::CHERRY}, {BlockType::GRASS}};
+  return d;
+}
+
+// ─── Pets ──────────────────────────────────────────────────────────────
+// Strays wander until tamed; then they follow their owner (PetBrain). The
+// collar box only shows once a pet has an owner.
+
+EntityTypeDef makePuppy() {
+  const glm::vec3 coat{0.85f, 0.62f, 0.32f}, ear{0.55f, 0.36f, 0.18f};
+  EntityTypeDef d{"Puppy", 0.3f, 0.7f, 0, 0, 3.0f, {}, makePet, {}, {}};
+  d.model = {
+      {{-0.20f, 0.28f, -0.25f}, {0.40f, 0.26f, 0.55f}, coat},          // body
+      {{-0.17f, 0.40f, -0.52f}, {0.34f, 0.30f, 0.30f}, coat},          // head
+      {{-0.08f, 0.42f, -0.62f}, {0.16f, 0.12f, 0.10f}, coat},          // snout
+      {{-0.04f, 0.50f, -0.63f}, {0.08f, 0.05f, 0.02f}, kEyeBlack},     // nose
+      {{-0.21f, 0.46f, -0.44f}, {0.05f, 0.22f, 0.12f}, ear},           // floppy ears
+      {{0.16f, 0.46f, -0.44f}, {0.05f, 0.22f, 0.12f}, ear},
+      {{-0.11f, 0.60f, -0.53f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},     // eyes
+      {{0.06f, 0.60f, -0.53f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},
+      {{-0.04f, 0.46f, 0.30f}, {0.08f, 0.08f, 0.22f}, coat, 0, false, true}, // tail
+  };
+  ModelBox collar{{-0.185f, 0.38f, -0.30f}, {0.37f, 0.07f, 0.10f}};
+  collar.collar = true;
+  d.model.push_back(collar);
+  addLegs(d.model, 0.2f, -0.22f, 0.28f, {0.12f, 0.28f, 0.12f}, coat);
+  d.sit_drop = 0.26f;
+  d.animal = AnimalDef{{ItemId::BERRIES, ItemId::STRAWBERRY, ItemId::BREAD},
+                       {},
+                       {BiomeType::PLAINS, BiomeType::MOUNTAIN},
+                       {BlockType::GRASS, BlockType::SNOW, BlockType::SNOW_DIRT},
+                       /*tame_treats=*/3};
+  return d;
+}
+
+EntityTypeDef makeKitten() {
+  const glm::vec3 coat{0.80f, 0.56f, 0.34f}, stripe{0.52f, 0.36f, 0.24f},
+      eye{0.45f, 0.80f, 0.30f}, pink{0.95f, 0.62f, 0.68f};
+  EntityTypeDef d{"Kitten", 0.25f, 0.55f, 0, 0, 3.0f, {}, makePet, {}, {}};
+  d.model = {
+      {{-0.15f, 0.22f, -0.20f}, {0.30f, 0.20f, 0.44f}, coat},          // body
+      {{-0.155f, 0.36f, -0.06f}, {0.31f, 0.04f, 0.05f}, stripe},       // stripes
+      {{-0.155f, 0.36f, 0.08f}, {0.31f, 0.04f, 0.05f}, stripe},
+      {{-0.14f, 0.30f, -0.42f}, {0.28f, 0.24f, 0.24f}, coat},          // head
+      {{-0.12f, 0.54f, -0.34f}, {0.07f, 0.08f, 0.05f}, coat},          // pointy ears
+      {{0.05f, 0.54f, -0.34f}, {0.07f, 0.08f, 0.05f}, coat},
+      {{-0.09f, 0.44f, -0.43f}, {0.05f, 0.05f, 0.02f}, eye},           // eyes
+      {{0.04f, 0.44f, -0.43f}, {0.05f, 0.05f, 0.02f}, eye},
+      {{-0.025f, 0.38f, -0.43f}, {0.05f, 0.03f, 0.02f}, pink},         // nose
+      {{-0.03f, 0.36f, 0.20f}, {0.06f, 0.34f, 0.06f}, stripe, 0, false, true}, // upright tail
+  };
+  ModelBox collar{{-0.15f, 0.29f, -0.22f}, {0.30f, 0.05f, 0.07f}};
+  collar.collar = true;
+  d.model.push_back(collar);
+  addLegs(d.model, 0.15f, -0.18f, 0.22f, {0.09f, 0.22f, 0.09f}, coat);
+  d.sit_drop = 0.2f;
+  d.animal = AnimalDef{{ItemId::RAW_PEBBLEFISH, ItemId::RAW_SUNFIN, ItemId::RAW_GLOWFIN},
+                       {},
+                       {BiomeType::PLAINS, BiomeType::CHERRY, BiomeType::DESERT},
+                       {BlockType::GRASS, BlockType::SAND},
+                       /*tame_treats=*/3};
   return d;
 }
 
@@ -366,6 +428,13 @@ const EntityTypeDef kWoolly = makeWoolly();
 const EntityTypeDef kBunny = makeBunny();
 const EntityTypeDef kShellTurtle = makeShellTurtle();
 const EntityTypeDef kBlossomDeer = makeBlossomDeer();
+const EntityTypeDef kPuppy = makePuppy();
+const EntityTypeDef kKitten = makeKitten();
+
+// White, red, orange, yellow, green, blue, purple, pink: the beds' colours.
+constexpr glm::vec3 kCollars[kCollarColours] = {
+    {0.95f, 0.95f, 0.95f}, {0.85f, 0.20f, 0.20f}, {0.95f, 0.55f, 0.15f}, {0.95f, 0.85f, 0.20f},
+    {0.30f, 0.70f, 0.25f}, {0.25f, 0.45f, 0.90f}, {0.60f, 0.30f, 0.80f}, {0.95f, 0.55f, 0.75f}};
 
 } // namespace
 
@@ -386,7 +455,9 @@ bool isValidEntityKind(EntityKind kind) {
     case EntityKind::Bobber:
     case EntityKind::Zombie:
     case EntityKind::Mummy:
-    case EntityKind::Boat:         return true;
+    case EntityKind::Boat:
+    case EntityKind::Puppy:
+    case EntityKind::Kitten:       return true;
   }
   return false;
 }
@@ -409,6 +480,13 @@ const EntityTypeDef &entityType(EntityKind kind) {
     case EntityKind::Zombie:       return kZombie;
     case EntityKind::Mummy:        return kMummy;
     case EntityKind::Boat:         return kBoat;
+    case EntityKind::Puppy:        return kPuppy;
+    case EntityKind::Kitten:       return kKitten;
   }
   return kTestCreature;
+}
+
+glm::vec3 collarColour(uint8_t collar) {
+  if (collar < 1 || collar > kCollarColours) return glm::vec3(1.0f);
+  return kCollars[collar - 1];
 }

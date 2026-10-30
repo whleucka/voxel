@@ -1620,7 +1620,8 @@ struct FeedGame : FightGame {
 TEST_CASE("the natural spawner has a rule per animal and enemy") {
   Game g;
   CHECK(g.spawner().rules().size() ==
-        std::size(kAnimalKinds) + std::size(kEnemyKinds) + std::size(kFishKinds));
+        std::size(kAnimalKinds) + std::size(kPetKinds) + std::size(kEnemyKinds) +
+            std::size(kFishKinds));
 }
 
 TEST_CASE_FIXTURE(FeedGame, "feeding an animal its favourite makes it happy and it gives back") {

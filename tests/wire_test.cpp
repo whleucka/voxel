@@ -257,6 +257,19 @@ TEST_CASE("burning travels in entity snapshots") {
   CHECK(back.entities[0].burning);
 }
 
+TEST_CASE("a pet's collar and pose travel in entity snapshots") {
+  EntitySnapshot snap;
+  EntityView v;
+  v.kind = EntityKind::Puppy;
+  v.collar = 6;
+  v.sitting = true;
+  snap.entities.push_back(v);
+  auto back = std::get<EntitySnapshot>(*wire::decodeEvent(enc(Event{snap})));
+  REQUIRE(back.entities.size() == 1);
+  CHECK(back.entities[0].collar == 6);
+  CHECK(back.entities[0].sitting);
+}
+
 TEST_CASE("fishing messages round-trip") {
   auto cast = std::get<CastLine>(*wire::decodeCommand(enc(Command{CastLine{{0.5f, 0.25f, -1.0f}}})));
   CHECK(cast.dir == glm::vec3(0.5f, 0.25f, -1.0f));

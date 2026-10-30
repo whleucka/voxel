@@ -115,8 +115,10 @@ void EntityRenderer::setLight(const World &world, glm::vec3 position) const {
 
 void EntityRenderer::drawModel(const std::vector<ModelBox> &model, glm::vec3 position,
                                float yaw, bool moving, const World &world, double now,
-                               bool lying) const {
+                               bool lying, uint8_t collar, float sit_drop) const {
   setLight(world, position);
+  const bool sitting = sit_drop > 0.0f;
+  if (sitting) moving = false;
   // Models face -Z at yaw 0; positive yaw turns toward +X.
   glm::mat4 m = glm::rotate(glm::translate(glm::mat4(1.0f), position), -glm::radians(yaw),
                             glm::vec3(0, 1, 0));
@@ -130,8 +132,11 @@ void EntityRenderer::drawModel(const std::vector<ModelBox> &model, glm::vec3 pos
   shader->setInt("uMode", 0);
   float swing = moving && !lying ? std::sin(static_cast<float>(now) * 10.0f) * glm::radians(30.0f)
                                  : 0.0f;
+  if (sitting) m = glm::translate(m, glm::vec3(0.0f, -sit_drop, 0.0f));
   for (const ModelBox &box : model) {
-    shader->setVec3("uColor", box.color);
+    if (box.collar && collar == 0) continue;
+    if (sitting && box.swing != 0) continue; // legs tucked under
+    shader->setVec3("uColor", box.collar ? collarColour(collar) : box.color);
     if (box.glow) shader->setBool("uGlow", true);
     if (box.wag && swing != 0.0f) {
       // Tails wag side to side about their front edge.
@@ -248,7 +253,8 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities,
       if (hand) drawLine(*hand, top + glm::vec3(0.0f, def.height, 0.0f), world);
       continue;
     }
-    drawModel(def.model, e.position, e.yaw, e.moving, world, now);
+    drawModel(def.model, e.position, e.yaw, e.moving, world, now, false, e.collar,
+              e.sitting ? def.sit_drop : 0.0f);
 
     // A fed animal shows a little bobbing heart above its head (not turned
     // with the body, so it always reads as a heart).

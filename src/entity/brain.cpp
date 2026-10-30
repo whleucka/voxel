@@ -239,3 +239,60 @@ Intent ChaseBrain::think(const Entity &self, const BrainContext &ctx) {
   in.jump = opts.hop || climb || self.body.collidesAt(&ctx.world, ahead);
   return in;
 }
+
+// ─── Pets ──────────────────────────────────────────────────────────────
+
+namespace {
+
+WanderOptions petWander() {
+  WanderOptions w;
+  w.cautious = true;
+  return w;
+}
+
+} // namespace
+
+PetBrain::PetBrain() : wander(petWander()) {}
+
+Intent PetBrain::think(const Entity &self, const BrainContext &ctx) {
+  const bool sitting = self.pet && self.pet->sitting;
+  if (sitting || !self.follow) {
+    going = false;
+    stuck_ms = 0;
+    // A stray wanders; a pet whose owner is away waits where it is.
+    if (!self.pet) return wander.think(self, ctx);
+    Intent in;
+    in.yaw = self.yaw;
+    in.halt = true;
+    return in;
+  }
+
+  const glm::vec3 owner = *self.follow;
+  const float dist = horizontalDistance(self.body.position, owner);
+  if (!going && dist > kFollowFrom) {
+    going = true;
+    best = dist;
+    stuck_ms = 0;
+  } else if (going && dist <= kStopAt) {
+    going = false;
+    stuck_ms = 0;
+  }
+
+  if (!going) {
+    // Close by: stand and look at them.
+    Intent in;
+    in.halt = true;
+    glm::vec2 face(owner.x - self.body.position.x, owner.z - self.body.position.z);
+    in.yaw = glm::length(face) > 1e-3f ? glm::degrees(std::atan2(face.x, -face.y)) : self.yaw;
+    return in;
+  }
+
+  if (dist < best - kProgress) {
+    best = dist;
+    stuck_ms = 0;
+  } else {
+    stuck_ms += EntityStore::kTickMs;
+  }
+  const glm::vec3 target[] = {owner};
+  return walk.think(self, BrainContext{ctx.world, ctx.rng, target});
+}

@@ -23,7 +23,8 @@ namespace {
 // The files of a saved world, other than its guests.
 constexpr const char *kWorldFiles[] = {"level.dat",     "player.dat",     "edits.dat",
                                        "inventory.dat", "discovered.dat", "furnaces.dat",
-                                       "chests.dat",    "farms.dat",      "boats.dat"};
+                                       "chests.dat",    "farms.dat",      "boats.dat",
+                                       "pets.dat"};
 
 std::vector<ItemId> seenList(const SeenItems &seen) {
   std::vector<ItemId> out;
@@ -109,6 +110,23 @@ bool Game::load(const std::string &dir) {
   } else {
     setAside("boats.dat");
   }
+  // Without pets.dat (a world from before pets) there are none. Kinds this
+  // build doesn't know as pets are skipped.
+  if (std::vector<WorldSave::PetRecord> ps; WorldSave::loadPets(dir, ps)) {
+    for (const auto &r : ps) {
+      const auto kind = static_cast<EntityKind>(r.kind);
+      if (!isPetKind(kind)) continue;
+      if (auto id = entities_.spawn(kind, r.position)) {
+        Entity &e = *entities_.find(*id);
+        e.yaw = r.yaw;
+        e.pet = PetOwner{r.host, r.name,
+                         static_cast<uint8_t>(std::clamp<int>(r.collar, 1, kCollarColours)),
+                         r.sitting};
+      }
+    }
+  } else {
+    setAside("pets.dat");
+  }
   WorldSave::loadGuests(dir, guest_records);
   return true;
 }
@@ -174,12 +192,18 @@ bool Game::save() {
     }
     boats.push_back(r);
   }
+  std::vector<WorldSave::PetRecord> pets;
+  for (const auto &[id, e] : entities_.all())
+    if (e.pet)
+      pets.push_back({static_cast<uint16_t>(e.kind), e.body.position, e.yaw, e.pet->host,
+                      e.pet->name, e.pet->collar, e.pet->sitting});
 
   if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits()) ||
       !WorldSave::saveFurnaces(save_dir, furnaces) ||
       !WorldSave::saveChests(save_dir, chests) ||
       !WorldSave::saveFarms(save_dir, farms) ||
       !WorldSave::saveBoats(save_dir, boats) ||
+      !WorldSave::savePets(save_dir, pets) ||
       (inv && !WorldSave::saveInventory(save_dir, *inv)) ||
       (discovered && !WorldSave::saveDiscovered(save_dir, *discovered)) || !guests_ok) {
     std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";
@@ -439,7 +463,9 @@ void Game::tick() {
     positions.push_back(ps.position);
     if (!ps.vitals.dead() && rules().enemies_target) living.push_back(ps.position);
   }
+  setPetTargets();
   entities_.tick(world_, rng_, positions, living, speedScale(g_settings.difficulty));
+  catchUpPets();
   tickBoats();
   tickFishing();
   removeEnemies();
@@ -479,7 +505,8 @@ void Game::sendEntitySnapshots() {
       if (glm::distance(e.body.position, ps->position) > kEntityViewRange) continue;
       snap.entities.push_back({id, e.kind, e.body.position, e.yaw, e.item.id,
                                e.hurt_ms > 0, e.happy_ms > 0, e.burning_ms > 0, e.owner,
-                               e.biting, false});
+                               e.biting, false, static_cast<uint8_t>(e.pet ? e.pet->collar : 0),
+                               e.pet && (e.pet->sitting || !e.follow)});
     }
     for (const auto &[pid, other] : players) {
       if (pid == ps->id || other.vitals.dead()) continue;
@@ -1916,6 +1943,7 @@ void Game::apply(Client &client, const InteractEntity &cmd) {
   Entity *e = entities_.find(cmd.id);
   if (!e || !isAnimal(e->kind)) return reject(client, "interact: nothing to do");
   if (!inReachOf(*ps, *e)) return reject(client, "interact: out of reach");
+  if (isPetKind(e->kind)) return interactPet(client, *ps, *e);
 
   const AnimalDef &animal = *entityType(e->kind).animal;
   const ItemStack &held = ps->inventory.slot(ps->selected_slot);
@@ -1930,6 +1958,113 @@ void Game::apply(Client &client, const InteractEntity &cmd) {
   e->fed_cooldown_ms = kFedCooldownMs;
   e->product_delay_ms = kProductDelayMs;
   e->product_pending = true;
+}
+
+// ─── Pets ──────────────────────────────────────────────────────────────
+
+bool Game::ownsPet(const Client &client, const PlayerState &ps, const PetOwner &owner) {
+  if (owner.host) return client.role == Role::Host;
+  return client.role == Role::Guest && ps.name == owner.name;
+}
+
+int Game::petsOf(const Client &client, const PlayerState &ps) const {
+  int n = 0;
+  for (const auto &[id, e] : entities_.all()) n += e.pet && ownsPet(client, ps, *e.pet);
+  return n;
+}
+
+void Game::interactPet(Client &client, PlayerState &ps, Entity &e) {
+  const EntityTypeDef &def = entityType(e.kind);
+  const AnimalDef &animal = *def.animal;
+  const ItemStack &held = ps.inventory.slot(ps.selected_slot);
+  const bool treat = !held.empty() && std::find(animal.eats.begin(), animal.eats.end(),
+                                                held.id) != animal.eats.end();
+
+  if (e.pet) {
+    e.happy_ms = kHappyMs;
+    if (!ownsPet(client, ps, *e.pet))
+      return reject(client, "pet: that's " + e.pet->name + "'s pet");
+    if (treat) { // a "good dog" treat: just a heart
+      ps.inventory.take(ps.selected_slot, 1);
+      sendInventory(client, ps);
+    } else {
+      e.pet->sitting = !e.pet->sitting;
+    }
+    return;
+  }
+
+  // A stray: treats tame it.
+  if (!treat) return reject(client, "feed: it doesn't want that");
+  if (e.fed_cooldown_ms > 0) return reject(client, "feed: not so fast");
+  const bool last = e.treats + 1 >= animal.tame_treats;
+  if (last && petsOf(client, ps) >= kMaxPets)
+    return reject(client, "pet: you have lots of pets already");
+
+  ps.inventory.take(ps.selected_slot, 1);
+  sendInventory(client, ps);
+  e.happy_ms = kHappyMs;
+  e.fed_cooldown_ms = kTreatCooldownMs;
+  ++e.treats;
+  if (!last) return;
+  std::uniform_int_distribution<int> colour(1, kCollarColours);
+  e.pet = PetOwner{client.role == Role::Host, ps.name, static_cast<uint8_t>(colour(rng_)),
+                   false};
+  client.link->deliver(Notice{"The " + std::string(def.name) + " is your pet now!"});
+}
+
+void Game::setPetTargets() {
+  for (auto &[id, e] : entities_.all()) {
+    if (!e.pet) continue;
+    e.follow.reset();
+    for (const Client &client : clients) {
+      const PlayerState *ps = client.player ? findPlayer(*client.player) : nullptr;
+      if (ps && !ps->vitals.dead() && ownsPet(client, *ps, *e.pet)) {
+        e.follow = ps->position;
+        break;
+      }
+    }
+  }
+}
+
+std::optional<glm::vec3> Game::groundNear(glm::vec3 near, float half_width,
+                                          float height) const {
+  PhysicsBody body;
+  body.half_width = half_width;
+  body.height = height;
+  const glm::ivec3 c = glm::ivec3(glm::floor(near));
+  std::optional<glm::vec3> best;
+  float best_d = 0.0f;
+  for (int dx = -kCatchUpRange; dx <= kCatchUpRange; ++dx)
+    for (int dz = -kCatchUpRange; dz <= kCatchUpRange; ++dz)
+      for (int dy = 1; dy >= -2; --dy) {
+        const glm::ivec3 cell = c + glm::ivec3(dx, dy, dz);
+        const glm::vec3 at{cell.x + 0.5f, static_cast<float>(cell.y), cell.z + 0.5f};
+        if (!isSolidGround(world_.getBlockAt(at - glm::vec3(0.0f, 0.5f, 0.0f)))) continue;
+        if (body.collidesAt(&world_, at)) continue;
+        if (isLiquid(world_.getBlockAt(at + glm::vec3(0.0f, 0.1f, 0.0f)))) continue;
+        float d = glm::distance(at, near);
+        if (!best || d < best_d) {
+          best = at;
+          best_d = d;
+        }
+        break; // the highest open floor in this column
+      }
+  return best;
+}
+
+void Game::catchUpPets() {
+  if (tick_count % (1000 / kTickMs) != 0) return;
+  for (auto &[id, e] : entities_.all()) {
+    if (!e.pet || e.pet->sitting || !e.follow) continue;
+    const auto *brain = dynamic_cast<const PetBrain *>(e.brain.get());
+    const bool stuck = brain && brain->stuckMs() >= kStuckMs;
+    if (glm::distance(e.body.position, *e.follow) <= kCatchUpDistance && !stuck) continue;
+    auto spot = groundNear(*e.follow, e.body.half_width, e.body.height);
+    if (!spot) continue; // the owner's on water or in the air: try again soon
+    e.body.position = *spot;
+    e.body.velocity = glm::vec3(0.0f);
+    e.brain = entityType(e.kind).brain(); // a fresh start: no old path or stuck time
+  }
 }
 
 // A fed animal's product pops out once its short delay has passed.
