@@ -122,7 +122,10 @@ your way back out. A little house marks home (your bed, or where the world
 began if you haven't slept in one), and when home is too far to fit, the house
 waits on the edge of the map, pointing the way, with how many blocks it is.
 Press **P** to drop up to eight coloured pins at places worth finding again,
-like a cave mouth. They're saved with you. The map can be turned off in Settings.
+like a cave mouth. They're saved with you. In multiplayer everyone sees
+everyone's pins (other players' pins are diamonds, and only the player who
+dropped one can pick it up), and the other players show as arrows in their
+shirt colours, at any distance. The map can be turned off in Settings.
 
 ## Game modes
 

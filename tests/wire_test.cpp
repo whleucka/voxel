@@ -301,6 +301,10 @@ TEST_CASE("map messages round-trip") {
   Waypoints w{{-40, 65, 12}, {{{1, 2, 3}, 0}, {{-9, 30, 400}, 7}}};
   roundTrip(w);
   CHECK(std::get<Waypoints>(*wire::decodeEvent(enc(Event{w}))) == w);
+  Waypoints shared{{0, 70, 0}, {}, {{2, {{5, 6, 7}, 3}}, {9, {{-1, 2, -3}, 0}}}};
+  CHECK(std::get<Waypoints>(*wire::decodeEvent(enc(Event{shared}))) == shared);
+  MapPlayers m{{{2, "Bea", {-3.5f, 64.0f, 1200.25f}, 45.0f}, {9, "Pat", {0.0f, 80.0f, 0.0f}, -90.0f}}};
+  CHECK(std::get<MapPlayers>(*wire::decodeEvent(enc(Event{m}))).players == m.players);
 }
 
 TEST_CASE("boat messages round-trip") {

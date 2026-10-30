@@ -67,6 +67,7 @@ private:
   // The minimap's picture, and the Game's latest Waypoints for it.
   Minimap minimap;
   std::optional<Waypoints> waypoints;
+  std::vector<MapPlayer> map_players; // the Game's latest MapPlayers
   EntityRenderer entity_renderer;
   BlockOutline block_outline;
   EntityInterpolator entity_interp;

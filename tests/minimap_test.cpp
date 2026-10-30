@@ -160,3 +160,16 @@ TEST_CASE_FIXTURE(MapRig, "the picture follows the player and catches up with ch
   CHECK(map.centre() == glm::ivec3(9, kTop + 1, 8));
   CHECK(map.cell(-1, 0) != mapColour(BlockType::STONE));
 }
+
+TEST_CASE("the map's players: everyone heard of, where this frame has them") {
+  const std::vector<MapPlayer> far{{2, "Bea", {500.0f, 64.0f, 0.0f}, 0.0f},
+                                   {3, "Pat", {10.0f, 64.0f, 10.0f}, 0.0f}};
+  const std::vector<PlayerView> near{{3, "Pat", {11.5f, 64.0f, 9.0f}, 90.0f},
+                                     {4, "Sam", {-4.0f, 70.0f, 2.0f}, -90.0f}};
+  const std::vector<MapPlayer> out = mapPlayers(far, near);
+  REQUIRE(out.size() == 3);
+  CHECK(out[0] == far[0]);                                          // far off: as last heard
+  CHECK(out[1] == MapPlayer{3, "Pat", {11.5f, 64.0f, 9.0f}, 90.0f}); // in view: smooth
+  CHECK(out[2] == MapPlayer{4, "Sam", {-4.0f, 70.0f, 2.0f}, -90.0f}); // not heard of yet
+  CHECK(mapPlayers({}, {}).empty());
+}

@@ -1,5 +1,6 @@
 #include "ui/hud.hpp"
 #include "block/block_data.hpp"
+#include "entity/player_model.hpp"
 #include "item/tools.hpp"
 #include "ui/logo.hpp"
 #include "imgui/imgui.h"
@@ -679,7 +680,7 @@ void drawHouse(ImDrawList *dl, ImVec2 c, float s) {
 } // namespace
 
 void Hud::drawMinimap(const HudLayout &layout, const Minimap &map, glm::vec3 feet, float yaw,
-                      const Waypoints *waypoints) {
+                      const Waypoints *waypoints, const std::vector<MapPlayer> &others) {
   ImDrawList *dl = ImGui::GetBackgroundDrawList();
   const Rect area = layout.minimapArea();
   const glm::vec2 mid = area.center();
@@ -722,14 +723,15 @@ void Hud::drawMinimap(const HudLayout &layout, const Minimap &map, glm::vec3 fee
                1.0f, "N");
   }
 
-  // Home and the pins: where they are, or on the rim with the distance.
+  // Home, the pins and the other players: where they are, or on the rim
+  // with the distance.
   const float icon = std::max(7.0f, radius * 0.09f);
   const float text = std::max(12.0f, radius * 0.13f);
-  auto marker = [&](glm::ivec3 at, auto draw) {
-    const glm::vec2 delta = glm::vec2(at.x + 0.5f, at.z + 0.5f) - here;
+  auto marker = [&](glm::vec2 at, auto draw) {
+    const glm::vec2 delta = at - here;
     const MarkerSpot spot = placeMarker(mapOffset(delta, yaw), kMapRadius - 3.5f);
     const glm::vec2 p = mid + spot.at * scale;
-    draw(iv(p));
+    draw(iv(p), spot.on_rim);
     if (!spot.on_rim) return;
     // How far, just inside the rim.
     const std::string label = std::to_string(static_cast<int>(std::lround(glm::length(delta))));
@@ -738,17 +740,49 @@ void Hud::drawMinimap(const HudLayout &layout, const Minimap &map, glm::vec3 fee
     shadowText(dl, text, ImVec2(in.x - ext.x * 0.5f, in.y - ext.y * 0.5f), rgba(255, 255, 255, 1.0f),
                1.0f, label.c_str());
   };
+  auto block = [](glm::ivec3 at) { return glm::vec2(at.x + 0.5f, at.z + 0.5f); };
   if (waypoints) {
+    // Someone else's pins are diamonds, so they don't pass for yours.
+    for (const SharedPin &shared : waypoints->others)
+      marker(block(shared.pin.pos), [&](ImVec2 p, bool) {
+        const float d = icon * 0.95f;
+        const ImVec2 n(p.x, p.y - d), e(p.x + d, p.y), so(p.x, p.y + d), w(p.x - d, p.y);
+        dl->AddQuadFilled(n, e, so, w, kPinColours[shared.pin.colour % kMaxPins]);
+        dl->AddQuad(n, e, so, w, IM_COL32(0, 0, 0, 230), 2.0f);
+      });
     for (const Pin &pin : waypoints->pins)
-      marker(pin.pos, [&](ImVec2 p) {
+      marker(block(pin.pos), [&](ImVec2 p, bool) {
         dl->AddCircleFilled(p, icon * 0.75f, kPinColours[pin.colour % kMaxPins]);
         dl->AddCircle(p, icon * 0.75f, IM_COL32(0, 0, 0, 230), 0, 2.0f);
       });
-    marker(waypoints->home, [&](ImVec2 p) { drawHouse(dl, p, icon); });
+    marker(block(waypoints->home), [&](ImVec2 p, bool) { drawHouse(dl, p, icon); });
+  }
+
+  // The other players in their shirt colours: an arrow the way they face,
+  // or a dot on the rim.
+  const float s = std::max(6.0f, radius * 0.08f);
+  for (const MapPlayer &other : others) {
+    const glm::vec3 &shirt = playerColor(other.name);
+    const ImU32 fill = IM_COL32(shirt.r * 255, shirt.g * 255, shirt.b * 255, 255);
+    marker({other.position.x, other.position.z}, [&](ImVec2 p, bool on_rim) {
+      if (on_rim) {
+        dl->AddCircleFilled(p, s * 0.8f, fill);
+        dl->AddCircle(p, s * 0.8f, IM_COL32(0, 0, 0, 230), 0, 1.5f);
+        return;
+      }
+      const float a = glm::radians(other.yaw);
+      const glm::vec2 f = glm::normalize(mapOffset({std::cos(a), std::sin(a)}, yaw)) * s * 0.85f;
+      const glm::vec2 r(-f.y, f.x), at(p.x, p.y);
+      const ImVec2 tip = iv(at + f * 1.2f), l = iv(at - f * 0.8f - r * 0.8f),
+                   rt = iv(at - f * 0.8f + r * 0.8f), notch = iv(at - f * 0.35f);
+      dl->AddTriangleFilled(tip, rt, notch, fill);
+      dl->AddTriangleFilled(tip, notch, l, fill);
+      const ImVec2 outline[] = {tip, rt, notch, l};
+      dl->AddPolyline(outline, 4, IM_COL32(0, 0, 0, 230), ImDrawFlags_Closed, 1.5f);
+    });
   }
 
   // The player, pointing the way they face (always up).
-  const float s = std::max(6.0f, radius * 0.08f);
   ImVec2 tip(c.x, c.y - s * 1.2f), l(c.x - s * 0.8f, c.y + s * 0.8f), r(c.x + s * 0.8f, c.y + s * 0.8f),
       notch(c.x, c.y + s * 0.35f);
   // Two triangles: the notch makes it concave.

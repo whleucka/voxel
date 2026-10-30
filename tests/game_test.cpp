@@ -3835,6 +3835,78 @@ TEST_CASE_FIXTURE(PinGame, "pins are each player's own") {
   REQUIRE(wp);
   CHECK(wp->pins == std::vector<Pin>{{feet(), 0}}); // a new pin, not picking up ours
   CHECK(game.findPlayer(id)->pins.size() == 1);
+  // Ours is still on their map, and theirs on ours.
+  REQUIRE(wp->others.size() == 1);
+  CHECK(wp->others[0] == SharedPin{id, {feet(), 0}});
+  wp = lastWaypoints(pollAll(conn));
+  REQUIRE(wp);
+  CHECK(wp->pins == std::vector<Pin>{{feet(), 0}});
+  REQUIRE(wp->others.size() == 1);
+  CHECK(wp->others[0].owner != id);
+  CHECK(wp->others[0].pin == Pin{feet(), 0});
+}
+
+TEST_CASE_FIXTURE(PinGame, "everyone's map shows the pins you drop and pick up") {
+  pollAll(other);
+  run(TogglePin{});
+  pinAt({40.5f, ground + 1.0f, 8.5f});
+  auto wp = lastWaypoints(pollAll(other));
+  REQUIRE(wp);
+  CHECK(wp->pins.empty());
+  CHECK(wp->others ==
+        std::vector<SharedPin>{{id, {feet(), 0}}, {id, {{40, ground + 1, 8}, 1}}});
+
+  pinAt({5.5f, ground + 1.0f, 8.5f}); // picked up
+  wp = lastWaypoints(pollAll(other));
+  REQUIRE(wp);
+  CHECK(wp->others == std::vector<SharedPin>{{id, {{40, ground + 1, 8}, 1}}});
+}
+
+namespace {
+std::optional<MapPlayers> lastMapPlayers(const std::vector<Event> &evs) {
+  std::optional<MapPlayers> out;
+  for (const Event &e : evs)
+    if (const auto *m = std::get_if<MapPlayers>(&e)) out = *m;
+  return out;
+}
+} // namespace
+
+TEST_CASE_FIXTURE(EditGame, "each second, the map hears where the other players are, however far") {
+  for (int i = 0; i < Game::kTimeSyncTicks; ++i) game.tick();
+  auto marks = lastMapPlayers(pollAll(conn));
+  REQUIRE(marks);
+  REQUIRE(marks->players.size() == 1);
+  const MapPlayer them = marks->players[0];
+  CHECK(them.id != id);
+  const PlayerState *ps = game.findPlayer(them.id);
+  REQUIRE(ps);
+  CHECK(them.name == ps->name);
+  CHECK(them.position == ps->position);
+
+  // Way out of view range: still on the map.
+  other.send(MovePlayer{{2000.5f, ground + 1.0f, 8.5f}, 0.0f, 0.0f, true, false});
+  game.pump();
+  for (int i = 0; i < Game::kTimeSyncTicks; ++i) game.tick();
+  marks = lastMapPlayers(pollAll(conn));
+  REQUIRE(marks);
+  REQUIRE(marks->players.size() == 1);
+  CHECK(marks->players[0].position.x == doctest::Approx(game.findPlayer(them.id)->position.x));
+
+  // The dead aren't shown; an empty list says so once, then nothing.
+  game.findPlayer(them.id)->vitals.damage(1000);
+  for (int i = 0; i < Game::kTimeSyncTicks; ++i) game.tick();
+  marks = lastMapPlayers(pollAll(conn));
+  REQUIRE(marks);
+  CHECK(marks->players.empty());
+  for (int i = 0; i < Game::kTimeSyncTicks; ++i) game.tick();
+  CHECK_FALSE(lastMapPlayers(pollAll(conn)));
+}
+
+TEST_CASE_FIXTURE(SmallGame, "alone, the map hears of no one") {
+  LocalConnection conn;
+  join(game, conn);
+  for (int i = 0; i < 3 * Game::kTimeSyncTicks; ++i) game.tick();
+  CHECK_FALSE(lastMapPlayers(pollAll(conn)));
 }
 
 TEST_CASE_FIXTURE(BedGame, "home on the map is your bed while it stands") {

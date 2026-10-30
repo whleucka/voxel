@@ -85,10 +85,10 @@ public:
   void drawMiningRing(float progress);
 
   // The minimap in its corner, turned so that `yaw` (the camera's) is up:
-  // the player's arrow in the middle, north, home and the pins. Markers too
-  // far away sit on the rim with how far they are.
+  // the player's arrow in the middle, north, home, everyone's pins and the
+  // other players. Markers too far away sit on the rim with how far they are.
   void drawMinimap(const HudLayout &layout, const Minimap &map, glm::vec3 feet, float yaw,
-                   const Waypoints *waypoints);
+                   const Waypoints *waypoints, const std::vector<MapPlayer> &others);
 
 private:
   static constexpr double kNameShowSeconds = 1.5;

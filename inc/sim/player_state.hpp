@@ -44,6 +44,7 @@ struct PlayerState {
   struct Riding { EntityId boat = 0; int seat = 0; };
   std::optional<Riding> riding;
   std::optional<Waypoints> waypoints_sent; // last Waypoints sent to the owner
+  bool map_players_sent = false; // the last MapPlayers listed someone
 
   Vitals vitals;
   FallTracker fall;
