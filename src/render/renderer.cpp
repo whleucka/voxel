@@ -203,6 +203,34 @@ static bool aabbInFrustum(const glm::vec4 planes[6], const glm::vec3 &min,
   return true;
 }
 
+// ─── Shadow refresh ────────────────────────────────────────────────────────
+
+bool ShadowRefresh::due(const glm::vec3 &sun, const glm::vec3 &cam, float dist,
+                        int size) const {
+  if (!valid || dirty || dist != distance || size != map_size) return true;
+  if (glm::dot(sun, sun_dir) < std::cos(kSunStep)) return true;
+  return glm::distance(cam, camera) > kMoveStep;
+}
+
+void ShadowRefresh::drawn(const glm::vec3 &sun, const glm::vec3 &cam, float dist,
+                          int size, const glm::mat4 &light_space) {
+  valid = true;
+  dirty = false;
+  sun_dir = sun;
+  camera = cam;
+  distance = dist;
+  map_size = size;
+  extractFrustumPlanes(light_space, planes);
+}
+
+void ShadowRefresh::chunkChanged(const ChunkKey &key) {
+  if (!valid || dirty) return;
+  glm::vec3 min = {key.x * kChunkWidth, 0.0f, key.z * kChunkDepth};
+  glm::vec3 max = {(key.x + 1) * kChunkWidth, static_cast<float>(kChunkHeight),
+                   (key.z + 1) * kChunkDepth};
+  dirty = aabbInFrustum(planes, min, max);
+}
+
 // ─── Shadow depth pass ─────────────────────────────────────────────────────
 
 void Renderer::shadowPass(
@@ -213,14 +241,16 @@ void Renderer::shadowPass(
   // Once a frame, whether or not there are shadows to draw.
   stats.shadow_gpu_ms = shadow_timer.endFrame()[0];
 
-  // Default to "nothing drawn" so the debug panel is correct on any early out.
   stats.shadow_chunks_total = static_cast<int>(chunks.size());
-  stats.shadow_chunks_drawn = 0;
 
   // Apply any live resolution change from the debug panel.
   resizeShadowMap(g_settings.shadow_map_size);
 
-  if (!g_settings.shadows_enabled) return;
+  if (!g_settings.shadows_enabled) {
+    stats.shadow_chunks_drawn = 0;
+    shadow_refresh.invalidate();
+    return;
+  }
 
   // Compute sun direction (same formula as useBlockShader)
   float angle = (timeOfDay - 0.25f) * 2.0f * glm::pi<float>();
@@ -229,9 +259,20 @@ void Renderer::shadowPass(
   glm::vec3 sunDir = glm::normalize(glm::vec3(cosA * 0.6f, sinA, 0.3f));
 
   // Don't render shadows when sun is below the horizon
-  if (sinA < -0.05f) return;
+  if (sinA < -0.05f) {
+    stats.shadow_chunks_drawn = 0;
+    shadow_refresh.invalidate();
+    return;
+  }
 
+  // Otherwise keep the last map (and the matrix the block shader reads it
+  // with) until a new one would look different.
+  if (!shadow_refresh.due(sunDir, cameraPos, g_settings.shadow_distance, shadow_map_size))
+    return;
   light_space_matrix = computeLightSpaceMatrix(sunDir, cameraPos);
+  shadow_refresh.drawn(sunDir, cameraPos, g_settings.shadow_distance, shadow_map_size,
+                       light_space_matrix);
+  stats.shadow_chunks_drawn = 0;
 
   // Bind shadow FBO and render depth
   shadow_timer.begin(0);

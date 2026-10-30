@@ -208,6 +208,8 @@ void World::update(float dt) {
     WriteLock lock(chunks_mutex);
     while (!upload_queue.empty() && uploads_this_frame < kMaxUploadsPerFrame) {
       upload_queue.front()->uploadGPU();
+      glm::ivec2 pos = upload_queue.front()->getPos();
+      renderer->shadowCasterChanged({pos.x, pos.y});
       upload_queue.pop();
       ++uploads_this_frame;
     }
@@ -290,11 +292,15 @@ void World::updateLoadedChunks() {
     for (auto &key : to_remove)
       chunks.erase(key);
   }
+  for (const ChunkKey &key : to_remove) renderer->shadowCasterChanged(key);
 }
 
 void World::unloadChunk(int x, int z) {
-  WriteLock lock(chunks_mutex);
-  chunks.erase({x, z});
+  {
+    WriteLock lock(chunks_mutex);
+    chunks.erase({x, z});
+  }
+  renderer->shadowCasterChanged({x, z});
 }
 
 void World::rebuildChunk(int cx, int cz) {
