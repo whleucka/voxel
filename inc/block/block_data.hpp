@@ -4,6 +4,7 @@
 #include "block/bed.hpp"
 #include "block/crop.hpp"
 #include "block/door.hpp"
+#include "block/fence.hpp"
 #include "block/plant.hpp"
 #include "block/stairs.hpp"
 #include "robin_hood/robin_hood.h"
@@ -30,11 +31,12 @@ inline bool isLiquid(BlockType type) {
 }
 
 // Whether a block stops bodies and creatures: anything but air, water, an
-// open door, a crop, a plant and a torch. A closed door fills its whole cell;
-// a bed or a cake only its lower part (blockHeight).
+// open door or gate, a crop, a plant, a torch and a ladder. A closed door
+// fills its whole cell; a bed or a cake only its lower part (blockHeight).
 inline bool blocksMovement(BlockType type) {
   return type != BlockType::AIR && !isLiquid(type) && !(isDoor(type) && doorOpen(type)) &&
-         !isCrop(type) && !isPlant(type) && !isTorch(type);
+         !isCrop(type) && !isPlant(type) && !isTorch(type) && !(isGate(type) && gateOpen(type)) &&
+         !isLadder(type);
 }
 
 // Open to walk through, like air: bodies, paths and spawns pass these.
@@ -43,7 +45,8 @@ inline bool isPassable(BlockType type) { return !blocksMovement(type) && !isLiqu
 // How high up its cell a block that blocksMovement stops bodies: the top a
 // foot lands on (a stair's back step is higher still).
 inline float blockHeight(BlockType type) {
-  return isBed(type)    ? kBedHeight
+  return isFence(type) || isGate(type) ? kFenceHeight
+         : isBed(type)  ? kBedHeight
          : isCake(type) ? kCakeHeight
          : isSlab(type) || isStair(type) ? kSlabHeight
                                          : 1.0f;
@@ -51,18 +54,32 @@ inline float blockHeight(BlockType type) {
 
 // The solid parts of a cell, in cell space (0..1): what bodies bump into,
 // and what the mesh draws for a slab or a stair. None for what's walked
-// through; a closed door fills its whole cell.
+// through; a closed door fills its whole cell. A fence's and a gate's reach
+// above the cell (kFenceHeight), so nothing jumps them.
 struct CellBoxes {
-  DoorBox box[2];
+  DoorBox box[5];
   int count = 0;
   const DoorBox *begin() const { return box; }
   const DoorBox *end() const { return box + count; }
+  void add(DoorBox b) { box[count++] = b; }
 };
 
+constexpr float kFencePostLo = 6.0f / 16.0f, kFencePostHi = 10.0f / 16.0f;
+constexpr float kFenceRailLo = 7.0f / 16.0f, kFenceRailHi = 9.0f / 16.0f;
+
+// A fence's post alone (blockBoxes) or with its rails (fenceBoxes); a closed
+// gate's bar across its cell.
 inline CellBoxes blockBoxes(BlockType type) {
   if (!blocksMovement(type)) return {};
+  if (isFence(type))
+    return {{{{kFencePostLo, 0, kFencePostLo}, {kFencePostHi, kFenceHeight, kFencePostHi}}}, 1};
+  if (isGate(type))
+    return {{gateAlongX(type)
+                 ? DoorBox{{0, 0, kFenceRailLo}, {1, kFenceHeight, kFenceRailHi}}
+                 : DoorBox{{kFenceRailLo, 0, 0}, {kFenceRailHi, kFenceHeight, 1}}},
+            1};
   CellBoxes boxes{{{{0, 0, 0}, {1, blockHeight(type), 1}}}, 1};
-  if (isStair(type)) boxes.box[boxes.count++] = stairStep(stairFacing(type));
+  if (isStair(type)) boxes.add(stairStep(stairFacing(type)));
   return boxes;
 }
 
@@ -80,10 +97,36 @@ inline bool isSolidGround(BlockType type) {
          !needsSupport(type) && !isHalfShape(type);
 }
 
+// Whether a fence reaches over to `neighbour`, a unit step `toward` away
+// (y 0): to another fence, a gate in line with it, or a full solid block.
+inline bool fenceJoins(BlockType neighbour, glm::ivec3 toward) {
+  if (isFence(neighbour)) return true;
+  if (isGate(neighbour)) return gateAlongX(neighbour) == (toward.x != 0);
+  return isSolidGround(neighbour);
+}
+
+// The four sides, N E S W, as unit steps.
+constexpr glm::ivec3 kSides[4] = {{0, 0, -1}, {1, 0, 0}, {0, 0, 1}, {-1, 0, 0}};
+
+// A fence's post and a rail out to each side it joins; `around` holds the
+// blocks beside it, N E S W.
+inline CellBoxes fenceBoxes(BlockType fence, const BlockType (&around)[4]) {
+  CellBoxes boxes = blockBoxes(fence);
+  constexpr float lo = kFenceRailLo, hi = kFenceRailHi, h = kFenceHeight;
+  constexpr DoorBox rails[4] = {{{lo, 0, 0}, {hi, h, kFencePostLo}},
+                                {{kFencePostHi, 0, lo}, {1, h, hi}},
+                                {{lo, 0, kFencePostHi}, {hi, h, 1}},
+                                {{0, 0, lo}, {kFencePostLo, h, hi}}};
+  for (int i = 0; i < 4; ++i)
+    if (fenceJoins(around[i], kSides[i])) boxes.add(rails[i]);
+  return boxes;
+}
+
 // Drawn by a shape of their own in the chunk mesh, not as a cube.
 inline bool hasOwnShape(BlockType type) {
   return isDoor(type) || isBed(type) || isCrop(type) || isPlant(type) || isTorch(type) ||
-         isCake(type) || type == BlockType::CACTUS || isHalfShape(type);
+         isCake(type) || type == BlockType::CACTUS || isHalfShape(type) || isFence(type) ||
+         isGate(type) || isLadder(type);
 }
 
 // Cutout blocks discard the faint texels of their tile instead of drawing them,
@@ -118,7 +161,8 @@ inline uint8_t cutoutClass(BlockType type) {
     default:
       // A door's top half has a window in it, and a crop, a plant or a
       // torch is leaves (or a stick) on air.
-      return (isDoor(type) && doorTop(type)) || isCrop(type) || isPlant(type) || isTorch(type)
+      return (isDoor(type) && doorTop(type)) || isCrop(type) || isPlant(type) || isTorch(type) ||
+                     isLadder(type)
                  ? kCutoutLow
                  : kCutoutNone;
   }
@@ -134,7 +178,7 @@ inline bool shouldRenderFace(BlockType current, BlockType neighbor) {
   // A door is a thin panel, and a bed, a cake, a cactus, a slab and a stair
   // don't fill their cell: whatever is round them shows.
   if (isDoor(neighbor) || isBed(neighbor) || isCake(neighbor) || neighbor == BlockType::CACTUS ||
-      isHalfShape(neighbor))
+      isHalfShape(neighbor) || isFence(neighbor) || isGate(neighbor))
     return true;
   // Panes of glass side by side read as one window, so the face between them
   // is hidden.  Leaves keep their inner faces (below).
@@ -168,7 +212,8 @@ inline uint8_t skyLightOpacity(BlockType type) {
       // (and round a cactus, a slab or a stair, which don't fill their
       // cells either)
       return isDoor(type) || isBed(type) || isCrop(type) || isPlant(type) || isTorch(type) ||
-                     isCake(type) || type == BlockType::CACTUS || isHalfShape(type)
+                     isCake(type) || type == BlockType::CACTUS || isHalfShape(type) ||
+                     isFence(type) || isGate(type) || isLadder(type)
                  ? 0
                  : 15;
   }
@@ -276,6 +321,9 @@ inline std::string_view blockName(BlockType type) {
       if (isBed(type)) return kBedNames[static_cast<int>(bedColour(type))];
       if (isSlab(type)) return kSlabNames[shapeMaterialIndex(type)];
       if (isStair(type)) return kStairNames[shapeMaterialIndex(type)];
+      if (isFence(type)) return kFenceNames[fenceWood(type)];
+      if (isGate(type)) return "Fence Gate";
+      if (isLadder(type)) return "Ladder";
       return "Unknown";
   }
 }
@@ -312,9 +360,10 @@ inline const glm::ivec2 kCakeSideTile = tileAfterCrops(22);
 inline const glm::ivec2 kCakeCutTile = tileAfterCrops(23);
 inline const glm::ivec2 kSandstoneBricksTile = tileAfterCrops(24);
 inline const glm::ivec2 kSnowBricksTile = tileAfterCrops(25);
+inline const glm::ivec2 kLadderTile = tileAfterCrops(26);
 
 // Shown flat in a slot (the plant's own picture), not as a little cube.
-inline bool hasFlatIcon(BlockType type) { return isPlant(type) || isTorch(type); }
+inline bool hasFlatIcon(BlockType type) { return isPlant(type) || isTorch(type) || isLadder(type); }
 
 static robin_hood::unordered_map<BlockType, BlockTexture> block_data = [] {
   robin_hood::unordered_map<BlockType, BlockTexture> d = {
@@ -420,5 +469,18 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = [] {
     const BlockTexture material = d.at(shapeMaterial(static_cast<BlockType>(v))); // a copy: d may grow
     d[static_cast<BlockType>(v)] = material;
   }
+  // Fences in their wood's planks, the gate in oak; ladders their own tile.
+  const BlockType fence_planks[kFenceWoods] = {BlockType::OAK_PLANKS, BlockType::PINE_PLANKS,
+                                               BlockType::PALM_PLANKS, BlockType::CHERRY_PLANKS};
+  for (int w = 0; w < kFenceWoods; ++w) {
+    const BlockTexture planks = d.at(fence_planks[w]); // a copy: d may grow
+    d[static_cast<BlockType>(static_cast<int>(BlockType::OAK_FENCE) + w)] = planks;
+  }
+  const BlockTexture oak = d.at(BlockType::OAK_PLANKS);
+  for (int v = static_cast<int>(BlockType::FENCE_GATE_X_CLOSED);
+       v <= static_cast<int>(BlockType::FENCE_GATE_Z_OPEN); ++v)
+    d[static_cast<BlockType>(v)] = oak;
+  for (int v = static_cast<int>(BlockType::LADDER_N); v <= static_cast<int>(BlockType::LADDER_W); ++v)
+    d[static_cast<BlockType>(v)] = {kLadderTile, kLadderTile, kLadderTile};
   return d;
 }();

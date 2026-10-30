@@ -18,6 +18,9 @@ struct PhysicsBody {
 
   bool swims = false;  // fish: no gravity in water; brains steer velocity.y
   bool glides = false; // thrown things: no horizontal friction in the air
+  // On a ladder: no gravity, and whoever moves the body sets velocity.y. It
+  // can step up off the top as if on the ground.
+  bool climbing = false;
 
   bool on_ground = false;
   bool underwater = false;       // eyes in liquid
@@ -43,6 +46,8 @@ struct PhysicsBody {
   }
 
   bool collidesAt(const World *world, glm::vec3 pos) const;
+  // Whether any cell the body is in holds a ladder.
+  bool onLadder(const World *world) const;
 
 private:
   void applyGravity(float dt);

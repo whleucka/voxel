@@ -22,6 +22,7 @@ void PhysicsBody::updateWater(const World *world) {
 
 void PhysicsBody::applyGravity(float dt) {
   if (swims && inWater()) return; // it holds its depth by swimming
+  if (climbing) return;
   float gravity = kGravityForce;
 
   if (underwater) {
@@ -74,7 +75,7 @@ void PhysicsBody::moveOnce(float dt, const World *world) {
   // X axis
   position.x += velocity.x * dt;
   if (collidesAt(world, position)) {
-    bool can_step = on_ground || at_water_surface;
+    bool can_step = on_ground || at_water_surface || climbing;
     if (!can_step || !tryAutoStep(world, position)) {
       position.x = old_pos.x;
       velocity.x = 0.0f;
@@ -97,7 +98,7 @@ void PhysicsBody::moveOnce(float dt, const World *world) {
   // Z axis
   position.z += velocity.z * dt;
   if (collidesAt(world, position)) {
-    bool can_step = on_ground || at_water_surface;
+    bool can_step = on_ground || at_water_surface || climbing;
     if (!can_step || !tryAutoStep(world, position)) {
       position.z = old_pos.z;
       velocity.z = 0.0f;
@@ -155,6 +156,19 @@ bool PhysicsBody::tryAutoStep(const World *world, glm::vec3 &pos) const {
   return true;
 }
 
+bool PhysicsBody::onLadder(const World *world) const {
+  if (!world) return false;
+  // Nudged in, so a body flush against a ladder's cell isn't on it.
+  const float w = half_width - 0.01f;
+  const glm::ivec3 lo(glm::floor(position + glm::vec3(-w, 0.01f, -w)));
+  const glm::ivec3 hi(glm::floor(position + glm::vec3(w, height - 0.01f, w)));
+  for (int x = lo.x; x <= hi.x; ++x)
+    for (int y = lo.y; y <= hi.y; ++y)
+      for (int z = lo.z; z <= hi.z; ++z)
+        if (isLadder(world->getBlockAt(glm::vec3(x, y, z) + 0.5f))) return true;
+  return false;
+}
+
 // ─── Collision Detection ───────────────────────────────────────────────
 
 bool PhysicsBody::collidesAt(const World *world, glm::vec3 pos) const {
@@ -170,7 +184,8 @@ bool PhysicsBody::collidesAt(const World *world, glm::vec3 pos) const {
   // Check all blocks that overlap the box
   int bx0 = static_cast<int>(std::floor(minX));
   int bx1 = static_cast<int>(std::floor(maxX));
-  int by0 = static_cast<int>(std::floor(minY));
+  // One cell lower too: a fence's boxes reach up into the cell above it.
+  int by0 = static_cast<int>(std::floor(minY)) - 1;
   int by1 = static_cast<int>(std::floor(maxY));
   int bz0 = static_cast<int>(std::floor(minZ));
   int bz1 = static_cast<int>(std::floor(maxZ));
@@ -179,11 +194,10 @@ bool PhysicsBody::collidesAt(const World *world, glm::vec3 pos) const {
     for (int by = by0; by <= by1; ++by) {
       for (int bz = bz0; bz <= bz1; ++bz) {
         if (by < 0 || by >= kChunkHeight) continue;
-        const BlockType block = world->getBlockAt(glm::vec3(bx + 0.5f, by + 0.5f, bz + 0.5f));
         // Check the solid boxes in the cell (a slab's half, a stair's two
-        // steps), not just the grid cell.
+        // steps, a fence's post and rails), not just the grid cell.
         const glm::vec3 cell(bx, by, bz);
-        for (const DoorBox &box : blockBoxes(block)) {
+        for (const DoorBox &box : world->boxesAt({bx, by, bz})) {
           const glm::vec3 lo = cell + box.lo, hi = cell + box.hi;
           if (minX < hi.x && maxX > lo.x && minY < hi.y && maxY > lo.y && minZ < hi.z &&
               maxZ > lo.z)

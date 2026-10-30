@@ -44,11 +44,12 @@ int heuristic(glm::ivec3 a, glm::ivec3 b) {
 
 } // namespace
 
-// On solid ground, but never on a bed: creatures go round them.
+// On solid ground, but never on a bed, a fence or a gate: creatures go round
+// them (and a fence is too tall to get on top of).
 bool standable(const World &world, glm::ivec3 cell, int height_cells) {
-  return world.isSolidBlock(cell.x, cell.y - 1, cell.z) &&
-         !isBed(world.getBlockAt(glm::vec3(cell) + glm::vec3(0.5f, -0.5f, 0.5f))) &&
-         bodyClear(world, cell, height_cells);
+  const BlockType below = world.getBlockAt(glm::vec3(cell) + glm::vec3(0.5f, -0.5f, 0.5f));
+  return world.isSolidBlock(cell.x, cell.y - 1, cell.z) && !isBed(below) && !isFence(below) &&
+         !isGate(below) && bodyClear(world, cell, height_cells);
 }
 
 std::optional<std::vector<glm::ivec3>> findPath(const World &world, glm::ivec3 from,

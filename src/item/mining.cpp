@@ -52,7 +52,9 @@ Toughness toughness(BlockType b) {
       return {true, 12000, ToolKind::Pickaxe, ToolKind::None, Tier::Iron};
 
     default:
-      if (isDoor(b) || isBed(b)) return {true, 3000, ToolKind::Axe}; // like planks
+      if (isDoor(b) || isBed(b) || isFence(b) || isGate(b))
+        return {true, 3000, ToolKind::Axe}; // like planks
+      if (isLadder(b)) return {true, 600, ToolKind::Axe};
       if (isHalfShape(b)) return toughness(shapeMaterial(b));
       // Picked at once.
       if (isCrop(b) || isPlant(b) || isTorch(b) || isCake(b)) return {true, 0};

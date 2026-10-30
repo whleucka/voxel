@@ -1,6 +1,7 @@
 #pragma once
 
 #include "block/block_type.hpp"
+#include "block/fence.hpp"
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <optional>
@@ -64,17 +65,17 @@ inline BlockType cakeBlock(int slices) {
 }
 constexpr float kCakeHeight = 7.0f / 16.0f;
 
-// The way from a plant, cactus, torch or cake to the block holding it up.
+// The way from a plant, cactus, torch, cake or ladder to the block holding it up.
 inline glm::ivec3 supportOf(BlockType b) {
-  return isTorch(b) ? torchSupport(b) : glm::ivec3(0, -1, 0);
+  return isTorch(b) ? torchSupport(b) : isLadder(b) ? ladderSupport(b) : glm::ivec3(0, -1, 0);
 }
 
 // Whatever pops off when its support goes.
 inline bool needsSupport(BlockType b) {
-  return isPlant(b) || b == BlockType::CACTUS || isTorch(b) || isCake(b);
+  return isPlant(b) || b == BlockType::CACTUS || isTorch(b) || isCake(b) || isLadder(b);
 }
 
-// Whether `plant` (or cactus, a torch or cake) can stand on `ground`.
+// Whether `plant` (or cactus, a torch, cake or a ladder) can stand on `ground`.
 // `solid` says whether the ground is a full, solid block.
 inline bool growsOn(BlockType plant, BlockType ground, bool solid) {
   using enum BlockType;
@@ -89,6 +90,6 @@ inline bool growsOn(BlockType plant, BlockType ground, bool solid) {
       return solid;
     default:
       if (isPlant(plant)) return ground == GRASS || ground == DIRT;
-      return solid; // torches and cake
+      return solid; // torches, cake and ladders
   }
 }

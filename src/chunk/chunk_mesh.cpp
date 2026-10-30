@@ -480,6 +480,84 @@ void addShape(MeshBuffers &buffers, int x, int y, int z, BlockType type,
            skyLight, blockLight);
 }
 
+// A fence: a post, and two rails out to each side it joins (`around`, the
+// blocks beside it N E S W). Drawn a block tall; it stops bodies higher.
+void addFence(MeshBuffers &buffers, int x, int y, int z, BlockType type,
+              const BlockType (&around)[4], int16_t chunkWorldX, int16_t chunkWorldZ,
+              uint8_t skyLight, uint8_t blockLight) {
+  constexpr float s = 1.0f / 16.0f;
+  const glm::ivec2 t = block_data.at(type).side;
+  const BoxTiles tiles{t, t, t, t, t, t};
+  const glm::vec3 cell(x, y, z);
+  auto box = [&](glm::vec3 lo, glm::vec3 hi) {
+    addBox(buffers, cell + lo, cell + hi, tiles, kCutoutNone, chunkWorldX, chunkWorldZ, skyLight,
+           blockLight);
+  };
+  box({kFencePostLo, 0, kFencePostLo}, {kFencePostHi, 1, kFencePostHi});
+  for (int i = 0; i < 4; ++i) {
+    if (!fenceJoins(around[i], kSides[i])) continue;
+    for (float y0 : {6 * s, 12 * s}) {
+      const float y1 = y0 + 3 * s;
+      switch (i) {
+        case 0: box({kFenceRailLo, y0, 0}, {kFenceRailHi, y1, kFencePostLo}); break;
+        case 1: box({kFencePostHi, y0, kFenceRailLo}, {1, y1, kFenceRailHi}); break;
+        case 2: box({kFenceRailLo, y0, kFencePostHi}, {kFenceRailHi, y1, 1}); break;
+        default: box({0, y0, kFenceRailLo}, {kFencePostLo, y1, kFenceRailHi}); break;
+      }
+    }
+  }
+}
+
+// The gate: a post at each end of its line and, shut, two rails and an
+// upright between them; open, each half swung back off its post. Laid out
+// along X, then turned for a gate along Z.
+void addGate(MeshBuffers &buffers, int x, int y, int z, BlockType type, int16_t chunkWorldX,
+             int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight) {
+  constexpr float s = 1.0f / 16.0f;
+  const glm::ivec2 t = block_data.at(type).side;
+  const BoxTiles tiles{t, t, t, t, t, t};
+  const glm::vec3 cell(x, y, z);
+  const bool along_x = gateAlongX(type);
+  auto box = [&](glm::vec3 lo, glm::vec3 hi) {
+    if (!along_x) { // swap x and z
+      lo = {lo.z, lo.y, lo.x};
+      hi = {hi.z, hi.y, hi.x};
+    }
+    addBox(buffers, cell + lo, cell + hi, tiles, kCutoutNone, chunkWorldX, chunkWorldZ, skyLight,
+           blockLight);
+  };
+  const float lo = kFenceRailLo, hi = kFenceRailHi;
+  box({0, 0, lo}, {2 * s, 1, hi}); // posts
+  box({14 * s, 0, lo}, {1, 1, hi});
+  for (float y0 : {6 * s, 12 * s}) {
+    const float y1 = y0 + 3 * s;
+    if (!gateOpen(type)) {
+      box({2 * s, y0, lo}, {14 * s, y1, hi});
+    } else {
+      box({0, y0, hi}, {2 * s, y1, hi + 6 * s});
+      box({14 * s, y0, hi}, {1, y1, hi + 6 * s});
+    }
+  }
+  if (!gateOpen(type)) box({7 * s, 6 * s, lo}, {9 * s, 15 * s, hi});
+}
+
+// A ladder: a thin panel against the block it hangs on, see-through between
+// its rungs.
+void addLadder(MeshBuffers &buffers, int x, int y, int z, BlockType type, int16_t chunkWorldX,
+               int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight) {
+  constexpr float near = 0.01f, far = 1.0f / 16.0f;
+  const glm::ivec2 t = block_data.at(type).side;
+  const glm::ivec3 wall = ladderSupport(type);
+  glm::vec3 lo(0.0f), hi(1.0f);
+  if (wall.z < 0) { lo.z = near; hi.z = far; }
+  else if (wall.z > 0) { lo.z = 1 - far; hi.z = 1 - near; }
+  else if (wall.x > 0) { lo.x = 1 - far; hi.x = 1 - near; }
+  else { lo.x = near; hi.x = far; }
+  const glm::vec3 cell(x, y, z);
+  addBox(buffers, cell + lo, cell + hi, {t, t, t, t, t, t}, cutoutClass(type), chunkWorldX,
+         chunkWorldZ, skyLight, blockLight);
+}
+
 } // namespace
 
 ChunkMesh::ChunkMesh() {
@@ -972,6 +1050,18 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         else if (isHalfShape(type))
           addShape(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
                    getSkyLight(world, chunk, x, y, z), getBlockLight(world, chunk, x, y, z));
+        else if (isFence(type)) {
+          BlockType around[4];
+          for (int i = 0; i < 4; ++i)
+            around[i] = getBlock(world, chunk, x + kSides[i].x, y, z + kSides[i].z);
+          addFence(buffers, x, y, z, type, around, chunkWorldX, chunkWorldZ,
+                   getSkyLight(world, chunk, x, y, z), getBlockLight(world, chunk, x, y, z));
+        } else if (isGate(type))
+          addGate(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
+                  getSkyLight(world, chunk, x, y, z), getBlockLight(world, chunk, x, y, z));
+        else if (isLadder(type))
+          addLadder(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
+                    getSkyLight(world, chunk, x, y, z), getBlockLight(world, chunk, x, y, z));
       }
 
   cpuReady = !vertices.empty() || !transparentVertices.empty();

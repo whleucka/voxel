@@ -1,5 +1,6 @@
 #include "item/recipes.hpp"
 #include "block/block_type.hpp"
+#include "block/fence.hpp"
 #include "block/stairs.hpp"
 #include "item/tools.hpp"
 #include <algorithm>
@@ -132,6 +133,15 @@ const std::vector<Recipe> &recipes() {
       list.push_back(atTable({block(stairBlock(m, DoorFacing::North)), 4}, {{{material}, 6}}));
       list.push_back(atTable({block(slabBlock(m)), 6}, {{{material}, 3}}));
     }
+    // Fences of each wood, one gate of any, and ladders.
+    const BlockType fence_planks[kFenceWoods] = {BlockType::OAK_PLANKS, BlockType::PINE_PLANKS,
+                                                 BlockType::PALM_PLANKS, BlockType::CHERRY_PLANKS};
+    for (int w = 0; w < kFenceWoods; ++w)
+      list.push_back(atTable({block(static_cast<BlockType>(static_cast<int>(BlockType::OAK_FENCE) + w)), 3},
+                             {{{block(fence_planks[w])}, 4}, {{ItemId::STICKS}, 2}}));
+    list.push_back(atTable({block(BlockType::FENCE_GATE_X_CLOSED), 1},
+                           {{anyPlanks(), 2}, {{ItemId::STICKS}, 4}}));
+    list.push_back(atTable({block(BlockType::LADDER_N), 3}, {{{ItemId::STICKS}, 7}}));
     return list;
   }();
   return all;

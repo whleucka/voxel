@@ -34,7 +34,9 @@ TEST_CASE("every placeable block has an item that places it") {
         b == BlockType::TREASURE_CHEST || isDoor(b) || isBed(b) || isFarmland(b) || isCrop(b) ||
         b == BlockType::BERRY_BUSH_BARE || b == BlockType::SHELLS ||
         (isTorch(b) && b != BlockType::TORCH) || (isCake(b) && b != BlockType::CAKE_4) ||
-        (isStair(b) && stairFacing(b) != DoorFacing::North))
+        (isStair(b) && stairFacing(b) != DoorFacing::North) ||
+        (isLadder(b) && b != BlockType::LADDER_N) ||
+        (isGate(b) && b != BlockType::FENCE_GATE_X_CLOSED))
       continue;
     ItemId id = itemForBlock(b);
     CAPTURE(blockName(b));
@@ -145,7 +147,7 @@ TEST_CASE("every other block drops itself, and every drop is a valid item") {
     auto drop = dropFor(b);
     if (drop) CHECK(isValidItem(*drop));
     if (!special.count(b) && !isDoor(b) && !isBed(b) && !isCrop(b) && !isTorch(b) && !isCake(b) &&
-        !isStair(b))
+        !isStair(b) && !isLadder(b) && !isGate(b))
       CHECK(drop == itemForBlock(b));
   }
 }

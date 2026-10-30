@@ -50,18 +50,20 @@ TEST_CASE("no two blocks share a tile, apart from snow, dirt bottoms, furnace to
   const std::set<BlockType> furnace = {BlockType::FURNACE, BlockType::FURNACE_LIT};
   // And a door's, a bed's, a torch's or a cake's states all wear the same
   // few tiles, as crops, plants and torches share their clear top, and
-  // slabs and stairs wear their material's.
+  // slabs, stairs, fences and the gate wear their planks or material's.
   auto doors = [](const std::set<BlockType> &types) {
     auto clearTop = [](BlockType b) { return isCrop(b) || isPlant(b) || isTorch(b); };
     return std::all_of(types.begin(), types.end(), isDoor) ||
            std::all_of(types.begin(), types.end(), isBed) ||
            std::all_of(types.begin(), types.end(), isTorch) ||
+           std::all_of(types.begin(), types.end(), isLadder) ||
            std::all_of(types.begin(), types.end(), isCake) ||
            std::all_of(types.begin(), types.end(), isBerryBush) ||
            std::all_of(types.begin(), types.end(), clearTop) ||
            std::all_of(types.begin(), types.end(), [&](BlockType b) {
              const BlockType material = *types.begin(); // the lowest id
-             return b == material || (isHalfShape(b) && shapeMaterial(b) == material);
+             return b == material || (isHalfShape(b) && shapeMaterial(b) == material) ||
+                    isFence(b) || isGate(b);
            });
   };
   for (const auto &[tile, types] : users) {
