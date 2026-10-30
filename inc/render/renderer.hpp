@@ -12,7 +12,7 @@
 // read on the same (main) thread by the ImGui code — no sync needed.
 struct RenderStats {
   int chunks_drawn = 0;         // opaque chunks submitted in the main pass
-  int shadow_chunks_drawn = 0;  // chunks submitted into the shadow map
+  int shadow_chunks_drawn = 0;  // chunks in the shadow map, as last drawn
   int shadow_chunks_total = 0;  // chunks the shadow pass considered
   // The shadow pass on the GPU some frames ago, when a timing came in.
   std::optional<double> shadow_gpu_ms;
@@ -26,6 +26,33 @@ struct SceneLighting {
   glm::vec3 ambient{0.3f};
   glm::vec3 fog_color{0.5f};
   glm::vec3 water_fog_color{0.1f, 0.3f, 0.5f};
+};
+
+// When the shadow map has to be drawn again. Drawing it costs a good part of
+// the frame, but the sun moves slowly, so a map is kept until the sun has
+// turned or the camera has moved enough to show, or something that casts a
+// shadow in its box has changed.
+struct ShadowRefresh {
+  static constexpr float kSunStep = 0.002f; // radians (the sun turns this in ~0.4 s)
+  static constexpr float kMoveStep = 4.0f;  // blocks
+
+  // Whether a map drawn now would differ enough from the one kept.
+  bool due(const glm::vec3 &sun_dir, const glm::vec3 &camera, float distance,
+           int map_size) const;
+  // A map was drawn for these, covering `light_space`.
+  void drawn(const glm::vec3 &sun_dir, const glm::vec3 &camera, float distance,
+             int map_size, const glm::mat4 &light_space);
+  // The map no longer stands (shadows off, the sun down): draw the next one.
+  void invalidate() { valid = false; }
+  // A chunk's mesh changed or went: the map is due if the chunk is in its box.
+  void chunkChanged(const ChunkKey &key);
+
+private:
+  bool valid = false, dirty = false;
+  glm::vec3 sun_dir{0.0f}, camera{0.0f};
+  float distance = 0.0f;
+  int map_size = 0;
+  glm::vec4 planes[6] = {};
 };
 
 class Renderer {
@@ -48,7 +75,10 @@ public:
                              const glm::mat4 &view, const glm::mat4 &projection,
                              const glm::vec3 &cameraPos, bool underwater, float timeOfDay);
 
-  // Shadow map pass: render depth from the sun's POV
+  // A chunk's mesh was uploaded or unloaded: its shadow may have changed.
+  void shadowCasterChanged(const ChunkKey &key) { shadow_refresh.chunkChanged(key); }
+
+  // Shadow map pass: render depth from the sun's POV, when it's due
   void shadowPass(const robin_hood::unordered_map<ChunkKey, std::shared_ptr<Chunk>, ChunkKeyHash> &chunks,
                   const glm::vec3 &cameraPos, float timeOfDay,
                   int viewportWidth, int viewportHeight);
@@ -101,6 +131,7 @@ private:
 
   RenderStats stats;
   GpuTimer shadow_timer;
+  ShadowRefresh shadow_refresh;
 
   TextureManager *texture_manager = nullptr;
 };
