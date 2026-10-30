@@ -505,7 +505,8 @@ void Game::sendEntitySnapshots() {
       if (glm::distance(e.body.position, ps->position) > kEntityViewRange) continue;
       snap.entities.push_back({id, e.kind, e.body.position, e.yaw, e.item.id,
                                e.hurt_ms > 0, e.happy_ms > 0, e.burning_ms > 0, e.owner,
-                               e.biting, false});
+                               e.biting, false, static_cast<uint8_t>(e.pet ? e.pet->collar : 0),
+                               e.pet && (e.pet->sitting || !e.follow)});
     }
     for (const auto &[pid, other] : players) {
       if (pid == ps->id || other.vitals.dead()) continue;

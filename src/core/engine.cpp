@@ -853,6 +853,12 @@ void Engine::debug() {
             std::string label = std::string(entityType(k).name);
             if (ImGui::Button(label.c_str())) connection().send(SpawnDebugEntity{k});
           }
+          // Strays, ready to tame.
+          for (EntityKind k : kPetKinds) {
+            if (k != kPetKinds[0]) ImGui::SameLine();
+            std::string label = "Stray " + std::string(entityType(k).name);
+            if (ImGui::Button(label.c_str())) connection().send(SpawnDebugEntity{k});
+          }
           // Read by the Game every tick; "Save settings" writes it out.
           int difficulty = static_cast<int>(g_settings.difficulty);
           const char *kDifficulties[] = {"Peaceful", "Easy", "Normal"};

@@ -38,8 +38,11 @@ private:
 
   // Box models (creatures and players), lit at `position`. Lying, the model
   // is laid on its back with its head along `yaw`, centred on `position`.
+  // Pets: collar boxes take colour `collar` (none drawn at 0), and sitting
+  // lowers the body by `sit_drop` with the legs tucked away.
   void drawModel(const std::vector<ModelBox> &model, glm::vec3 position, float yaw,
-                 bool moving, const World &world, double now, bool lying = false) const;
+                 bool moving, const World &world, double now, bool lying = false,
+                 uint8_t collar = 0, float sit_drop = 0.0f) const;
   void setLight(const World &world, glm::vec3 position) const;
   // `local` is applied before the box is placed (e.g. a leg's swing).
   void drawBox(const glm::mat4 &entity_model, glm::vec3 offset, glm::vec3 size,
