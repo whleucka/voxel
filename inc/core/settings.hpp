@@ -45,6 +45,7 @@ struct Settings {
 
   // Audio
   float music_volume;      // 0..1; 0 turns music off
+  float sfx_volume;        // 0..1; 0 turns sound effects off
 
   // Clouds
   bool  clouds_enabled;
@@ -70,7 +71,7 @@ struct Settings {
         fov(70.0f), fog_start(80.0f), fog_end(260.0f),
         mouse_sensitivity(0.05f),
         time_scale(35.0f), water_fog_density(0.04f),
-        music_volume(0.5f),
+        music_volume(0.5f), sfx_volume(0.5f),
         clouds_enabled(true), cloud_height(225.0f), cloud_thickness(8),
         cloud_speed(1.0f), cloud_opacity(0.85f),
         shadows_enabled(true), shadow_distance(120.0f),

@@ -149,6 +149,7 @@ bool SettingsPage::draw(Settings &s, bool difficulty_locked) {
 
   // Audio
   ImGui::SliderFloat("Music volume", &s.music_volume, 0.0f, 1.0f, "%.2f");
+  ImGui::SliderFloat("Effects volume", &s.sfx_volume, 0.0f, 1.0f, "%.2f");
 
   // Display
   ImGui::Checkbox("Fullscreen", &s.fullscreen);
