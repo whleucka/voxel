@@ -51,10 +51,35 @@ void swatchRow(const char *label, LookPart part, PlayerLook &look, const std::st
 void SettingsPage::setPreview(Preview preview) { g_preview = std::move(preview); }
 
 bool SettingsPage::back() {
+  if (on_credits) {
+    on_credits = false;
+    return true;
+  }
   if (!on_character) return false;
   on_character = false;
   saveServerProperties();
   return true;
+}
+
+void SettingsPage::drawCredits() {
+  beginMenuPanel("##credits", 480, 0.55f);
+  ImGui::TextUnformatted("Credits");
+  ImGui::Separator();
+  ImGui::TextUnformatted("Created by William Hleucka");
+  ImGui::TextUnformatted("Built for Alex and Aria");
+  ImGui::Spacing();
+  ImGui::TextUnformatted("Music");
+  ImGui::TextUnformatted("Complex, Ethereal Relaxation");
+  ImGui::TextUnformatted("Kevin MacLeod (incompetech.com)");
+  ImGui::TextWrapped("Licensed under Creative Commons: By Attribution 4.0");
+  ImGui::TextUnformatted("creativecommons.org/licenses/by/4.0/");
+  ImGui::Spacing();
+  ImGui::TextUnformatted("Built with");
+  ImGui::TextWrapped("GLFW, GLAD, Dear ImGui, stb_image, miniaudio");
+  ImGui::Spacing();
+  bool done = menuButton("Done");
+  endMenuPanel();
+  if (done) on_credits = false;
 }
 
 void SettingsPage::drawCharacter(Settings &s) {
@@ -96,6 +121,10 @@ bool SettingsPage::draw(Settings &s, bool difficulty_locked) {
     drawCharacter(s);
     return false;
   }
+  if (on_credits) {
+    drawCredits();
+    return false;
+  }
   beginMenuPanel("##settings", 480, 0.55f);
   ImGui::TextUnformatted("Settings");
   ImGui::Separator();
@@ -118,6 +147,9 @@ bool SettingsPage::draw(Settings &s, bool difficulty_locked) {
   ImGui::SliderFloat("Field of view", &s.fov, 50.0f, 110.0f, "%.0f deg");
   ImGui::SliderFloat("Mouse sensitivity", &s.mouse_sensitivity, 0.01f, 0.30f, "%.3f");
 
+  // Audio
+  ImGui::SliderFloat("Music volume", &s.music_volume, 0.0f, 1.0f, "%.2f");
+
   // Display
   ImGui::Checkbox("Fullscreen", &s.fullscreen);
   ImGui::SameLine(0, 40);
@@ -129,7 +161,10 @@ bool SettingsPage::draw(Settings &s, bool difficulty_locked) {
   ImGui::PopItemWidth();
 
   ImGui::Spacing();
-  if (ImGui::Button("Character", ImVec2(-1, 0))) on_character = true;
+  const float half = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) / 2;
+  if (ImGui::Button("Character", ImVec2(half, 0))) on_character = true;
+  ImGui::SameLine();
+  if (ImGui::Button("Credits", ImVec2(half, 0))) on_credits = true;
   ImGui::Separator();
   // Also resets what only the F12 panel shows (time speed, fog, cloud and
   // shadow details), so a stray change there is easy to undo.
@@ -157,5 +192,6 @@ bool SettingsPage::draw(Settings &s, bool difficulty_locked) {
 void SettingsPage::close() {
   confirm_reset = false;
   on_character = false;
+  on_credits = false;
   saveServerProperties();
 }
