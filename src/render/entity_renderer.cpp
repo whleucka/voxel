@@ -66,6 +66,10 @@ bool EntityRenderer::init() {
 void EntityRenderer::shutdown() {
   if (vbo) glDeleteBuffers(1, &vbo);
   if (vao) glDeleteVertexArrays(1, &vao);
+  if (preview_fbo) glDeleteFramebuffers(1, &preview_fbo);
+  if (preview_tex) glDeleteTextures(1, &preview_tex);
+  if (preview_depth) glDeleteRenderbuffers(1, &preview_depth);
+  preview_fbo = preview_tex = preview_depth = 0;
   if (block_tex) glDeleteTextures(1, &block_tex);
   if (item_tex) glDeleteTextures(1, &item_tex);
   vao = vbo = block_tex = item_tex = 0;
@@ -117,6 +121,12 @@ void EntityRenderer::drawModel(const std::vector<ModelBox> &model, glm::vec3 pos
                                float yaw, bool moving, const World &world, double now,
                                bool lying, uint8_t collar, float sit_drop) const {
   setLight(world, position);
+  drawBoxes(model, position, yaw, moving, now, lying, collar, sit_drop);
+}
+
+void EntityRenderer::drawBoxes(const std::vector<ModelBox> &model, glm::vec3 position, float yaw,
+                               bool moving, double now, bool lying, uint8_t collar,
+                               float sit_drop) const {
   const bool sitting = sit_drop > 0.0f;
   if (sitting) moving = false;
   // Models face -Z at yaw 0; positive yaw turns toward +X.
@@ -159,13 +169,8 @@ void EntityRenderer::drawModel(const std::vector<ModelBox> &model, glm::vec3 pos
   }
 }
 
-void EntityRenderer::draw(const std::vector<EntityView> &entities,
-                          const std::vector<PlayerView> &players, const World &world,
-                          const glm::mat4 &view, const glm::mat4 &projection,
-                          glm::vec3 camera_pos, bool underwater, float time_of_day,
-                          double now, PlayerId self, glm::vec3 self_hand) {
-  if (!shader || (entities.empty() && players.empty())) return;
-
+void EntityRenderer::setScene(const glm::mat4 &view, const glm::mat4 &projection,
+                              glm::vec3 camera_pos, bool underwater, float time_of_day) const {
   SceneLighting light = Renderer::sceneLighting(time_of_day);
   shader->use();
   shader->setMat4("view", view);
@@ -182,6 +187,78 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities,
   shader->setBool("uUnderwater", underwater);
   shader->setInt("uAtlas", 0);
   shader->setBool("uGlow", false);
+}
+
+void EntityRenderer::resizePreview(int width, int height) {
+  if (width == preview_width && height == preview_height) return;
+  preview_width = width;
+  preview_height = height;
+  if (!preview_fbo) {
+    glGenFramebuffers(1, &preview_fbo);
+    glGenTextures(1, &preview_tex);
+    glGenRenderbuffers(1, &preview_depth);
+  }
+  // sRGB, like the screen: drawn in linear, and read back the same by ImGui.
+  glBindTexture(GL_TEXTURE_2D, preview_tex);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+               nullptr);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glBindRenderbuffer(GL_RENDERBUFFER, preview_depth);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+  glBindFramebuffer(GL_FRAMEBUFFER, preview_fbo);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, preview_tex, 0);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, preview_depth);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+GLuint EntityRenderer::drawPreview(const PlayerLook &look, std::string_view name, int width,
+                                   int height, double now) {
+  if (!shader) return 0;
+  resizePreview(width, height);
+  GLint viewport[4];
+  glGetIntegerv(GL_VIEWPORT, viewport);
+  const GLboolean blend = glIsEnabled(GL_BLEND);
+  glBindFramebuffer(GL_FRAMEBUFFER, preview_fbo);
+  glViewport(0, 0, width, height);
+  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glEnable(GL_DEPTH_TEST);
+  glDisable(GL_BLEND);
+  glDisable(GL_CULL_FACE);
+
+  // In front of the figure (which faces -Z), far enough that it fits.
+  const glm::vec3 eye(0.0f, 0.95f, -4.2f);
+  glm::mat4 view = glm::lookAt(eye, glm::vec3(0.0f, 0.95f, 0.0f), glm::vec3(0, 1, 0));
+  glm::mat4 projection = glm::perspective(
+      glm::radians(30.0f), static_cast<float>(width) / static_cast<float>(height), 0.1f, 20.0f);
+  setScene(view, projection, eye, false, 0.5f);
+  shader->setFloat("uSkyLight", 1.0f);
+  shader->setFloat("uBlockLight", 0.0f);
+  shader->setFloat("uHurt", 0.0f);
+  shader->setFloat("uBurn", 0.0f);
+  glBindVertexArray(vao);
+  drawBoxes(playerModel(resolveLook(look, name)), glm::vec3(0.0f), static_cast<float>(now) * 40.0f,
+            false, now, false, 0, 0.0f);
+  glBindVertexArray(0);
+
+  glEnable(GL_CULL_FACE);
+  if (blend) glEnable(GL_BLEND);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+  return preview_tex;
+}
+
+void EntityRenderer::draw(const std::vector<EntityView> &entities,
+                          const std::vector<PlayerView> &players, const World &world,
+                          const glm::mat4 &view, const glm::mat4 &projection,
+                          glm::vec3 camera_pos, bool underwater, float time_of_day,
+                          double now, PlayerId self, glm::vec3 self_hand) {
+  if (!shader || (entities.empty() && players.empty())) return;
+
+  setScene(view, projection, camera_pos, underwater, time_of_day);
 
   // Thin item cards are seen from both sides, so no culling for this pass.
   glDisable(GL_CULL_FACE);

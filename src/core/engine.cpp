@@ -121,6 +121,9 @@ bool Engine::init() {
     std::cerr << "HUD icons unavailable; drawing empty slots\n";
   if (!entity_renderer.init())
     std::cerr << "Entity textures unavailable\n";
+  SettingsPage::setPreview([this](const PlayerLook &look, std::string_view name, int width, int height) {
+    return entity_renderer.drawPreview(look, name, width, height, glfwGetTime());
+  });
   block_outline.init();
   gpu_timer.init();
 

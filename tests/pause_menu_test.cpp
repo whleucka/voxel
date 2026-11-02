@@ -33,6 +33,23 @@ TEST_CASE("Esc backs out of Settings before resuming, and saves them") {
   std::filesystem::current_path(cwd);
 }
 
+TEST_CASE("Esc backs out of the Character page to Settings, and saves it") {
+  TempDir dir;
+  auto cwd = std::filesystem::current_path();
+  std::filesystem::current_path(dir.path);
+  PauseMenu m;
+  m.escape();
+  m.press(Button::Settings);
+  m.settingsPage().openCharacter();
+  m.escape();
+  CHECK(m.page() == Page::Settings);
+  CHECK_FALSE(m.settingsPage().onCharacter());
+  CHECK(std::filesystem::exists(dir.path / "voxel.properties"));
+  m.escape();
+  CHECK(m.page() == Page::Main);
+  std::filesystem::current_path(cwd);
+}
+
 TEST_CASE("the buttons") {
   PauseMenu m;
   m.escape();

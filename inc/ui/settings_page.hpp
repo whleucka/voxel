@@ -1,6 +1,8 @@
 #pragma once
 
 #include "core/settings.hpp"
+#include <functional>
+#include <string_view>
 
 // The settings page, shared by the title screen and the pause menu. It edits
 // the settings in place, so changes show at once; leaving it (Done, or Esc via
@@ -11,12 +13,27 @@ public:
   static constexpr int kMinChunks = 4;
   static constexpr int kMaxChunks = 24;
 
+  // Draws a character to a texture for the Character page; the Engine sets it,
+  // since it needs GL. Unset (as in the tests), the page goes without a figure.
+  using Preview =
+      std::function<unsigned int(const PlayerLook &, std::string_view name, int width, int height)>;
+  static void setPreview(Preview preview);
+
   // Draws the page as a centred panel. `difficulty_locked`: a guest can't
   // change the host's difficulty. True once the player pressed Done.
   bool draw(Settings &s, bool difficulty_locked);
   // Leaving without Done (Esc): saves the same way.
   void close();
 
+  // The Character page, under this one.
+  void openCharacter() { on_character = true; }
+  bool onCharacter() const { return on_character; }
+  // Esc: leaves the Character page if it's open (saving), and says if it did.
+  bool back();
+
 private:
+  void drawCharacter(Settings &s);
+
   bool confirm_reset = false;
+  bool on_character = false;
 };

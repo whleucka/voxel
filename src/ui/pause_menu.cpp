@@ -8,6 +8,7 @@ void PauseMenu::escape() {
     case Page::Closed: page_ = Page::Main; break;
     case Page::Main: page_ = Page::Closed; break;
     case Page::Settings:
+      if (settings.back()) break;
       settings.close();
       page_ = Page::Main;
       break;
