@@ -2,6 +2,7 @@
 #include "block/block_data.hpp"
 #include "core/settings.hpp"
 #include "entity/entity_type.hpp"
+#include "entity/entity_interp.hpp"
 #include "entity/player_model.hpp"
 #include "render/texture_util.hpp"
 #include "ui/item_icon_geometry.hpp"
@@ -119,14 +120,14 @@ void EntityRenderer::setLight(const World &world, glm::vec3 position) const {
 
 void EntityRenderer::drawModel(const std::vector<ModelBox> &model, glm::vec3 position,
                                float yaw, bool moving, const World &world, double now,
-                               bool lying, uint8_t collar, float sit_drop) const {
+                               bool lying, uint8_t collar, float sit_drop, bool wagging) const {
   setLight(world, position);
-  drawBoxes(model, position, yaw, moving, now, lying, collar, sit_drop);
+  drawBoxes(model, position, yaw, moving, now, lying, collar, sit_drop, wagging);
 }
 
 void EntityRenderer::drawBoxes(const std::vector<ModelBox> &model, glm::vec3 position, float yaw,
                                bool moving, double now, bool lying, uint8_t collar,
-                               float sit_drop) const {
+                               float sit_drop, bool wagging) const {
   const bool sitting = sit_drop > 0.0f;
   if (sitting) moving = false;
   // Models face -Z at yaw 0; positive yaw turns toward +X.
@@ -144,17 +145,13 @@ void EntityRenderer::drawBoxes(const std::vector<ModelBox> &model, glm::vec3 pos
                                  : 0.0f;
   if (sitting) m = glm::translate(m, glm::vec3(0.0f, -sit_drop, 0.0f));
   for (const ModelBox &box : model) {
-    if (box.collar && collar == 0) continue;
+    if ((box.collar || box.collar_tag) && collar == 0) continue;
     if (sitting && box.swing != 0) continue; // legs tucked under
     shader->setVec3("uColor", box.collar ? collarColour(collar) : box.color);
     if (box.glow) shader->setBool("uGlow", true);
-    if (box.wag && swing != 0.0f) {
-      // Tails wag side to side about their front edge.
-      glm::vec3 pivot = box.offset + glm::vec3(box.size.x * 0.5f, box.size.y * 0.5f, 0.0f);
-      glm::mat4 local = glm::translate(glm::mat4(1.0f), pivot) *
-                        glm::rotate(glm::mat4(1.0f), swing, glm::vec3(0, 1, 0)) *
-                        glm::translate(glm::mat4(1.0f), -pivot);
-      drawBox(m, box.offset, box.size, local);
+    if (box.wag && (swing != 0.0f || wagging)) {
+      drawBox(m, box.offset, box.size,
+              tailWag(box, std::sin(static_cast<float>(now) * 10.0f) * glm::radians(30.0f)));
     } else if (box.swing == 0 || swing == 0.0f) {
       drawBox(m, box.offset, box.size);
     } else {
@@ -241,7 +238,7 @@ GLuint EntityRenderer::drawPreview(const PlayerLook &look, std::string_view name
   shader->setFloat("uBurn", 0.0f);
   glBindVertexArray(vao);
   drawBoxes(playerModel(resolveLook(look, name)), glm::vec3(0.0f), static_cast<float>(now) * 40.0f,
-            false, now, false, 0, 0.0f);
+            false, now, false, 0, 0.0f, false);
   glBindVertexArray(0);
 
   glEnable(GL_CULL_FACE);
@@ -331,7 +328,8 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities,
       continue;
     }
     drawModel(def.model, e.position, e.yaw, e.moving, world, now, false, e.collar,
-              e.sitting ? def.sit_drop : 0.0f);
+              e.sitting ? def.sit_drop : 0.0f,
+              petWags(e, players, self != 0 ? std::optional(self_hand) : std::nullopt));
 
     // A fed animal shows a little bobbing heart above its head (not turned
     // with the body, so it always reads as a heart).

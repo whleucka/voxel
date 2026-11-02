@@ -1,5 +1,6 @@
 #include "entity/entity_type.hpp"
 #include "entity/brain.hpp"
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace {
 
@@ -43,6 +44,33 @@ void addLegs(std::vector<ModelBox> &model, float half_x, float z_front, float z_
   model.push_back({{right, 0.0f, front}, size, color, -1});
   model.push_back({{left, 0.0f, back}, size, color, -1});
   model.push_back({{right, 0.0f, back}, size, color, +1});
+}
+
+// A sock on each leg from addLegs (same arguments), `height` tall, a hair
+// bigger than the leg so it shows.
+void addSocks(std::vector<ModelBox> &model, float half_x, float z_front, float z_back,
+              glm::vec3 size, float height, glm::vec3 color) {
+  constexpr float kOver = 0.005f;
+  const glm::vec3 sock{size.x + 2 * kOver, height, size.z + 2 * kOver};
+  float left = -half_x - kOver, right = half_x - size.x - kOver;
+  float front = z_front - kOver, back = z_back - size.z - kOver;
+  model.push_back({{left, 0.0f, front}, sock, color, +1});
+  model.push_back({{right, 0.0f, front}, sock, color, -1});
+  model.push_back({{left, 0.0f, back}, sock, color, -1});
+  model.push_back({{right, 0.0f, back}, sock, color, +1});
+}
+
+// A pet's collar, a band `half_x` either side of the neck, and its gold tag
+// hanging at the front. Neither shows on a stray.
+void addCollar(std::vector<ModelBox> &model, float half_x, float y, float height, float z,
+               float depth, float tag_size) {
+  ModelBox band{{-half_x, y, z}, {half_x * 2, height, depth}};
+  band.collar = true;
+  model.push_back(band);
+  ModelBox tag{{-tag_size / 2, y - tag_size, z - 0.015f}, {tag_size, tag_size, 0.02f},
+               {0.98f, 0.80f, 0.25f}};
+  tag.collar_tag = true;
+  model.push_back(tag);
 }
 
 const glm::vec3 kEyeBlack{0.05f, 0.05f, 0.05f};
@@ -93,6 +121,14 @@ EntityTypeDef makeWoolly() {
       {{-0.24f, 0.78f, -0.56f}, {0.48f, 0.18f, 0.20f}, wool},       // fluffy cap
       {{-0.13f, 0.72f, -0.69f}, {0.07f, 0.07f, 0.02f}, {1, 1, 1}},  // eyes
       {{0.06f, 0.72f, -0.69f}, {0.07f, 0.07f, 0.02f}, {1, 1, 1}},
+      {{-0.11f, 0.72f, -0.695f}, {0.04f, 0.05f, 0.01f}, kEyeBlack},  // pupils
+      {{0.08f, 0.72f, -0.695f}, {0.04f, 0.05f, 0.01f}, kEyeBlack},
+      {{-0.30f, 0.72f, -0.52f}, {0.10f, 0.06f, 0.12f}, face},        // ears
+      {{0.20f, 0.72f, -0.52f}, {0.10f, 0.06f, 0.12f}, face},
+      {{-0.36f, 0.90f, -0.28f}, {0.72f, 0.05f, 0.56f}, wool},        // lumps of fleece
+      {{-0.47f, 0.40f, -0.22f}, {0.02f, 0.30f, 0.34f}, wool},
+      {{0.45f, 0.46f, 0.00f}, {0.02f, 0.30f, 0.30f}, wool},
+      {{-0.24f, 0.42f, 0.45f}, {0.40f, 0.30f, 0.02f}, wool},
   };
   addLegs(d.model, 0.36f, -0.32f, 0.38f, {0.18f, 0.32f, 0.18f}, face);
   // Any leaves: whatever tree is nearest. (Not grass: breaking grass gives
@@ -118,8 +154,12 @@ EntityTypeDef makeBunny() {
       {{-0.05f, 0.16f, 0.20f}, {0.10f, 0.10f, 0.06f}, {1, 1, 1}},     // tail
       {{-0.09f, 0.31f, -0.34f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},    // eyes
       {{0.04f, 0.31f, -0.34f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},
+      {{-0.025f, 0.26f, -0.34f}, {0.05f, 0.03f, 0.02f}, pink},        // nose
+      {{-0.15f, 0.00f, -0.13f}, {0.09f, 0.10f, 0.12f}, fur, +1},      // front legs
+      {{0.06f, 0.00f, -0.13f}, {0.09f, 0.10f, 0.12f}, fur, -1},
+      {{-0.17f, 0.00f, 0.03f}, {0.11f, 0.10f, 0.19f}, fur, -1},       // big hind legs
+      {{0.06f, 0.00f, 0.03f}, {0.11f, 0.10f, 0.19f}, fur, +1},
   };
-  addLegs(d.model, 0.15f, -0.13f, 0.20f, {0.09f, 0.10f, 0.12f}, fur);
   d.animal = AnimalDef{{itemForBlock(BlockType::CHERRY_LEAF)}, {ItemId::BERRIES, 1},
                        {BiomeType::PLAINS, BiomeType::CHERRY},
                        {BlockType::GRASS}};
@@ -128,14 +168,18 @@ EntityTypeDef makeBunny() {
 
 EntityTypeDef makeShellTurtle() {
   const glm::vec3 shell{0.25f, 0.50f, 0.30f}, ridge{0.16f, 0.36f, 0.20f},
-      skin{0.58f, 0.72f, 0.46f};
+      skin{0.58f, 0.72f, 0.46f}, plate{0.38f, 0.62f, 0.40f}, under{0.86f, 0.82f, 0.60f};
   EntityTypeDef d{"Shell Turtle", 0.4f, 0.5f, 0, 0, 0.7f, {}, makeSwimmer, {}, {}};
   d.model = {
       {{-0.40f, 0.12f, -0.35f}, {0.80f, 0.28f, 0.70f}, shell},        // shell
       {{-0.30f, 0.40f, -0.25f}, {0.60f, 0.08f, 0.50f}, ridge},        // shell top
-      {{-0.12f, 0.12f, -0.58f}, {0.24f, 0.18f, 0.24f}, skin},         // head
-      {{-0.08f, 0.24f, -0.59f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},    // eyes
-      {{0.03f, 0.24f, -0.59f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},
+      {{-0.20f, 0.48f, -0.18f}, {0.15f, 0.015f, 0.15f}, plate},       // shell pattern
+      {{0.05f, 0.48f, -0.18f}, {0.15f, 0.015f, 0.15f}, plate},
+      {{-0.075f, 0.48f, 0.04f}, {0.15f, 0.015f, 0.15f}, plate},
+      {{-0.38f, 0.09f, -0.33f}, {0.76f, 0.03f, 0.66f}, under},        // underside
+      {{-0.12f, 0.18f, -0.58f}, {0.24f, 0.18f, 0.24f}, skin},         // head
+      {{-0.08f, 0.30f, -0.59f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},    // eyes
+      {{0.03f, 0.30f, -0.59f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},
   };
   addLegs(d.model, 0.42f, -0.30f, 0.32f, {0.16f, 0.12f, 0.16f}, skin);
   d.animal = AnimalDef{{itemForBlock(BlockType::PALM_LEAF)}, {ItemId::SEA_SHELL, 1},
@@ -145,13 +189,16 @@ EntityTypeDef makeShellTurtle() {
 
 EntityTypeDef makeBlossomDeer() {
   const glm::vec3 coat{0.72f, 0.46f, 0.32f}, leg{0.52f, 0.33f, 0.22f},
-      blossom{0.96f, 0.62f, 0.78f};
+      blossom{0.96f, 0.62f, 0.78f}, pale{0.92f, 0.84f, 0.72f}, nose{0.16f, 0.11f, 0.10f};
   EntityTypeDef d{"Blossom Deer", 0.4f, 1.5f, 0, 0, 2.2f, {}, makeGrazer, {}, {}};
   d.model = {
       {{-0.28f, 0.70f, -0.45f}, {0.56f, 0.42f, 0.90f}, coat},          // body
-      {{0.27f, 0.85f, -0.20f}, {0.02f, 0.12f, 0.12f}, blossom},        // spots
-      {{0.27f, 0.80f, 0.15f}, {0.02f, 0.10f, 0.10f}, blossom},
-      {{-0.29f, 0.88f, -0.05f}, {0.02f, 0.12f, 0.12f}, blossom},
+      {{0.27f, 0.85f, -0.20f}, {0.02f, 0.16f, 0.16f}, blossom},        // spots
+      {{0.27f, 0.80f, 0.15f}, {0.02f, 0.14f, 0.14f}, blossom},
+      {{-0.29f, 0.88f, -0.05f}, {0.02f, 0.16f, 0.16f}, blossom},
+      {{-0.24f, 0.69f, -0.35f}, {0.48f, 0.02f, 0.70f}, pale},          // belly
+      {{-0.04f, 0.98f, 0.45f}, {0.08f, 0.10f, 0.03f}, pale},           // tail
+      {{-0.05f, 1.22f, -0.79f}, {0.10f, 0.06f, 0.02f}, nose},
       {{-0.12f, 0.95f, -0.58f}, {0.24f, 0.36f, 0.20f}, coat},          // neck
       {{-0.14f, 1.20f, -0.78f}, {0.28f, 0.25f, 0.34f}, coat},          // head
       {{-0.12f, 1.45f, -0.60f}, {0.05f, 0.16f, 0.05f}, leg},           // antlers
@@ -173,7 +220,8 @@ EntityTypeDef makeBlossomDeer() {
 // collar box only shows once a pet has an owner.
 
 EntityTypeDef makePuppy() {
-  const glm::vec3 coat{0.85f, 0.62f, 0.32f}, ear{0.55f, 0.36f, 0.18f};
+  const glm::vec3 coat{0.85f, 0.62f, 0.32f}, ear{0.55f, 0.36f, 0.18f},
+      paw{0.96f, 0.93f, 0.86f}, tongue{0.95f, 0.50f, 0.58f};
   EntityTypeDef d{"Puppy", 0.3f, 0.7f, 0, 0, 3.0f, {}, makePet, {}, {}};
   d.model = {
       {{-0.20f, 0.28f, -0.25f}, {0.40f, 0.26f, 0.55f}, coat},          // body
@@ -184,12 +232,12 @@ EntityTypeDef makePuppy() {
       {{0.16f, 0.46f, -0.44f}, {0.05f, 0.22f, 0.12f}, ear},
       {{-0.11f, 0.60f, -0.53f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},     // eyes
       {{0.06f, 0.60f, -0.53f}, {0.05f, 0.05f, 0.02f}, kEyeBlack},
+      {{-0.03f, 0.38f, -0.60f}, {0.06f, 0.05f, 0.05f}, tongue},
       {{-0.04f, 0.46f, 0.30f}, {0.08f, 0.08f, 0.22f}, coat, 0, false, true}, // tail
   };
-  ModelBox collar{{-0.185f, 0.38f, -0.30f}, {0.37f, 0.07f, 0.10f}};
-  collar.collar = true;
-  d.model.push_back(collar);
+  addCollar(d.model, 0.215f, 0.36f, 0.13f, -0.27f, 0.07f, 0.05f);
   addLegs(d.model, 0.2f, -0.22f, 0.28f, {0.12f, 0.28f, 0.12f}, coat);
+  addSocks(d.model, 0.2f, -0.22f, 0.28f, {0.12f, 0.28f, 0.12f}, 0.09f, paw);
   d.sit_drop = 0.26f;
   d.animal = AnimalDef{{ItemId::BERRIES, ItemId::STRAWBERRY, ItemId::BREAD},
                        {},
@@ -205,8 +253,8 @@ EntityTypeDef makeKitten() {
   EntityTypeDef d{"Kitten", 0.25f, 0.55f, 0, 0, 3.0f, {}, makePet, {}, {}};
   d.model = {
       {{-0.15f, 0.22f, -0.20f}, {0.30f, 0.20f, 0.44f}, coat},          // body
-      {{-0.155f, 0.36f, -0.06f}, {0.31f, 0.04f, 0.05f}, stripe},       // stripes
-      {{-0.155f, 0.36f, 0.08f}, {0.31f, 0.04f, 0.05f}, stripe},
+      {{-0.155f, 0.34f, -0.06f}, {0.31f, 0.09f, 0.05f}, stripe},       // stripes
+      {{-0.155f, 0.34f, 0.08f}, {0.31f, 0.09f, 0.05f}, stripe},
       {{-0.14f, 0.30f, -0.42f}, {0.28f, 0.24f, 0.24f}, coat},          // head
       {{-0.12f, 0.54f, -0.34f}, {0.07f, 0.08f, 0.05f}, coat},          // pointy ears
       {{0.05f, 0.54f, -0.34f}, {0.07f, 0.08f, 0.05f}, coat},
@@ -215,9 +263,7 @@ EntityTypeDef makeKitten() {
       {{-0.025f, 0.38f, -0.43f}, {0.05f, 0.03f, 0.02f}, pink},         // nose
       {{-0.03f, 0.36f, 0.20f}, {0.06f, 0.34f, 0.06f}, stripe, 0, false, true}, // upright tail
   };
-  ModelBox collar{{-0.15f, 0.29f, -0.22f}, {0.30f, 0.05f, 0.07f}};
-  collar.collar = true;
-  d.model.push_back(collar);
+  addCollar(d.model, 0.165f, 0.26f, 0.11f, -0.23f, 0.07f, 0.04f);
   addLegs(d.model, 0.15f, -0.18f, 0.22f, {0.09f, 0.22f, 0.09f}, coat);
   d.sit_drop = 0.2f;
   d.animal = AnimalDef{{ItemId::RAW_PEBBLEFISH, ItemId::RAW_SUNFIN, ItemId::RAW_GLOWFIN},
@@ -245,7 +291,17 @@ EntityTypeDef makeGloomling() {
       {{-0.08f, 0.58f, -0.06f}, {0.14f, 0.10f, 0.14f}, wisp},             // wisp tip
       {{-0.18f, 0.26f, -0.31f}, {0.12f, 0.12f, 0.02f}, eye, 0, true},     // eyes
       {{0.06f, 0.26f, -0.31f}, {0.12f, 0.12f, 0.02f}, eye, 0, true},
+      {{-0.09f, 0.13f, -0.31f}, {0.18f, 0.03f, 0.02f}, wisp * 1.6f},      // mouth
+      {{-0.04f, 0.68f, -0.02f}, {0.07f, 0.10f, 0.07f}, wisp},             // taller wisp
   };
+  // A jagged hem all round.
+  for (float at : {-0.30f, -0.06f, 0.18f}) {
+    const float tall = at == -0.06f ? 0.07f : 0.13f;
+    d.model.push_back({{at, 0.0f, -0.32f}, {0.12f, tall, 0.02f}, shadow});
+    d.model.push_back({{at, 0.0f, 0.30f}, {0.12f, tall, 0.02f}, shadow});
+    d.model.push_back({{-0.32f, 0.0f, at}, {0.02f, tall, 0.12f}, shadow});
+    d.model.push_back({{0.30f, 0.0f, at}, {0.02f, tall, 0.12f}, shadow});
+  }
   d.chance_drops = {kSometimesCoal};
   d.enemy = EnemyDef{/*damage=*/1, /*surface=*/true, /*vanish_at_dawn=*/true, {}};
   return d;
@@ -253,11 +309,16 @@ EntityTypeDef makeGloomling() {
 
 EntityTypeDef makeThornCrawler() {
   const glm::vec3 shell{0.30f, 0.38f, 0.16f}, thorn{0.52f, 0.36f, 0.20f},
-      leg{0.22f, 0.26f, 0.12f}, eye{1.00f, 0.45f, 0.20f};
+      leg{0.36f, 0.40f, 0.20f}, eye{1.00f, 0.45f, 0.20f}, back{0.46f, 0.52f, 0.24f},
+      mouth{0.10f, 0.08f, 0.05f}, fang{0.92f, 0.88f, 0.72f};
   EntityTypeDef d{"Thorn Crawler", 0.35f, 0.5f, 4, 0, 4.2f, {}, makeChaser,
                   {glowstone(1)}, std::nullopt};
   d.model = {
       {{-0.33f, 0.14f, -0.30f}, {0.66f, 0.24f, 0.70f}, shell},            // body
+      {{-0.18f, 0.38f, -0.30f}, {0.36f, 0.01f, 0.70f}, back},             // back band
+      {{-0.10f, 0.15f, -0.46f}, {0.20f, 0.03f, 0.02f}, mouth},
+      {{-0.09f, 0.12f, -0.46f}, {0.04f, 0.04f, 0.02f}, fang},
+      {{0.05f, 0.12f, -0.46f}, {0.04f, 0.04f, 0.02f}, fang},
       {{-0.18f, 0.12f, -0.45f}, {0.36f, 0.20f, 0.16f}, shell},            // head
       {{-0.25f, 0.38f, -0.20f}, {0.06f, 0.10f, 0.06f}, thorn},            // thorns
       {{0.15f, 0.38f, -0.10f}, {0.06f, 0.10f, 0.06f}, thorn},
@@ -286,8 +347,12 @@ EntityTypeDef makeCaveGrumble() {
       {{-0.26f, 0.88f, -0.34f}, {0.52f, 0.08f, 0.03f}, dark},             // brow
       {{-0.22f, 0.76f, -0.34f}, {0.12f, 0.10f, 0.02f}, eye, 0, true},     // eyes
       {{0.10f, 0.76f, -0.34f}, {0.12f, 0.10f, 0.02f}, eye, 0, true},
-      {{-0.54f, 0.40f, -0.12f}, {0.14f, 0.50f, 0.24f}, dark},             // arms
-      {{0.40f, 0.40f, -0.12f}, {0.14f, 0.50f, 0.24f}, dark},
+      {{-0.18f, 0.50f, -0.34f}, {0.36f, 0.06f, 0.02f}, dark},             // mouth
+      {{-0.22f, 0.60f, 0.32f}, {0.30f, 0.20f, 0.04f}, dark},              // rock lumps
+      {{0.10f, 0.82f, 0.32f}, {0.18f, 0.14f, 0.04f}, rock},
+      {{0.14f, 0.34f, -0.34f}, {0.16f, 0.10f, 0.02f}, dark},
+      {{-0.54f, 0.40f, -0.12f}, {0.14f, 0.50f, 0.24f}, dark, -1},         // arms
+      {{0.40f, 0.40f, -0.12f}, {0.14f, 0.50f, 0.24f}, dark, +1},
       {{-0.30f, 0.00f, -0.15f}, {0.24f, 0.30f, 0.30f}, dark, +1},         // legs
       {{0.06f, 0.00f, -0.15f}, {0.24f, 0.30f, 0.30f}, dark, -1},
   };
@@ -314,12 +379,19 @@ void addWalkerBody(std::vector<ModelBox> &m, glm::vec3 skin, glm::vec3 top,
 
 EntityTypeDef makeZombie() {
   const glm::vec3 skin{0.47f, 0.62f, 0.45f}, shirt{0.26f, 0.42f, 0.66f},
-      trousers{0.22f, 0.20f, 0.30f}, eye{0.75f, 1.00f, 0.65f};
+      trousers{0.22f, 0.20f, 0.30f}, eye{0.75f, 1.00f, 0.65f}, hair{0.16f, 0.13f, 0.10f},
+      mouth{0.14f, 0.20f, 0.13f};
   EntityTypeDef d{"Zombie", 0.3f, 1.8f, 10, 0, 2.2f, {}, makeChaser,
                   {glowstone(1)}, std::nullopt};
   addWalkerBody(d.model, skin, shirt, trousers, eye);
   d.model.push_back({{-0.10f, 0.78f, -0.14f}, {0.16f, 0.14f, 0.02f}, skin});     // torn shirt
   d.model.push_back({{0.08f, 1.04f, -0.14f}, {0.10f, 0.10f, 0.02f}, skin});
+  d.model.push_back({{-0.12f, 1.38f, -0.26f}, {0.24f, 0.04f, 0.02f}, mouth});
+  d.model.push_back({{-0.26f, 1.72f, -0.26f}, {0.52f, 0.10f, 0.52f}, hair});     // messy hair
+  d.model.push_back({{-0.26f, 1.60f, 0.16f}, {0.52f, 0.12f, 0.10f}, hair});
+  d.model.push_back({{-0.26f, 1.66f, -0.26f}, {0.14f, 0.06f, 0.02f}, hair});
+  d.model.push_back({{0.14f, 1.68f, -0.26f}, {0.12f, 0.04f, 0.02f}, hair});
+  d.model.push_back({{0.01f, 0.18f, -0.12f}, {0.22f, 0.12f, 0.02f}, skin, -1});  // torn trouser leg
   d.chance_drops = {kSometimesCoal, {{ItemId::CARROT, 1}, 0.25f}};
   d.enemy = EnemyDef{/*damage=*/2, /*surface=*/true, /*vanish_at_dawn=*/true,
                      {BiomeType::PLAINS, BiomeType::MOUNTAIN, BiomeType::CHERRY,
@@ -329,13 +401,15 @@ EntityTypeDef makeZombie() {
 
 EntityTypeDef makeMummy() {
   const glm::vec3 wrap{0.90f, 0.85f, 0.70f}, band{0.70f, 0.63f, 0.48f},
-      eye{1.00f, 0.70f, 0.20f};
+      eye{1.00f, 0.70f, 0.20f}, gap{0.20f, 0.16f, 0.12f};
   EntityTypeDef d{"Mummy", 0.3f, 1.8f, 12, 0, 1.8f, {}, makeChaser,
                   {glowstone(1)}, std::nullopt};
   addWalkerBody(d.model, wrap, wrap, wrap, eye);
   d.model.push_back({{-0.26f, 1.42f, -0.26f}, {0.52f, 0.06f, 0.52f}, band});     // wrap bands
   d.model.push_back({{-0.26f, 0.92f, -0.14f}, {0.52f, 0.06f, 0.28f}, band});
-  d.model.push_back({{-0.26f, 0.30f, -0.12f}, {0.50f, 0.06f, 0.24f}, band});
+  d.model.push_back({{-0.24f, 0.30f, -0.12f}, {0.24f, 0.06f, 0.24f}, band, +1}); // one on each leg
+  d.model.push_back({{0.00f, 0.30f, -0.12f}, {0.24f, 0.06f, 0.24f}, band, -1});
+  d.model.push_back({{-0.24f, 1.54f, -0.255f}, {0.48f, 0.11f, 0.01f}, gap});     // gap round the eyes
   d.model.push_back({{0.10f, 0.40f, 0.13f}, {0.08f, 0.40f, 0.02f}, wrap});       // trailing strip
   d.chance_drops = {kSometimesCoal, {{ItemId::WOOL, 1}, 0.5f}};
   d.enemy = EnemyDef{/*damage=*/2, /*surface=*/true, /*vanish_at_dawn=*/false,
@@ -366,6 +440,16 @@ EntityTypeDef makeFish(std::string_view name, float half_width, float height,
       {{x0 - 0.005f, y0 + h * 0.55f, z0 + len * 0.1f}, {0.03f, 0.05f, 0.05f}, kEyeBlack},
       {{-x0 - 0.025f, y0 + h * 0.55f, z0 + len * 0.1f}, {0.03f, 0.05f, 0.05f}, kEyeBlack},
   };
+  const glm::vec3 belly = glm::mix(look.body, glm::vec3(1.0f), 0.5f);
+  d.model.push_back({{x0 - 0.002f, y0 + h * 0.75f, z0 - 0.002f}, {w + 0.004f, h * 0.25f + 0.002f, len + 0.004f},
+                     look.dark});                                                  // back
+  d.model.push_back({{x0 - 0.002f, y0 - 0.002f, z0 - 0.002f}, {w + 0.004f, h * 0.2f, len + 0.004f},
+                     belly});
+  d.model.push_back({{-w * 0.3f, y0 + h * 0.3f, z0 - 0.006f}, {w * 0.6f, h * 0.08f, 0.01f},
+                     look.dark});                                                  // mouth
+  d.model.push_back({{x0 - 0.05f, y0 + h * 0.3f, z0 + len * 0.3f}, {0.05f, 0.02f, len * 0.2f},
+                     look.fin});                                                   // side fins
+  d.model.push_back({{-x0, y0 + h * 0.3f, z0 + len * 0.3f}, {0.05f, 0.02f, len * 0.2f}, look.fin});
   // Spots on each flank.
   for (float z : {0.35f, 0.6f})
     for (float side : {-1.0f, 1.0f}) {
@@ -460,6 +544,17 @@ bool isValidEntityKind(EntityKind kind) {
     case EntityKind::Kitten:       return true;
   }
   return false;
+}
+
+glm::mat4 tailWag(const ModelBox &box, float angle) {
+  // A tail standing up sways from its base; one lying back, from its front edge.
+  const bool upright = box.size.y > box.size.z;
+  const glm::vec3 pivot =
+      box.offset + (upright ? glm::vec3(box.size.x * 0.5f, 0.0f, box.size.z * 0.5f)
+                            : glm::vec3(box.size.x * 0.5f, box.size.y * 0.5f, 0.0f));
+  const glm::vec3 axis = upright ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
+  return glm::translate(glm::mat4(1.0f), pivot) * glm::rotate(glm::mat4(1.0f), angle, axis) *
+         glm::translate(glm::mat4(1.0f), -pivot);
 }
 
 const EntityTypeDef &entityType(EntityKind kind) {

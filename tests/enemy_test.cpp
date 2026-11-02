@@ -480,3 +480,14 @@ TEST_CASE("a torch's light keeps enemies from spawning, like a lamp's") {
   CHECK(s.world.getBlockLightAt(feet) == 12);
   CHECK_FALSE(enemyCanSpawn(EntityKind::CaveGrumble, s.world, s.cave, kMidnight));
 }
+
+TEST_CASE("every swinging part of the mummy moves with a leg, and the grumble's arms swing") {
+  // Nothing crossing both legs stays still between the knees and the ground.
+  for (const ModelBox &b : entityType(EntityKind::Mummy).model)
+    if (b.offset.y < 0.7f && b.offset.x < 0.0f && b.offset.x + b.size.x > 0.05f)
+      CHECK(b.offset.z > 0.1f); // only the strip trailing behind
+  int arms = 0;
+  for (const ModelBox &b : entityType(EntityKind::CaveGrumble).model)
+    arms += b.swing != 0 && b.offset.y > 0.3f;
+  CHECK(arms == 2);
+}

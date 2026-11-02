@@ -1,4 +1,5 @@
 #include "entity/entity_interp.hpp"
+#include <cmath>
 #include "entity/boat.hpp"
 #include <algorithm>
 #include <cmath>
@@ -80,4 +81,19 @@ void placeRiders(std::vector<PlayerView> &players, const std::vector<EntityView>
         break;
       }
   }
+}
+
+bool petWags(const EntityView &pet, const std::vector<PlayerView> &players,
+             std::optional<glm::vec3> self) {
+  if (pet.collar == 0) return false;
+  if (pet.happy) return true;
+  constexpr float kWagRange = 4.0f, kWagHeight = 3.0f;
+  auto close = [&](glm::vec3 p) {
+    return glm::distance(glm::vec2(p.x, p.z), glm::vec2(pet.position.x, pet.position.z)) <= kWagRange &&
+           std::abs(p.y - pet.position.y) <= kWagHeight;
+  };
+  if (self && close(*self)) return true;
+  for (const PlayerView &p : players)
+    if (close(p.position)) return true;
+  return false;
 }

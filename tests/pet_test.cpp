@@ -1,4 +1,5 @@
 // Pets: strays tamed with treats, then following, sitting and saved.
+#include "entity/entity_interp.hpp"
 #include "doctest/doctest.h"
 #include "block/block_data.hpp"
 #include "entity/animals.hpp"
@@ -456,4 +457,58 @@ TEST_CASE("a world with a corrupt pets.dat loads without pets and keeps the file
   REQUIRE(g.load(dir.path.string()));
   CHECK(g.entities().size() == 0);
   CHECK(std::filesystem::exists(dir.path / "pets.dat.unreadable"));
+}
+
+TEST_CASE("the collar and tag stand clear of the pet, and only the collar takes its colour") {
+  for (EntityKind kind : {EntityKind::Puppy, EntityKind::Kitten}) {
+    const auto &model = entityType(kind).model;
+    float widest_other = 0.0f, band_half = 0.0f;
+    int tags = 0;
+    for (const ModelBox &b : model) {
+      if (b.collar) band_half = b.size.x / 2;
+      tags += b.collar_tag;
+      // The head and body: what used to hide it. (Ears and legs are elsewhere.)
+      if (!b.collar && !b.collar_tag && b.swing == 0 && b.size.x > 0.25f)
+        widest_other = std::max(widest_other, b.size.x / 2);
+    }
+    CHECK(band_half > widest_other);
+    CHECK(tags == 1);
+  }
+}
+
+TEST_CASE("a tamed pet wags near a player or when fed; a stray never does") {
+  EntityView pet;
+  pet.position = {10.0f, 64.0f, 10.0f};
+  PlayerView near, far;
+  near.position = {12.0f, 64.0f, 10.0f};
+  far.position = {30.0f, 64.0f, 10.0f};
+
+  CHECK_FALSE(petWags(pet, {near}, near.position)); // a stray
+  pet.collar = 3;
+  CHECK(petWags(pet, {near}, std::nullopt));
+  CHECK(petWags(pet, {}, near.position));
+  CHECK_FALSE(petWags(pet, {far}, far.position));
+  CHECK_FALSE(petWags(pet, {}, std::nullopt));
+  PlayerView above = near;
+  above.position.y = 90.0f; // up a mountain, not close
+  CHECK_FALSE(petWags(pet, {above}, std::nullopt));
+  pet.happy = true;
+  CHECK(petWags(pet, {far}, std::nullopt));
+}
+
+TEST_CASE("an upright tail sways from its base, and one lying back from its front") {
+  ModelBox upright{{0.0f, 1.0f, 0.0f}, {0.1f, 0.5f, 0.1f}};
+  const glm::mat4 sway = tailWag(upright, 0.5f);
+  const glm::vec3 base = glm::vec3(sway * glm::vec4(0.05f, 1.0f, 0.05f, 1.0f));
+  const glm::vec3 tip = glm::vec3(sway * glm::vec4(0.05f, 1.5f, 0.05f, 1.0f));
+  CHECK(base.x == doctest::Approx(0.05f));
+  CHECK(tip.x != doctest::Approx(0.05f)); // side to side
+  CHECK(tip.z == doctest::Approx(0.05f));
+
+  ModelBox back{{0.0f, 1.0f, 0.0f}, {0.1f, 0.1f, 0.5f}};
+  const glm::mat4 wag = tailWag(back, 0.5f);
+  const glm::vec3 front = glm::vec3(wag * glm::vec4(0.05f, 1.05f, 0.0f, 1.0f));
+  const glm::vec3 end = glm::vec3(wag * glm::vec4(0.05f, 1.05f, 0.5f, 1.0f));
+  CHECK(front.x == doctest::Approx(0.05f));
+  CHECK(end.x != doctest::Approx(0.05f));
 }

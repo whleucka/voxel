@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sim/protocol.hpp"
+#include <optional>
 #include <vector>
 
 // Client-side smoothing of entity snapshots. Entities are simulated at 20 Hz
@@ -26,3 +27,8 @@ private:
 // Players sitting in a boat are drawn in their seat on the boat as drawn,
 // facing its way, so they never lag behind it (whatever the snapshots say).
 void placeRiders(std::vector<PlayerView> &players, const std::vector<EntityView> &entities);
+
+// A tamed pet wags while fed or with a player close by. `self` is where the
+// local player is (not in `players`), if there is one.
+bool petWags(const EntityView &pet, const std::vector<PlayerView> &players,
+             std::optional<glm::vec3> self);
