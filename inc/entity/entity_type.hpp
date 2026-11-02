@@ -44,7 +44,11 @@ struct ModelBox {
   bool glow = false;      // drawn at full brightness, unlit (glowing eyes)
   bool wag = false;       // tails: swing side to side about the box's front edge
   bool collar = false;    // pets: drawn in the pet's collar colour, and only once tamed
+  bool collar_tag = false; // pets: in its own colour, and only once tamed
 };
+
+// How a wagging tail (ModelBox::wag) moves, turned by `angle` radians.
+glm::mat4 tailWag(const ModelBox &box, float angle);
 
 // Collar colours, numbered 1..8 in the coloured beds' order (0: no collar).
 constexpr int kCollarColours = 8;
