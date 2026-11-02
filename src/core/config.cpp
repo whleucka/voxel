@@ -49,6 +49,13 @@ void applyFloat(const std::string &k, const std::string &v, float &out) {
   }
 }
 
+// A number from 0 to 1. Out of range is clamped; not a number keeps the default.
+void applyVolume(const std::string &k, const std::string &v, float &out) {
+  float volume = out;
+  applyFloat(k, v, volume);
+  if (!std::isnan(volume)) out = std::clamp(volume, 0.0f, 1.0f);
+}
+
 // ─── Serialization ─────────────────────────────────────────────────────────
 // Writes a commented properties file from the given settings. When blank_seed
 // is true the level-seed line is left empty (fresh random world each launch);
@@ -113,8 +120,9 @@ std::string serializeSettings(const Settings &s, bool blank_seed) {
     << "water-fog-density=" << s.water_fog_density << "\n"
     << "\n"
     << "# ─── Audio ───────────────────────────────────────────────\n"
-    << "# Music volume, 0 (off) to 1.\n"
+    << "# Volumes, 0 (off) to 1.\n"
     << "music-volume=" << s.music_volume << "\n"
+    << "sfx-volume=" << s.sfx_volume << "\n"
     << "\n"
     << "# ─── Clouds ──────────────────────────────────────────────\n"
     << "clouds-enabled=" << (s.clouds_enabled ? "true" : "false") << "\n"
@@ -217,11 +225,8 @@ void loadServerProperties(const std::string &path) {
     else if (k == "mouse-sensitivity") applyFloat(k, v, g_settings.mouse_sensitivity);
     else if (k == "time-scale")        applyFloat(k, v, g_settings.time_scale);
     else if (k == "water-fog-density") applyFloat(k, v, g_settings.water_fog_density);
-    else if (k == "music-volume") {
-      float volume = g_settings.music_volume;
-      applyFloat(k, v, volume);
-      if (!std::isnan(volume)) g_settings.music_volume = std::clamp(volume, 0.0f, 1.0f);
-    }
+    else if (k == "music-volume")      applyVolume(k, v, g_settings.music_volume);
+    else if (k == "sfx-volume")        applyVolume(k, v, g_settings.sfx_volume);
     else if (k == "clouds-enabled")    applyBool(k, v, g_settings.clouds_enabled);
     else if (k == "cloud-height")      applyFloat(k, v, g_settings.cloud_height);
     else if (k == "cloud-thickness")   applyInt(k, v, g_settings.cloud_thickness);

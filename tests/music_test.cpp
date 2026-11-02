@@ -193,6 +193,29 @@ TEST_CASE("audio: the shipped tracks can be decoded") {
   CHECK(audioFileReadable("assets/music/ethereal.mp3"));
 }
 
+TEST_CASE("sfx-volume: saved, loaded, clamped, and reset") {
+  ScopedSettings restore;
+  const auto path = std::filesystem::temp_directory_path() / "voxel_sfx_test.properties";
+  CHECK(Settings{}.sfx_volume == doctest::Approx(0.5f));
+
+  g_settings.sfx_volume = 0.3f;
+  REQUIRE(saveServerProperties(path.string()));
+  g_settings.sfx_volume = 0.9f;
+  loadServerProperties(path.string());
+  CHECK(g_settings.sfx_volume == doctest::Approx(0.3f));
+
+  { std::ofstream(path) << "sfx-volume=2.5\n"; }
+  loadServerProperties(path.string());
+  CHECK(g_settings.sfx_volume == doctest::Approx(1.0f));
+  { std::ofstream(path) << "sfx-volume=nan\n"; }
+  loadServerProperties(path.string());
+  CHECK(g_settings.sfx_volume == doctest::Approx(1.0f));
+
+  g_settings.sfx_volume = 0.1f;
+  CHECK(defaultsKeepingIdentity(g_settings).sfx_volume == doctest::Approx(0.5f));
+  std::filesystem::remove(path);
+}
+
 TEST_CASE("credits page: Esc goes back to settings") {
   SettingsPage page;
   CHECK_FALSE(page.back());
