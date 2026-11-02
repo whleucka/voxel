@@ -4,6 +4,7 @@ out vec4 FragColor;
 in vec3 vDir;
 
 uniform float uTimeOfDay; // 0..1  (0 = midnight, 0.25 = dawn, 0.5 = noon, 0.75 = dusk)
+uniform float uHorizonY;  // where the far edge of the world meets the sky
 
 const float PI = 3.14159265359;
 
@@ -39,7 +40,7 @@ void main() {
     float elev      = clamp(dir.y, 0.0, 1.0);
     // The sun and moon set behind the horizon. Below it the sky only shows
     // through water and gaps in the terrain, and must not show them there.
-    float aboveHorizon = step(0.0, dir.y);
+    float aboveHorizon = step(uHorizonY, dir.y);
     float horizBlend = pow(1.0 - elev, 4.0);
 
     vec3 zenith  = mix(kZenithNight,  kZenithDay,  dayFactor);

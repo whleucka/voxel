@@ -723,22 +723,22 @@ void Hud::drawMinimap(const HudLayout &layout, const Minimap &map, glm::vec3 fee
                1.0f, "N");
   }
 
-  // Home, the pins and the other players: where they are, or on the rim
-  // with the distance.
+  // Home, the pins and the other players: where they are, or on the rim.
+  // Only the nearest one on the rim gets its distance, as labels pointing
+  // the same way would land on top of each other.
   const float icon = std::max(7.0f, radius * 0.09f);
   const float text = std::max(12.0f, radius * 0.13f);
+  float nearest = FLT_MAX;
+  glm::vec2 nearest_at(0.0f);
   auto marker = [&](glm::vec2 at, auto draw) {
     const glm::vec2 delta = at - here;
     const MarkerSpot spot = placeMarker(mapOffset(delta, yaw), kMapRadius - 3.5f);
     const glm::vec2 p = mid + spot.at * scale;
     draw(iv(p), spot.on_rim);
-    if (!spot.on_rim) return;
-    // How far, just inside the rim.
-    const std::string label = std::to_string(static_cast<int>(std::lround(glm::length(delta))));
-    const glm::vec2 in = mid + spot.at * scale * (1.0f - (icon * 2.6f) / radius);
-    ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(text, FLT_MAX, 0.0f, label.c_str());
-    shadowText(dl, text, ImVec2(in.x - ext.x * 0.5f, in.y - ext.y * 0.5f), rgba(255, 255, 255, 1.0f),
-               1.0f, label.c_str());
+    if (spot.on_rim && glm::length(delta) < nearest) {
+      nearest = glm::length(delta);
+      nearest_at = spot.at;
+    }
   };
   auto block = [](glm::ivec3 at) { return glm::vec2(at.x + 0.5f, at.z + 0.5f); };
   if (waypoints) {
@@ -780,6 +780,15 @@ void Hud::drawMinimap(const HudLayout &layout, const Minimap &map, glm::vec3 fee
       const ImVec2 outline[] = {tip, rt, notch, l};
       dl->AddPolyline(outline, 4, IM_COL32(0, 0, 0, 230), ImDrawFlags_Closed, 1.5f);
     });
+  }
+
+  // How far, just inside the rim.
+  if (nearest < FLT_MAX) {
+    const std::string label = std::to_string(static_cast<int>(std::lround(nearest)));
+    const glm::vec2 in = mid + nearest_at * scale * (1.0f - (icon * 2.6f) / radius);
+    ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(text, FLT_MAX, 0.0f, label.c_str());
+    shadowText(dl, text, ImVec2(in.x - ext.x * 0.5f, in.y - ext.y * 0.5f), rgba(255, 255, 255, 1.0f),
+               1.0f, label.c_str());
   }
 
   // The player, pointing the way they face (always up).

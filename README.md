@@ -121,12 +121,13 @@ always up. Outside it shows the land from above; underground it shows the
 caves around your feet instead, open space light and rock dark, so you can find
 your way back out. A little house marks home (your bed, or where the world
 began if you haven't slept in one), and when home is too far to fit, the house
-waits on the edge of the map, pointing the way, with how many blocks it is.
+waits on the edge of the map, pointing the way.
 Press **P** to drop up to eight coloured pins at places worth finding again,
 like a cave mouth. They're saved with you. In multiplayer everyone sees
 everyone's pins (other players' pins are diamonds, and only the player who
 dropped one can pick it up), and the other players show as arrows in their
-shirt colours, at any distance. The map can be turned off in Settings.
+shirt colours, at any distance. Of everything waiting on the edge, the nearest
+shows how many blocks away it is. The map can be turned off in Settings.
 
 ## Game modes
 

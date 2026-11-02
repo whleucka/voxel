@@ -322,6 +322,11 @@ void Renderer::shadowPass(
 }
 
 // ─── Draw sky ───────────────────────────────────────────────────────────────
+float skyHorizonY(float height, float distance) {
+  if (height <= 0.0f) return 0.0f;
+  return -height / std::sqrt(height * height + distance * distance);
+}
+
 void Renderer::drawSky(const glm::mat4 &view, const glm::mat4 &projection,
                        float timeOfDay)
 {
@@ -336,6 +341,8 @@ void Renderer::drawSky(const glm::mat4 &view, const glm::mat4 &projection,
   sky_shader->setMat4("uView",       view);
   sky_shader->setMat4("uProjection", projection);
   sky_shader->setFloat("uTimeOfDay", timeOfDay);
+  const float eye = glm::inverse(view)[3].y;
+  sky_shader->setFloat("uHorizonY", skyHorizonY(eye - kSeaLevel, g_settings.render_distance));
 
   glBindVertexArray(sky_vao);
   glDrawArrays(GL_TRIANGLES, 0, 36);

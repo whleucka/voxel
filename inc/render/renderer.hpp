@@ -28,6 +28,11 @@ struct SceneLighting {
   glm::vec3 water_fog_color{0.1f, 0.3f, 0.5f};
 };
 
+// The height of the visible horizon, as the y of a unit view direction: where
+// the sea at `distance` blocks meets the sky for an eye `height` blocks above
+// it. From high up that's below eye level. Never above it.
+float skyHorizonY(float height, float distance);
+
 // When the shadow map has to be drawn again. Drawing it costs a good part of
 // the frame, but the sun moves slowly, so a map is kept until the sun has
 // turned or the camera has moved enough to show, or something that casts a
