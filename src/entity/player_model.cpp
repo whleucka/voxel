@@ -1,65 +1,84 @@
 #include "entity/player_model.hpp"
-#include <array>
 
-const glm::vec3 &playerColor(std::string_view name) {
-  // Bright, distinct shirts (sRGB).
-  static const std::array<glm::vec3, kPlayerColors> kShirts = {{
-      {0.90f, 0.25f, 0.25f}, // red
-      {0.25f, 0.50f, 0.95f}, // blue
-      {0.30f, 0.80f, 0.35f}, // green
-      {0.98f, 0.80f, 0.20f}, // yellow
-      {0.70f, 0.35f, 0.90f}, // purple
-      {0.98f, 0.55f, 0.15f}, // orange
-      {0.20f, 0.80f, 0.80f}, // teal
-      {0.95f, 0.45f, 0.70f}, // pink
-  }};
-  // FNV-1a: stable across runs and machines.
-  uint32_t h = 2166136261u;
-  for (char c : name) h = (h ^ static_cast<uint8_t>(c)) * 16777619u;
-  return kShirts[h % kPlayerColors];
+namespace {
+
+// The head, its bottom at height `y`: the same standing and sitting.
+void addHead(std::vector<ModelBox> &m, const ResolvedLook &look, float y) {
+  const glm::vec3 white{0.95f, 0.95f, 0.93f}, lash{0.06f, 0.05f, 0.06f};
+  const glm::vec3 nose = look.skin * 0.88f;
+  const glm::vec3 mouth = look.skin * glm::vec3(0.62f, 0.42f, 0.42f);
+  m.push_back({{-0.20f, y, -0.20f}, {0.40f, 0.40f, 0.40f}, look.skin});       // head
+  m.push_back({{-0.21f, y + 0.30f, -0.21f}, {0.42f, 0.12f, 0.42f}, look.hair}); // hair
+  for (float x : {-0.13f, 0.04f}) {
+    m.push_back({{x, y + 0.17f, -0.21f}, {0.09f, 0.07f, 0.015f}, white});     // eyes
+    m.push_back({{x + 0.02f, y + 0.17f, -0.215f}, {0.05f, 0.06f, 0.01f}, look.eyes});
+    m.push_back({{x, y + 0.265f, -0.21f}, {0.09f, 0.02f, 0.015f}, look.hair}); // eyebrows
+  }
+  m.push_back({{-0.03f, y + 0.11f, -0.225f}, {0.06f, 0.07f, 0.03f}, nose});
+  m.push_back({{-0.06f, y + 0.06f, -0.21f}, {0.12f, 0.02f, 0.015f}, mouth});
+  if (look.girl) {
+    m.push_back({{-0.21f, y - 0.20f, 0.10f}, {0.42f, 0.45f, 0.12f}, look.hair}); // long hair
+    for (float x : {-0.225f, 0.195f}) // over the ears
+      m.push_back({{x, y + 0.02f, -0.06f}, {0.03f, 0.30f, 0.18f}, look.hair});
+    for (float x : {-0.21f, 0.17f}) // framing the cheeks
+      m.push_back({{x, y + 0.05f, -0.215f}, {0.04f, 0.25f, 0.02f}, look.hair});
+    for (float x : {-0.135f, 0.035f}) // lashes
+      m.push_back({{x, y + 0.24f, -0.218f}, {0.10f, 0.012f, 0.02f}, lash});
+  } else {
+    m.push_back({{-0.21f, y + 0.10f, 0.10f}, {0.42f, 0.25f, 0.11f}, look.hair});
+    for (float x : {-0.225f, 0.20f}) // ears
+      m.push_back({{x, y + 0.13f, -0.04f}, {0.025f, 0.09f, 0.08f}, look.skin});
+  }
 }
 
-std::vector<ModelBox> playerModel(glm::vec3 shirt) {
-  const glm::vec3 skin{0.93f, 0.76f, 0.60f}, pants{0.20f, 0.24f, 0.40f},
-      shoes{0.15f, 0.12f, 0.10f}, hair{0.30f, 0.20f, 0.12f}, eye{0.08f, 0.08f, 0.10f};
-  return {
-      {{-0.25f, 0.00f, -0.12f}, {0.24f, 0.75f, 0.24f}, pants, +1},   // legs
-      {{0.01f, 0.00f, -0.12f}, {0.24f, 0.75f, 0.24f}, pants, -1},
-      {{-0.25f, 0.00f, -0.14f}, {0.24f, 0.10f, 0.28f}, shoes, +1},   // shoes
-      {{0.01f, 0.00f, -0.14f}, {0.24f, 0.10f, 0.28f}, shoes, -1},
-      {{-0.26f, 0.75f, -0.13f}, {0.52f, 0.65f, 0.26f}, shirt},       // body
-      {{-0.40f, 0.78f, -0.12f}, {0.14f, 0.62f, 0.24f}, shirt, -1},   // arms
-      {{0.26f, 0.78f, -0.12f}, {0.14f, 0.62f, 0.24f}, shirt, +1},
-      {{-0.40f, 0.78f, -0.12f}, {0.14f, 0.12f, 0.24f}, skin, -1},    // hands
-      {{0.26f, 0.78f, -0.12f}, {0.14f, 0.12f, 0.24f}, skin, +1},
-      {{-0.20f, 1.40f, -0.20f}, {0.40f, 0.40f, 0.40f}, skin},        // head
-      {{-0.21f, 1.70f, -0.21f}, {0.42f, 0.12f, 0.42f}, hair},        // hair
-      {{-0.21f, 1.50f, 0.10f}, {0.42f, 0.25f, 0.11f}, hair},
-      {{-0.12f, 1.58f, -0.21f}, {0.07f, 0.07f, 0.02f}, eye},         // eyes
-      {{0.05f, 1.58f, -0.21f}, {0.07f, 0.07f, 0.02f}, eye},
+// The girl's narrower body, arms and legs, or the boy's.
+struct Build {
+  float leg_x, leg_w, body_x, body_w, arm_x, arm_w;
+};
+Build buildOf(const ResolvedLook &look) {
+  if (look.girl) return {0.22f, 0.21f, 0.22f, 0.44f, 0.33f, 0.11f};
+  return {0.25f, 0.24f, 0.26f, 0.52f, 0.40f, 0.14f};
+}
+
+} // namespace
+
+std::vector<ModelBox> playerModel(const ResolvedLook &look) {
+  const glm::vec3 pants{0.20f, 0.24f, 0.40f}, shoes{0.15f, 0.12f, 0.10f};
+  const Build b = buildOf(look);
+  const float right_leg = -b.leg_x + b.leg_w + 0.02f;
+  std::vector<ModelBox> m = {
+      {{-b.leg_x, 0.00f, -0.12f}, {b.leg_w, 0.75f, 0.24f}, pants, +1},  // legs
+      {{right_leg, 0.00f, -0.12f}, {b.leg_w, 0.75f, 0.24f}, pants, -1},
+      {{-b.leg_x, 0.00f, -0.14f}, {b.leg_w, 0.10f, 0.28f}, shoes, +1},  // shoes
+      {{right_leg, 0.00f, -0.14f}, {b.leg_w, 0.10f, 0.28f}, shoes, -1},
+      {{-b.body_x, 0.75f, -0.13f}, {b.body_w, 0.65f, 0.26f}, look.shirt}, // body
+      {{-b.arm_x, 0.78f, -0.12f}, {b.arm_w, 0.62f, 0.24f}, look.shirt, -1}, // arms
+      {{b.body_x, 0.78f, -0.12f}, {b.arm_w, 0.62f, 0.24f}, look.shirt, +1},
+      {{-b.arm_x, 0.78f, -0.12f}, {b.arm_w, 0.12f, 0.24f}, look.skin, -1},  // hands
+      {{b.body_x, 0.78f, -0.12f}, {b.arm_w, 0.12f, 0.24f}, look.skin, +1},
   };
+  addHead(m, look, 1.40f);
+  return m;
 }
 
-std::vector<ModelBox> seatedPlayerModel(glm::vec3 shirt) {
-  const glm::vec3 skin{0.93f, 0.76f, 0.60f}, pants{0.20f, 0.24f, 0.40f},
-      shoes{0.15f, 0.12f, 0.10f}, hair{0.30f, 0.20f, 0.12f}, eye{0.08f, 0.08f, 0.10f};
+std::vector<ModelBox> seatedPlayerModel(const ResolvedLook &look) {
+  const glm::vec3 pants{0.20f, 0.24f, 0.40f}, shoes{0.15f, 0.12f, 0.10f};
+  const Build b = buildOf(look);
+  const float right_leg = -b.leg_x + b.leg_w + 0.02f;
   // Everything above the hips sits 0.75 lower than standing.
-  return {
-      {{-0.25f, 0.00f, -0.40f}, {0.24f, 0.24f, 0.52f}, pants},       // legs, out in front
-      {{0.01f, 0.00f, -0.40f}, {0.24f, 0.24f, 0.52f}, pants},
-      {{-0.25f, 0.00f, -0.48f}, {0.24f, 0.28f, 0.10f}, shoes},       // shoes
-      {{0.01f, 0.00f, -0.48f}, {0.24f, 0.28f, 0.10f}, shoes},
-      {{-0.26f, 0.00f, -0.13f}, {0.52f, 0.65f, 0.26f}, shirt},       // body
-      {{-0.40f, 0.03f, -0.12f}, {0.14f, 0.62f, 0.24f}, shirt},       // arms
-      {{0.26f, 0.03f, -0.12f}, {0.14f, 0.62f, 0.24f}, shirt},
-      {{-0.40f, 0.03f, -0.12f}, {0.14f, 0.12f, 0.24f}, skin},        // hands
-      {{0.26f, 0.03f, -0.12f}, {0.14f, 0.12f, 0.24f}, skin},
-      {{-0.20f, 0.65f, -0.20f}, {0.40f, 0.40f, 0.40f}, skin},        // head
-      {{-0.21f, 0.95f, -0.21f}, {0.42f, 0.12f, 0.42f}, hair},        // hair
-      {{-0.21f, 0.75f, 0.10f}, {0.42f, 0.25f, 0.11f}, hair},
-      {{-0.12f, 0.83f, -0.21f}, {0.07f, 0.07f, 0.02f}, eye},         // eyes
-      {{0.05f, 0.83f, -0.21f}, {0.07f, 0.07f, 0.02f}, eye},
+  std::vector<ModelBox> m = {
+      {{-b.leg_x, 0.00f, -0.40f}, {b.leg_w, 0.24f, 0.52f}, pants},  // legs, out in front
+      {{right_leg, 0.00f, -0.40f}, {b.leg_w, 0.24f, 0.52f}, pants},
+      {{-b.leg_x, 0.00f, -0.48f}, {b.leg_w, 0.28f, 0.10f}, shoes},  // shoes
+      {{right_leg, 0.00f, -0.48f}, {b.leg_w, 0.28f, 0.10f}, shoes},
+      {{-b.body_x, 0.00f, -0.13f}, {b.body_w, 0.65f, 0.26f}, look.shirt}, // body
+      {{-b.arm_x, 0.03f, -0.12f}, {b.arm_w, 0.62f, 0.24f}, look.shirt},   // arms
+      {{b.body_x, 0.03f, -0.12f}, {b.arm_w, 0.62f, 0.24f}, look.shirt},
+      {{-b.arm_x, 0.03f, -0.12f}, {b.arm_w, 0.12f, 0.24f}, look.skin},    // hands
+      {{b.body_x, 0.03f, -0.12f}, {b.arm_w, 0.12f, 0.24f}, look.skin},
   };
+  addHead(m, look, 0.65f);
+  return m;
 }
 
 std::optional<glm::vec2> projectToScreen(glm::vec3 point, const glm::mat4 &view_projection,

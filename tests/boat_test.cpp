@@ -723,8 +723,8 @@ TEST_CASE("a world from before boats loads with none, and a damaged boats.dat is
 // ─── Drawing riders ────────────────────────────────────────────────────
 
 TEST_CASE("a sitting figure fits in a boat: legs out in front, nothing swinging") {
-  auto model = seatedPlayerModel(playerColor("Bea"));
-  REQUIRE(model.size() == playerModel(playerColor("Bea")).size());
+  auto model = seatedPlayerModel(resolveLook({}, "Bea"));
+  REQUIRE(model.size() == playerModel(resolveLook({}, "Bea")).size());
   float top = 0.0f, bottom = 1.0f, front = 0.0f;
   for (const ModelBox &b : model) {
     top = std::max(top, b.offset.y + b.size.y);

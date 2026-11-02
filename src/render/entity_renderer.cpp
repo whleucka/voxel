@@ -272,15 +272,15 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities,
     }
   }
 
-  // Other players: blocky figures in their name's colour.
+  // Other players: blocky figures in the colours they chose.
   shader->setFloat("uHurt", 0.0f);
   shader->setFloat("uBurn", 0.0f);
   for (const PlayerView &p : players) {
-    const glm::vec3 &shirt = playerColor(p.name);
+    const ResolvedLook look = resolveLook({}, p.name);
     if (p.riding)
-      drawModel(seatedPlayerModel(shirt), p.position, playerModelYaw(p.yaw), false, world, now);
+      drawModel(seatedPlayerModel(look), p.position, playerModelYaw(p.yaw), false, world, now);
     else
-      drawModel(playerModel(shirt), p.position, playerModelYaw(p.yaw), p.moving, world, now,
+      drawModel(playerModel(look), p.position, playerModelYaw(p.yaw), p.moving, world, now,
                 p.sleeping);
   }
 
