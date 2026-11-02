@@ -109,10 +109,20 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
 *   **T:** Chat. Type and press Enter (or click Send); Esc closes it.
 *   **P:** Drop a map pin where you stand, or pick up the one next to you.
+*   **V:** Change the view: first person, from behind, or from in front.
 *   **ESC:** Close the inventory, or open the pause menu (Resume, Settings,
     Save game, Return to title screen, Exit game). Single player pauses.
 *   **F5:** Save the world. **F11:** Toggle fullscreen.
 *   **F12:** Debug panel (info, stats, where each frame's time goes on the CPU and GPU, wireframe, V-sync and host cheats).
+
+## Your character
+
+**Settings > Character** lets you choose a boy or girl figure and the colours
+of the shirt, hair, skin and eyes, next to a turning figure so you can see the
+result. **Auto** shirts take their colour from your name. Your choices are
+saved with your settings, so they follow you into every world, and other
+players see them straight away, even if you change them during a game. Press
+**V** to see your character in the world.
 
 ## The map
 
