@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <cmath>
 #include "core/config.hpp"
 #include "core/seed.hpp"
 #include "core/settings.hpp"
@@ -110,6 +112,10 @@ std::string serializeSettings(const Settings &s, bool blank_seed) {
     << "time-scale=" << s.time_scale << "\n"
     << "water-fog-density=" << s.water_fog_density << "\n"
     << "\n"
+    << "# ─── Audio ───────────────────────────────────────────────\n"
+    << "# Music volume, 0 (off) to 1.\n"
+    << "music-volume=" << s.music_volume << "\n"
+    << "\n"
     << "# ─── Clouds ──────────────────────────────────────────────\n"
     << "clouds-enabled=" << (s.clouds_enabled ? "true" : "false") << "\n"
     << "cloud-height=" << s.cloud_height << "\n"
@@ -211,6 +217,11 @@ void loadServerProperties(const std::string &path) {
     else if (k == "mouse-sensitivity") applyFloat(k, v, g_settings.mouse_sensitivity);
     else if (k == "time-scale")        applyFloat(k, v, g_settings.time_scale);
     else if (k == "water-fog-density") applyFloat(k, v, g_settings.water_fog_density);
+    else if (k == "music-volume") {
+      float volume = g_settings.music_volume;
+      applyFloat(k, v, volume);
+      if (!std::isnan(volume)) g_settings.music_volume = std::clamp(volume, 0.0f, 1.0f);
+    }
     else if (k == "clouds-enabled")    applyBool(k, v, g_settings.clouds_enabled);
     else if (k == "cloud-height")      applyFloat(k, v, g_settings.cloud_height);
     else if (k == "cloud-thickness")   applyInt(k, v, g_settings.cloud_thickness);

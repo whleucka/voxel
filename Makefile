@@ -30,7 +30,7 @@ CFLAGS      += -DVOXEL_VERSION='"$(VERSION)"'
 DEPFLAGS    := -MMD -MP
 
 # Libraries
-LIB         := -lglfw -lGL -lX11 -lpthread -lXrandr -lXi -ldl
+LIB         := -lglfw -lGL -lX11 -lpthread -lXrandr -lXi -ldl -lm
 
 # Include paths
 INC := -I$(CURDIR)/$(INCDIR) \

@@ -138,6 +138,7 @@ void Engine::run() {
     last_frame = currentFrame;
     applyDisplaySettings();
     updateCursor();
+    updateMusic();
 
     const bool in_game = playing();
     if (in_game) {
@@ -162,6 +163,16 @@ void Engine::run() {
 
   endSession(); // persist on quit
   scene.close(); // while the GL context is still alive
+}
+
+void Engine::updateMusic() {
+  MusicInput in;
+  in.dt = delta_time;
+  in.in_world = playing();
+  if (in.in_world) in.day_fraction = session->clock().time_of_day / 86400.0f;
+  in.volume = g_settings.music_volume;
+  in.ended = audio.ended();
+  audio.apply(music.update(in));
 }
 
 // The GPU's timings come in some frames late, and are added to the frame

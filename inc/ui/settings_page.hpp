@@ -28,12 +28,18 @@ public:
   // The Character page, under this one.
   void openCharacter() { on_character = true; }
   bool onCharacter() const { return on_character; }
-  // Esc: leaves the Character page if it's open (saving), and says if it did.
+  // The Credits page, also under this one.
+  void openCredits() { on_credits = true; }
+  bool onCredits() const { return on_credits; }
+  // Esc: leaves the Character page (saving) or Credits page if one is open, and
+  // says if it did.
   bool back();
 
 private:
   void drawCharacter(Settings &s);
+  void drawCredits();
 
   bool confirm_reset = false;
   bool on_character = false;
+  bool on_credits = false;
 };

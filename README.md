@@ -484,6 +484,12 @@ world under their name. The host needs TCP port 47800 and UDP port 47801 open. O
 can use the F12 cheats. Guests play in the host's world mode.
 
 
+## Music
+
+One track plays by day and another by night, crossfading at 06:00 and 18:00,
+with a minute or two of quiet between plays. Set the volume under Settings,
+or with `music-volume` in `voxel.properties`. See [CREDITS.md](CREDITS.md).
+
 ## Contributing
 
 Contributions are welcome! If you have suggestions for improvements, bug fixes, or new features, please feel free to open an issue or submit a pull request.
@@ -499,4 +505,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 *   [GLFW](https://www.glfw.org/): For window and input management.
 *   [GLAD](https://glad.dav1d.de/): For loading OpenGL function pointers.
 *   [Dear ImGui](https://github.com/ocornut/imgui): For the immediate-mode GUI used for debugging.
+*   [miniaudio](https://miniaud.io): For music playback.
 *   [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h): For easy image loading.
