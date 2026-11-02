@@ -142,6 +142,7 @@ void TitleMenu::goBack() {
     form = Form::None;
     return;
   }
+  if (page == Page::Settings && settings.back()) return;
   if (page == Page::Settings) settings.close();
   if (page == Page::Worlds) selected = -1;
   page = Page::Main;

@@ -15,6 +15,7 @@
 struct PlayerState {
   PlayerId id = 0;
   std::string name;
+  PlayerLook look;         // from the player, each game; not saved
   uint32_t respawn = 0;    // bumped on every respawn; see MovePlayer::respawn
   glm::vec3 position{0.0f}; // feet
   float yaw = -90.0f;

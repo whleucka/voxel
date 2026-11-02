@@ -17,7 +17,7 @@ public:
   void close() { page_ = Page::Closed; }
 
   // Esc in game (with the inventory closed): opens the menu, backs out of
-  // Settings (saving them), or resumes.
+  // the Character page or Settings (saving them), or resumes.
   void escape();
   Action press(Button b);
 
@@ -31,6 +31,8 @@ public:
   Action draw(bool single_player, bool guest, double now);
   // The save went through: show "Saved" for a moment.
   void saved(double now) { saved_at = now; }
+
+  SettingsPage &settingsPage() { return settings; }
 
 private:
   Page page_ = Page::Closed;

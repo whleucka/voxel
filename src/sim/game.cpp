@@ -514,7 +514,8 @@ void Game::sendEntitySnapshots() {
       snap.players.push_back({pid, other.name, other.position, other.yaw, other.pitch,
                               other.crouch, other.sleeping_in.has_value(), false,
                               other.riding ? other.riding->boat : 0,
-                              static_cast<uint8_t>(other.riding ? other.riding->seat : 0)});
+                              static_cast<uint8_t>(other.riding ? other.riding->seat : 0),
+                              other.look});
     }
     client.link->deliver(std::move(snap));
   }
@@ -688,6 +689,7 @@ void Game::apply(Client &client, const Join &cmd) {
   ps.name = cmd.name.empty() ? "Player" + std::to_string(ps.id) : cmd.name;
   if (!validName(ps.name))
     return client.link->deliver(JoinRefused{"Names are 1-16 letters, digits, _ or -"});
+  ps.look = sanitized(cmd.look);
   for (const auto &[id, other] : players)
     if (other.name == ps.name) return client.link->deliver(JoinRefused{"Name already in use"});
   if (players.size() >= kMaxPlayers) return client.link->deliver(JoinRefused{"Game is full"});
@@ -1309,6 +1311,10 @@ namespace {
 constexpr int kPinReach = 3;
 } // namespace
 
+void Game::apply(Client &client, const SetLook &cmd) {
+  if (PlayerState *ps = playerFor(client)) ps->look = sanitized(cmd.look);
+}
+
 void Game::apply(Client &client, const TogglePin &) {
   PlayerState *ps = playerFor(client);
   if (!ps) return;
@@ -1364,7 +1370,7 @@ void Game::sendMapPlayers() {
     MapPlayers marks;
     for (const auto &[pid, other] : players)
       if (pid != ps->id && !other.vitals.dead())
-        marks.players.push_back({pid, other.name, other.position, other.yaw});
+        marks.players.push_back({pid, other.name, other.position, other.yaw, other.look});
     std::sort(marks.players.begin(), marks.players.end(),
               [](const MapPlayer &a, const MapPlayer &b) { return a.id < b.id; });
     // Nobody to show, again: nothing to say.

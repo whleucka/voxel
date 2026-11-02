@@ -24,6 +24,7 @@ public:
 
   struct Options {
     std::string name;        // the player's name
+    PlayerLook look;         // and how they look
     std::string save_dir;    // single/host: the world to load or create
     std::string world_name;  // host: shown in the beacon
     uint16_t port = 0;       // host: TCP port (0 = any); guest: the host's

@@ -51,7 +51,13 @@ void applyFloat(const std::string &k, const std::string &v, float &out) {
 // Writes a commented properties file from the given settings. When blank_seed
 // is true the level-seed line is left empty (fresh random world each launch);
 // otherwise the current world_seed is written so the same world reloads.
+void applySwatch(const std::string &k, const std::string &v, LookPart part) {
+  if (auto swatch = parseSwatch(part, v)) lookField(g_settings.player_look, part) = *swatch;
+  else std::cerr << "[config] '" << k << "': no colour '" << v << "' — keeping default\n";
+}
+
 std::string serializeSettings(const Settings &s, bool blank_seed) {
+  const PlayerLook look = sanitized(s.player_look);
   std::ostringstream o;
   o << "# voxel.properties — game/server configuration\n"
     << "# Edit values below, then restart. Delete this file to regenerate it.\n"
@@ -75,6 +81,12 @@ std::string serializeSettings(const Settings &s, bool blank_seed) {
     << "# ─── Multiplayer ─────────────────────────────────────────\n"
     << "# Your name in shared games (1-16 letters, digits, _ or -).\n"
     << "player-name=" << s.player_name << "\n"
+    << "# Your character, as chosen on the Character page in Settings.\n"
+    << "character=" << kFigureNames[look.figure] << "\n"
+    << "shirt-colour=" << lookSwatches(LookPart::Shirt)[look.shirt].name << "\n"
+    << "hair-colour=" << lookSwatches(LookPart::Hair)[look.hair].name << "\n"
+    << "skin-colour=" << lookSwatches(LookPart::Skin)[look.skin].name << "\n"
+    << "eye-colour=" << lookSwatches(LookPart::Eyes)[look.eyes].name << "\n"
     << "# The TCP port a hosted game listens on.\n"
     << "server-port=" << s.server_port << "\n"
     << "\n"
@@ -174,6 +186,15 @@ void loadServerProperties(const std::string &path) {
     else if (k == "view-distance")     applyInt(k, v, g_settings.render_distance);
     else if (k == "player-name")       { if (!v.empty()) g_settings.player_name = v; }
     else if (k == "server-port")       applyInt(k, v, g_settings.server_port);
+    else if (k == "character") {
+      if (auto f = parseFigure(v)) g_settings.player_look.figure = *f;
+      else std::cerr << "[config] 'character': expected boy/girl, got '" << v
+                     << "' — keeping default\n";
+    }
+    else if (k == "shirt-colour")      applySwatch(k, v, LookPart::Shirt);
+    else if (k == "hair-colour")       applySwatch(k, v, LookPart::Hair);
+    else if (k == "skin-colour")       applySwatch(k, v, LookPart::Skin);
+    else if (k == "eye-colour")        applySwatch(k, v, LookPart::Eyes);
     else if (k == "difficulty") {
       if (auto d = parseDifficulty(v)) g_settings.difficulty = *d;
       else std::cerr << "[config] 'difficulty': expected peaceful/easy/normal/hard, got '"

@@ -357,3 +357,23 @@ TEST_CASE("bed messages round-trip") {
   auto back = std::get<SleepState>(*wire::decodeEvent(enc(Event{SleepState{true, {-4, 70, 12}, 2, 3}})));
   CHECK(back == SleepState{true, {-4, 70, 12}, 2, 3});
 }
+
+TEST_CASE("a player's look crosses the wire") {
+  const PlayerLook look{kFigureGirl, 2, 3, 4, 5};
+  Join join{"Bea", look};
+  auto join_back = std::get<Join>(*wire::decodeCommand(enc(Command{join})));
+  CHECK(join_back.name == "Bea");
+  CHECK(join_back.look == look);
+  CHECK(std::get<SetLook>(*wire::decodeCommand(enc(Command{SetLook{look}}))).look == look);
+
+  EntitySnapshot snap;
+  PlayerView view;
+  view.name = "Bea";
+  view.look = look;
+  snap.players.push_back(view);
+  auto snap_back = std::get<EntitySnapshot>(*wire::decodeEvent(enc(Event{snap})));
+  CHECK(snap_back.players[0].look == look);
+
+  MapPlayers marks{{{2, "Bea", {0.0f, 64.0f, 0.0f}, 45.0f, look}}};
+  CHECK(std::get<MapPlayers>(*wire::decodeEvent(enc(Event{marks}))).players[0].look == look);
+}

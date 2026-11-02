@@ -2,6 +2,7 @@
 
 #include "glad/glad.h"
 #include "player/player.hpp"
+#include "render/camera_view.hpp"
 #include "render/camera.hpp"
 #include "core/frame_profile.hpp"
 #include "core/session.hpp"
@@ -76,6 +77,9 @@ private:
   double last_snapshot_time = 0.0;
   std::vector<EntityView> entity_views; // this frame's interpolated entities
   std::vector<PlayerView> player_views; // this frame's other players
+  PlayerLook sent_look;                 // what the Game last heard from us
+  CameraView camera_view = CameraView::First; // the player's choice (V)
+  CameraView shown_view = CameraView::First;  // this frame's, after bed and death
   // Our own fishing bobber in this frame's entities, if a line is out.
   const EntityView *myBobber() const {
     for (const EntityView &v : entity_views)

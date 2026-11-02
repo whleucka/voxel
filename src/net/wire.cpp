@@ -138,12 +138,16 @@ template <class IO> void fields(IO &io, EntityView &m) {
   io(m.id, m.kind, m.position, m.yaw, m.item, m.hurt, m.happy, m.burning, m.owner, m.biting,
      m.collar, m.sitting);
 }
+template <class IO> void fields(IO &io, PlayerLook &m) {
+  io(m.figure, m.shirt, m.hair, m.skin, m.eyes);
+}
 template <class IO> void fields(IO &io, PlayerView &m) {
-  io(m.id, m.name, m.position, m.yaw, m.pitch, m.crouch, m.sleeping, m.riding, m.seat);
+  io(m.id, m.name, m.position, m.yaw, m.pitch, m.crouch, m.sleeping, m.riding, m.seat, m.look);
 }
 
 // Commands
-template <class IO> void fields(IO &io, Join &m) { io(m.name); }
+template <class IO> void fields(IO &io, Join &m) { io(m.name, m.look); }
+template <class IO> void fields(IO &io, SetLook &m) { io(m.look); }
 template <class IO> void fields(IO &io, MovePlayer &m) {
   io(m.position, m.yaw, m.pitch, m.fly, m.crouch, m.on_ground, m.sprinting, m.in_water,
      m.eyes_underwater, m.respawn, m.boat, m.boat_position, m.boat_yaw);
@@ -207,7 +211,7 @@ template <class IO> void fields(IO &io, Notice &m) { io(m.text); }
 template <class IO> void fields(IO &io, Pin &m) { io(m.pos, m.colour); }
 template <class IO> void fields(IO &io, SharedPin &m) { io(m.owner, m.pin); }
 template <class IO> void fields(IO &io, Waypoints &m) { io(m.home, m.pins, m.others); }
-template <class IO> void fields(IO &io, MapPlayer &m) { io(m.id, m.name, m.position, m.yaw); }
+template <class IO> void fields(IO &io, MapPlayer &m) { io(m.id, m.name, m.position, m.yaw, m.look); }
 template <class IO> void fields(IO &io, MapPlayers &m) { io(m.players); }
 template <class IO> void fields(IO &io, Riding &m) { io(m.boat, m.seat, m.position, m.yaw); }
 template <class IO> void fields(IO &io, ChatMessage &m) {

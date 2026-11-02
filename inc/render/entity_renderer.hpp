@@ -7,6 +7,7 @@
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 class World;
@@ -31,10 +32,21 @@ public:
             glm::vec3 camera_pos, bool underwater, float time_of_day, double now,
             PlayerId self = 0, glm::vec3 self_hand = glm::vec3(0.0f));
 
+  // A character slowly turning in the noon light, on a clear background, for
+  // the Character page. Returns the texture it's in. Needs no world.
+  GLuint drawPreview(const PlayerLook &look, std::string_view name, int width, int height,
+                     double now);
+
 private:
   std::unique_ptr<Shader> shader;
   GLuint vao = 0, vbo = 0;
   GLuint block_tex = 0, item_tex = 0;
+  GLuint preview_fbo = 0, preview_tex = 0, preview_depth = 0;
+  int preview_width = 0, preview_height = 0;
+
+  void setScene(const glm::mat4 &view, const glm::mat4 &projection, glm::vec3 camera_pos,
+                bool underwater, float time_of_day) const;
+  void resizePreview(int width, int height);
 
   // Box models (creatures and players), lit at `position`. Lying, the model
   // is laid on its back with its head along `yaw`, centred on `position`.
@@ -43,6 +55,9 @@ private:
   void drawModel(const std::vector<ModelBox> &model, glm::vec3 position, float yaw,
                  bool moving, const World &world, double now, bool lying = false,
                  uint8_t collar = 0, float sit_drop = 0.0f) const;
+  // The same, lit by whatever's set already.
+  void drawBoxes(const std::vector<ModelBox> &model, glm::vec3 position, float yaw, bool moving,
+                 double now, bool lying, uint8_t collar, float sit_drop) const;
   void setLight(const World &world, glm::vec3 position) const;
   // `local` is applied before the box is placed (e.g. a leg's swing).
   void drawBox(const glm::mat4 &entity_model, glm::vec3 offset, glm::vec3 size,

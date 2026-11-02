@@ -165,3 +165,33 @@ TEST_CASE("reset to defaults keeps the world, name and port") {
   CHECK(d.difficulty == fresh.difficulty);
   CHECK(d.render_distance == fresh.render_distance);
 }
+
+TEST_CASE("the character survives a restart") {
+  ScopedSettings keep;
+  TempDir dir;
+  std::string path = (dir.path / "voxel.properties").string();
+  const PlayerLook chosen{kFigureGirl, 9, 3, 5, 4};
+  g_settings.player_look = chosen;
+  REQUIRE(saveServerProperties(path));
+  g_settings.player_look = PlayerLook{};
+  loadServerProperties(path);
+  CHECK(g_settings.player_look == chosen);
+}
+
+TEST_CASE("a missing or unknown character value is the default") {
+  ScopedSettings keep;
+  TempDir dir;
+  std::string path = (dir.path / "voxel.properties").string();
+  std::ofstream(path) << "character=robot\nshirt-colour=plaid\nhair-colour=blond\n";
+  g_settings.player_look = PlayerLook{};
+  loadServerProperties(path);
+  PlayerLook expected;
+  expected.hair = *parseSwatch(LookPart::Hair, "blond");
+  CHECK(g_settings.player_look == expected);
+}
+
+TEST_CASE("Reset to defaults keeps the character") {
+  Settings s;
+  s.player_look = PlayerLook{kFigureGirl, 2, 2, 2, 2};
+  CHECK(defaultsKeepingIdentity(s).player_look == s.player_look);
+}
