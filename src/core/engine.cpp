@@ -321,6 +321,7 @@ void Engine::startSession(std::unique_ptr<Session> s) {
   vitals_view = {Vitals::kMax, Vitals::kMax, Vitals::kMax, true, false};
   sleep_view.reset();
   riding_view.reset();
+  camera_view = CameraView::First;
   minimap = Minimap{};
   waypoints.reset();
   map_players.clear();
@@ -629,7 +630,16 @@ void Engine::render() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Render scene
-  glm::mat4 view = player->getCamera().getViewMatrix();
+  const Camera &camera = player->getCamera();
+  shown_view = shownCameraView(camera_view, inBed(), vitals_view.dead);
+  const glm::vec3 view_pos = cameraViewPosition(
+      camera.position, camera.front, shown_view,
+      [this](glm::vec3 origin, glm::vec3 direction, float max_distance) -> std::optional<float> {
+        RaycastResult ray = world().raycast(origin, direction, max_distance);
+        if (!ray.hit) return std::nullopt;
+        return ray.distance;
+      });
+  glm::mat4 view = cameraViewMatrix(view_pos, camera.front, camera.up, shown_view);
   glm::mat4 proj = glm::perspective(
       glm::radians(g_settings.fov),                  // field of view from settings
       (float)win_width / (float)win_height,           // aspect ratio
@@ -650,16 +660,36 @@ void Engine::render() {
         v.yaw = my_boat.yaw;
       }
   placeRiders(player_views, entity_views);
+  // From outside we're in the picture too, unless a wall has pushed the camera
+  // into our own head.
+  std::vector<PlayerView> drawn_players = player_views;
+  if (shown_view != CameraView::First && glm::distance(view_pos, camera.position) > 1.0f) {
+    PlayerView me;
+    me.id = player_id;
+    me.name = g_settings.player_name;
+    me.look = g_settings.player_look;
+    me.position = player->getPosition();
+    me.yaw = camera.yaw;
+    const glm::vec3 velocity = player->getVelocity();
+    me.moving = glm::length(glm::vec2(velocity.x, velocity.z)) > 0.5f;
+    if (riding_view) {
+      me.riding = riding_view->boat;
+      me.seat = riding_view->seat;
+    }
+    drawn_players.push_back(me);
+    placeRiders(drawn_players, entity_views);
+  }
   // The rod's tip, just below and right of the view, starts our own line.
   const Camera &eye = player->getCamera();
   glm::vec3 hand = eye.position + eye.front * 0.6f + eye.right * 0.3f - eye.up * 0.25f;
 
   // Entities go in before the water, so fish swim under it rather than
   // showing on top.
-  world().render(view, proj, session->clock().fractionOfDay(), win_width,
-                 win_height, player->getPosition(), player->isUnderwater(), [&] {
-                   entity_renderer.draw(entity_views, player_views, world(), view, proj,
-                                        player->getCamera().position, player->isUnderwater(),
+  world().render(view, proj, session->clock().fractionOfDay(), win_width, win_height,
+                 shown_view == CameraView::First ? player->getPosition() : view_pos,
+                 player->isUnderwater(), [&] {
+                   entity_renderer.draw(entity_views, drawn_players, world(), view, proj,
+                                        view_pos, player->isUnderwater(),
                                         session->clock().fractionOfDay(), now, player_id, hand);
                  });
 
@@ -806,6 +836,8 @@ void Engine::renderCrosshair() {
 
   // No crosshair over the inventory screen, chat or the pause menu.
   if (player->isInventoryOpen() || chat_open || paused()) return;
+  // Nor when looking back at yourself, where it wouldn't mean anything.
+  if (shown_view == CameraView::Front) return;
 
   // Draw crosshair at screen center using ImGui overlay
   ImDrawList* draw = ImGui::GetForegroundDrawList();
@@ -1210,6 +1242,12 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
     // Chat, while playing (not over the inventory or in bed)
     case GLFW_KEY_T:
       if (!engine->player->isInventoryOpen() && !engine->inBed()) engine->setChatOpen(true);
+      break;
+
+    // First person, from behind, from in front
+    case GLFW_KEY_V:
+      if (!engine->player->isInventoryOpen())
+        engine->camera_view = nextCameraView(engine->camera_view);
       break;
 
     // Quick-save the world
