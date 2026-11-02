@@ -2,6 +2,7 @@
 
 #include "world/worldgen_version.hpp"
 #include "core/difficulty.hpp"
+#include "entity/player_look.hpp"
 #include <glm/vec2.hpp>
 #include <cstdint>
 #include <string>
@@ -17,6 +18,7 @@ struct Settings {
 
   // Multiplayer
   std::string player_name;   // shown above your head; also your guest record
+  PlayerLook player_look;    // the Character page's choices
   int        server_port;    // TCP port a host listens on
 
   // UI
@@ -74,7 +76,7 @@ struct Settings {
 inline Settings g_settings;
 
 // Every setting back to its default, except who and where you are: the world,
-// its seed, your name, the server port and the windowed size are kept.
+// its seed, your name and look, the server port and the windowed size are kept.
 inline Settings defaultsKeepingIdentity(const Settings &s) {
   Settings d;
   d.world_name = s.world_name;
@@ -82,6 +84,7 @@ inline Settings defaultsKeepingIdentity(const Settings &s) {
   d.noise_offset = s.noise_offset;
   d.worldgen = s.worldgen;
   d.player_name = s.player_name;
+  d.player_look = s.player_look;
   d.server_port = s.server_port;
   d.window_width = s.window_width;
   d.window_height = s.window_height;
