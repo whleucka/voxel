@@ -4,6 +4,7 @@
 #include "block/block_type.hpp"
 #include "core/game_mode.hpp"
 #include "entity/entity_type.hpp"
+#include "entity/player_look.hpp"
 #include "item/chest.hpp"
 #include "inventory/inventory.hpp"
 #include "world/block_edit.hpp"
@@ -23,7 +24,10 @@ using EntityId = uint32_t;
 // ─── Commands (client → sim) ───────────────────────────────────────────
 
 // The first command on every link. An empty name becomes "Player<id>".
-struct Join { std::string name; };
+struct Join { std::string name; PlayerLook look = {}; };
+
+// The player changed their character during the game.
+struct SetLook { PlayerLook look; };
 
 // Movement is client-authoritative: the client runs physics and reports where
 // it ended up. Fine on a home LAN, and it keeps movement smooth.
@@ -122,7 +126,7 @@ using Command = std::variant<Join, MovePlayer, BreakBlock, PlaceBlock,
                              SpawnDebugEntity, InteractEntity, EatItem, Craft,
                              OpenContainer, CloseContainer, StartBreak,
                              CastLine, ReelIn, UseDoor, UseBed, LeaveBed, UseItemOn,
-                             Chat, TogglePin, BoardBoat, LeaveBoat>;
+                             Chat, TogglePin, BoardBoat, LeaveBoat, SetLook>;
 
 // ─── Events (sim → client) ─────────────────────────────────────────────
 
@@ -197,6 +201,7 @@ struct MapPlayer {
   std::string name;
   glm::vec3 position{0.0f}; // feet
   float yaw = -90.0f;       // camera convention (degrees)
+  PlayerLook look = {};
   bool operator==(const MapPlayer &) const = default;
 };
 struct MapPlayers { std::vector<MapPlayer> players; };
@@ -278,6 +283,7 @@ struct PlayerView {
   bool moving = false;      // set client-side by the interpolator
   EntityId riding = 0;      // sitting in this boat (0: on foot)
   uint8_t seat = 0;
+  PlayerLook look = {};
 };
 
 // Every entity and other player within range of this player, sent every tick.

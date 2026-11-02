@@ -276,7 +276,7 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities,
   shader->setFloat("uHurt", 0.0f);
   shader->setFloat("uBurn", 0.0f);
   for (const PlayerView &p : players) {
-    const ResolvedLook look = resolveLook({}, p.name);
+    const ResolvedLook look = resolveLook(p.look, p.name);
     if (p.riding)
       drawModel(seatedPlayerModel(look), p.position, playerModelYaw(p.yaw), false, world, now);
     else

@@ -248,6 +248,8 @@ void Engine::startFromMenu(const TitleMenu::Choice &choice) {
 
   Session::Options opts;
   opts.name = g_settings.player_name;
+  opts.look = g_settings.player_look;
+  sent_look = opts.look;
   opts.save_dir = WorldSave::worldDir(choice.world);
   opts.world_name = choice.world;
   opts.port = static_cast<uint16_t>(g_settings.server_port);
@@ -732,6 +734,10 @@ void Engine::render() {
   if (vitals_view.dead) hud.drawDeathScreen();
   PauseMenu::Action action = pause.draw(session->mode() == Session::Mode::Single,
                                         session->isGuest(), glfwGetTime());
+  if (g_settings.player_look != sent_look) { // changed on the Character page
+    sent_look = g_settings.player_look;
+    connection().send(SetLook{sent_look});
+  }
 
   debug();
   pauseAction(action); // after the frame: it may end the game
@@ -770,7 +776,7 @@ void Engine::renderNameTags(const glm::mat4 &view_projection) {
     ImVec2 lo(at->x - size.x * 0.5f - 4.0f, at->y - size.y - 2.0f);
     ImVec2 hi(at->x + size.x * 0.5f + 4.0f, at->y + 2.0f);
     draw->AddRectFilled(lo, hi, IM_COL32(0, 0, 0, 120), 3.0f);
-    const glm::vec3 &c = playerColor(p.name);
+    const glm::vec3 c = resolveLook(p.look, p.name).shirt;
     draw->AddText(ImVec2(lo.x + 4.0f, lo.y + 2.0f),
                   IM_COL32(255, 255, 255, 255), p.name.c_str());
     // A small stripe in their colour, to match the shirt.

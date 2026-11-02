@@ -762,7 +762,7 @@ void Hud::drawMinimap(const HudLayout &layout, const Minimap &map, glm::vec3 fee
   // or a dot on the rim.
   const float s = std::max(6.0f, radius * 0.08f);
   for (const MapPlayer &other : others) {
-    const glm::vec3 &shirt = playerColor(other.name);
+    const glm::vec3 shirt = resolveLook(other.look, other.name).shirt;
     const ImU32 fill = IM_COL32(shirt.r * 255, shirt.g * 255, shirt.b * 255, 255);
     marker({other.position.x, other.position.z}, [&](ImVec2 p, bool on_rim) {
       if (on_rim) {

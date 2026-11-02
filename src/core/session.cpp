@@ -23,7 +23,7 @@ std::unique_ptr<Session> Session::local(Mode mode, const Options &opts, std::str
     if (opts.beacon && !s->beacon.start(beacon_error))
       std::cerr << "[net] no LAN beacon (" << beacon_error << "); guests can type the address\n";
   }
-  s->local_link.send(Join{opts.name});
+  s->local_link.send(Join{opts.name, opts.look});
   s->game_->pump();
   return s;
 }
@@ -38,7 +38,7 @@ std::unique_ptr<Session> Session::join(const std::string &address, const Options
   s->saved_offset = g_settings.noise_offset;
   s->saved_worldgen = g_settings.worldgen;
   s->client_world = std::make_unique<World>();
-  s->remote->send(Join{opts.name});
+  s->remote->send(Join{opts.name, opts.look});
   return s;
 }
 

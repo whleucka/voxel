@@ -3944,3 +3944,72 @@ TEST_CASE_FIXTURE(PinGame, "the host's pins are saved") {
   REQUIRE(wp);
   CHECK(wp->pins == std::vector<Pin>{{feet(), 0}, {{40, ground + 1, 8}, 1}});
 }
+
+namespace {
+std::optional<PlayerLook> lookInSnapshot(const std::vector<Event> &evs, PlayerId who) {
+  std::optional<PlayerLook> out;
+  for (const Event &e : evs)
+    if (const auto *snap = std::get_if<EntitySnapshot>(&e))
+      for (const PlayerView &p : snap->players)
+        if (p.id == who) out = p.look;
+  return out;
+}
+std::optional<PlayerLook> lookOnMap(const std::vector<Event> &evs, PlayerId who) {
+  std::optional<PlayerLook> out;
+  for (const Event &e : evs)
+    if (const auto *marks = std::get_if<MapPlayers>(&e))
+      for (const MapPlayer &p : marks->players)
+        if (p.id == who) out = p.look;
+  return out;
+}
+struct LookGame : SmallGame {
+  LocalConnection a, b;
+  PlayerId id_a = 0;
+  const PlayerLook chosen{kFigureGirl, 2, 3, 4, 5};
+  LookGame() {
+    game.addClient(a);
+    a.send(Join{"Sam", chosen});
+    game.pump();
+    for (const Event &e : pollAll(a))
+      if (const auto *j = std::get_if<Joined>(&e)) id_a = j->id;
+    REQUIRE(id_a != 0);
+    game.addClient(b);
+    b.send(Join{"Pat"});
+    game.pump();
+    pollAll(b);
+  }
+};
+} // namespace
+
+TEST_CASE_FIXTURE(LookGame, "the other players see the look a player joined with") {
+  for (int i = 0; i < Game::kTimeSyncTicks; ++i) game.tick();
+  auto events = pollAll(b);
+  CHECK(lookInSnapshot(events, id_a) == chosen);
+  CHECK(lookOnMap(events, id_a) == chosen);
+}
+
+TEST_CASE_FIXTURE(LookGame, "a look changed during the game reaches the others") {
+  const PlayerLook changed{0, 7, 1, 2, 3};
+  a.send(SetLook{changed});
+  game.pump();
+  for (int i = 0; i < Game::kTimeSyncTicks; ++i) game.tick();
+  auto events = pollAll(b);
+  CHECK(lookInSnapshot(events, id_a) == changed);
+  CHECK(lookOnMap(events, id_a) == changed);
+}
+
+TEST_CASE_FIXTURE(LookGame, "bad look values are cleaned up by the Game") {
+  a.send(SetLook{PlayerLook{99, 99, 99, 99, 99}});
+  game.pump();
+  CHECK(game.findPlayer(id_a)->look == PlayerLook{});
+
+  LocalConnection c;
+  game.addClient(c);
+  c.send(Join{"Cy", PlayerLook{99, 99, 99, 99, 99}});
+  game.pump();
+  PlayerId id_c = 0;
+  for (const Event &e : pollAll(c))
+    if (const auto *j = std::get_if<Joined>(&e)) id_c = j->id;
+  REQUIRE(id_c != 0);
+  CHECK(game.findPlayer(id_c)->look == PlayerLook{});
+}

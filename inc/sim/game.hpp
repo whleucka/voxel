@@ -197,6 +197,7 @@ private:
   void apply(Client &client, const TogglePin &cmd);
   void apply(Client &client, const BoardBoat &cmd);
   void apply(Client &client, const LeaveBoat &cmd);
+  void apply(Client &client, const SetLook &cmd);
   // Boats: putting one on the water, picking one up, who sits where, and
   // getting out.
   void placeBoat(Client &client, PlayerState &ps, glm::ivec3 pos);

@@ -76,6 +76,7 @@ private:
   double last_snapshot_time = 0.0;
   std::vector<EntityView> entity_views; // this frame's interpolated entities
   std::vector<PlayerView> player_views; // this frame's other players
+  PlayerLook sent_look;                 // what the Game last heard from us
   // Our own fishing bobber in this frame's entities, if a line is out.
   const EntityView *myBobber() const {
     for (const EntityView &v : entity_views)
