@@ -308,7 +308,9 @@ TEST_CASE_FIXTURE(EditGame, "a valid place sets the block and broadcasts once") 
   CHECK(at(target) == BlockType::COBBLESTONE);
   REQUIRE(changes(evs) == 1);
   CHECK(std::get<BlockChanged>(evs[0]).type == BlockType::COBBLESTONE);
-  CHECK(pollAll(other).size() == 1);
+  auto seen = pollAll(other);
+  REQUIRE(seen.size() == 2); // the change, and its sound
+  CHECK(std::holds_alternative<SoundCue>(seen[1]));
 }
 
 TEST_CASE_FIXTURE(EditGame, "bedrock, water and air cannot be broken") {
@@ -2926,8 +2928,8 @@ std::vector<SoundCue> cues(const std::vector<Event> &evs) {
 } // namespace
 
 TEST_CASE_FIXTURE(DoorGame, "a door swinging sounds once, from the doorway, for everyone") {
-  CHECK(cues(placeDoor(door)).empty());
-  CHECK(cues(pollAll(other)).empty());
+  placeDoor(door); // placing has its own sound (below)
+  pollAll(other);
   const glm::vec3 middle = glm::vec3(door) + glm::vec3(0.5f, 1.0f, 0.5f);
 
   auto opened = cues(run(UseDoor{top()}));
@@ -2994,6 +2996,64 @@ TEST_CASE_FIXTURE(DoorGame, "a door or a bed breaks with one sound") {
   heard = cues(mine(door));
   REQUIRE(heard.size() == 1u);
   CHECK(isBed(heard[0].block));
+}
+
+TEST_CASE_FIXTURE(DoorGame, "placing sounds once, for everyone, with what ended up there") {
+  moveTo({5.5f, ground + 1.0f, 8.5f});
+  pollAll(other);
+  auto heard = cues(place(door, BlockType::OAK_PLANKS));
+  REQUIRE(heard.size() == 1u);
+  CHECK(heard[0] == SoundCue{Cue::BlockPlace, glm::vec3(door) + 0.5f, BlockType::OAK_PLANKS});
+  CHECK(cues(pollAll(other)) == heard);
+
+  // Refused: occupied. Silent.
+  auto refused = place(door, BlockType::STONE);
+  CHECK(reason(refused) == "place: cell occupied");
+  CHECK(cues(refused).empty());
+
+  // A slab on the same slab: the full block, one cell down.
+  const glm::ivec3 next = door + glm::ivec3(1, 0, 0);
+  place(next, BlockType::OAK_SLAB);
+  hold(BlockType::OAK_SLAB);
+  heard = cues(run(PlaceBlock{next + glm::ivec3(0, 1, 0), {0, -1, 0}}));
+  REQUIRE(heard.size() == 1u);
+  CHECK(heard[0] == SoundCue{Cue::BlockPlace, glm::vec3(next) + 0.5f, BlockType::OAK_PLANKS});
+
+  // A torch on the side of the planks: the facing torch.
+  const glm::ivec3 side = door + glm::ivec3(0, 0, 1);
+  game.world().setBlockAt(side, BlockType::AIR);
+  hold(BlockType::TORCH);
+  auto torch = run(PlaceBlock{side, {0, 0, -1}});
+  CHECK(reason(torch) == "");
+  heard = cues(torch);
+  REQUIRE(heard.size() == 1u);
+  CHECK(isTorch(heard[0].block));
+  CHECK(heard[0].block != BlockType::TORCH);
+}
+
+TEST_CASE_FIXTURE(DoorGame, "a door or a bed is placed with one sound") {
+  auto heard = cues(placeDoor(door));
+  REQUIRE(heard.size() == 1u);
+  CHECK(heard[0].cue == Cue::BlockPlace);
+  CHECK(isDoor(heard[0].block));
+  CHECK(heard[0].position == glm::vec3(door) + glm::vec3(0.5f, 1.0f, 0.5f));
+  CHECK(cues(placeDoor(door)).empty()); // refused: no room
+  pollAll(other);
+
+  const glm::ivec3 bed = door + glm::ivec3(-2, 0, 0);
+  for (glm::ivec3 cell : {bed, bed + glm::ivec3(1, 0, 0)}) { // foot, and head (east)
+    game.world().setBlockAt(cell - glm::ivec3(0, 1, 0), BlockType::STONE);
+    game.world().setBlockAt(cell, BlockType::AIR);
+    game.world().setBlockAt(cell + glm::ivec3(0, 1, 0), BlockType::AIR);
+  }
+  PlayerState &me = *game.findPlayer(id);
+  me.inventory.set(me.selected_slot, {ItemId::RED_BED, 1});
+  auto bed_evs = run(PlaceBlock{bed});
+  CHECK(reason(bed_evs) == "");
+  heard = cues(bed_evs);
+  REQUIRE(heard.size() == 1u);
+  CHECK(isBed(heard[0].block));
+  CHECK(heard[0].position == glm::vec3(bed) + 0.5f);
 }
 
 TEST_CASE_FIXTURE(DoorGame, "creative breaks sound too") {
@@ -3449,9 +3509,12 @@ struct FarmGame : EditGame {
 
 TEST_CASE_FIXTURE(FarmGame, "a hoe tills grass or dirt into dry farmland and wears") {
   holding(ItemId::STONE_HOE);
-  CHECK(changes(run(UseItemOn{soil})) == 1);
+  auto tilled = run(UseItemOn{soil});
+  CHECK(changes(tilled) == 1);
   CHECK(at(soil) == BlockType::FARMLAND_DRY);
   CHECK(changes(pollAll(other)) == 1);
+  REQUIRE(cues(tilled).size() == 1u);
+  CHECK(cues(tilled)[0] == SoundCue{Cue::BlockPlace, glm::vec3(soil) + 0.5f, BlockType::FARMLAND_DRY});
   CHECK(held() == ItemStack{ItemId::STONE_HOE, 1, 1});
   CHECK(game.tracksSoil(soil));
 
@@ -3463,7 +3526,9 @@ TEST_CASE_FIXTURE(FarmGame, "a hoe tills grass or dirt into dry farmland and wea
   // Not stone, not farmland again, and not under something.
   glm::ivec3 stone = soil + glm::ivec3(-1, 0, 0);
   game.world().setBlockAt(stone, BlockType::STONE);
-  CHECK(reason(run(UseItemOn{stone})) == "till: only grass and dirt");
+  auto not_stone = run(UseItemOn{stone});
+  CHECK(reason(not_stone) == "till: only grass and dirt");
+  CHECK(cues(not_stone).empty());
   CHECK(reason(run(UseItemOn{soil})) == "till: only grass and dirt");
   glm::ivec3 covered = soil + glm::ivec3(0, 0, -1);
   game.world().setBlockAt(covered + glm::ivec3(0, 1, 0), BlockType::COBBLESTONE);
@@ -3514,8 +3579,11 @@ TEST_CASE_FIXTURE(FarmGame, "seeds plant on farmland only, and are used up") {
   holding(ItemId::WOOD_HOE);
   run(UseItemOn{soil});
   holding(ItemId::CARROT_SEEDS, 3);
-  CHECK(changes(run(UseItemOn{soil})) == 1);
+  auto planted = run(UseItemOn{soil});
+  CHECK(changes(planted) == 1);
   CHECK(at(crop()) == BlockType::CARROT_0);
+  REQUIRE(cues(planted).size() == 1u);
+  CHECK(cues(planted)[0] == SoundCue{Cue::BlockPlace, glm::vec3(crop()) + 0.5f, BlockType::CARROT_0});
   CHECK(held() == ItemStack{ItemId::CARROT_SEEDS, 2});
   CHECK(game.cropTimeLeft(crop()).has_value());
   CHECK(reason(run(UseItemOn{soil})) == "plant: something's there");
@@ -3524,7 +3592,9 @@ TEST_CASE_FIXTURE(FarmGame, "seeds plant on farmland only, and are used up") {
 TEST_CASE_FIXTURE(FarmGame, "crops grow only on wet soil, sprout to ripe in about a day") {
   sow(ItemId::WHEAT_SEEDS, soil);
   REQUIRE(at(soil) == BlockType::FARMLAND_DRY);
+  pollAll(conn);
   game.growFarms(kWetMs * 2);
+  CHECK(cues(pollAll(conn)).empty()); // the world changing itself is quiet
   CHECK(at(crop()) == BlockType::WHEAT_0); // dry: it waits
 
   holding(ItemId::WATERING_CAN);

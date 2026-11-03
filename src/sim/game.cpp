@@ -994,6 +994,7 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
 
   world_.setBlockAt(pos, placed);
   broadcast(BlockChanged{pos, placed});
+  broadcast(SoundCue{Cue::BlockPlace, glm::vec3(pos) + 0.5f, placed});
   packSoilUnder(pos);
   if (*block == BlockType::FURNACE) furnaces_[pos] = Furnace{};
   if (*block == BlockType::CHEST) chests_[pos] = Chest{};
@@ -1035,7 +1036,9 @@ void Game::placeDoor(Client &client, PlayerState &ps, glm::ivec3 pos) {
   if (!blocksMovement(below) || isDoor(below) || isBed(below))
     return reject(client, "place: a door needs ground under it");
 
-  setDoor(pos, doorBlock(false, doorFacingForYaw(ps.yaw), false));
+  const BlockType bottom = doorBlock(false, doorFacingForYaw(ps.yaw), false);
+  setDoor(pos, bottom);
+  broadcast(SoundCue{Cue::BlockPlace, glm::vec3(pos) + glm::vec3(0.5f, 1.0f, 0.5f), bottom});
   packSoilUnder(pos);
   if (rules().consume_blocks) {
     ps.inventory.take(ps.selected_slot, 1);
@@ -1123,6 +1126,7 @@ void Game::placeBed(Client &client, PlayerState &ps, glm::ivec3 pos) {
   world_.setBlockAt(head, head_half);
   broadcast(BlockChanged{pos, foot_half});
   broadcast(BlockChanged{head, head_half});
+  broadcast(SoundCue{Cue::BlockPlace, glm::vec3(pos) + 0.5f, foot_half});
   packSoilUnder(pos);
   packSoilUnder(head);
   if (rules().consume_blocks) {
@@ -1437,6 +1441,7 @@ void Game::till(Client &client, PlayerState &ps, glm::ivec3 pos) {
   const BlockType tilled = soil.by_water ? BlockType::FARMLAND_WET : BlockType::FARMLAND_DRY;
   world_.setBlockAt(pos, tilled);
   broadcast(BlockChanged{pos, tilled});
+  broadcast(SoundCue{Cue::BlockPlace, glm::vec3(pos) + 0.5f, tilled});
   soil_[pos] = soil;
   // Grass sometimes turns up a seed, which pops out of the soil.
   if (rules().block_drops)
@@ -1455,6 +1460,7 @@ void Game::plant(Client &client, PlayerState &ps, glm::ivec3 pos) {
   const BlockType sprout = cropBlock(*cropForSeed(ps.inventory.slot(ps.selected_slot).id), 0);
   world_.setBlockAt(cell, sprout);
   broadcast(BlockChanged{cell, sprout});
+  broadcast(SoundCue{Cue::BlockPlace, glm::vec3(cell) + 0.5f, sprout});
   crops_[cell] = {stageMs(rng_)};
   if (rules().consume_blocks) {
     ps.inventory.take(ps.selected_slot, 1);
@@ -2390,6 +2396,7 @@ void Game::placeBoat(Client &client, PlayerState &ps, glm::ivec3 pos) {
   auto id = entities_.spawn(EntityKind::Boat, spot);
   if (!id) return reject(client, "boat: entity cap reached");
   entities_.find(*id)->yaw = std::fmod(boatYawFor(ps.yaw) + 360.0f, 360.0f);
+  broadcast(SoundCue{Cue::BoatPlace, spot});
   if (rules().consume_blocks) {
     ps.inventory.take(ps.selected_slot, 1);
     sendInventory(client, ps);

@@ -494,3 +494,49 @@ TEST_CASE("mining hits: at once, then every quarter second, while it breaks") {
   CHECK(s.update(MiningNow{{3, 64, 0}, BlockType::GLASS}, 0.02f)->effect == Effect::HitGlass);
   CHECK(s.update(MiningNow{{4, 64, 0}, BlockType::DIRT}, 0.02f)->effect == Effect::HitSoft);
 }
+
+TEST_CASE("place cues: the block's hit sound, lower; quiet for plants; wood for a boat") {
+  CueSounds cues(6);
+  const glm::vec3 here{0, 64, 0}, at{1.5f, 64.5f, 0.5f};
+  auto placed = [&](BlockType b) { return cues.sound({Cue::BlockPlace, at, b}, here); };
+  auto inPitch = [](const SoundEvent &e) {
+    return e.pitch >= CueSounds::kPlacePitch * 0.95f && e.pitch <= CueSounds::kPlacePitch * 1.05f;
+  };
+
+  auto stone = placed(BlockType::COBBLESTONE);
+  REQUIRE(stone);
+  CHECK(stone->effect == Effect::MineStone);
+  CHECK(stone->volume == doctest::Approx(CueSounds::kStonePlaceVolume));
+  CHECK(inPitch(*stone));
+  CHECK(stone->position == at);
+  CHECK(stone->positional);
+
+  auto wood = placed(BlockType::DOOR_BOTTOM_E_CLOSED);
+  CHECK(wood->effect == Effect::HitWood);
+  CHECK(wood->volume == doctest::Approx(1.0f));
+  CHECK(placed(BlockType::GLASS)->effect == Effect::HitGlass);
+  CHECK(placed(BlockType::FARMLAND_DRY)->effect == Effect::HitSoft);
+  CHECK(placed(BlockType::RED_BLOCK)->effect == Effect::HitSoft);
+
+  auto sprout = placed(BlockType::WHEAT_0);
+  CHECK(sprout->effect == Effect::HitSoft);
+  CHECK(sprout->volume == doctest::Approx(CueSounds::kQuietBreakVolume));
+  auto torch = placed(BlockType::TORCH_W);
+  CHECK(torch->effect == Effect::HitWood);
+  CHECK(torch->volume == doctest::Approx(CueSounds::kQuietBreakVolume));
+
+  auto boat = cues.sound({Cue::BoatPlace, at}, here);
+  REQUIRE(boat);
+  CHECK(boat->effect == Effect::HitWood);
+  CHECK(inPitch(*boat));
+
+  CHECK_FALSE(cues.sound({Cue::BlockPlace, {40, 64, 0}, BlockType::STONE}, here));
+  CHECK_FALSE(placed(BlockType::AIR));
+
+  int last = -1;
+  for (int i = 0; i < 30; ++i) {
+    auto e = placed(BlockType::OAK_PLANKS);
+    CHECK(e->variant != last);
+    last = e->variant;
+  }
+}
