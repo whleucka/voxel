@@ -1071,6 +1071,8 @@ void Game::apply(Client &client, const UseDoor &cmd) {
       return reject(client, "door: someone's in the way");
     world_.setBlockAt(cmd.pos, swung);
     broadcast(BlockChanged{cmd.pos, swung});
+    broadcast(SoundCue{gateOpen(swung) ? Cue::GateOpen : Cue::GateClose,
+                       glm::vec3(cmd.pos) + 0.5f});
     return;
   }
 
@@ -1081,6 +1083,9 @@ void Game::apply(Client &client, const UseDoor &cmd) {
       (overlapsAnyPlayer(bottom) || overlapsAnyPlayer(bottom + glm::ivec3(0, 1, 0))))
     return reject(client, "door: someone's in the way");
   setDoor(bottom, swung);
+  // From the middle of the doorway, where the two halves meet.
+  broadcast(SoundCue{doorOpen(swung) ? Cue::DoorOpen : Cue::DoorClose,
+                     glm::vec3(bottom) + glm::vec3(0.5f, 1.0f, 0.5f)});
 }
 
 // ─── Beds ──────────────────────────────────────────────────────────────

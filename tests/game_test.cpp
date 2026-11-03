@@ -2913,6 +2913,45 @@ TEST_CASE_FIXTURE(DoorGame, "a door pops off when the ground under it goes") {
   CHECK(dropped(game, ItemId::WOODEN_DOOR) == 1);
 }
 
+namespace {
+std::vector<SoundCue> cues(const std::vector<Event> &evs) {
+  std::vector<SoundCue> out;
+  for (const Event &e : evs)
+    if (const auto *c = std::get_if<SoundCue>(&e)) out.push_back(*c);
+  return out;
+}
+} // namespace
+
+TEST_CASE_FIXTURE(DoorGame, "a door swinging sounds once, from the doorway, for everyone") {
+  CHECK(cues(placeDoor(door)).empty());
+  CHECK(cues(pollAll(other)).empty());
+  const glm::vec3 middle = glm::vec3(door) + glm::vec3(0.5f, 1.0f, 0.5f);
+
+  auto opened = cues(run(UseDoor{top()}));
+  REQUIRE(opened.size() == 1u);
+  CHECK(opened[0] == SoundCue{Cue::DoorOpen, middle});
+  CHECK(cues(pollAll(other)) == opened);
+
+  auto shut = cues(run(UseDoor{door}));
+  REQUIRE(shut.size() == 1u);
+  CHECK(shut[0] == SoundCue{Cue::DoorClose, middle});
+
+  // Refused: silent.
+  run(UseDoor{door});
+  moveTo({5.5f, ground + 1.0f, 5.5f});
+  auto refused = run(UseDoor{door});
+  CHECK(reason(refused) == "door: someone's in the way");
+  CHECK(cues(refused).empty());
+  moveTo({5.5f, ground + 1.0f, 5.5f + 9.0f});
+  CHECK(cues(run(UseDoor{door})).empty()); // out of reach
+
+  // Breaking it is silent too.
+  moveTo({5.5f, ground + 1.0f, 8.5f});
+  pollAll(other);
+  CHECK(cues(mine(door)).empty());
+  CHECK(cues(pollAll(other)).empty());
+}
+
 TEST_CASE_FIXTURE(DoorGame, "doors are saved open or shut") {
   ScopedSeed seed;
   TempDir dir;

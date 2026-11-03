@@ -185,6 +185,22 @@ TEST_CASE("right-clicking a gate opens and shuts it, for everyone to see") {
   CHECK(y.at(kSpot) == BlockType::FENCE_GATE_Z_CLOSED);
 }
 
+TEST_CASE("a gate swinging sounds, and a refused one doesn't") {
+  Yard y;
+  y.game.world().setBlockAt(kSpot, BlockType::FENCE_GATE_X_CLOSED);
+  auto cue = [](const std::vector<Event> &evs) { return find<SoundCue>(evs); };
+  auto opened = cue(y.run(UseDoor{kSpot}));
+  REQUIRE(opened);
+  CHECK(*opened == SoundCue{Cue::GateOpen, glm::vec3(kSpot) + 0.5f});
+  auto shut = cue(y.run(UseDoor{kSpot}));
+  REQUIRE(shut);
+  CHECK(shut->cue == Cue::GateClose);
+
+  y.run(UseDoor{kSpot});
+  y.move(glm::vec3(kSpot) + glm::vec3(0.5f, 0.0f, 0.5f));
+  CHECK_FALSE(cue(y.run(UseDoor{kSpot})));
+}
+
 TEST_CASE("a gate won't shut on someone standing in it, and needs reach") {
   Yard y;
   y.game.world().setBlockAt(kSpot, BlockType::FENCE_GATE_X_OPEN);

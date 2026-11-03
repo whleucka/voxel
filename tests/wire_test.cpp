@@ -72,6 +72,8 @@ TEST_CASE("events round-trip with real values") {
   roundTrip(Joined{5, {1, 2, 3}, 10.0f, -20.0f, 7, false, GameMode::Creative});
   roundTrip(BlockChanged{{-1, 100, -1}, BlockType::GLOWSTONE});
   roundTrip(BlockChanged{{3, 64, -7}, kLastBlockType});
+  roundTrip(SoundCue{Cue::DoorOpen, {5.5f, 65.0f, -3.5f}});
+  roundTrip(SoundCue{kLastCue, {0.0f, 0.0f, 0.0f}});
   roundTrip(PlayerJoined{4, "Cy"});
   roundTrip(CommandRejected{"give: host only"});
   roundTrip(JoinRefused{"Name already in use"});
@@ -137,6 +139,11 @@ TEST_CASE("garbage is rejected, not trusted") {
   changed.back() = 250;
   CHECK_FALSE(wire::decodeEvent(changed));
 
+  // An unknown sound cue (its byte follows the variant index).
+  auto cue = enc(Event{SoundCue{}});
+  cue[1] = static_cast<uint8_t>(kLastCue) + 1;
+  CHECK_FALSE(wire::decodeEvent(cue));
+
   // An unknown item and an unknown entity kind.
   auto give = enc(Command{GiveItem{ItemId::COAL, 1}});
   give[1] = 0xFF, give[2] = 0xFE;
@@ -197,6 +204,7 @@ TEST_CASE("an oversized frame marks the stream bad") {
 
 TEST_CASE("the hello frame carries the protocol version") {
   CHECK(wire::readHello(wire::hello()) == wire::kProtocolVersion);
+  CHECK(wire::kProtocolVersion == 22);
   auto other = wire::hello();
   other[4] = 99;
   CHECK(wire::readHello(other) == 99);
