@@ -17,7 +17,7 @@ void addHead(std::vector<ModelBox> &m, const ResolvedLook &look, float y) {
   m.push_back({{-0.03f, y + 0.11f, -0.225f}, {0.06f, 0.07f, 0.03f}, nose});
   m.push_back({{-0.06f, y + 0.06f, -0.21f}, {0.12f, 0.02f, 0.015f}, mouth});
   if (look.girl) {
-    m.push_back({{-0.21f, y - 0.20f, 0.10f}, {0.42f, 0.45f, 0.12f}, look.hair}); // long hair
+    m.push_back({{-0.21f, y - 0.20f, 0.10f}, {0.42f, 0.62f, 0.12f}, look.hair}); // long hair, up to the top of the cap
     for (float x : {-0.225f, 0.195f}) // over the ears
       m.push_back({{x, y + 0.02f, -0.06f}, {0.03f, 0.30f, 0.18f}, look.hair});
     for (float x : {-0.21f, 0.17f}) // framing the cheeks
