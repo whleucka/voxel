@@ -75,7 +75,8 @@ void SettingsPage::drawCredits() {
   ImGui::TextUnformatted("creativecommons.org/licenses/by/4.0/");
   ImGui::Spacing();
   ImGui::TextUnformatted("Sound effects");
-  ImGui::TextUnformatted("RPG Audio by Kenney (kenney.nl), CC0");
+  ImGui::TextUnformatted("RPG Audio and Impact Sounds by Kenney");
+  ImGui::TextUnformatted("(kenney.nl), CC0");
   ImGui::Spacing();
   ImGui::TextUnformatted("Built with");
   ImGui::TextWrapped("GLFW, GLAD, Dear ImGui, stb_image, stb_vorbis, miniaudio");

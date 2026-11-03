@@ -74,6 +74,9 @@ TEST_CASE("events round-trip with real values") {
   roundTrip(BlockChanged{{3, 64, -7}, kLastBlockType});
   roundTrip(SoundCue{Cue::DoorOpen, {5.5f, 65.0f, -3.5f}});
   roundTrip(SoundCue{kLastCue, {0.0f, 0.0f, 0.0f}});
+  roundTrip(SoundCue{Cue::BlockBreak, {1.5f, 70.5f, -2.5f}, kLastBlockType});
+  CHECK(std::get<SoundCue>(*wire::decodeEvent(enc(Event{SoundCue{Cue::BlockBreak, {1, 2, 3}, BlockType::GLASS}}))) ==
+        SoundCue{Cue::BlockBreak, {1, 2, 3}, BlockType::GLASS});
   roundTrip(PlayerJoined{4, "Cy"});
   roundTrip(CommandRejected{"give: host only"});
   roundTrip(JoinRefused{"Name already in use"});
@@ -143,6 +146,9 @@ TEST_CASE("garbage is rejected, not trusted") {
   auto cue = enc(Event{SoundCue{}});
   cue[1] = static_cast<uint8_t>(kLastCue) + 1;
   CHECK_FALSE(wire::decodeEvent(cue));
+  auto broke = enc(Event{SoundCue{Cue::BlockBreak, {}, BlockType::STONE}});
+  broke.back() = 250; // an unknown block type
+  CHECK_FALSE(wire::decodeEvent(broke));
 
   // An unknown item and an unknown entity kind.
   auto give = enc(Command{GiveItem{ItemId::COAL, 1}});
@@ -204,7 +210,7 @@ TEST_CASE("an oversized frame marks the stream bad") {
 
 TEST_CASE("the hello frame carries the protocol version") {
   CHECK(wire::readHello(wire::hello()) == wire::kProtocolVersion);
-  CHECK(wire::kProtocolVersion == 22);
+  CHECK(wire::kProtocolVersion == 23);
   auto other = wire::hello();
   other[4] = 99;
   CHECK(wire::readHello(other) == 99);

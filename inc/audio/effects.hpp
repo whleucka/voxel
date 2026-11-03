@@ -14,14 +14,25 @@
 enum class Effect : uint8_t {
   StepGrass = 0, StepDirt, StepStone, StepWood, StepSnow, StepCloth,
   DoorOpen, DoorClose,
+  MineStone, // hits and breaks: the break is pitched down
+  HitWood, BreakWood, HitGlass, BreakGlass, HitSoft, BreakSoft,
 };
-inline constexpr std::size_t kEffectCount = 8;
+inline constexpr std::size_t kEffectCount = 15;
 
 // How many recordings each effect has. Every step set shares the same ten
 // for now (see effectPaths).
-inline constexpr std::array<int, kEffectCount> kEffectVariants = {10, 10, 10, 10, 10, 10, 2, 4};
+inline constexpr std::array<int, kEffectCount> kEffectVariants = {10, 10, 10, 10, 10, 10, 2, 4,
+                                                                  5,  5,  5,  5,  5,  5,  5};
 
 inline Effect stepEffect(StepSet s) { return static_cast<Effect>(s); }
+
+// What a block sounds like being mined and broken.
+enum class MineSet { Stone, Wood, Glass, Soft, Silent };
+MineSet mineSet(BlockType b);
+Effect hitEffect(MineSet m);   // m isn't Silent
+Effect breakEffect(MineSet m); // m isn't Silent
+// Picked at once (plants, crops, torches): a quieter break.
+bool quietBreak(BlockType b);
 inline int variantCount(Effect e) { return kEffectVariants[static_cast<std::size_t>(e)]; }
 
 struct SoundEvent {
@@ -42,6 +53,8 @@ public:
   static constexpr float kHearing = 16.0f;
   static constexpr float kGatePitch = 1.15f;
   static constexpr float kGateVolume = 0.7f;
+  static constexpr float kStoneBreakPitch = 0.85f;
+  static constexpr float kQuietBreakVolume = 0.6f;
 
   explicit CueSounds(uint32_t seed = std::random_device{}()) : rng(seed) {}
 
@@ -49,6 +62,37 @@ public:
   std::optional<SoundEvent> sound(const SoundCue &cue, glm::vec3 listener);
 
 private:
-  std::array<int, kEffectCount> last{-1, -1, -1, -1, -1, -1, -1, -1};
+  std::array<int, kEffectCount> last = lastNone();
+  std::mt19937 rng;
+  static std::array<int, kEffectCount> lastNone() {
+    std::array<int, kEffectCount> a;
+    a.fill(-1);
+    return a;
+  }
+};
+
+// The block being mined, while it's breaking.
+struct MiningNow {
+  glm::ivec3 pos{0};
+  BlockType block = BlockType::AIR;
+};
+
+// When the hits play while you mine: one at once, then every kHitSeconds.
+// Pure logic, tested without a sound device.
+class MiningSounds {
+public:
+  static constexpr float kHitSeconds = 0.25f;
+  static constexpr float kStoneHitVolume = 0.6f;
+
+  explicit MiningSounds(uint32_t seed = std::random_device{}()) : rng(seed) {}
+
+  // `now`: what's breaking this frame, or nothing.
+  std::optional<SoundEvent> update(std::optional<MiningNow> now, float dt);
+
+private:
+  std::optional<glm::ivec3> pos;
+  float until_hit = 0.0f;
+  int last_variant = -1;
+  Effect last_effect = Effect::MineStone;
   std::mt19937 rng;
 };

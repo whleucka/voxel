@@ -295,7 +295,10 @@ TEST_CASE_FIXTURE(EditGame, "a valid break removes the block and broadcasts once
   REQUIRE(std::holds_alternative<BlockChanged>(evs[0]));
   CHECK(std::get<BlockChanged>(evs[0]).pos == target);
   CHECK(std::get<BlockChanged>(evs[0]).type == BlockType::AIR);
-  CHECK(pollAll(other).size() == 1);
+  auto seen = pollAll(other);
+  REQUIRE(seen.size() == 2); // the change, and its sound
+  CHECK(std::holds_alternative<BlockChanged>(seen[0]));
+  CHECK(std::holds_alternative<SoundCue>(seen[1]));
 }
 
 TEST_CASE_FIXTURE(EditGame, "a valid place sets the block and broadcasts once") {
@@ -2945,11 +2948,61 @@ TEST_CASE_FIXTURE(DoorGame, "a door swinging sounds once, from the doorway, for 
   moveTo({5.5f, ground + 1.0f, 5.5f + 9.0f});
   CHECK(cues(run(UseDoor{door})).empty()); // out of reach
 
-  // Breaking it is silent too.
+  // Breaking it is a break, not a swing.
   moveTo({5.5f, ground + 1.0f, 8.5f});
   pollAll(other);
-  CHECK(cues(mine(door)).empty());
-  CHECK(cues(pollAll(other)).empty());
+  auto broke = cues(mine(door));
+  REQUIRE(broke.size() == 1u);
+  CHECK(broke[0].cue == Cue::BlockBreak);
+}
+
+TEST_CASE_FIXTURE(DoorGame, "breaking a block sounds once, for everyone, with what it was") {
+  moveTo({5.5f, ground + 1.0f, 8.5f});
+  const glm::ivec3 spot = door;
+  const glm::vec3 centre = glm::vec3(spot) + 0.5f;
+  game.world().setBlockAt(spot, BlockType::DIRT);
+  game.world().setBlockAt(spot + glm::ivec3(0, 1, 0), BlockType::TALL_GRASS); // falls with it
+
+  auto evs = mine(spot);
+  CHECK(reason(evs) == "");
+  auto heard = cues(evs);
+  REQUIRE(heard.size() == 1u);
+  CHECK(heard[0] == SoundCue{Cue::BlockBreak, centre, BlockType::DIRT});
+  CHECK(cues(pollAll(other)) == heard);
+
+  // Refused: not held long enough. Silent.
+  game.world().setBlockAt(spot, BlockType::STONE);
+  run(StartBreak{spot});
+  auto early = run(BreakBlock{spot});
+  CHECK(reason(early) == "break: not yet");
+  CHECK(cues(early).empty());
+}
+
+TEST_CASE_FIXTURE(DoorGame, "a door or a bed breaks with one sound") {
+  placeDoor(door);
+  PlayerState &me = *game.findPlayer(id);
+  me.inventory.set(me.selected_slot, {});
+  auto heard = cues(mine(top()));
+  REQUIRE(heard.size() == 1u);
+  CHECK(heard[0].cue == Cue::BlockBreak);
+  CHECK(isDoor(heard[0].block));
+
+  const BlockType foot = bedBlock(BedColour::Red, false, DoorFacing::East);
+  const BlockType head = bedBlock(BedColour::Red, true, DoorFacing::East);
+  game.world().setBlockAt(door, foot);
+  game.world().setBlockAt(door + glm::ivec3(1, 0, 0), head);
+  heard = cues(mine(door));
+  REQUIRE(heard.size() == 1u);
+  CHECK(isBed(heard[0].block));
+}
+
+TEST_CASE_FIXTURE(DoorGame, "creative breaks sound too") {
+  game.setMode(GameMode::Creative);
+  moveTo({5.5f, ground + 1.0f, 8.5f});
+  game.world().setBlockAt(door, BlockType::GLASS);
+  auto heard = cues(run(BreakBlock{door}));
+  REQUIRE(heard.size() == 1u);
+  CHECK(heard[0].block == BlockType::GLASS);
 }
 
 TEST_CASE_FIXTURE(DoorGame, "doors are saved open or shut") {
