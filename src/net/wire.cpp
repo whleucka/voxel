@@ -218,7 +218,7 @@ template <class IO> void fields(IO &io, SharedPin &m) { io(m.owner, m.pin); }
 template <class IO> void fields(IO &io, Waypoints &m) { io(m.home, m.pins, m.others); }
 template <class IO> void fields(IO &io, MapPlayer &m) { io(m.id, m.name, m.position, m.yaw, m.look); }
 template <class IO> void fields(IO &io, MapPlayers &m) { io(m.players); }
-template <class IO> void fields(IO &io, SoundCue &m) { io(m.cue, m.position); }
+template <class IO> void fields(IO &io, SoundCue &m) { io(m.cue, m.position, m.block); }
 template <class IO> void fields(IO &io, Riding &m) { io(m.boat, m.seat, m.position, m.yaw); }
 template <class IO> void fields(IO &io, ChatMessage &m) {
   io(m.minute, m.from, m.name, m.text, m.history);

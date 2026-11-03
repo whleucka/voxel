@@ -855,6 +855,8 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
 
   world_.setBlockAt(cmd.pos, BlockType::AIR);
   broadcast(BlockChanged{cmd.pos, BlockType::AIR});
+  // One sound for what was hit; whatever falls with it is quiet.
+  broadcast(SoundCue{Cue::BlockBreak, glm::vec3(cmd.pos) + 0.5f, target});
   spillFurnace(cmd.pos);
   spillChest(cmd.pos);
   // A door goes as a whole, whichever half was hit, and drops one door.
