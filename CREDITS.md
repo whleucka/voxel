@@ -16,7 +16,7 @@ https://creativecommons.org/licenses/by/4.0/
 
 ## Sound effects
 
-**Footsteps** (`assets/sound-effects/rpg/footstep00.ogg` to `footstep09.ogg`)  
+**Footsteps and doors** (`assets/sound-effects/rpg/footstep00.ogg` to `footstep09.ogg`, `doorOpen_*.ogg`, `doorClose_*.ogg`)  
 From the RPG Audio pack by Kenney (www.kenney.nl)  
 Licensed under Creative Commons Zero (CC0 1.0)  
 https://creativecommons.org/publicdomain/zero/1.0/

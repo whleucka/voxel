@@ -318,9 +318,20 @@ struct ContainerView {
   uint8_t cook = 0; // progress on the item cooking, 0-255
 };
 
+// A sound for everyone near `position` to hear. The client picks which
+// recording plays, so a cue only says what happened.
+enum class Cue : uint8_t { DoorOpen, DoorClose, GateOpen, GateClose };
+inline constexpr Cue kLastCue = Cue::GateClose;
+struct SoundCue {
+  Cue cue = Cue::DoorOpen;
+  glm::vec3 position{0.0f};
+  bool operator==(const SoundCue &) const = default;
+};
+
 using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            CommandRejected, InventoryContents, VitalsChanged,
                            Respawned, EntitySnapshot, KnockedBack, JoinRefused,
                            Welcome, TimeSync, Disconnected, KnownItems,
                            ContainerView, ToolBroke, Caught, SleepState, Notice,
-                           ChatMessage, Waypoints, Riding, MapPlayers>;
+                           ChatMessage, Waypoints, Riding, MapPlayers,
+                           SoundCue>;

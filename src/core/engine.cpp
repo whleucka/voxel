@@ -647,6 +647,10 @@ void Engine::handleEvents() {
     else if (const auto *knocked = std::get_if<KnockedBack>(&ev); knocked && player) {
       player->knock(knocked->velocity);
     }
+    else if (const auto *cue = std::get_if<SoundCue>(&ev); cue && player) {
+      if (auto sound = cue_sounds.sound(*cue, player->getCamera().position))
+        audio.play(*sound, g_settings.sfx_volume);
+    }
     else if (const auto *snap = std::get_if<EntitySnapshot>(&ev)) {
       entity_interp.push(*snap);
       last_snapshot_time = glfwGetTime();
