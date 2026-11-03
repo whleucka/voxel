@@ -59,6 +59,39 @@ TEST_CASE("a pool beside open air shows its sides; one walled in shows only its 
   CHECK(faces.size() == 1);
 }
 
+TEST_CASE("sea water shows its side toward a slab at the surface, not toward seabed coral") {
+  World world;
+  world.loadChunkSync(0, 0);
+  fill(world, {0, kBase - 2, 0}, {15, kBase + 4, 15}, BlockType::AIR);
+  fill(world, {2, kBase - 2, 2}, {12, kBase - 2, 12}, BlockType::STONE); // the seabed
+  fill(world, {3, kBase - 1, 3}, {11, kBase, 11}, BlockType::WATER);     // two deep
+
+  // A slab in the top layer: dry above its half, so the water round it walls it.
+  const glm::ivec3 slab{6, kBase, 6};
+  fill(world, slab, slab, BlockType::OAK_SLAB);
+  CHECK(waterFacesAt(world, slab + glm::ivec3(-1, 0, 0)).count(Face::Right) == 1);
+  CHECK(waterFacesAt(world, slab + glm::ivec3(1, 0, 0)).count(Face::Left) == 1);
+  CHECK(waterFacesAt(world, slab + glm::ivec3(0, 0, -1)).count(Face::Front) == 1);
+  CHECK(waterFacesAt(world, slab + glm::ivec3(0, 0, 1)).count(Face::Back) == 1);
+  { // and no water corner is darkened by the slab beside it
+    ChunkMesh mesh;
+    TextureManager unused;
+    mesh.generateCPU(&world, *world.getChunk(0, 0), unused);
+    for (const BlockVertex &v : mesh.transparentVertexData()) CHECK((v.ao & 3) == 3);
+  }
+
+  // Coral on the seabed, water over it: no walls round it.
+  const glm::ivec3 coral{9, kBase - 1, 9};
+  fill(world, coral, coral, BlockType::BLUE_CORAL);
+  CHECK(waterFacesAt(world, coral + glm::ivec3(-1, 0, 0)).count(Face::Right) == 0);
+  CHECK(waterFacesAt(world, coral + glm::ivec3(0, 0, 1)).count(Face::Back) == 0);
+
+  // A block dug out of the top layer leaves a hole walled with water.
+  const glm::ivec3 hole{4, kBase, 9};
+  fill(world, hole, hole, BlockType::AIR);
+  CHECK(waterFacesAt(world, hole + glm::ivec3(1, 0, 0)).count(Face::Left) == 1);
+}
+
 TEST_CASE("water at the edge of the loaded world doesn't wall itself off") {
   World world;
   world.loadChunkSync(0, 0); // chunk (1, 0), past +X, isn't loaded

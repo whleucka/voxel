@@ -143,14 +143,19 @@ void main() {
     }
 
     // ── Water surface: Fresnel opacity + blue-green tint ──────────────────
-    // Applies only to transparent top faces (i.e. water viewed from above).
+    // Applies to water's top and side faces (water viewed from the air), so
+    // the wall of a hole dug in the sea reads as water like the surface does,
+    // not as a faint grey film. The underside, seen from below, keeps its own.
     float finalAlpha = texColor.a * uAlpha;
-    if (uAlpha < 1.0 && vNormal.y > 0.5) {
+    if (uAlpha < 1.0 && vNormal.y > -0.5) {
         // Fresnel: looking straight down → see-through; grazing angle → opaque
         vec3  viewDir = normalize(uCameraPos - vWorldPos);
         float NdotV   = clamp(dot(vNormal, viewDir), 0.0, 1.0);
         float fresnel = pow(1.0 - NdotV, 2.5);
         finalAlpha = clamp(mix(uAlpha, 0.96, fresnel), 0.0, 1.0);
+        // A side face is the wall of a hole: behind it is the whole sea, not
+        // a thin film, so it is near opaque even seen straight on.
+        if (vNormal.y < 0.5) finalAlpha = max(finalAlpha, 0.92);
 
         // Subtle blue-green tint – quadratic ambient scaling so it
         // nearly vanishes at night (linear was still ~6-16% teal after sRGB gamma).
