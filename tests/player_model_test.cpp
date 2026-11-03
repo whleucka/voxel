@@ -1,8 +1,10 @@
 #include "doctest/doctest.h"
 #include "entity/entity_interp.hpp"
 #include "entity/player_model.hpp"
+#include <algorithm>
 #include <glm/gtc/matrix_transform.hpp>
 #include <set>
+#include <utility>
 
 TEST_CASE("a player's colour comes from their name, and names spread out") {
   CHECK(playerColor("Bea") == playerColor("Bea"));
@@ -147,6 +149,25 @@ TEST_CASE("only the girl figure has long hair and lashes, and she is narrower, n
   int swinging = 0;
   for (const ModelBox &b : girl) swinging += b.swing != 0;
   CHECK(swinging == 8);
+}
+
+TEST_CASE("hair covers the back of the head with no gap, on both figures") {
+  for (PlayerLook chosen : {kAllChosen, asGirl(kAllChosen)}) {
+    const ResolvedLook look = resolveLook(chosen, "Bea");
+    for (const auto &model : {playerModel(look), seatedPlayerModel(look)}) {
+      std::vector<std::pair<float, float>> spans; // hair behind the back of the head
+      for (const ModelBox &b : model)
+        if (b.color == look.hair && b.offset.z + b.size.z > 0.20f)
+          spans.push_back({b.offset.y, b.offset.y + b.size.y});
+      REQUIRE(spans.size() >= 2);
+      std::sort(spans.begin(), spans.end());
+      float reached = spans[0].first;
+      for (const auto &[bottom, top] : spans) {
+        CHECK(bottom <= reached); // a strip of bare head if not
+        reached = std::max(reached, top);
+      }
+    }
+  }
 }
 
 TEST_CASE("camera yaw turns into model yaw") {

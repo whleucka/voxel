@@ -144,6 +144,10 @@ inline int vertexAO(bool side1, bool side2, bool corner) {
 using AO4 = std::array<uint8_t, 4>;
 
 AO4 computeFaceAO(const Area& area, int x, int y, int z, Face face) {
+  // Water isn't shaded by what's round it: a slab beside a water wall would
+  // darken its corners, smeared across the quad's two triangles as dark wedges.
+  if (isLiquid(area.block(x, y, z))) return {{3, 3, 3, 3}};
+
   // For each face, we need to sample 8 neighbors on the face's plane.
   // The face plane is offset by the face normal from (x,y,z).
   // We define two tangent axes (a, b) on the face plane.
@@ -691,12 +695,18 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
   MeshBuffers buffers{vertices, indices, transparentVertices, transparentIndices};
 
-  // Side faces. Water shows one only toward open air (a cave pool's rim):
-  // never toward land or more water, nor toward a chunk that hasn't loaded
-  // (it would wall off the sea at the edge of view until it did).
+  // Side faces. Water shows one toward open air (a cave pool's rim, a hole
+  // dug in the sea) and toward a cell at the surface that doesn't fill its
+  // space (a slab, a stair, a plant), which is dry above whatever is in it.
+  // Never toward land or more water, nor toward such a cell under the
+  // surface (coral on the seabed would be boxed in), nor toward a chunk that
+  // hasn't loaded (it would wall off the sea at the edge of view until it did).
   auto sideShows = [&](BlockType type, int nx, int ny, int nz) {
     if (!isLiquid(type)) return shouldRenderFace(type, area.block(nx, ny, nz));
-    return area.block(nx, ny, nz, BlockType::WATER) == BlockType::AIR;
+    BlockType n = area.block(nx, ny, nz, BlockType::WATER);
+    if (n == BlockType::AIR) return true;
+    if (isLiquid(n) || !shouldRenderFace(BlockType::STONE, n)) return false;
+    return !isLiquid(area.block(nx, ny + 1, nz, BlockType::WATER));
   };
 
   // Front face (+Z)
