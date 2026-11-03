@@ -53,6 +53,7 @@ public:
   bool isUnderwater() const { return body.underwater; }  // eyes in water
   bool isInWater() const { return body.underwater || body.at_water_surface; }
   bool isOnGround() const { return body.on_ground; }
+  bool isClimbing() const { return body.climbing; } // on a ladder
   bool isCrouching() const { return crouching; }
   bool isSprinting() const { return sprinting; }
   // The Game decides when stamina allows sprinting.

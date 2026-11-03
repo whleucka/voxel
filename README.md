@@ -484,11 +484,16 @@ world under their name. The host needs TCP port 47800 and UDP port 47801 open. O
 can use the F12 cheats. Guests play in the host's world mode.
 
 
-## Music
+## Music and sound
 
 One track plays by day and another by night, crossfading at 06:00 and 18:00,
 with a minute or two of quiet between plays. Set the volume under Settings,
 or with `music-volume` in `voxel.properties`. See [CREDITS.md](CREDITS.md).
+
+You hear footsteps as you walk, quieter when you crouch, along with a thud when
+you land from a jump or fall and a step for each rung of a ladder. Other
+players' steps come from where they are, up to 16 blocks away. Their volume
+is the Effects slider, or `sfx-volume`.
 
 ## Contributing
 
@@ -505,5 +510,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 *   [GLFW](https://www.glfw.org/): For window and input management.
 *   [GLAD](https://glad.dav1d.de/): For loading OpenGL function pointers.
 *   [Dear ImGui](https://github.com/ocornut/imgui): For the immediate-mode GUI used for debugging.
-*   [miniaudio](https://miniaud.io): For music playback.
+*   [miniaudio](https://miniaud.io): For music and sound playback.
+*   [stb_vorbis](https://github.com/nothings/stb/blob/master/stb_vorbis.c): For reading Ogg Vorbis sound effects.
 *   [stb_image](https://github.com/nothings/stb/blob/master/stb_image.h): For easy image loading.

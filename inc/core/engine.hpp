@@ -40,9 +40,12 @@ private:
 
   // The game being played (single player, hosted or joined); null in the menu.
   std::unique_ptr<Session> session;
-  Audio audio{{"assets/music/complex.mp3", "assets/music/ethereal.mp3"}};
+  Audio audio{{"assets/music/complex.mp3", "assets/music/ethereal.mp3"}, footstepPaths()};
   MusicDirector music;
+  FootstepDirector footsteps;
   void updateMusic();
+  // Our steps and other players' nearby, from this frame's positions.
+  void updateFootsteps();
   PlayerId player_id = 0;
   uint32_t respawn_count = 0;     // echoed in MovePlayer; see Respawned
   std::unique_ptr<Player> player; // the local player; created on Joined
