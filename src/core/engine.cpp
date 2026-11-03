@@ -148,6 +148,7 @@ void Engine::run() {
       }
       update();
       if (playing()) render(); // the update may have ended the game
+      if (playing()) updateFootsteps(); // after render, which moves the others
     } else {
       menuFrame();
     }
@@ -173,6 +174,50 @@ void Engine::updateMusic() {
   in.volume = g_settings.music_volume;
   in.ended = audio.ended();
   audio.apply(music.update(in));
+}
+
+void Engine::updateFootsteps() {
+  if (!PauseMenu::worldRuns(session->mode() == Session::Mode::Single, paused())) return;
+  // The block under a pair of feet: a slab or stair top counts.
+  auto under = [this](glm::vec3 feet) { return world().getBlockAt(feet - glm::vec3(0.0f, 0.05f, 0.0f)); };
+
+  FootstepInput in;
+  in.dt = delta_time;
+  in.listener = player->getCamera().position;
+
+  Walker me;
+  me.id = player_id;
+  me.local = true;
+  me.position = player->getFeetPosition();
+  me.on_ground = player->isOnGround();
+  me.crouch = player->isCrouching();
+  me.fly = player->isFlyMode();
+  me.in_water = player->isInWater();
+  me.riding = riding();
+  me.sleeping = inBed() || vitals_view.dead;
+  me.climbing = player->isClimbing();
+  me.ground = stepSurface(under(me.position));
+  in.walkers.push_back(me);
+
+  // Others: only where they are is known, so the ground under them decides.
+  for (const PlayerView &p : player_views) {
+    Walker w;
+    w.id = p.id;
+    w.position = p.position;
+    const BlockType below = under(p.position);
+    w.on_ground = blocksMovement(below);
+    w.crouch = p.crouch;
+    w.in_water = isLiquid(world().getBlockAt(p.position + glm::vec3(0.0f, 0.1f, 0.0f)));
+    w.riding = p.riding != 0;
+    w.sleeping = p.sleeping;
+    w.climbing = isLadder(world().getBlockAt(p.position + glm::vec3(0.0f, 0.1f, 0.0f))) ||
+                 isLadder(world().getBlockAt(p.position + glm::vec3(0.0f, 1.0f, 0.0f)));
+    w.ground = stepSurface(below);
+    in.walkers.push_back(w);
+  }
+
+  audio.setListener(in.listener, player->getCamera().front);
+  for (const SoundEvent &e : footsteps.update(in)) audio.play(e, g_settings.sfx_volume);
 }
 
 // The GPU's timings come in some frames late, and are added to the frame
@@ -323,6 +368,7 @@ void Engine::updateCursor() {
 void Engine::startSession(std::unique_ptr<Session> s) {
   session = std::move(s);
   if (!session) return;
+  audio.loadEffects(); // decoded in the background; only the first time
   // Fresh client-side view of the new game.
   player.reset();
   player_id = 0;

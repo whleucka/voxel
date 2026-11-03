@@ -3,6 +3,7 @@
 #define MA_NO_GENERATION
 #define MA_NO_FLAC
 #include "miniaudio/miniaudio.h"
+#include <cstdio>
 #include <iostream>
 #include <optional>
 
@@ -11,6 +12,17 @@ bool audioFileReadable(const std::string &path) {
   if (ma_decoder_init_file(path.c_str(), nullptr, &decoder) != MA_SUCCESS) return false;
   ma_decoder_uninit(&decoder);
   return true;
+}
+
+EffectPaths footstepPaths(const std::string &dir) {
+  EffectPaths paths;
+  for (std::size_t set = 0; set < kStepSetCount; ++set)
+    for (int v = 0; v < kStepVariants[set]; ++v) {
+      char name[32];
+      std::snprintf(name, sizeof name, "rpg/footstep%02d.ogg", v);
+      paths[set].push_back(dir + "/" + name);
+    }
+  return paths;
 }
 
 struct Audio::Impl {
@@ -22,6 +34,23 @@ struct Audio::Impl {
   std::array<bool, kMusicTrackCount> checked{}; // readable[] has been worked out
   std::array<bool, kMusicTrackCount> readable{};
 
+  // Effects: each file decoded once (a prototype), and played as copies that
+  // share its samples.
+  struct Effect {
+    std::string path;
+    std::unique_ptr<ma_sound> sound; // null: not loaded, or it failed
+    bool failed = false;
+  };
+  std::array<std::vector<Effect>, kStepSetCount> effects;
+  bool effects_loading = false;
+  struct Voice {
+    ma_sound sound;
+    bool used = false;
+    uint64_t started = 0; // play order, to stop the oldest
+  };
+  std::array<Voice, kMaxEffects> voices{};
+  uint64_t plays = 0;
+
   bool openEngine() {
     if (engine) return true;
     if (engine_failed) return false;
@@ -29,7 +58,7 @@ struct Audio::Impl {
     if (ma_engine_init(nullptr, &*engine) != MA_SUCCESS) {
       engine.reset();
       engine_failed = true;
-      std::cerr << "[audio] no sound device; music is off\n";
+      std::cerr << "[audio] no sound device; sound is off\n";
       return false;
     }
     return true;
@@ -64,15 +93,58 @@ struct Audio::Impl {
     ma_sound_start(&sounds[t]);
   }
 
+  void failEffect(Effect &e) {
+    if (e.sound) ma_sound_uninit(e.sound.get());
+    e.sound.reset();
+    e.failed = true;
+    std::cerr << "[audio] can't read " << e.path << "; skipping it\n";
+  }
+
+  // The prototype for `e` if it has finished decoding.
+  ma_sound *ready(Effect &e) {
+    if (!e.sound) return nullptr;
+    const ma_result r = ma_resource_manager_data_source_result(e.sound->pResourceManagerDataSource);
+    if (r == MA_BUSY) return nullptr;
+    if (r != MA_SUCCESS) {
+      failEffect(e);
+      return nullptr;
+    }
+    return e.sound.get();
+  }
+
+  void stopVoice(Voice &v) {
+    if (!v.used) return;
+    ma_sound_uninit(&v.sound);
+    v.used = false;
+  }
+
+  // A free voice, after clearing out the finished ones; else the oldest.
+  Voice &freeVoice() {
+    Voice *oldest = nullptr;
+    for (Voice &v : voices) {
+      if (v.used && ma_sound_at_end(&v.sound)) stopVoice(v);
+      if (!v.used) return v;
+      if (!oldest || v.started < oldest->started) oldest = &v;
+    }
+    stopVoice(*oldest);
+    return *oldest;
+  }
+
   ~Impl() {
+    for (Voice &v : voices) stopVoice(v);
+    for (auto &set : effects)
+      for (Effect &e : set)
+        if (e.sound) ma_sound_uninit(e.sound.get());
     for (std::size_t t = 0; t < kMusicTrackCount; ++t) unload(t);
     if (engine) ma_engine_uninit(&*engine);
   }
 };
 
-Audio::Audio(std::array<std::string, kMusicTrackCount> track_paths)
+Audio::Audio(std::array<std::string, kMusicTrackCount> track_paths, EffectPaths effect_paths)
     : impl(std::make_unique<Impl>()) {
   impl->paths = std::move(track_paths);
+  for (std::size_t set = 0; set < kStepSetCount; ++set)
+    for (std::string &path : effect_paths[set]) impl->effects[set].push_back({std::move(path), nullptr});
 }
 
 Audio::~Audio() = default;
@@ -90,4 +162,56 @@ std::array<bool, kMusicTrackCount> Audio::ended() const {
   for (std::size_t t = 0; t < kMusicTrackCount; ++t)
     result[t] = impl->loaded[t] && ma_sound_at_end(&impl->sounds[t]);
   return result;
+}
+
+void Audio::loadEffects() {
+  if (impl->effects_loading) return;
+  impl->effects_loading = true;
+  if (!impl->openEngine()) return;
+  const ma_uint32 flags = MA_SOUND_FLAG_DECODE | MA_SOUND_FLAG_ASYNC;
+  for (auto &set : impl->effects)
+    for (Impl::Effect &e : set) {
+      e.sound = std::make_unique<ma_sound>();
+      if (ma_sound_init_from_file(&*impl->engine, e.path.c_str(), flags, nullptr, nullptr,
+                                  e.sound.get()) != MA_SUCCESS) {
+        e.sound.reset();
+        impl->failEffect(e);
+      }
+    }
+}
+
+void Audio::setListener(glm::vec3 position, glm::vec3 front) {
+  if (!impl->engine) return;
+  ma_engine_listener_set_position(&*impl->engine, 0, position.x, position.y, position.z);
+  ma_engine_listener_set_direction(&*impl->engine, 0, front.x, front.y, front.z);
+}
+
+void Audio::play(const SoundEvent &event, float volume) {
+  if (volume <= 0.0f || !impl->engine) return;
+  auto &set = impl->effects[static_cast<std::size_t>(event.set)];
+  if (event.variant < 0 || static_cast<std::size_t>(event.variant) >= set.size()) return;
+  ma_sound *proto = impl->ready(set[event.variant]);
+  if (!proto) return;
+
+  Impl::Voice &v = impl->freeVoice();
+  if (ma_sound_init_copy(&*impl->engine, proto, 0, nullptr, &v.sound) != MA_SUCCESS) return;
+  v.used = true;
+  v.started = ++impl->plays;
+  ma_sound_set_volume(&v.sound, volume * event.volume);
+  ma_sound_set_pitch(&v.sound, event.pitch);
+  if (event.positional) {
+    ma_sound_set_position(&v.sound, event.position.x, event.position.y, event.position.z);
+    ma_sound_set_attenuation_model(&v.sound, ma_attenuation_model_linear);
+    ma_sound_set_min_distance(&v.sound, 1.0f);
+    ma_sound_set_max_distance(&v.sound, FootstepDirector::kHearing);
+  } else {
+    ma_sound_set_spatialization_enabled(&v.sound, MA_FALSE);
+  }
+  ma_sound_start(&v.sound);
+}
+
+std::size_t Audio::effectsPlaying() const {
+  std::size_t n = 0;
+  for (const Impl::Voice &v : impl->voices) n += v.used && !ma_sound_at_end(&v.sound);
+  return n;
 }
