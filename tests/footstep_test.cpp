@@ -318,3 +318,41 @@ TEST_CASE("a teleport isn't a step or a landing") {
   w.position = {100, 30, 100};
   CHECK(tick(d, w).empty());
 }
+
+// ─── Audio ─────────────────────────────────────────────────────────────
+
+#include "audio/audio.hpp"
+#include <string>
+
+TEST_CASE("audio: every footstep recording ships and decodes") {
+  const EffectPaths paths = footstepPaths();
+  std::set<std::string> files;
+  for (std::size_t set = 0; set < kStepSetCount; ++set) {
+    REQUIRE(paths[set].size() == static_cast<std::size_t>(kStepVariants[set]));
+    files.insert(paths[set].begin(), paths[set].end());
+  }
+  CHECK(files.size() == 10u);
+  for (const std::string &p : files) {
+    CAPTURE(p);
+    CHECK(audioFileReadable(p));
+  }
+}
+
+TEST_CASE("audio: missing effect files stay silent and don't throw") {
+  EffectPaths paths = footstepPaths("no/such/dir");
+  Audio audio({"no/such/file.mp3", "no/such/file.mp3"}, paths);
+  audio.loadEffects();
+  audio.loadEffects(); // once only
+  audio.setListener({0, 64, 0}, {0, 0, -1});
+  for (int i = 0; i < 40; ++i) {
+    SoundEvent e;
+    e.set = static_cast<StepSet>(i % kStepSetCount);
+    e.variant = i % 5;
+    e.positional = i % 2;
+    audio.play(e, 1.0f);
+  }
+  SoundEvent bad;
+  bad.variant = 99;
+  audio.play(bad, 1.0f);
+  CHECK(audio.effectsPlaying() == 0u);
+}

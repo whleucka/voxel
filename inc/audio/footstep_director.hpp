@@ -8,8 +8,9 @@
 #include <vector>
 #include <glm/glm.hpp>
 
-// How many recordings each step set has, in StepSet order.
-inline constexpr std::array<int, kStepSetCount> kStepVariants = {5, 10, 5, 5, 5, 5};
+// How many recordings each step set has, in StepSet order. For now every set
+// shares the same ten (see footstepPaths).
+inline constexpr std::array<int, kStepSetCount> kStepVariants = {10, 10, 10, 10, 10, 10};
 
 // One player who might be stepping, this frame.
 struct Walker {
