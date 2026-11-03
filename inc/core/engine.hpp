@@ -5,6 +5,7 @@
 #include "render/camera_view.hpp"
 #include "render/camera.hpp"
 #include "audio/audio.hpp"
+#include "audio/footstep_director.hpp"
 #include "core/frame_profile.hpp"
 #include "core/session.hpp"
 #include "ui/chat_view.hpp"
@@ -40,9 +41,10 @@ private:
 
   // The game being played (single player, hosted or joined); null in the menu.
   std::unique_ptr<Session> session;
-  Audio audio{{"assets/music/complex.mp3", "assets/music/ethereal.mp3"}, footstepPaths()};
+  Audio audio{{"assets/music/complex.mp3", "assets/music/ethereal.mp3"}, effectPaths()};
   MusicDirector music;
   FootstepDirector footsteps;
+  CueSounds cue_sounds; // the Game's SoundCues
   void updateMusic();
   // Our steps and other players' nearby, from this frame's positions.
   void updateFootsteps();
