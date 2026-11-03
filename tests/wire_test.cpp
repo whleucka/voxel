@@ -75,6 +75,8 @@ TEST_CASE("events round-trip with real values") {
   roundTrip(SoundCue{Cue::DoorOpen, {5.5f, 65.0f, -3.5f}});
   roundTrip(SoundCue{kLastCue, {0.0f, 0.0f, 0.0f}});
   roundTrip(SoundCue{Cue::BlockBreak, {1.5f, 70.5f, -2.5f}, kLastBlockType});
+  roundTrip(SoundCue{Cue::BlockPlace, {1.5f, 70.5f, -2.5f}, BlockType::TORCH_N});
+  roundTrip(SoundCue{Cue::BoatPlace, {8.0f, 62.0f, 3.0f}});
   CHECK(std::get<SoundCue>(*wire::decodeEvent(enc(Event{SoundCue{Cue::BlockBreak, {1, 2, 3}, BlockType::GLASS}}))) ==
         SoundCue{Cue::BlockBreak, {1, 2, 3}, BlockType::GLASS});
   roundTrip(PlayerJoined{4, "Cy"});
@@ -210,7 +212,7 @@ TEST_CASE("an oversized frame marks the stream bad") {
 
 TEST_CASE("the hello frame carries the protocol version") {
   CHECK(wire::readHello(wire::hello()) == wire::kProtocolVersion);
-  CHECK(wire::kProtocolVersion == 23);
+  CHECK(wire::kProtocolVersion == 24);
   auto other = wire::hello();
   other[4] = 99;
   CHECK(wire::readHello(other) == 99);

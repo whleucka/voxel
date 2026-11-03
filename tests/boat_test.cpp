@@ -384,6 +384,9 @@ TEST_CASE_FIXTURE(Harbour, "a boat goes on the water's top, facing the way you l
   REQUIRE(boats().size() == 1);
   const Entity &boat = *boats()[0];
   CHECK(boat.body.position == glm::vec3(6.5f, floatHeight(kSurface), 7.5f));
+  auto cue = find<SoundCue>(evs);
+  REQUIRE(cue);
+  CHECK(*cue == SoundCue{Cue::BoatPlace, boat.body.position});
   CHECK(boat.yaw == doctest::Approx(90.0f)); // looking east (+X)
   CHECK(count(ida, ItemId::BOAT) == 0);
   CHECK(find<InventoryContents>(evs));
@@ -398,7 +401,9 @@ TEST_CASE_FIXTURE(Harbour, "aimed at the water below its top, the boat still goe
 
 TEST_CASE_FIXTURE(Harbour, "boats don't go on land, on a boat, or on a player") {
   hold(ida, ItemId::BOAT);
-  CHECK(rejected(run(a, UseItemOn{{3, kBase, 7}}))); // the stone bank
+  auto on_land = run(a, UseItemOn{{3, kBase, 7}}); // the stone bank
+  CHECK(rejected(on_land));
+  CHECK_FALSE(find<SoundCue>(on_land));
   CHECK(boats().empty());
   CHECK(count(ida, ItemId::BOAT) == 1);
 
