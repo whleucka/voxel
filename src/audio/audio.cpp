@@ -14,13 +14,17 @@ bool audioFileReadable(const std::string &path) {
   return true;
 }
 
-EffectPaths footstepPaths(const std::string &dir) {
+EffectPaths effectPaths(const std::string &dir) {
   EffectPaths paths;
-  for (std::size_t set = 0; set < kStepSetCount; ++set)
-    for (int v = 0; v < kStepVariants[set]; ++v) {
-      char name[32];
-      std::snprintf(name, sizeof name, "rpg/footstep%02d.ogg", v);
-      paths[set].push_back(dir + "/" + name);
+  for (std::size_t e = 0; e < kEffectCount; ++e)
+    for (int v = 0; v < kEffectVariants[e]; ++v) {
+      char name[40];
+      switch (static_cast<Effect>(e)) {
+      case Effect::DoorOpen: std::snprintf(name, sizeof name, "rpg/doorOpen_%d.ogg", v + 1); break;
+      case Effect::DoorClose: std::snprintf(name, sizeof name, "rpg/doorClose_%d.ogg", v + 1); break;
+      default: std::snprintf(name, sizeof name, "rpg/footstep%02d.ogg", v); break; // the steps
+      }
+      paths[e].push_back(dir + "/" + name);
     }
   return paths;
 }
@@ -36,12 +40,12 @@ struct Audio::Impl {
 
   // Effects: each file decoded once (a prototype), and played as copies that
   // share its samples.
-  struct Effect {
+  struct Recording {
     std::string path;
     std::unique_ptr<ma_sound> sound; // null: not loaded, or it failed
     bool failed = false;
   };
-  std::array<std::vector<Effect>, kStepSetCount> effects;
+  std::array<std::vector<Recording>, kEffectCount> effects;
   bool effects_loading = false;
   struct Voice {
     ma_sound sound;
@@ -93,7 +97,7 @@ struct Audio::Impl {
     ma_sound_start(&sounds[t]);
   }
 
-  void failEffect(Effect &e) {
+  void failEffect(Recording &e) {
     if (e.sound) ma_sound_uninit(e.sound.get());
     e.sound.reset();
     e.failed = true;
@@ -101,7 +105,7 @@ struct Audio::Impl {
   }
 
   // The prototype for `e` if it has finished decoding.
-  ma_sound *ready(Effect &e) {
+  ma_sound *ready(Recording &e) {
     if (!e.sound) return nullptr;
     const ma_result r = ma_resource_manager_data_source_result(e.sound->pResourceManagerDataSource);
     if (r == MA_BUSY) return nullptr;
@@ -133,7 +137,7 @@ struct Audio::Impl {
   ~Impl() {
     for (Voice &v : voices) stopVoice(v);
     for (auto &set : effects)
-      for (Effect &e : set)
+      for (Recording &e : set)
         if (e.sound) ma_sound_uninit(e.sound.get());
     for (std::size_t t = 0; t < kMusicTrackCount; ++t) unload(t);
     if (engine) ma_engine_uninit(&*engine);
@@ -143,8 +147,8 @@ struct Audio::Impl {
 Audio::Audio(std::array<std::string, kMusicTrackCount> track_paths, EffectPaths effect_paths)
     : impl(std::make_unique<Impl>()) {
   impl->paths = std::move(track_paths);
-  for (std::size_t set = 0; set < kStepSetCount; ++set)
-    for (std::string &path : effect_paths[set]) impl->effects[set].push_back({std::move(path), nullptr});
+  for (std::size_t e = 0; e < kEffectCount; ++e)
+    for (std::string &path : effect_paths[e]) impl->effects[e].push_back({std::move(path), nullptr});
 }
 
 Audio::~Audio() = default;
@@ -170,7 +174,7 @@ void Audio::loadEffects() {
   if (!impl->openEngine()) return;
   const ma_uint32 flags = MA_SOUND_FLAG_DECODE | MA_SOUND_FLAG_ASYNC;
   for (auto &set : impl->effects)
-    for (Impl::Effect &e : set) {
+    for (Impl::Recording &e : set) {
       e.sound = std::make_unique<ma_sound>();
       if (ma_sound_init_from_file(&*impl->engine, e.path.c_str(), flags, nullptr, nullptr,
                                   e.sound.get()) != MA_SUCCESS) {
@@ -188,7 +192,7 @@ void Audio::setListener(glm::vec3 position, glm::vec3 front) {
 
 void Audio::play(const SoundEvent &event, float volume) {
   if (volume <= 0.0f || !impl->engine) return;
-  auto &set = impl->effects[static_cast<std::size_t>(event.set)];
+  auto &set = impl->effects[static_cast<std::size_t>(event.effect)];
   if (event.variant < 0 || static_cast<std::size_t>(event.variant) >= set.size()) return;
   ma_sound *proto = impl->ready(set[event.variant]);
   if (!proto) return;
@@ -203,7 +207,7 @@ void Audio::play(const SoundEvent &event, float volume) {
     ma_sound_set_position(&v.sound, event.position.x, event.position.y, event.position.z);
     ma_sound_set_attenuation_model(&v.sound, ma_attenuation_model_linear);
     ma_sound_set_min_distance(&v.sound, 1.0f);
-    ma_sound_set_max_distance(&v.sound, FootstepDirector::kHearing);
+    ma_sound_set_max_distance(&v.sound, CueSounds::kHearing);
   } else {
     ma_sound_set_spatialization_enabled(&v.sound, MA_FALSE);
   }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "audio/effects.hpp"
 #include "audio/step_surface.hpp"
 #include <array>
 #include <cstdint>
@@ -7,10 +8,6 @@
 #include <unordered_map>
 #include <vector>
 #include <glm/glm.hpp>
-
-// How many recordings each step set has, in StepSet order. For now every set
-// shares the same ten (see footstepPaths).
-inline constexpr std::array<int, kStepSetCount> kStepVariants = {10, 10, 10, 10, 10, 10};
 
 // One player who might be stepping, this frame.
 struct Walker {
@@ -31,15 +28,6 @@ struct FootstepInput {
   float dt = 0.0f;
   glm::vec3 listener{0.0f}; // the camera
   std::vector<Walker> walkers;
-};
-
-struct SoundEvent {
-  StepSet set = StepSet::Grass;
-  int variant = 0;          // 0..kStepVariants[set]-1
-  glm::vec3 position{0.0f};
-  bool positional = false;  // false: played as if at the listener
-  float volume = 1.0f;      // before the effects volume
-  float pitch = 1.0f;
 };
 
 // When footsteps, landings and ladder steps play. Pure logic: Audio does the
@@ -73,7 +61,7 @@ private:
     float air_time = 0.0f;
     float peak = 0.0f;   // highest feet height since leaving the ground
     int last_variant = -1;
-    StepSet last_set = StepSet::Silent;
+    Effect last_effect = Effect::StepGrass;
   };
   std::unordered_map<uint32_t, State> walkers;
   std::mt19937 rng;

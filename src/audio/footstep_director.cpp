@@ -4,18 +4,14 @@
 #include <unordered_set>
 
 SoundEvent FootstepDirector::sound(State &s, const Walker &w, StepSet set, float volume) {
-  const int count = kStepVariants[static_cast<std::size_t>(set)];
-  int variant = std::uniform_int_distribution<int>(0, count - 1)(rng);
-  // Never the same recording twice in a row: skip over the last one.
-  if (set == s.last_set && s.last_variant >= 0 && count > 1) {
-    variant = std::uniform_int_distribution<int>(0, count - 2)(rng);
-    if (variant >= s.last_variant) ++variant;
-  }
-  s.last_set = set;
+  const Effect effect = stepEffect(set);
+  // Never the same recording twice in a row.
+  const int variant = pickVariant(effect, effect == s.last_effect ? s.last_variant : -1, rng);
+  s.last_effect = effect;
   s.last_variant = variant;
 
   SoundEvent e;
-  e.set = set;
+  e.effect = effect;
   e.variant = variant;
   e.position = w.position;
   e.positional = !w.local;

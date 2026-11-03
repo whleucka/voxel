@@ -1,6 +1,6 @@
 #pragma once
 
-#include "audio/footstep_director.hpp"
+#include "audio/effects.hpp"
 #include "audio/music_director.hpp"
 #include <array>
 #include <memory>
@@ -11,13 +11,14 @@
 // Whether the file exists and can be decoded.
 bool audioFileReadable(const std::string &path);
 
-// The recordings for each step set, in StepSet order: as many as
-// kStepVariants says, under `dir`. Every set uses the same RPG footsteps for
-// now; a set with its own recordings only needs its paths changed here.
-using EffectPaths = std::array<std::vector<std::string>, kStepSetCount>;
-EffectPaths footstepPaths(const std::string &dir = "assets/sound-effects");
+// The recordings for each effect, in Effect order: as many as
+// kEffectVariants says, under `dir`. Every step set uses the same RPG
+// footsteps for now; one with its own recordings only needs its paths
+// changed here.
+using EffectPaths = std::array<std::vector<std::string>, kEffectCount>;
+EffectPaths effectPaths(const std::string &dir = "assets/sound-effects");
 
-// Plays what the MusicDirector and FootstepDirector ask for. If there's no sound device or a file
+// Plays the music the MusicDirector asks for, and sound effects. If there's no sound device or a file
 // can't be read it logs one line and stays silent; nothing here throws. The
 // device is opened the first time a track starts, and files are streamed on
 // miniaudio's own threads.

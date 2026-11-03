@@ -103,7 +103,7 @@ TEST_CASE("the first step comes after half a block, then every stride") {
   for (std::size_t i = 1; i < r.at.size(); ++i)
     CHECK(r.at[i] - r.at[i - 1] == doctest::Approx(FootstepDirector::kStride).epsilon(0.05));
   for (const SoundEvent &e : r.sounds) {
-    CHECK(e.set == StepSet::Grass);
+    CHECK(e.effect == Effect::StepGrass);
     CHECK_FALSE(e.positional);
   }
 }
@@ -168,7 +168,7 @@ TEST_CASE("steps never repeat a recording twice in a row and vary a little") {
   std::set<int> used;
   for (std::size_t i = 0; i < sounds.size(); ++i) {
     CHECK(sounds[i].variant >= 0);
-    CHECK(sounds[i].variant < kStepVariants[static_cast<std::size_t>(StepSet::Dirt)]);
+    CHECK(sounds[i].variant < variantCount(Effect::StepDirt));
     if (i) CHECK(sounds[i].variant != sounds[i - 1].variant);
     CHECK(sounds[i].pitch >= 0.94f);
     CHECK(sounds[i].pitch <= 1.06f);
@@ -210,7 +210,7 @@ TEST_CASE("landing from a jump or a fall") {
     tick(d, w);
     const auto sounds = jump(d, w, 64.0f);
     REQUIRE(sounds.size() == 1u);
-    CHECK(sounds[0].set == StepSet::Stone);
+    CHECK(sounds[0].effect == Effect::StepStone);
     CHECK(sounds[0].volume == doctest::Approx(0.6f).epsilon(0.15));
   }
   SUBCASE("a long fall is loud") {
@@ -258,7 +258,7 @@ TEST_CASE("ladders: a wood step per block climbed, none hanging still") {
   for (int i = 0; i < 240; ++i) { // 4 s at 2.5 blocks/s: 10 blocks
     w.position.y += 2.5f * kDt;
     for (const SoundEvent &e : tick(d, w)) {
-      CHECK(e.set == StepSet::Wood);
+      CHECK(e.effect == Effect::StepWood);
       ++up;
     }
   }
@@ -324,14 +324,14 @@ TEST_CASE("a teleport isn't a step or a landing") {
 #include "audio/audio.hpp"
 #include <string>
 
-TEST_CASE("audio: every footstep recording ships and decodes") {
-  const EffectPaths paths = footstepPaths();
+TEST_CASE("audio: every effect recording ships and decodes") {
+  const EffectPaths paths = effectPaths();
   std::set<std::string> files;
-  for (std::size_t set = 0; set < kStepSetCount; ++set) {
-    REQUIRE(paths[set].size() == static_cast<std::size_t>(kStepVariants[set]));
-    files.insert(paths[set].begin(), paths[set].end());
+  for (std::size_t e = 0; e < kEffectCount; ++e) {
+    REQUIRE(paths[e].size() == static_cast<std::size_t>(kEffectVariants[e]));
+    files.insert(paths[e].begin(), paths[e].end());
   }
-  CHECK(files.size() == 10u);
+  CHECK(files.size() == 16u); // 10 footsteps, shared, and 6 door sounds
   for (const std::string &p : files) {
     CAPTURE(p);
     CHECK(audioFileReadable(p));
@@ -339,14 +339,14 @@ TEST_CASE("audio: every footstep recording ships and decodes") {
 }
 
 TEST_CASE("audio: missing effect files stay silent and don't throw") {
-  EffectPaths paths = footstepPaths("no/such/dir");
+  EffectPaths paths = effectPaths("no/such/dir");
   Audio audio({"no/such/file.mp3", "no/such/file.mp3"}, paths);
   audio.loadEffects();
   audio.loadEffects(); // once only
   audio.setListener({0, 64, 0}, {0, 0, -1});
   for (int i = 0; i < 40; ++i) {
     SoundEvent e;
-    e.set = static_cast<StepSet>(i % kStepSetCount);
+    e.effect = static_cast<Effect>(i % kEffectCount);
     e.variant = i % 5;
     e.positional = i % 2;
     audio.play(e, 1.0f);
@@ -355,4 +355,51 @@ TEST_CASE("audio: missing effect files stay silent and don't throw") {
   bad.variant = 99;
   audio.play(bad, 1.0f);
   CHECK(audio.effectsPlaying() == 0u);
+}
+
+// ─── Door and gate cues ────────────────────────────────────────────────
+
+TEST_CASE("door and gate cues: which recording, how loud and how high") {
+  CueSounds cues(3);
+  const glm::vec3 here{0, 64, 0}, door{3.5f, 65.0f, 0.5f};
+  for (Cue c : {Cue::DoorOpen, Cue::DoorClose, Cue::GateOpen, Cue::GateClose}) {
+    CAPTURE(static_cast<int>(c));
+    const bool gate = c == Cue::GateOpen || c == Cue::GateClose;
+    const bool open = c == Cue::DoorOpen || c == Cue::GateOpen;
+    int last = -1;
+    for (int i = 0; i < 50; ++i) {
+      auto e = cues.sound({c, door}, here);
+      REQUIRE(e);
+      CHECK(e->effect == (open ? Effect::DoorOpen : Effect::DoorClose));
+      CHECK(e->variant >= 0);
+      CHECK(e->variant < variantCount(e->effect));
+      CHECK(e->variant != last);
+      last = e->variant;
+      CHECK(e->positional);
+      CHECK(e->position == door);
+      const float pitch = gate ? CueSounds::kGatePitch : 1.0f;
+      CHECK(e->pitch >= pitch * 0.95f);
+      CHECK(e->pitch <= pitch * 1.05f);
+      CHECK(e->volume == doctest::Approx(gate ? CueSounds::kGateVolume : 1.0f));
+    }
+  }
+}
+
+TEST_CASE("door cues out of earshot are dropped") {
+  CueSounds cues(3);
+  CHECK(cues.sound({Cue::DoorOpen, {16.0f, 64.0f, 0.0f}}, {0, 64, 0}));
+  CHECK_FALSE(cues.sound({Cue::DoorOpen, {16.5f, 64.0f, 0.0f}}, {0, 64, 0}));
+}
+
+TEST_CASE("pickVariant covers every recording and never repeats") {
+  std::mt19937 rng(5);
+  std::set<int> seen;
+  int last = -1;
+  for (int i = 0; i < 200; ++i) {
+    const int v = pickVariant(Effect::DoorClose, last, rng);
+    CHECK(v != last);
+    seen.insert(v);
+    last = v;
+  }
+  CHECK(seen.size() == 4u);
 }
