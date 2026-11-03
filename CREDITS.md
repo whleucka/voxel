@@ -20,3 +20,8 @@ https://creativecommons.org/licenses/by/4.0/
 From the RPG Audio pack by Kenney (www.kenney.nl)  
 Licensed under Creative Commons Zero (CC0 1.0)  
 https://creativecommons.org/publicdomain/zero/1.0/
+
+**Mining** (`assets/sound-effects/impact/`)  
+From the Impact Sounds pack by Kenney (www.kenney.nl)  
+Licensed under Creative Commons Zero (CC0 1.0)  
+https://creativecommons.org/publicdomain/zero/1.0/

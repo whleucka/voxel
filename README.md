@@ -494,7 +494,9 @@ You hear footsteps as you walk, quieter when you crouch, along with a thud when
 you land from a jump or fall and a step for each rung of a ladder. Other
 players' steps come from where they are, up to 16 blocks away. Doors creak
 open and thud shut, and fence gates sound lighter; everyone within 16 blocks
-hears them. Effects follow the Effects slider, or `sfx-volume`.
+hears them. Mining chips away with a sound for stone, wood, glass or soft
+blocks, and everyone nearby hears a block break. Effects follow the Effects
+slider, or `sfx-volume`.
 
 ## Contributing
 

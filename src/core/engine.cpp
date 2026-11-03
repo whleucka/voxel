@@ -482,6 +482,11 @@ void Engine::update() {
                                     along * 1.35f);
   }
   updateMining(delta_time);
+  {
+    std::optional<MiningNow> now;
+    if (mining && mining->breaking) now = MiningNow{mining->pos, mining->block};
+    if (auto hit = mining_sounds.update(now, delta_time)) audio.play(*hit, g_settings.sfx_volume);
+  }
   const Camera &cam = player->getCamera();
   MovePlayer move;
   move.position = player->getPosition();
@@ -1627,6 +1632,8 @@ void Engine::updateMining(float dt) {
     mining = Mining{ray.block_pos};
     connection().send(StartBreak{ray.block_pos});
   }
+  mining->block = ray.block_type;
+  mining->breaking = false;
   const ItemId held = inventory_view[player->getSelectedHotbarSlot()].id;
   // Ore a weak pickaxe can't get anything from doesn't budge; say what will.
   if (ItemId pick = pickaxeNeeded(ray.block_type, held); pick != ItemId::NONE) {
@@ -1646,6 +1653,7 @@ void Engine::updateMining(float dt) {
   }
   mining->seconds += dt;
   mining->progress = need == 0 ? 1.0f : mining->seconds * 1000.0f / need;
+  mining->breaking = need > 0; // picked at once: just the break
   if (mining->progress >= 1.0f) {
     connection().send(BreakBlock{ray.block_pos});
     mining.reset(); // the next frame starts on whatever is behind it

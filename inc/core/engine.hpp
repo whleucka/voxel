@@ -45,6 +45,7 @@ private:
   MusicDirector music;
   FootstepDirector footsteps;
   CueSounds cue_sounds; // the Game's SoundCues
+  MiningSounds mining_sounds;
   void updateMusic();
   // Our steps and other players' nearby, from this frame's positions.
   void updateFootsteps();
@@ -107,7 +108,13 @@ private:
   char chat_buf[kChatBufBytes] = {};
   void setChatOpen(bool open);
   // Survival: the block the held left button is working on, and for how long.
-  struct Mining { glm::ivec3 pos{0}; float seconds = 0.0f; float progress = 0.0f; };
+  struct Mining {
+    glm::ivec3 pos{0};
+    float seconds = 0.0f;
+    float progress = 0.0f;
+    BlockType block = BlockType::AIR;
+    bool breaking = false; // making progress this frame (so it makes hits)
+  };
   std::optional<Mining> mining;
   bool swinging = false; // this press hit a creature: holding it doesn't mine
   void updateMining(float dt);
