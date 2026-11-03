@@ -49,6 +49,30 @@ bool quietBreak(BlockType b) { return isPlant(b) || isCrop(b) || isTorch(b); }
 
 std::optional<SoundEvent> CueSounds::sound(const SoundCue &cue, glm::vec3 listener) {
   if (glm::distance(cue.position, listener) > kHearing) return std::nullopt;
+  auto pick = [&](Effect effect) {
+    SoundEvent e;
+    e.effect = effect;
+    int &prev = last[static_cast<std::size_t>(effect)];
+    e.variant = prev = pickVariant(effect, prev, rng);
+    e.position = cue.position;
+    e.positional = true;
+    return e;
+  };
+  auto wobble = [&] { return std::uniform_real_distribution<float>(0.95f, 1.05f)(rng); };
+  if (cue.cue == Cue::BoatPlace) {
+    SoundEvent e = pick(Effect::HitWood);
+    e.pitch = kPlacePitch * wobble();
+    return e;
+  }
+  if (cue.cue == Cue::BlockPlace) {
+    const MineSet set = mineSet(cue.block);
+    if (set == MineSet::Silent) return std::nullopt;
+    SoundEvent e = pick(hitEffect(set));
+    e.volume = (set == MineSet::Stone ? kStonePlaceVolume : 1.0f) *
+               (quietBreak(cue.block) ? kQuietBreakVolume : 1.0f);
+    e.pitch = kPlacePitch * wobble();
+    return e;
+  }
   if (cue.cue == Cue::BlockBreak) {
     const MineSet set = mineSet(cue.block);
     if (set == MineSet::Silent) return std::nullopt;

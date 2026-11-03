@@ -31,7 +31,8 @@ enum class MineSet { Stone, Wood, Glass, Soft, Silent };
 MineSet mineSet(BlockType b);
 Effect hitEffect(MineSet m);   // m isn't Silent
 Effect breakEffect(MineSet m); // m isn't Silent
-// Picked at once (plants, crops, torches): a quieter break.
+// Picked at once (plants, crops, torches): a quieter break, and a quieter
+// place.
 bool quietBreak(BlockType b);
 inline int variantCount(Effect e) { return kEffectVariants[static_cast<std::size_t>(e)]; }
 
@@ -55,6 +56,8 @@ public:
   static constexpr float kGateVolume = 0.7f;
   static constexpr float kStoneBreakPitch = 0.85f;
   static constexpr float kQuietBreakVolume = 0.6f;
+  static constexpr float kPlacePitch = 0.9f;
+  static constexpr float kStonePlaceVolume = 0.6f; // as loud as a hit
 
   explicit CueSounds(uint32_t seed = std::random_device{}()) : rng(seed) {}
 
