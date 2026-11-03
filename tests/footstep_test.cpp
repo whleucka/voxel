@@ -331,7 +331,7 @@ TEST_CASE("audio: every effect recording ships and decodes") {
     REQUIRE(paths[e].size() == static_cast<std::size_t>(kEffectVariants[e]));
     files.insert(paths[e].begin(), paths[e].end());
   }
-  CHECK(files.size() == 16u); // 10 footsteps, shared, and 6 door sounds
+  CHECK(files.size() == 51u); // 10 footsteps (shared), 6 door and 35 mining sounds
   for (const std::string &p : files) {
     CAPTURE(p);
     CHECK(audioFileReadable(p));
@@ -402,4 +402,95 @@ TEST_CASE("pickVariant covers every recording and never repeats") {
     last = v;
   }
   CHECK(seen.size() == 4u);
+}
+
+// ─── Mining ────────────────────────────────────────────────────────────
+
+TEST_CASE("every block has a mining set") {
+  for (int v = 0; v <= static_cast<int>(kLastBlockType); ++v) {
+    const BlockType b = static_cast<BlockType>(v);
+    CAPTURE(v);
+    const MineSet m = mineSet(b);
+    if (b == BlockType::AIR || b == BlockType::WATER) CHECK(m == MineSet::Silent);
+    else CHECK(m != MineSet::Silent);
+  }
+  CHECK(mineSet(BlockType::STONE) == MineSet::Stone);
+  CHECK(mineSet(BlockType::DIAMOND_ORE) == MineSet::Stone);
+  CHECK(mineSet(BlockType::COBBLESTONE_STAIRS_E) == MineSet::Stone);
+  CHECK(mineSet(BlockType::OAK_LOG) == MineSet::Wood);
+  CHECK(mineSet(BlockType::PINE_SLAB) == MineSet::Wood);
+  CHECK(mineSet(BlockType::DOOR_TOP_N_OPEN) == MineSet::Wood);
+  CHECK(mineSet(BlockType::CHEST) == MineSet::Wood);
+  CHECK(mineSet(BlockType::TORCH_E) == MineSet::Wood);
+  CHECK(mineSet(BlockType::GLASS) == MineSet::Glass);
+  CHECK(mineSet(BlockType::GLOWSTONE) == MineSet::Glass);
+  CHECK(mineSet(BlockType::GLOW_CRYSTAL) == MineSet::Glass);
+  CHECK(mineSet(BlockType::DIRT) == MineSet::Soft);
+  CHECK(mineSet(BlockType::SAND) == MineSet::Soft);
+  CHECK(mineSet(BlockType::OAK_LEAF) == MineSet::Soft);
+  CHECK(mineSet(BlockType::SNOW) == MineSet::Soft);
+  CHECK(mineSet(BlockType::BED_RED_FOOT_N) == MineSet::Soft);
+  CHECK(mineSet(BlockType::POPPY) == MineSet::Soft);
+}
+
+TEST_CASE("break cues: the block's break sound, quieter for things picked at once") {
+  CueSounds cues(4);
+  const glm::vec3 here{0, 64, 0}, at{2.5f, 64.5f, 0.5f};
+  auto broke = [&](BlockType b) { return cues.sound({Cue::BlockBreak, at, b}, here); };
+
+  auto stone = broke(BlockType::STONE);
+  REQUIRE(stone);
+  CHECK(stone->effect == Effect::MineStone);
+  CHECK(stone->pitch <= CueSounds::kStoneBreakPitch * 1.05f);
+  CHECK(stone->volume == doctest::Approx(1.0f));
+  CHECK(stone->positional);
+  CHECK(stone->position == at);
+
+  CHECK(broke(BlockType::OAK_PLANKS)->effect == Effect::BreakWood);
+  CHECK(broke(BlockType::GLASS)->effect == Effect::BreakGlass);
+  auto dirt = broke(BlockType::DIRT);
+  CHECK(dirt->effect == Effect::BreakSoft);
+  CHECK(dirt->pitch >= 0.95f);
+
+  for (BlockType quiet : {BlockType::POPPY, BlockType::WHEAT_3, BlockType::TORCH}) {
+    auto e = broke(quiet);
+    REQUIRE(e);
+    CHECK(e->volume == doctest::Approx(CueSounds::kQuietBreakVolume));
+  }
+  CHECK_FALSE(cues.sound({Cue::BlockBreak, {30, 64, 0}, BlockType::STONE}, here));
+  CHECK_FALSE(broke(BlockType::AIR));
+}
+
+TEST_CASE("mining hits: at once, then every quarter second, while it breaks") {
+  MiningSounds s(2);
+  const MiningNow stone{{1, 64, 0}, BlockType::STONE};
+  CHECK_FALSE(s.update(std::nullopt, 0.016f));
+
+  auto first = s.update(stone, 0.016f);
+  REQUIRE(first);
+  CHECK(first->effect == Effect::MineStone);
+  CHECK(first->volume == doctest::Approx(MiningSounds::kStoneHitVolume));
+  CHECK(first->position == glm::vec3(1.5f, 64.5f, 0.5f));
+
+  // 2.1 seconds at 50 fps: 8 more hits (at 0.25 s apart on average).
+  int hits = 0, last = first->variant;
+  for (int i = 0; i < 105; ++i)
+    if (auto e = s.update(stone, 0.02f)) {
+      ++hits;
+      CHECK(e->variant != last);
+      last = e->variant;
+      CHECK(e->pitch >= 0.95f);
+      CHECK(e->pitch <= 1.05f);
+    }
+  CHECK(hits == 8);
+
+  // Another block hits at once; so does starting again after stopping.
+  auto wood = s.update(MiningNow{{2, 64, 0}, BlockType::OAK_LOG}, 0.02f);
+  REQUIRE(wood);
+  CHECK(wood->effect == Effect::HitWood);
+  CHECK(wood->volume == doctest::Approx(1.0f));
+  CHECK_FALSE(s.update(std::nullopt, 0.02f));
+  CHECK(s.update(stone, 0.02f));
+  CHECK(s.update(MiningNow{{3, 64, 0}, BlockType::GLASS}, 0.02f)->effect == Effect::HitGlass);
+  CHECK(s.update(MiningNow{{4, 64, 0}, BlockType::DIRT}, 0.02f)->effect == Effect::HitSoft);
 }

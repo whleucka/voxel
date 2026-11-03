@@ -18,10 +18,17 @@ EffectPaths effectPaths(const std::string &dir) {
   EffectPaths paths;
   for (std::size_t e = 0; e < kEffectCount; ++e)
     for (int v = 0; v < kEffectVariants[e]; ++v) {
-      char name[40];
+      char name[64];
       switch (static_cast<Effect>(e)) {
       case Effect::DoorOpen: std::snprintf(name, sizeof name, "rpg/doorOpen_%d.ogg", v + 1); break;
       case Effect::DoorClose: std::snprintf(name, sizeof name, "rpg/doorClose_%d.ogg", v + 1); break;
+      case Effect::MineStone: std::snprintf(name, sizeof name, "impact/impactMining_%03d.ogg", v); break;
+      case Effect::HitWood: std::snprintf(name, sizeof name, "impact/impactWood_medium_%03d.ogg", v); break;
+      case Effect::BreakWood: std::snprintf(name, sizeof name, "impact/impactWood_heavy_%03d.ogg", v); break;
+      case Effect::HitGlass: std::snprintf(name, sizeof name, "impact/impactGlass_light_%03d.ogg", v); break;
+      case Effect::BreakGlass: std::snprintf(name, sizeof name, "impact/impactGlass_heavy_%03d.ogg", v); break;
+      case Effect::HitSoft: std::snprintf(name, sizeof name, "impact/impactSoft_medium_%03d.ogg", v); break;
+      case Effect::BreakSoft: std::snprintf(name, sizeof name, "impact/impactSoft_heavy_%03d.ogg", v); break;
       default: std::snprintf(name, sizeof name, "rpg/footstep%02d.ogg", v); break; // the steps
       }
       paths[e].push_back(dir + "/" + name);
