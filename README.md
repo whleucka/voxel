@@ -16,7 +16,7 @@
   - Friendly Woollies, Bunnies, Shell Turtles and Blossom Deer. Feed them and they give you something back: a Woolly eats any leaves and gives you wool.
   - At night, Gloomlings, Thorn Crawlers and Zombies come out, Mummies shuffle through the desert (and stay after sunrise), and Cave Grumbles lurk in the dark underground.
   - Pebblefish, Sunfin and glowing Glowfin swim in lakes, the sea and cave pools.
-- **Journal:** press **J** for your own book of everything you've found: every creature, fish, gem and plant, each a "???" with a clue until you find it ([more below](#journal)).
+- **Journal:** press **J** for your own book of side quests, with a stamp and a gift for each one you finish, and a collection of every creature, fish, gem and plant, each a "???" with a clue until you find it ([more below](#journal)).
 - **Crafting:** discover recipes as you collect things, and build a Crafting Table for the bigger ones ([more below](#crafting)).
 - **Smelting:** a furnace that cooks raw ore into ingots, and sand into glass, while you're off exploring ([more below](#smelting)).
 - **Doors:** craft wooden doors, right-click to open and shut them; nothing gets through a closed one ([more below](#doors)).
@@ -185,7 +185,26 @@ crystals. To go back to the generated art, run
 
 ## Journal
 
-Press **J** to open your journal. Its **Collections** tab has four pages:
+Press **J** to open your journal. It has two tabs.
+
+**Notes** are side quests, written by you to yourself: *"I bet a furnace
+could melt this iron down."* Each note is a small goal, and it ticks itself
+off when you do it, then the next note in the chain shows up. Finish a whole
+chain and it gets a **DONE!** stamp and a gift, once:
+
+| Chain | What you do | Gift |
+|---|---|---|
+| Settling in | Make a Crafting Table, make a bed, sleep through a night | 8 Torches |
+| Hot stuff | Find iron, melt it into an ingot, make an iron pickaxe | 3 Iron Ingots |
+| Making friends | Feed an animal, tame a pet, go for a boat ride | 3 Berry Cookies |
+| Green thumb | Till soil, grow wheat, bake bread, make a cake | 4 Compost |
+| Gone fishing | Make a rod, catch a fish, cook it, catch a Glowfin | a Treasure Key |
+| Deep down | Find a glow crystal, open a treasure chest, find a diamond | a Diamond |
+
+The other chains show up once you've made your first Crafting Table. When
+someone finishes a chain, everyone playing sees it in chat.
+
+The **Collections** tab has four pages:
 **Creatures**, **Fish**, **Gems & Ores** and **Plants**. Each entry is a dark
 "???" until you find it, and hovering over it shows a clue to where it lives.
 
@@ -197,7 +216,8 @@ Press **J** to open your journal. Its **Collections** tab has four pages:
 
 The journal keeps notes in survival worlds only. Everyone playing on the
 network has their own, and it's saved with the world. Worlds from before the
-journal start with everything you've already held filled in.
+journal start with everything you've already held filled in, and chains
+you've already done give their gifts as soon as you join.
 
 ## Crafting
 

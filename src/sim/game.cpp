@@ -1423,6 +1423,25 @@ void Game::tickJournal() {
   if (mode_ != GameMode::Survival) return;
   std::vector<std::string> lines;
   for (auto &[pid, ps] : players) {
+    Client *client = clientOf(pid);
+    // Finished chains: a stamp, and the gift (what won't fit lands at their feet).
+    if (!ps.vitals.dead() && client)
+      for (int index : chainsToStamp(ps.seen, ps.journal)) {
+        const Chain &chain = chains()[index];
+        ps.journal.stamps.set(static_cast<size_t>(index));
+        ItemStack left = ps.inventory.add(chain.gift);
+        while (!left.empty()) {
+          ItemStack stack = split(left, itemDef(left.id).max_stack);
+          if (!dropItem(stack, ps.position + glm::vec3(0, 0.5f, 0), {0, 2.0f, 0},
+                        kThrowDropDelayMs))
+            break;
+        }
+        sendInventory(*client, ps);
+        client->link->deliver(Notice{"Journal: " + std::string(chain.title) + " done! You got " +
+                                     std::string(chain.gift_text)});
+        lines.push_back(ps.name + " finished " + std::string(chain.title) + "!");
+      }
+
     if (!ps.vitals.dead())
       for (const auto &[eid, e] : entities_.all()) {
         if (!isJournalCreature(e.kind) || ps.journal.hasMet(e.kind)) continue;
@@ -1435,7 +1454,6 @@ void Game::tickJournal() {
       continue;
     }
     const auto &noted = *ps.journal_noted;
-    Client *client = clientOf(pid);
     for (const Entry *e : newlyFilled(noted.seen, noted.progress, ps.seen, ps.journal))
       if (client)
         client->link->deliver(Notice{"New in your journal: " + std::string(entryName(*e))});

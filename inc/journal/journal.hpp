@@ -2,6 +2,8 @@
 
 #include "entity/entity_type.hpp"
 #include "item/item.hpp"
+#include "item/item_stack.hpp"
+#include <optional>
 #include "item/recipes.hpp" // SeenItems
 #include <bitset>
 #include <cstdint>
@@ -69,3 +71,31 @@ PageCount pageCount(JournalPage p, const SeenItems &seen, const JournalProgress 
 // save for the seen items), in entries() order: for "New in your journal".
 std::vector<const Entry *> newlyFilled(const SeenItems &before, const JournalProgress &j_before,
                                        const SeenItems &now, const JournalProgress &j_now);
+
+// Notes: chains of small goals, in the player's own words. A step is done
+// when any of its items has been seen or its deed done. Steps show in order:
+// the done ones, then the next. Finishing a chain earns its stamp and gift.
+struct Step {
+  std::vector<ItemId> any_of;
+  std::optional<Deed> deed;
+  std::string_view hint; // before: what to try
+  std::string_view done; // after
+};
+
+struct Chain {
+  std::string_view title;
+  std::vector<Step> steps;
+  ItemStack gift;
+  std::string_view gift_text; // "8 Torches"
+  bool starts_open = false; // the rest open once the first chain's first step is done
+};
+// A chain's index is its stamp bit: append only.
+const std::vector<Chain> &chains();
+
+bool stepDone(const Step &step, const SeenItems &seen, const JournalProgress &j);
+// How many steps, from the first, are done: the next one is the one to show.
+int stepsDone(const Chain &chain, const SeenItems &seen, const JournalProgress &j);
+bool chainOpen(int index, const SeenItems &seen, const JournalProgress &j);
+bool chainComplete(const Chain &chain, const SeenItems &seen, const JournalProgress &j);
+// Complete chains without their stamp yet, in order.
+std::vector<int> chainsToStamp(const SeenItems &seen, const JournalProgress &j);

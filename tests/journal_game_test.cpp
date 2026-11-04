@@ -239,3 +239,64 @@ TEST_CASE("a guest record from before the journal loads with an empty one") {
   CHECK(out["Sam"].discovered == rec.discovered);
   CHECK(out["Sam"].journal == JournalProgress{});
 }
+
+namespace {
+int held(const PlayerState &ps, ItemId id) {
+  int n = 0;
+  for (const ItemStack &s : ps.inventory.slots())
+    if (s.id == id) n += s.count;
+  return n;
+}
+void giveAll(JournalGame &g, std::initializer_list<ItemId> ids) {
+  for (ItemId id : ids) g.run(g.host, GiveItem{id, 1});
+}
+} // namespace
+
+TEST_CASE_FIXTURE(JournalGame, "a finished chain gives its stamp and gift once, and tells everyone") {
+  second(host);
+  giveAll(*this, {itemForBlock(BlockType::CRAFTING_TABLE), ItemId::WHITE_BED});
+  ps(hid).journal.set(Deed::Slept);
+  auto evs = second(host);
+  CHECK(ps(hid).journal.stamps.test(0));
+  CHECK(noticed(evs, "Journal: Settling in done! You got 8 Torches"));
+  CHECK(chatted(evs, ps(hid).name + " finished Settling in!"));
+  CHECK(held(ps(hid), itemForBlock(BlockType::TORCH)) == 8);
+  // Never again, even with the steps still done.
+  evs = second(host);
+  CHECK(held(ps(hid), itemForBlock(BlockType::TORCH)) == 8);
+  CHECK_FALSE(chatted(evs, ps(hid).name + " finished Settling in!"));
+}
+
+TEST_CASE_FIXTURE(JournalGame, "a gift that doesn't fit lands at your feet") {
+  for (int i = 0; i < kInventorySlots; ++i) ps(hid).inventory.set(i, {ItemId::SOGGY_BOOT, 1});
+  see(ps(hid).seen, itemForBlock(BlockType::CRAFTING_TABLE));
+  see(ps(hid).seen, ItemId::WHITE_BED);
+  ps(hid).journal.set(Deed::Slept);
+  second(host);
+  CHECK(ps(hid).journal.stamps.test(0));
+  int dropped = 0;
+  for (const auto &[id, e] : game.entities().all())
+    if (e.kind == EntityKind::DroppedItem && e.item.id == itemForBlock(BlockType::TORCH))
+      dropped += e.item.count;
+  CHECK(dropped == 8);
+}
+
+TEST_CASE_FIXTURE(JournalGame, "an old world's finished chains pay out on joining") {
+  // Seen before the journal existed: done within a second, no new-find spam.
+  see(ps(hid).seen, itemForBlock(BlockType::CRAFTING_TABLE));
+  for (ItemId id : {ItemId::RAW_IRON, ItemId::IRON_INGOT, ItemId::IRON_PICKAXE})
+    see(ps(hid).seen, id);
+  auto evs = second(host);
+  CHECK(ps(hid).journal.stamps.test(1));
+  CHECK_FALSE(ps(hid).journal.stamps.test(0));
+  CHECK(held(ps(hid), ItemId::IRON_INGOT) == 3);
+}
+
+TEST_CASE_FIXTURE(JournalGame, "creative worlds give no stamps") {
+  game.setMode(GameMode::Creative);
+  see(ps(hid).seen, itemForBlock(BlockType::CRAFTING_TABLE));
+  for (ItemId id : {ItemId::RAW_IRON, ItemId::IRON_INGOT, ItemId::IRON_PICKAXE})
+    see(ps(hid).seen, id);
+  second(host);
+  CHECK(ps(hid).journal.stamps.none());
+}
