@@ -209,6 +209,7 @@ template <class IO> void fields(IO &io, InventoryContents &m) { io(m.slots); }
 template <class IO> void fields(IO &io, KnownItems &m) { io(m.ids); }
 template <class IO> void fields(IO &io, ToolBroke &m) { io(m.item); }
 template <class IO> void fields(IO &io, Caught &m) { io(m.item); }
+template <class IO> void fields(IO &io, JournalState &m) { io(m.deeds, m.met, m.stamps); }
 template <class IO> void fields(IO &io, SleepState &m) {
   io(m.in_bed, m.bed, m.sleepers, m.living);
 }

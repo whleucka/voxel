@@ -304,6 +304,16 @@ struct ToolBroke { ItemId item = ItemId::NONE; };
 // The owner reeled something in (it's in their inventory, or at their feet).
 struct Caught { ItemId item = ItemId::NONE; };
 
+// The owner's journal: deeds done, creature kinds met (by EntityKind value)
+// and chain stamps, as bits. Sent on joining and whenever any changes; the
+// item side of the journal comes from KnownItems.
+struct JournalState {
+  uint16_t deeds = 0;
+  uint32_t met = 0;
+  uint16_t stamps = 0;
+  bool operator==(const JournalState &) const = default;
+};
+
 // The open furnace, to everyone looking in: when they open it, when its
 // slots change, and a few times a second while it burns. `open` false: it's
 // closed for them (out of reach, or the furnace is gone).
@@ -336,4 +346,4 @@ using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            Welcome, TimeSync, Disconnected, KnownItems,
                            ContainerView, ToolBroke, Caught, SleepState, Notice,
                            ChatMessage, Waypoints, Riding, MapPlayers,
-                           SoundCue>;
+                           SoundCue, JournalState>;

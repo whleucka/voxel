@@ -50,6 +50,7 @@ constexpr char kChestMagic[4]   = {'V', 'X', 'C', 'H'};
 constexpr char kFarmMagic[4]    = {'V', 'X', 'F', 'A'};
 constexpr char kBoatMagic[4]    = {'V', 'X', 'B', 'O'};
 constexpr char kPetMagic[4]     = {'V', 'X', 'P', 'E'};
+constexpr char kJournalMagic[4] = {'V', 'X', 'J', 'O'};
 
 constexpr uint32_t kChunkVolume = kChunkWidth * kChunkDepth * kChunkHeight;
 
@@ -146,6 +147,20 @@ void writePins(std::ostream &o, const WorldSave::PlayerData &p) {
 
 // Missing (an older file): none. Too many, or a colour out of range or
 // already taken, and the extra pins are dropped.
+void writeJournal(std::ostream &o, const JournalProgress &j) {
+  wr(o, static_cast<uint16_t>(j.deeds.to_ulong()));
+  wr(o, static_cast<uint32_t>(j.met.to_ulong()));
+  wr(o, static_cast<uint16_t>(j.stamps.to_ulong()));
+}
+
+bool readJournal(std::istream &in, JournalProgress &j) {
+  uint16_t deeds = 0, stamps = 0;
+  uint32_t met = 0;
+  if (!rd(in, deeds) || !rd(in, met) || !rd(in, stamps)) return false;
+  j = {Deeds(deeds), Met(met), Stamps(stamps)};
+  return true;
+}
+
 void readPins(std::istream &in, WorldSave::PlayerData &p) {
   uint8_t n = 0;
   if (!rd(in, n)) return;
@@ -369,6 +384,21 @@ bool saveDiscovered(const std::string &dir, std::span<const ItemId> ids) {
   });
 }
 
+// ─── journal.dat ────────────────────────────────────────────────────────────
+
+bool loadJournal(const std::string &dir, JournalProgress &out) {
+  std::ifstream in(dir + "/journal.dat", std::ios::binary);
+  if (!in || !checkHeader(in, kJournalMagic)) return false;
+  return readJournal(in, out);
+}
+
+bool saveJournal(const std::string &dir, const JournalProgress &j) {
+  return writeAtomic(dir + "/journal.dat", [&](std::ostream &o) {
+    writeHeader(o, kJournalMagic);
+    writeJournal(o, j);
+  });
+}
+
 // ─── furnaces.dat ───────────────────────────────────────────────────────────
 
 bool loadFurnaces(const std::string &dir, std::vector<FurnaceRecord> &out) {
@@ -458,6 +488,7 @@ bool saveGuest(const std::string &dir, const std::string &name, const GuestRecor
     writeWear(o, rec.inventory);
     writeBed(o, rec.player);
     writePins(o, rec.player);
+    writeJournal(o, rec.journal);
   });
 }
 
@@ -483,6 +514,7 @@ bool loadGuests(const std::string &dir, std::map<std::string, GuestRecord> &out)
       readWear(in, rec.inventory); // from before tools: unworn
       readBed(in, rec.player);     // from before beds: none
       readPins(in, rec.player);    // from before the map: none
+      if (!readJournal(in, rec.journal)) rec.journal = {}; // from before the journal
     }
     out[name] = std::move(rec);
   }

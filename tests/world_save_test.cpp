@@ -203,7 +203,7 @@ TEST_CASE("guest discoveries round-trip; a record from before crafting has none"
 
   // Drop the trailing section, as an older build wrote it.
   auto file = dir.path / "players" / "Bea.dat";
-  std::filesystem::resize_file(file, std::filesystem::file_size(file) - (4 + 2 * 3));
+  std::filesystem::resize_file(file, std::filesystem::file_size(file) - (4 + 2 * 3) - 8); // and the journal (2 + 4 + 2)
   loaded.clear();
   REQUIRE(WorldSave::loadGuests(dir.path.string(), loaded));
   CHECK(loaded.at("Bea").inventory == bea.inventory);

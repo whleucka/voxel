@@ -316,6 +316,7 @@ private:
   std::optional<WorldSave::PlayerData> saved_player;
   std::optional<std::vector<ItemStack>> saved_inventory;
   std::optional<std::vector<ItemId>> saved_discovered; // the host's, like saved_inventory
+  std::optional<JournalProgress> saved_journal;        // the host's, likewise
 
   // Every furnace in the world, by block, ticking whether or not its chunk
   // is loaded.
@@ -390,6 +391,15 @@ private:
   void flushWaypoints();
   // Sends each player where the others are, for their map (once a second).
   void sendMapPlayers();
+
+  // ─── Journal ───
+  static constexpr float kMeetRange = 16.0f;
+  // Marks a deed done for this player (survival only).
+  void recordDeed(PlayerState &ps, Deed deed);
+  // Once a second: creatures met, then new finds and full pages are told.
+  void tickJournal();
+  // Send JournalState to every owner whose journal changed.
+  void flushJournal();
   // Where a player's map points home: their bed, or the world spawn.
   glm::ivec3 home(const PlayerState &ps);
   Client *clientOf(PlayerId id);
