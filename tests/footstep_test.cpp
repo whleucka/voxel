@@ -344,7 +344,7 @@ TEST_CASE("audio: every effect recording ships and decodes") {
     REQUIRE(paths[e].size() == static_cast<std::size_t>(kEffectVariants[e]));
     files.insert(paths[e].begin(), paths[e].end());
   }
-  CHECK(files.size() == 66u); // 25 footsteps (dirt shares grass's), 6 door, 35 mining
+  CHECK(files.size() == 74u); // 25 footsteps (dirt shares grass's), 6 door, 35 mining, 8 chest
   // Each surface sounds like itself: no two step sets share recordings,
   // except dirt, which is grass's pitched down.
   for (std::size_t a = 0; a < kStepSetCount; ++a)
@@ -560,4 +560,19 @@ TEST_CASE("place cues: the block's hit sound, lower; quiet for plants; wood for 
     CHECK(e->variant != last);
     last = e->variant;
   }
+}
+
+TEST_CASE("a chest creaks open and knocks shut, where it stands") {
+  CueSounds cues(5);
+  const glm::vec3 chest{3.5f, 65.0f, 2.5f}, here{0, 64, 0};
+  for (Cue c : {Cue::ChestOpen, Cue::ChestClose}) {
+    auto e = cues.sound({c, chest}, here);
+    REQUIRE(e);
+    CHECK(e->effect == (c == Cue::ChestOpen ? Effect::ChestOpen : Effect::ChestClose));
+    CHECK(e->positional);
+    CHECK(e->position == chest);
+    CHECK(e->pitch >= 0.95f);
+    CHECK(e->pitch <= 1.05f);
+  }
+  CHECK_FALSE(cues.sound({Cue::ChestOpen, {40, 64, 0}}, here)); // too far to hear
 }

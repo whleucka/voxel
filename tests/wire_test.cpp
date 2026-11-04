@@ -212,7 +212,7 @@ TEST_CASE("an oversized frame marks the stream bad") {
 
 TEST_CASE("the hello frame carries the protocol version") {
   CHECK(wire::readHello(wire::hello()) == wire::kProtocolVersion);
-  CHECK(wire::kProtocolVersion == 24);
+  CHECK(wire::kProtocolVersion == 25);
   auto other = wire::hello();
   other[4] = 99;
   CHECK(wire::readHello(other) == 99);

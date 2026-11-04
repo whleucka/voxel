@@ -29,6 +29,8 @@ EffectPaths effectPaths(const std::string &dir) {
       case Effect::BreakGlass: std::snprintf(name, sizeof name, "impact/impactGlass_heavy_%03d.ogg", v); break;
       case Effect::HitSoft: std::snprintf(name, sizeof name, "impact/impactSoft_medium_%03d.ogg", v); break;
       case Effect::BreakSoft: std::snprintf(name, sizeof name, "impact/impactSoft_heavy_%03d.ogg", v); break;
+      case Effect::ChestOpen: std::snprintf(name, sizeof name, "rpg/creak%d.ogg", v + 1); break;
+      case Effect::ChestClose: std::snprintf(name, sizeof name, "impact/impactWood_light_%03d.ogg", v); break;
       case Effect::StepGrass:
       case Effect::StepDirt: std::snprintf(name, sizeof name, "impact/footstep_grass_%03d.ogg", v); break;
       case Effect::StepStone: std::snprintf(name, sizeof name, "impact/footstep_concrete_%03d.ogg", v); break;
