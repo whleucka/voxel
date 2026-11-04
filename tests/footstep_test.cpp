@@ -161,14 +161,14 @@ TEST_CASE("silent ground makes no sound") {
 
 TEST_CASE("steps never repeat a recording twice in a row and vary a little") {
   FootstepDirector d(7);
-  Walker w = me({0, 64, 0}, StepSet::Dirt);
+  Walker w = me({0, 64, 0}, StepSet::Stone);
   tick(d, w);
   const auto sounds = walk(d, w, 5.612f, 120.0f).sounds;
   REQUIRE(sounds.size() > 200);
   std::set<int> used;
   for (std::size_t i = 0; i < sounds.size(); ++i) {
     CHECK(sounds[i].variant >= 0);
-    CHECK(sounds[i].variant < variantCount(Effect::StepDirt));
+    CHECK(sounds[i].variant < variantCount(Effect::StepStone));
     if (i) CHECK(sounds[i].variant != sounds[i - 1].variant);
     CHECK(sounds[i].pitch >= 0.94f);
     CHECK(sounds[i].pitch <= 1.06f);
@@ -176,7 +176,20 @@ TEST_CASE("steps never repeat a recording twice in a row and vary a little") {
     CHECK(sounds[i].volume <= 1.1f);
     used.insert(sounds[i].variant);
   }
-  CHECK(used.size() == 10u);
+  CHECK(used.size() == static_cast<std::size_t>(variantCount(Effect::StepStone)));
+}
+
+TEST_CASE("dirt steps are grass's, pitched down") {
+  FootstepDirector d(7);
+  Walker w = me({0, 64, 0}, StepSet::Dirt);
+  tick(d, w);
+  const auto sounds = walk(d, w, 5.612f, 30.0f).sounds;
+  REQUIRE(!sounds.empty());
+  for (const SoundEvent &e : sounds) {
+    CHECK(e.effect == Effect::StepDirt);
+    CHECK(e.pitch >= 0.94f * FootstepDirector::kDirtPitch);
+    CHECK(e.pitch <= 1.06f * FootstepDirector::kDirtPitch);
+  }
 }
 
 namespace {
@@ -331,7 +344,15 @@ TEST_CASE("audio: every effect recording ships and decodes") {
     REQUIRE(paths[e].size() == static_cast<std::size_t>(kEffectVariants[e]));
     files.insert(paths[e].begin(), paths[e].end());
   }
-  CHECK(files.size() == 51u); // 10 footsteps (shared), 6 door and 35 mining sounds
+  CHECK(files.size() == 66u); // 25 footsteps (dirt shares grass's), 6 door, 35 mining
+  // Each surface sounds like itself: no two step sets share recordings,
+  // except dirt, which is grass's pitched down.
+  for (std::size_t a = 0; a < kStepSetCount; ++a)
+    for (std::size_t b = a + 1; b < kStepSetCount; ++b) {
+      const bool dirt_and_grass = a == static_cast<std::size_t>(StepSet::Grass) &&
+                                  b == static_cast<std::size_t>(StepSet::Dirt);
+      CHECK((paths[a] == paths[b]) == dirt_and_grass);
+    }
   for (const std::string &p : files) {
     CAPTURE(p);
     CHECK(audioFileReadable(p));
