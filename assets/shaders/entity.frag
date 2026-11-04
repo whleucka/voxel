@@ -7,6 +7,7 @@ in vec3 vNormal;
 in vec2 vUV;
 in vec3 vWorldPos;
 flat in vec3 vLocalNormal;
+in vec3 vLocalPos;
 
 const vec3 BLOCK_LIGHT_COLOR = vec3(1.0, 0.80, 0.52);
 
@@ -17,6 +18,8 @@ uniform vec2  uTileTop;     // atlas UV of each face's tile (top-left)
 uniform vec2  uTileSide;
 uniform vec2  uTileBottom;
 uniform float uTileSpan;    // atlas UV size of one tile
+uniform vec3  uCellLo;      // uMode 1: where this box sits in its block's cell
+uniform vec3  uCellHi;      // (0..1), so each face shows its part of the tile
 
 uniform float uSkyLight;    // 0..1 at the entity
 uniform float uBlockLight;  // 0..1 at the entity
@@ -45,7 +48,20 @@ void main() {
         vec2 tile = vLocalNormal.y > 0.5  ? uTileTop
                   : vLocalNormal.y < -0.5 ? uTileBottom
                                           : uTileSide;
-        vec4 tex = texture(uAtlas, tile + clamp(vUV, 0.001, 0.999) * uTileSpan);
+        vec2 uv = vUV;
+        if (uMode == 1) {
+            // The face's part of the tile, as a block's would be: the same
+            // mapping as the unit cube's UVs, but across the whole cell.
+            vec3 p = mix(uCellLo, uCellHi, vLocalPos);
+            vec3 n = vLocalNormal;
+            uv = n.x >  0.5 ? vec2(1.0 - p.z, 1.0 - p.y)
+               : n.x < -0.5 ? vec2(p.z, 1.0 - p.y)
+               : n.z >  0.5 ? vec2(p.x, 1.0 - p.y)
+               : n.z < -0.5 ? vec2(1.0 - p.x, 1.0 - p.y)
+               : n.y >  0.5 ? vec2(p.x, p.z)
+                            : vec2(p.x, 1.0 - p.z);
+        }
+        vec4 tex = texture(uAtlas, tile + clamp(uv, 0.001, 0.999) * uTileSpan);
         if (tex.a < 0.5) discard;
         base = tex.rgb;
     }

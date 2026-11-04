@@ -285,17 +285,25 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities,
         glUniform2fv(glGetUniformLocation(shader->ID, "uTileSide"), 1, &t[0]);
         drawBox(m, {-0.175f, bob, -0.015f}, {0.35f, 0.35f, 0.03f});
       } else if (def.places) {
-        auto tex = block_data.find(*def.places);
-        if (tex == block_data.end()) continue;
+        // A little model of the block, its shape as the HUD icon's.
+        constexpr float kScale = 0.25f;
         glBindTexture(GL_TEXTURE_2D, block_tex);
         shader->setInt("uMode", 1);
         shader->setFloat("uTileSpan", 1.0f / kBlockAtlasTiles);
         shader->setVec3("uColor", glm::vec3(1.0f));
-        auto tile = [](glm::ivec2 t) { return glm::vec2(t) / float(kBlockAtlasTiles); };
-        glUniform2fv(glGetUniformLocation(shader->ID, "uTileTop"), 1, &tile(tex->second.top)[0]);
-        glUniform2fv(glGetUniformLocation(shader->ID, "uTileSide"), 1, &tile(tex->second.side)[0]);
-        glUniform2fv(glGetUniformLocation(shader->ID, "uTileBottom"), 1, &tile(tex->second.bottom)[0]);
-        drawBox(m, {-0.125f, bob, -0.125f}, glm::vec3(0.25f));
+        auto tile = [&](const char *name, glm::ivec2 t) {
+          glm::vec2 uv = glm::vec2(t) / float(kBlockAtlasTiles);
+          glUniform2fv(glGetUniformLocation(shader->ID, name), 1, &uv[0]);
+        };
+        const glm::vec3 corner(-kScale / 2, bob, -kScale / 2);
+        for (const IconBox &b : iconModel(*def.places)) {
+          tile("uTileTop", b.top);
+          tile("uTileSide", b.side);
+          tile("uTileBottom", b.bottom);
+          shader->setVec3("uCellLo", b.lo);
+          shader->setVec3("uCellHi", b.hi);
+          drawBox(m, corner + b.lo * kScale, (b.hi - b.lo) * kScale);
+        }
       } else {
         glBindTexture(GL_TEXTURE_2D, item_tex);
         shader->setInt("uMode", 2);

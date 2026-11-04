@@ -13,6 +13,7 @@ out vec3 vNormal;
 out vec2 vUV;
 out vec3 vWorldPos;
 flat out vec3 vLocalNormal;
+out vec3 vLocalPos;
 
 void main() {
     vec4 world = uModel * vec4(aPos, 1.0);
@@ -20,5 +21,6 @@ void main() {
     vNormal = normalize(uNormalMat * aNormal);
     vLocalNormal = aNormal;
     vUV = aUV;
+    vLocalPos = aPos;
     gl_Position = projection * view * world;
 }
