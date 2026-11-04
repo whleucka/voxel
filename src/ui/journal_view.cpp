@@ -53,8 +53,7 @@ bool JournalView::draw(const Hud &hud, const SeenItems &seen, const JournalProgr
     };
     if (ImGui::BeginTabItem("Notes", nullptr, flags(Tab::Notes))) {
       tab_ = Tab::Notes;
-      ImGui::Spacing();
-      ImGui::TextWrapped("Coming soon! Notes about things to try will be written here.");
+      drawNotes(seen, journal);
       ImGui::EndTabItem();
     }
     if (ImGui::BeginTabItem("Collections", nullptr, flags(Tab::Collections))) {
@@ -68,6 +67,77 @@ bool JournalView::draw(const Hud &hud, const SeenItems &seen, const JournalProgr
   ImGui::PopFont();
   ImGui::End();
   return close;
+}
+
+void JournalView::drawNotes(const SeenItems &seen, const JournalProgress &journal) {
+  ImGui::BeginChild("##notes", ImVec2(0, 0), ImGuiChildFlags_None);
+  const ImVec4 done_col(0.62f, 0.90f, 0.55f, 1.0f);
+  int locked = 0;
+  for (int i = 0; i < static_cast<int>(chains().size()); ++i) {
+    if (!chainOpen(i, seen, journal)) {
+      ++locked;
+      continue;
+    }
+    const Chain &chain = chains()[i];
+    const bool stamped = journal.stamps.test(static_cast<size_t>(i));
+    const int done = stepsDone(chain, seen, journal);
+    const int steps = static_cast<int>(chain.steps.size());
+
+    ImGui::PushID(i);
+    ImGui::BeginGroup();
+    const ImVec2 card0 = ImGui::GetCursorScreenPos();
+    ImGui::Spacing();
+    ImGui::Indent(10.0f);
+    ImGui::PushStyleColor(ImGuiCol_Text, kInk);
+    ImGui::Text("%.*s", static_cast<int>(chain.title.size()), chain.title.data());
+    ImGui::PopStyleColor();
+    ImGui::SameLine();
+    ImGui::TextDisabled("%d/%d", std::min(done, steps), steps);
+    const float wrap = ImGui::GetContentRegionAvail().x - 110.0f;
+    for (int s = 0; s < steps && s <= done; ++s) {
+      const Step &step = chain.steps[s];
+      const bool ticked = s < done;
+      ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + wrap);
+      if (ticked) {
+        ImGui::PushStyleColor(ImGuiCol_Text, done_col);
+        ImGui::Text("[x]  %.*s", static_cast<int>(step.done.size()), step.done.data());
+        ImGui::PopStyleColor();
+      } else {
+        ImGui::Text("[ ]  %.*s", static_cast<int>(step.hint.size()), step.hint.data());
+      }
+      ImGui::PopTextWrapPos();
+    }
+    if (done + 1 < steps) ImGui::TextDisabled("     ...and more to find out.");
+    if (!stamped)
+      ImGui::TextDisabled("Finish it for %.*s.", static_cast<int>(chain.gift_text.size()),
+                          chain.gift_text.data());
+    ImGui::Unindent(10.0f);
+    ImGui::Spacing();
+    ImGui::EndGroup();
+    ImGui::PopID();
+
+    // The card behind it, and the stamp on a finished one.
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    const ImVec2 card1(card0.x + ImGui::GetContentRegionAvail().x, ImGui::GetItemRectMax().y);
+    dl->AddRect(card0, card1, IM_COL32(255, 220, 160, 60), 6.0f);
+    if (stamped) {
+      const float r = 34.0f;
+      const ImVec2 c(card1.x - r - 14.0f, card0.y + (card1.y - card0.y) * 0.5f);
+      const ImU32 red = IM_COL32(220, 70, 60, 220);
+      dl->AddCircle(c, r, red, 32, 3.0f);
+      dl->AddCircle(c, r - 6.0f, red, 32, 1.5f);
+      const char *word = "DONE!";
+      const float size = ImGui::GetFontSize() * 0.95f;
+      const ImVec2 ext = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, word);
+      dl->AddText(nullptr, size, ImVec2(c.x - ext.x * 0.5f, c.y - ext.y * 0.5f), red, word);
+    }
+    ImGui::Spacing();
+  }
+  if (locked) {
+    ImGui::Spacing();
+    ImGui::TextDisabled("More notes will turn up once I've made a Crafting Table.");
+  }
+  ImGui::EndChild();
 }
 
 void JournalView::drawCollections(const Hud &hud, const SeenItems &seen,

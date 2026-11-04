@@ -1,4 +1,5 @@
 #include "journal/journal.hpp"
+#include "block/bed.hpp"
 #include "block/block_type.hpp"
 #include "sim/protocol.hpp"
 
@@ -130,5 +131,122 @@ std::vector<const Entry *> newlyFilled(const SeenItems &before, const JournalPro
   std::vector<const Entry *> out;
   for (const Entry &e : entries())
     if (entryFilled(e, now, j_now) && !entryFilled(e, before, j_before)) out.push_back(&e);
+  return out;
+}
+
+const std::vector<Chain> &chains() {
+  auto block = [](BlockType b) { return itemForBlock(b); };
+  std::vector<ItemId> beds;
+  for (int c = 0; c < 8; ++c) beds.push_back(bedItem(static_cast<BedColour>(c)));
+  static const std::vector<Chain> list = {
+      {"Settling in",
+       {{{block(BlockType::CRAFTING_TABLE)}, {},
+         "I can't make much with just my hands. Four planks make a Crafting Table.",
+         "I made a Crafting Table!"},
+        {beds, {},
+         "It gets dark fast. A bed needs wool and planks. Woollies give wool for leaves...",
+         "I made a bed!"},
+        {{}, Deed::Slept,
+         "Next time it gets dark, I'll sleep in my bed till morning.",
+         "Slept like a log!"}},
+       {block(BlockType::TORCH), 8}, "8 Torches", true},
+      {"Hot stuff",
+       {{{ItemId::RAW_IRON}, {},
+         "There's iron in the stone somewhere. I'll need a copper pick to dig it.",
+         "I found iron!"},
+        {{ItemId::IRON_INGOT}, {},
+         "I bet a furnace could melt this iron down. Eight cobblestone make one.",
+         "Melted it into an ingot!"},
+        {{ItemId::IRON_PICKAXE}, {},
+         "Iron is tough. An iron pickaxe could dig the deepest gems.",
+         "I made an iron pickaxe!"}},
+       {ItemId::IRON_INGOT, 3}, "3 Iron Ingots"},
+      {"Making friends",
+       {{{}, Deed::FedAnimal,
+         "The animals look hungry. Woollies love leaves.",
+         "I fed an animal. It looked so happy!"},
+        {{}, Deed::TamedPet,
+         "I saw a stray Puppy. Three treats and it might stay with me!",
+         "I have a pet!"},
+        {{}, Deed::Sailed,
+         "Five planks make a boat. I want to go sailing!",
+         "I went for a boat ride!"}},
+       {ItemId::BERRY_COOKIE, 3}, "3 Berry Cookies"},
+      {"Green thumb",
+       {{{}, Deed::Tilled,
+         "A hoe turns grass into soil for planting.",
+         "I tilled some soil!"},
+        {{ItemId::WHEAT}, {},
+         "Tall grass sometimes has seeds. Plant them and keep them watered.",
+         "I grew wheat!"},
+        {{ItemId::BREAD}, {},
+         "Three wheat make a loaf of bread.",
+         "I baked bread!"},
+        {{block(BlockType::CAKE_4)}, {},
+         "A cake needs wheat, strawberries and sweet petals from a Blossom Deer.",
+         "I made a whole cake!"}},
+       {ItemId::COMPOST, 4}, "4 Compost"},
+      {"Gone fishing",
+       {{{ItemId::FISHING_ROD}, {},
+         "I could make a fishing rod and try my luck at the water.",
+         "I made a fishing rod!"},
+        {{ItemId::RAW_PEBBLEFISH, ItemId::RAW_SUNFIN, ItemId::RAW_GLOWFIN}, {},
+         "Cast, wait for the bobber to dip, then reel in!",
+         "I caught a fish!"},
+        {{ItemId::COOKED_PEBBLEFISH, ItemId::COOKED_SUNFIN, ItemId::COOKED_GLOWFIN}, {},
+         "Raw fish? A furnace can cook it.",
+         "Cooked it. Yum!"},
+        {{ItemId::RAW_GLOWFIN}, {},
+         "They say a fish glows in the pools deep in caves...",
+         "I caught a Glowfin! It glows!"}},
+       {ItemId::TREASURE_KEY, 1}, "a Treasure Key"},
+      {"Deep down",
+       {{{block(BlockType::GLOW_CRYSTAL)}, {},
+         "Deep caves shine with glow crystals. I want one!",
+         "I found a glow crystal!"},
+        {{}, Deed::OpenedTreasure,
+         "There are locked treasure chests deep underground. A Treasure Key opens one.",
+         "I opened a treasure chest!"},
+        {{ItemId::DIAMOND}, {},
+         "The deepest gem of all is a diamond. I'll need an iron pick.",
+         "I found a diamond!"}},
+       {ItemId::DIAMOND, 1}, "a Diamond"},
+  };
+  return list;
+}
+
+bool stepDone(const Step &step, const SeenItems &seen, const JournalProgress &j) {
+  if (step.deed && j.did(*step.deed)) return true;
+  for (ItemId id : step.any_of) {
+    const auto v = static_cast<size_t>(id);
+    if (v < seen.size() && seen.test(v)) return true;
+  }
+  return false;
+}
+
+int stepsDone(const Chain &chain, const SeenItems &seen, const JournalProgress &j) {
+  int n = 0;
+  while (n < static_cast<int>(chain.steps.size()) && stepDone(chain.steps[n], seen, j)) ++n;
+  return n;
+}
+
+bool chainOpen(int index, const SeenItems &seen, const JournalProgress &j) {
+  const auto &all = chains();
+  if (index < 0 || index >= static_cast<int>(all.size())) return false;
+  if (all[index].starts_open || j.stamps.test(static_cast<size_t>(index))) return true;
+  return stepDone(all.front().steps.front(), seen, j);
+}
+
+bool chainComplete(const Chain &chain, const SeenItems &seen, const JournalProgress &j) {
+  return stepsDone(chain, seen, j) == static_cast<int>(chain.steps.size());
+}
+
+std::vector<int> chainsToStamp(const SeenItems &seen, const JournalProgress &j) {
+  std::vector<int> out;
+  const auto &all = chains();
+  for (int i = 0; i < static_cast<int>(all.size()); ++i)
+    if (!j.stamps.test(static_cast<size_t>(i)) && chainOpen(i, seen, j) &&
+        chainComplete(all[i], seen, j))
+      out.push_back(i);
   return out;
 }

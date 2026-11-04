@@ -18,8 +18,9 @@ public:
   JournalPage page() const { return page_; }
 
 private:
-  Tab tab_ = Tab::Collections;
+  Tab tab_ = Tab::Notes;
   JournalPage page_ = JournalPage::Creatures;
 
+  void drawNotes(const SeenItems &seen, const JournalProgress &journal);
   void drawCollections(const Hud &hud, const SeenItems &seen, const JournalProgress &journal);
 };
