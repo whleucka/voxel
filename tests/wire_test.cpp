@@ -212,7 +212,7 @@ TEST_CASE("an oversized frame marks the stream bad") {
 
 TEST_CASE("the hello frame carries the protocol version") {
   CHECK(wire::readHello(wire::hello()) == wire::kProtocolVersion);
-  CHECK(wire::kProtocolVersion == 25);
+  CHECK(wire::kProtocolVersion == 26);
   auto other = wire::hello();
   other[4] = 99;
   CHECK(wire::readHello(other) == 99);
@@ -228,6 +228,11 @@ TEST_CASE("crafting messages round-trip") {
   KnownItems k{{ItemId::STICKS, itemForBlock(BlockType::CRAFTING_TABLE), ItemId::RUBY}};
   auto back = std::get<KnownItems>(*wire::decodeEvent(enc(Event{k})));
   CHECK(back.ids == k.ids);
+}
+
+TEST_CASE("journal state round-trips") {
+  JournalState j{0x2b, 0x80004208u, 0x15};
+  CHECK(std::get<JournalState>(*wire::decodeEvent(enc(Event{j}))) == j);
 }
 
 TEST_CASE("container messages round-trip") {

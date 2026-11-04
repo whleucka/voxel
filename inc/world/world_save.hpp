@@ -5,6 +5,7 @@
 #include "core/game_mode.hpp"
 #include "item/item_stack.hpp"
 #include "item/smelting.hpp"
+#include "journal/journal.hpp"
 #include "robin_hood/robin_hood.h"
 #include "world/pin.hpp"
 #include "world/worldgen_version.hpp"
@@ -88,6 +89,11 @@ bool saveInventory(const std::string &dir, std::span<const ItemStack> slots);
 bool loadDiscovered(const std::string &dir, std::vector<ItemId> &out);
 bool saveDiscovered(const std::string &dir, std::span<const ItemId> ids);
 
+// journal.dat — the host's journal: deeds, creatures met, chain stamps.
+// Worlds from before the journal have none.
+bool loadJournal(const std::string &dir, JournalProgress &out);
+bool saveJournal(const std::string &dir, const JournalProgress &j);
+
 // furnaces.dat — every furnace's slots and timers, by block position.
 // Worlds from before smelting have none.
 struct FurnaceRecord {
@@ -165,6 +171,8 @@ struct GuestRecord {
   // Every item they've ever had (crafting discovery). A trailing section:
   // records from before crafting load with none.
   std::vector<ItemId> discovered;
+  // Their journal: another trailing section, after the pins.
+  JournalProgress journal;
 };
 bool saveGuest(const std::string &dir, const std::string &name, const GuestRecord &rec);
 // Every readable record under dir/players/, keyed by name. Missing folder:

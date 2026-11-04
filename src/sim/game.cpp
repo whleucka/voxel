@@ -24,7 +24,7 @@ namespace {
 constexpr const char *kWorldFiles[] = {"level.dat",     "player.dat",     "edits.dat",
                                        "inventory.dat", "discovered.dat", "furnaces.dat",
                                        "chests.dat",    "farms.dat",      "boats.dat",
-                                       "pets.dat"};
+                                       "pets.dat",      "journal.dat"};
 
 std::vector<ItemId> seenList(const SeenItems &seen) {
   std::vector<ItemId> out;
@@ -83,6 +83,9 @@ bool Game::load(const std::string &dir) {
   if (std::vector<ItemId> ids; WorldSave::loadDiscovered(dir, ids))
     saved_discovered = std::move(ids);
   else setAside("discovered.dat");
+  saved_journal.reset();
+  if (JournalProgress j; WorldSave::loadJournal(dir, j)) saved_journal = j;
+  else setAside("journal.dat");
   furnaces_.clear();
   if (std::vector<WorldSave::FurnaceRecord> fs; WorldSave::loadFurnaces(dir, fs))
     for (const auto &r : fs) furnaces_[r.pos] = r.furnace;
@@ -163,6 +166,8 @@ bool Game::save() {
   if (host) inv.emplace(host->inventory.slots().begin(), host->inventory.slots().end());
   std::optional<std::vector<ItemId>> discovered = saved_discovered;
   if (host) discovered = seenList(host->seen);
+  std::optional<JournalProgress> journal = saved_journal;
+  if (host) journal = host->journal;
 
   // Guests in the game now, then everyone who has ever played here.
   for (const Client &c : clients)
@@ -205,7 +210,8 @@ bool Game::save() {
       !WorldSave::saveBoats(save_dir, boats) ||
       !WorldSave::savePets(save_dir, pets) ||
       (inv && !WorldSave::saveInventory(save_dir, *inv)) ||
-      (discovered && !WorldSave::saveDiscovered(save_dir, *discovered)) || !guests_ok) {
+      (discovered && !WorldSave::saveDiscovered(save_dir, *discovered)) ||
+      (journal && !WorldSave::saveJournal(save_dir, *journal)) || !guests_ok) {
     std::cerr << "Failed to save world '" << g_settings.world_name << "'\n";
     return false;
   }
@@ -259,6 +265,7 @@ void Game::storeGuest(const PlayerState &ps) {
                 static_cast<uint8_t>(ps.fly ? 1 : 0), ps.bed, ps.pins};
   rec.inventory.assign(ps.inventory.slots().begin(), ps.inventory.slots().end());
   rec.discovered = seenList(ps.seen);
+  rec.journal = ps.journal;
   guest_records[ps.name] = std::move(rec);
 }
 
@@ -480,12 +487,14 @@ void Game::tick() {
   mergeDroppedItems();
   pickUpDroppedItems();
   tickSleep();
+  if (tick_count % (1000 / kTickMs) == 0) tickJournal();
   announceDeaths();
 
   ++tick_count;
   flushVitals();
   flushSleep();
   flushWaypoints();
+  flushJournal();
   sendEntitySnapshots();
   if (tick_count % kTimeSyncTicks == 0)
     for (Client &client : clients)
@@ -667,6 +676,7 @@ bool Game::unlockTreasure(Client &client, PlayerState &ps, glm::ivec3 pos) {
   if (ps.inventory.slot(ps.selected_slot).id != ItemId::TREASURE_KEY) return false;
   ps.inventory.take(ps.selected_slot, 1);
   sendInventory(client, ps);
+  recordDeed(ps, Deed::OpenedTreasure);
   world_.setBlockAt(pos, BlockType::CHEST);
   broadcast(BlockChanged{pos, BlockType::CHEST});
   chests_[pos] = rollTreasure(rng_);
@@ -723,6 +733,7 @@ void Game::apply(Client &client, const Join &cmd) {
     for (int i = 0; i < kInventorySlots && i < static_cast<int>(rec->inventory.size()); ++i)
       ps.inventory.set(i, rec->inventory[i]);
     for (ItemId id : rec->discovered) see(ps.seen, id);
+    ps.journal = rec->journal;
   } else if (client.role == Role::Host && saved_inventory) {
     for (int i = 0; i < kInventorySlots && i < static_cast<int>(saved_inventory->size()); ++i)
       ps.inventory.set(i, (*saved_inventory)[i]);
@@ -735,6 +746,14 @@ void Game::apply(Client &client, const Join &cmd) {
     for (ItemId id : *saved_discovered) see(ps.seen, id);
     saved_discovered.reset();
   }
+  if (client.role == Role::Host && saved_journal) {
+    ps.journal = *saved_journal;
+    saved_journal.reset();
+  }
+  // A pet tamed before the journal still counts.
+  if (mode_ == GameMode::Survival)
+    for (const auto &[eid, e] : entities_.all())
+      if (e.pet && ownsPet(client, ps, *e.pet)) ps.journal.set(Deed::TamedPet);
 
   // A guest builds its own copy of the world before it hears it has joined.
   if (client.role == Role::Guest)
@@ -1288,8 +1307,10 @@ void Game::tickSleep() {
   // Everyone's asleep: morning, and up they get.
   clock_.time_of_day = kWakeTime;
   for (auto &[pid, ps] : players)
-    if (ps.sleeping_in)
+    if (ps.sleeping_in) {
+      recordDeed(ps, Deed::Slept);
       if (Client *c = clientOf(pid)) wake(*c, ps);
+    }
   for (Client &c : clients)
     if (c.player && c.role == Role::Guest)
       c.link->deliver(TimeSync{clock_.time_of_day, clock_.scale});
@@ -1391,6 +1412,54 @@ void Game::sendMapPlayers() {
   }
 }
 
+// ─── Journal ───────────────────────────────────────────────────────────
+
+void Game::recordDeed(PlayerState &ps, Deed deed) {
+  if (mode_ != GameMode::Survival) return;
+  ps.journal.set(deed);
+}
+
+void Game::tickJournal() {
+  if (mode_ != GameMode::Survival) return;
+  std::vector<std::string> lines;
+  for (auto &[pid, ps] : players) {
+    if (!ps.vitals.dead())
+      for (const auto &[eid, e] : entities_.all()) {
+        if (!isJournalCreature(e.kind) || ps.journal.hasMet(e.kind)) continue;
+        if (isEnemy(e.kind) && e.health <= 0) continue;
+        if (glm::distance(e.body.position, ps.position) <= kMeetRange) ps.journal.meet(e.kind);
+      }
+
+    if (!ps.journal_noted) {
+      ps.journal_noted = PlayerState::JournalNoted{ps.seen, ps.journal};
+      continue;
+    }
+    const auto &noted = *ps.journal_noted;
+    Client *client = clientOf(pid);
+    for (const Entry *e : newlyFilled(noted.seen, noted.progress, ps.seen, ps.journal))
+      if (client)
+        client->link->deliver(Notice{"New in your journal: " + std::string(entryName(*e))});
+    for (int p = 0; p < kPageCount; ++p) {
+      const JournalPage page = static_cast<JournalPage>(p);
+      const PageCount was = pageCount(page, noted.seen, noted.progress);
+      const PageCount now = pageCount(page, ps.seen, ps.journal);
+      if (now.filled == now.total && was.filled < was.total)
+        lines.push_back(ps.name + " found every " + std::string(pageEvery(page)) + "!");
+    }
+    ps.journal_noted = PlayerState::JournalNoted{ps.seen, ps.journal};
+  }
+  for (const std::string &line : lines) postChat(0, "", line);
+}
+
+void Game::flushJournal() {
+  for (Client &client : clients) {
+    PlayerState *ps = playerFor(client);
+    if (!ps || ps->journal_sent == ps->journal) continue;
+    ps->journal_sent = ps->journal;
+    client.link->deliver(toWire(ps->journal));
+  }
+}
+
 // ─── Farming ───────────────────────────────────────────────────────────
 
 namespace {
@@ -1443,6 +1512,7 @@ void Game::till(Client &client, PlayerState &ps, glm::ivec3 pos) {
   broadcast(BlockChanged{pos, tilled});
   broadcast(SoundCue{Cue::BlockPlace, glm::vec3(pos) + 0.5f, tilled});
   soil_[pos] = soil;
+  recordDeed(ps, Deed::Tilled);
   // Grass sometimes turns up a seed, which pops out of the soil.
   if (rules().block_drops)
     if (auto seed = seedFromTilling(target, rng_))
@@ -2019,6 +2089,7 @@ void Game::apply(Client &client, const InteractEntity &cmd) {
 
   ps->inventory.take(ps->selected_slot, 1);
   sendInventory(client, *ps);
+  recordDeed(*ps, Deed::FedAnimal);
   e->happy_ms = kHappyMs;
   e->fed_cooldown_ms = kFedCooldownMs;
   e->product_delay_ms = kProductDelayMs;
@@ -2074,6 +2145,7 @@ void Game::interactPet(Client &client, PlayerState &ps, Entity &e) {
   std::uniform_int_distribution<int> colour(1, kCollarColours);
   e.pet = PetOwner{client.role == Role::Host, ps.name, static_cast<uint8_t>(colour(rng_)),
                    false};
+  recordDeed(ps, Deed::TamedPet);
   client.link->deliver(Notice{"The " + std::string(def.name) + " is your pet now!"});
 }
 
@@ -2468,6 +2540,7 @@ void Game::apply(Client &client, const BoardBoat &cmd) {
   if (seat == kBoatSeats) return reject(client, "board: the boat is full");
 
   ps->riding = PlayerState::Riding{cmd.id, seat};
+  recordDeed(*ps, Deed::Sailed);
   ps->breaking.reset();
   ps->crouch = false;
   ps->fall.reset();

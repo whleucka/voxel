@@ -4,6 +4,7 @@
 #include "entity/boat.hpp"
 #include "inventory/inventory.hpp"
 #include "item/recipes.hpp"
+#include "journal/journal.hpp"
 #include "vitals/vitals.hpp"
 #include "sim/chat.hpp"
 #include "sim/protocol.hpp"
@@ -26,6 +27,12 @@ struct PlayerState {
   Inventory inventory;
   SeenItems seen;          // every item they've ever had: unlocks recipes
   SeenItems seen_sent;     // the part of `seen` their client has been told
+  JournalProgress journal;                    // deeds, creatures met, stamps
+  std::optional<JournalProgress> journal_sent; // last JournalState sent to the owner
+  // What the journal last took note of: finds since are "new". Unset until
+  // the first journal check after joining, so old finds aren't announced.
+  struct JournalNoted { SeenItems seen; JournalProgress progress; };
+  std::optional<JournalNoted> journal_noted;
   std::optional<glm::ivec3> open_container; // the furnace they're looking in
   struct Breaking { glm::ivec3 pos{0}; uint64_t since_ms = 0; };
   std::optional<Breaking> breaking;         // from StartBreak (survival)

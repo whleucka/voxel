@@ -7,12 +7,12 @@
 TEST_CASE("journal pages list the spec's entries") {
   SeenItems none;
   JournalProgress j;
-  CHECK(pageCount(Page::Creatures, none, j).total == 11);
-  CHECK(pageCount(Page::Fish, none, j).total == 4);
-  CHECK(pageCount(Page::GemsOres, none, j).total == 7);
-  CHECK(pageCount(Page::Plants, none, j).total == 17);
+  CHECK(pageCount(JournalPage::Creatures, none, j).total == 11);
+  CHECK(pageCount(JournalPage::Fish, none, j).total == 4);
+  CHECK(pageCount(JournalPage::GemsOres, none, j).total == 7);
+  CHECK(pageCount(JournalPage::Plants, none, j).total == 17);
   for (int p = 0; p < kPageCount; ++p)
-    CHECK(pageCount(static_cast<Page>(p), none, j).filled == 0);
+    CHECK(pageCount(static_cast<JournalPage>(p), none, j).filled == 0);
 }
 
 TEST_CASE("every journal entry is real, named, hinted and listed once") {
@@ -23,7 +23,7 @@ TEST_CASE("every journal entry is real, named, hinted and listed once") {
     CHECK(!e.hint.empty());
     CHECK(names.insert(entryName(e)).second);
     if (const auto *k = std::get_if<EntityKind>(&e.what)) {
-      CHECK(e.page == Page::Creatures);
+      CHECK(e.page == JournalPage::Creatures);
       CHECK(isJournalCreature(*k));
       CHECK(e.portrait >= 0);
       CHECK(portraits.insert(e.portrait).second);
@@ -57,10 +57,10 @@ TEST_CASE("item entries fill from seen items, creatures from meeting") {
   see(seen, ItemId::RAW_GLOWFIN);
   see(seen, itemForBlock(BlockType::DAISY));
   j.meet(EntityKind::Zombie);
-  CHECK(pageCount(Page::Fish, seen, j).filled == 1);
-  CHECK(pageCount(Page::Plants, seen, j).filled == 1);
-  CHECK(pageCount(Page::Creatures, seen, j).filled == 1);
-  CHECK(pageCount(Page::GemsOres, seen, j).filled == 0);
+  CHECK(pageCount(JournalPage::Fish, seen, j).filled == 1);
+  CHECK(pageCount(JournalPage::Plants, seen, j).filled == 1);
+  CHECK(pageCount(JournalPage::Creatures, seen, j).filled == 1);
+  CHECK(pageCount(JournalPage::GemsOres, seen, j).filled == 0);
 }
 
 TEST_CASE("newlyFilled lists only the new finds") {

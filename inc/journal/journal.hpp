@@ -36,19 +36,26 @@ struct JournalProgress {
   void meet(EntityKind k);
 };
 
+struct JournalState;
+JournalState toWire(const JournalProgress &j);
+JournalProgress fromWire(const JournalState &s);
+
 // The creature kinds the Creatures page lists: met by being near a living one.
 bool isJournalCreature(EntityKind k);
 
 // Collections.
-enum class Page : uint8_t { Creatures, Fish, GemsOres, Plants };
+enum class JournalPage : uint8_t { Creatures, Fish, GemsOres, Plants };
 constexpr int kPageCount = 4;
-std::string_view pageTitle(Page p);
+std::string_view pageTitle(JournalPage p);
+// "Pat found every <this>!": creature, fish, gem and ore, plant.
+std::string_view pageEvery(JournalPage p);
 
 struct Entry {
-  Page page;
+  JournalPage page;
   std::variant<ItemId, EntityKind> what;
   std::string_view hint;  // where to look: shown even before it's found
   int portrait = -1;      // creatures: tile in journal.png (row 0)
+  std::string_view name = {}; // instead of the item's ("Glowfin", not "Raw Glowfin")
 };
 const std::vector<Entry> &entries();
 
@@ -56,7 +63,7 @@ std::string_view entryName(const Entry &e);
 bool entryFilled(const Entry &e, const SeenItems &seen, const JournalProgress &j);
 
 struct PageCount { int filled = 0; int total = 0; };
-PageCount pageCount(Page p, const SeenItems &seen, const JournalProgress &j);
+PageCount pageCount(JournalPage p, const SeenItems &seen, const JournalProgress &j);
 
 // Entries filled in `now` that weren't in `before` (same progress for both,
 // save for the seen items), in entries() order: for "New in your journal".

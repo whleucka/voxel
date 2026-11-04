@@ -1,5 +1,6 @@
 #include "journal/journal.hpp"
 #include "block/block_type.hpp"
+#include "sim/protocol.hpp"
 
 bool JournalProgress::hasMet(EntityKind k) const {
   const auto v = static_cast<size_t>(k);
@@ -9,6 +10,15 @@ bool JournalProgress::hasMet(EntityKind k) const {
 void JournalProgress::meet(EntityKind k) {
   const auto v = static_cast<size_t>(k);
   if (v < met.size()) met.set(v);
+}
+
+JournalState toWire(const JournalProgress &j) {
+  return {static_cast<uint16_t>(j.deeds.to_ulong()), static_cast<uint32_t>(j.met.to_ulong()),
+          static_cast<uint16_t>(j.stamps.to_ulong())};
+}
+
+JournalProgress fromWire(const JournalState &s) {
+  return {Deeds(s.deeds), Met(s.met), Stamps(s.stamps)};
 }
 
 bool isJournalCreature(EntityKind k) {
@@ -23,18 +33,28 @@ bool isJournalCreature(EntityKind k) {
   }
 }
 
-std::string_view pageTitle(Page p) {
+std::string_view pageTitle(JournalPage p) {
   switch (p) {
-    case Page::Creatures: return "Creatures";
-    case Page::Fish:      return "Fish";
-    case Page::GemsOres:  return "Gems & Ores";
-    case Page::Plants:    return "Plants";
+    case JournalPage::Creatures: return "Creatures";
+    case JournalPage::Fish:      return "Fish";
+    case JournalPage::GemsOres:  return "Gems & Ores";
+    case JournalPage::Plants:    return "Plants";
+  }
+  return "";
+}
+
+std::string_view pageEvery(JournalPage p) {
+  switch (p) {
+    case JournalPage::Creatures: return "creature";
+    case JournalPage::Fish:      return "fish";
+    case JournalPage::GemsOres:  return "gem and ore";
+    case JournalPage::Plants:    return "plant";
   }
   return "";
 }
 
 const std::vector<Entry> &entries() {
-  using enum Page;
+  using enum JournalPage;
   auto block = [](BlockType b) { return itemForBlock(b); };
   static const std::vector<Entry> list = {
       {Creatures, EntityKind::Woolly, "Mountains and plains. Loves leaves.", 0},
@@ -49,9 +69,9 @@ const std::vector<Entry> &entries() {
       {Creatures, EntityKind::Mummy, "Wanders the desert, even by day.", 9},
       {Creatures, EntityKind::CaveGrumble, "Grumbles deep in dark caves.", 10},
 
-      {Fish, ItemId::RAW_PEBBLEFISH, "Lakes and rivers. Catch one with a rod.", -1},
-      {Fish, ItemId::RAW_SUNFIN, "Out in the sea.", -1},
-      {Fish, ItemId::RAW_GLOWFIN, "Cave pools. It glows!", -1},
+      {Fish, ItemId::RAW_PEBBLEFISH, "Lakes and rivers. Catch one with a rod.", -1, "Pebblefish"},
+      {Fish, ItemId::RAW_SUNFIN, "Out in the sea.", -1, "Sunfin"},
+      {Fish, ItemId::RAW_GLOWFIN, "Cave pools. It glows!", -1, "Glowfin"},
       {Fish, ItemId::SOGGY_BOOT, "Sometimes the line catches... this.", -1},
 
       {GemsOres, ItemId::COAL, "Black specks in stone. Needs a stone pick.", -1},
@@ -84,6 +104,7 @@ const std::vector<Entry> &entries() {
 }
 
 std::string_view entryName(const Entry &e) {
+  if (!e.name.empty()) return e.name;
   if (const auto *k = std::get_if<EntityKind>(&e.what)) return entityType(*k).name;
   return itemDef(std::get<ItemId>(e.what)).name;
 }
@@ -94,7 +115,7 @@ bool entryFilled(const Entry &e, const SeenItems &seen, const JournalProgress &j
   return v < seen.size() && seen.test(v);
 }
 
-PageCount pageCount(Page p, const SeenItems &seen, const JournalProgress &j) {
+PageCount pageCount(JournalPage p, const SeenItems &seen, const JournalProgress &j) {
   PageCount c;
   for (const Entry &e : entries()) {
     if (e.page != p) continue;
