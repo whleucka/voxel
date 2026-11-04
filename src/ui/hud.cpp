@@ -52,25 +52,19 @@ void Hud::drawIcon(ImDrawList *dl, const Rect &r, ItemId id, float alpha) const 
     if (!block_tex) return;
     auto tex = block_data.find(*def.places);
     if (tex == block_data.end()) return;
-    UvRect top = tileUv(tex->second.top, kBlockAtlasTiles);
-    UvRect side = tileUv(tex->second.side, kBlockAtlasTiles);
     if (hasFlatIcon(*def.places)) {
+      UvRect side = tileUv(tex->second.side, kBlockAtlasTiles);
       dl->AddImage(static_cast<ImTextureID>(block_tex), ImVec2(r.x + pad, r.y + pad),
                    ImVec2(r.right() - pad, r.bottom() - pad), iv(side.uv0), iv(side.uv1),
                    rgba(255, 255, 255, alpha));
       return;
     }
-    CubeQuads c = cubeQuads(r, pad);
+    // Darker left, lighter right, full-bright top.
     ImTextureID t = static_cast<ImTextureID>(block_tex);
-    auto face = [&](const Quad &q, const UvRect &uv, int shade) {
-      dl->AddImageQuad(t, iv(q.p[0]), iv(q.p[1]), iv(q.p[2]), iv(q.p[3]),
-                       ImVec2(uv.uv0.x, uv.uv0.y), ImVec2(uv.uv1.x, uv.uv0.y),
-                       ImVec2(uv.uv1.x, uv.uv1.y), ImVec2(uv.uv0.x, uv.uv1.y),
-                       rgba(shade, shade, shade, alpha));
-    };
-    face(c.left, side, 150);  // darker left, lighter right, full-bright top
-    face(c.right, side, 205);
-    face(c.top, top, 255);
+    for (const IconFace &f : iconFaces(r, pad, iconModel(*def.places)))
+      dl->AddImageQuad(t, iv(f.quad.p[0]), iv(f.quad.p[1]), iv(f.quad.p[2]), iv(f.quad.p[3]),
+                       iv(f.uv[0]), iv(f.uv[1]), iv(f.uv[2]), iv(f.uv[3]),
+                       rgba(f.shade, f.shade, f.shade, alpha));
     return;
   }
 
