@@ -17,7 +17,8 @@ SoundEvent FootstepDirector::sound(State &s, const Walker &w, StepSet set, float
   e.positional = !w.local;
   e.volume = volume * (w.crouch ? kCrouchVolume : 1.0f) *
              std::uniform_real_distribution<float>(0.9f, 1.1f)(rng);
-  e.pitch = std::uniform_real_distribution<float>(0.94f, 1.06f)(rng);
+  e.pitch = std::uniform_real_distribution<float>(0.94f, 1.06f)(rng) *
+            (set == StepSet::Dirt ? kDirtPitch : 1.0f);
   return e;
 }
 

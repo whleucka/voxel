@@ -12,9 +12,8 @@
 bool audioFileReadable(const std::string &path);
 
 // The recordings for each effect, in Effect order: as many as
-// kEffectVariants says, under `dir`. Every step set uses the same RPG
-// footsteps for now; one with its own recordings only needs its paths
-// changed here.
+// kEffectVariants says, under `dir`. Each step set has its own footsteps,
+// but dirt (and sand) has none of its own: it plays grass's, pitched down.
 using EffectPaths = std::array<std::vector<std::string>, kEffectCount>;
 EffectPaths effectPaths(const std::string &dir = "assets/sound-effects");
 

@@ -41,6 +41,7 @@ public:
   static constexpr float kHearing = 16.0f;      // others, in blocks
   static constexpr float kTeleport = 4.0f;      // a jump this far in a frame
   static constexpr float kCrouchVolume = 0.5f;
+  static constexpr float kDirtPitch = 0.8f;     // dirt plays grass's steps, lower
   static constexpr float kJumpLandVolume = 0.6f;
   static constexpr float kMinLandAir = 0.5f;    // seconds in the air
   static constexpr float kMinLandDrop = 1.0f;   // or blocks fallen

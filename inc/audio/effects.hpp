@@ -19,9 +19,9 @@ enum class Effect : uint8_t {
 };
 inline constexpr std::size_t kEffectCount = 15;
 
-// How many recordings each effect has. Every step set shares the same ten
-// for now (see effectPaths).
-inline constexpr std::array<int, kEffectCount> kEffectVariants = {10, 10, 10, 10, 10, 10, 2, 4,
+// How many recordings each effect has. Dirt shares grass's, a little lower
+// (see effectPaths and FootstepDirector).
+inline constexpr std::array<int, kEffectCount> kEffectVariants = {5, 5, 5, 5, 5, 5, 2, 4,
                                                                   5,  5,  5,  5,  5,  5,  5};
 
 inline Effect stepEffect(StepSet s) { return static_cast<Effect>(s); }
