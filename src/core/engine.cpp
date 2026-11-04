@@ -549,6 +549,7 @@ void Engine::handleEvents() {
       player->setFlyAllowed(rulesFor(game_mode).fly);
       riding_view.reset();
       known_items.reset();
+      journal = {};
       known_baseline = true;
       container_view.reset();
       inventory_screen.setContainer(std::nullopt);
@@ -623,6 +624,9 @@ void Engine::handleEvents() {
         container_view.reset(); // walked away, or it's gone: back to crafting
         inventory_screen.setContainer(std::nullopt);
       }
+    }
+    else if (const auto *js = std::get_if<JournalState>(&ev)) {
+      journal = fromWire(*js);
     }
     else if (const auto *known = std::get_if<KnownItems>(&ev)) {
       // Recipes this unlocks get a popup, except for the whole set on joining.
@@ -790,7 +794,10 @@ void Engine::render() {
 
   const ImGuiIO &io = ImGui::GetIO();
   HudLayout layout(io.DisplaySize.x, io.DisplaySize.y);
-  if (player->isInventoryOpen()) {
+  if (journal_open) {
+    if (journal_book.draw(hud, known_items, journal, game_mode == GameMode::Creative))
+      setInventoryOpen(false);
+  } else if (player->isInventoryOpen()) {
     hud.drawInventoryScreen(layout, inventory_view, inventory_screen,
                             {io.MousePos.x, io.MousePos.y});
     if (rulesFor(game_mode).palette)
@@ -1327,9 +1334,19 @@ void Engine::keyCallback(GLFWwindow *window, int key, int, int action, int mods)
         engine->connection().send(TogglePin{});
       break;
 
-    // Inventory toggle
+    // Inventory toggle (closes the journal, if that's what's open)
     case GLFW_KEY_E:
       engine->setInventoryOpen(!engine->player->isInventoryOpen());
+      break;
+
+    // The journal: over the game, with a free cursor like the inventory
+    case GLFW_KEY_J:
+      if (engine->journal_open) {
+        engine->setInventoryOpen(false);
+      } else if (!engine->player->isInventoryOpen() && !engine->inBed()) {
+        engine->setInventoryOpen(true);
+        engine->journal_open = true;
+      }
       break;
 
     // Q drops one of the held item, Ctrl+Q the whole stack
@@ -1405,6 +1422,7 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
   // Inventory screen: clicks move items instead of breaking/placing. Clicks
   // on an ImGui window (the F12 panel) belong to that window.
   if (engine->player->isInventoryOpen()) {
+    if (engine->journal_open) return; // the book's window takes its own clicks
     const ImGuiIO &io = ImGui::GetIO();
     if (io.WantCaptureMouse) return;
     HudLayout layout(io.DisplaySize.x, io.DisplaySize.y);
@@ -1592,6 +1610,7 @@ void Engine::scrollCallback(GLFWwindow *window, double, double yoffset) {
 
   // Over the crafting panel the wheel scrolls its list (clamped when drawn).
   if (player->isInventoryOpen()) {
+    if (engine->journal_open) return; // the book scrolls itself
     const ImGuiIO &io = ImGui::GetIO();
     HudLayout layout(io.DisplaySize.x, io.DisplaySize.y);
     if (layout.craftingPanel().contains(io.MousePos.x, io.MousePos.y)) {
@@ -1679,6 +1698,7 @@ void Engine::setInventoryOpen(bool open) {
   if (player->isInventoryOpen() == open) return;
   player->toggleInventory();
   if (!open) {
+    journal_open = false;
     inventory_screen.close(); // drop any pick-up; nothing was moved yet
     if (container_view) {
       connection().send(CloseContainer{});

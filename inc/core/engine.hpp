@@ -10,6 +10,7 @@
 #include "core/session.hpp"
 #include "ui/chat_view.hpp"
 #include "ui/hud.hpp"
+#include "ui/journal_view.hpp"
 #include "ui/pause_menu.hpp"
 #include "ui/title_menu.hpp"
 #include "render/menu_scene.hpp"
@@ -98,6 +99,9 @@ private:
   }
   InventoryScreen inventory_screen;
   SeenItems known_items;       // from KnownItems: what unlocks recipes
+  JournalProgress journal;     // from JournalState
+  JournalView journal_book;    // the book (J), drawn while journal_open
+  bool journal_open = false;   // over the game, with the inventory's free cursor
   bool known_baseline = true;  // the first KnownItems after joining: no popup
   int crafting_scroll = 0;     // first crafting row shown
   std::optional<ContainerView> container_view; // the furnace being looked into

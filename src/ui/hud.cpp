@@ -6,6 +6,7 @@
 #include "imgui/imgui.h"
 #include "render/texture_util.hpp"
 #include "ui/item_icon_geometry.hpp"
+#include "ui/portrait.hpp"
 #include "vitals/vitals.hpp"
 #include <algorithm>
 #include <cmath>
@@ -44,7 +45,8 @@ bool Hud::init(const std::string &block_atlas, const std::string &item_atlas) {
 
 // ─── Pieces ────────────────────────────────────────────────────────────
 
-void Hud::drawIcon(ImDrawList *dl, const Rect &r, ItemId id, float alpha) const {
+void Hud::drawIcon(ImDrawList *dl, const Rect &r, ItemId id, float alpha, float tint) const {
+  const int white = static_cast<int>(255 * std::clamp(tint, 0.0f, 1.0f));
   const ItemDef &def = itemDef(id);
   float pad = std::round(r.w * 0.14f);
 
@@ -56,15 +58,17 @@ void Hud::drawIcon(ImDrawList *dl, const Rect &r, ItemId id, float alpha) const 
       UvRect side = tileUv(tex->second.side, kBlockAtlasTiles);
       dl->AddImage(static_cast<ImTextureID>(block_tex), ImVec2(r.x + pad, r.y + pad),
                    ImVec2(r.right() - pad, r.bottom() - pad), iv(side.uv0), iv(side.uv1),
-                   rgba(255, 255, 255, alpha));
+                   rgba(white, white, white, alpha));
       return;
     }
     // Darker left, lighter right, full-bright top.
     ImTextureID t = static_cast<ImTextureID>(block_tex);
-    for (const IconFace &f : iconFaces(r, pad, iconModel(*def.places)))
+    for (const IconFace &f : iconFaces(r, pad, iconModel(*def.places))) {
+      const int shade = f.shade * white / 255;
       dl->AddImageQuad(t, iv(f.quad.p[0]), iv(f.quad.p[1]), iv(f.quad.p[2]), iv(f.quad.p[3]),
                        iv(f.uv[0]), iv(f.uv[1]), iv(f.uv[2]), iv(f.uv[3]),
-                       rgba(f.shade, f.shade, f.shade, alpha));
+                       rgba(shade, shade, shade, alpha));
+    }
     return;
   }
 
@@ -72,7 +76,19 @@ void Hud::drawIcon(ImDrawList *dl, const Rect &r, ItemId id, float alpha) const 
   UvRect uv = iconUv(def.icon);
   dl->AddImage(static_cast<ImTextureID>(item_tex), ImVec2(r.x + pad, r.y + pad),
                ImVec2(r.right() - pad, r.bottom() - pad), iv(uv.uv0), iv(uv.uv1),
-               rgba(255, 255, 255, alpha));
+               rgba(white, white, white, alpha));
+}
+
+void Hud::drawPortrait(ImDrawList *dl, const Rect &r, EntityKind kind, float alpha,
+                       float tint) const {
+  const float pad = std::round(r.w * 0.1f);
+  const Rect inner{r.x + pad, r.y + pad, r.w - 2 * pad, r.h - 2 * pad};
+  for (const PortraitFace &f : portraitFaces(entityType(kind).model, inner)) {
+    const glm::vec3 c = glm::clamp(f.color * tint, 0.0f, 1.0f) * 255.0f;
+    dl->AddQuadFilled(iv(f.quad.p[0]), iv(f.quad.p[1]), iv(f.quad.p[2]), iv(f.quad.p[3]),
+                      rgba(static_cast<int>(c.r), static_cast<int>(c.g), static_cast<int>(c.b),
+                           alpha));
+  }
 }
 
 void Hud::drawCount(ImDrawList *dl, const Rect &r, uint16_t count, float alpha) const {

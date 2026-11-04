@@ -90,6 +90,14 @@ public:
   void drawMinimap(const HudLayout &layout, const Minimap &map, glm::vec3 feet, float yaw,
                    const Waypoints *waypoints, const std::vector<MapPlayer> &others);
 
+  // For the journal: an item's icon, or a creature's portrait. `tint` 0 is
+  // a dark silhouette (not found yet), 1 the real colours.
+  void drawItemIcon(ImDrawList *dl, const Rect &r, ItemId id, float alpha, float tint) const {
+    drawIcon(dl, r, id, alpha, tint);
+  }
+  void drawPortrait(ImDrawList *dl, const Rect &r, EntityKind kind, float alpha,
+                    float tint) const;
+
 private:
   static constexpr double kNameShowSeconds = 1.5;
   static constexpr double kNameFadeSeconds = 0.5;
@@ -108,7 +116,7 @@ private:
 
   void drawSlot(ImDrawList *dl, const Rect &r, const ItemStack &s,
                 bool highlighted, float alpha, int number_label) const;
-  void drawIcon(ImDrawList *dl, const Rect &r, ItemId id, float alpha) const;
+  void drawIcon(ImDrawList *dl, const Rect &r, ItemId id, float alpha, float tint = 1.0f) const;
   void drawCount(ImDrawList *dl, const Rect &r, uint16_t count, float alpha) const;
   // A row of 10 icons for a 0..20 value (2 points per icon, halves allowed).
   // `dim` darkens the filled icons (hearts that won't come back unfed).

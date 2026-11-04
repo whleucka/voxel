@@ -16,6 +16,7 @@
   - Friendly Woollies, Bunnies, Shell Turtles and Blossom Deer. Feed them and they give you something back: a Woolly eats any leaves and gives you wool.
   - At night, Gloomlings, Thorn Crawlers and Zombies come out, Mummies shuffle through the desert (and stay after sunrise), and Cave Grumbles lurk in the dark underground.
   - Pebblefish, Sunfin and glowing Glowfin swim in lakes, the sea and cave pools.
+- **Journal:** press **J** for your own book of everything you've found: every creature, fish, gem and plant, each a "???" with a clue until you find it ([more below](#journal)).
 - **Crafting:** discover recipes as you collect things, and build a Crafting Table for the bigger ones ([more below](#crafting)).
 - **Smelting:** a furnace that cooks raw ore into ingots, and sand into glass, while you're off exploring ([more below](#smelting)).
 - **Doors:** craft wooden doors, right-click to open and shut them; nothing gets through a closed one ([more below](#doors)).
@@ -105,12 +106,12 @@ Drawing blocks couldn't be *that* hard... *Right?*
 *   **Left Ctrl:** Sprint (uses stamina). **Left Shift:** Crouch, or get out of a boat.
 *   **Left click:** Hit a creature, pick up an empty boat, or break a block (hold it in survival).
 *   **Right click:** Place a block, put a boat on the water or get into one, feed an animal or pet, eat the food you're holding, cast and reel in a fishing rod, open a chest, furnace or Crafting Table, open and shut a door or a gate, sleep in a bed, pick berries, eat a slice of cake, till, plant and water with a hoe, seeds or a watering can, or use compost.
-*   **E:** Inventory. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
+*   **E:** Inventory. **J:** Journal. **1-0 / scroll:** Hotbar. **Q / Ctrl+Q:** Drop one / the stack.
 *   **F:** Toggle fly mode (creative worlds only). Space and Shift fly up and down.
 *   **T:** Chat. Type and press Enter (or click Send); Esc closes it.
 *   **P:** Drop a map pin where you stand, or pick up the one next to you.
 *   **V:** Change the view: first person, from behind, or from in front.
-*   **ESC:** Close the inventory, or open the pause menu (Resume, Settings,
+*   **ESC:** Close the inventory or the journal, or open the pause menu (Resume, Settings,
     Save game, Return to title screen, Exit game). Single player pauses.
 *   **F5:** Save the world. **F11:** Toggle fullscreen.
 *   **F12:** Debug panel (info, stats, where each frame's time goes on the CPU and GPU, wireframe, V-sync and host cheats).
@@ -181,6 +182,22 @@ To try a new version, export your painting over its cell in
 the atlas). Clear pixels show as see-through on glass, leaves and glow
 crystals. To go back to the generated art, run
 `python3 tools/gen_building_tiles.py --only glow_crystal` (or any tile's name).
+
+## Journal
+
+Press **J** to open your journal. Its **Collections** tab has four pages:
+**Creatures**, **Fish**, **Gems & Ores** and **Plants**. Each entry is a dark
+"???" until you find it, and hovering over it shows a clue to where it lives.
+
+- **Creatures** are filled in when you get near one, friendly or not.
+- **Fish, gems and plants** are filled in the first time you hold one, even if
+  a friend gave it to you.
+- **New finds:** each one pops up "New in your journal". Fill a whole page
+  and everyone playing hears about it in chat.
+
+The journal keeps notes in survival worlds only. Everyone playing on the
+network has their own, and it's saved with the world. Worlds from before the
+journal start with everything you've already held filled in.
 
 ## Crafting
 
