@@ -87,6 +87,11 @@ std::optional<SoundEvent> CueSounds::sound(const SoundCue &cue, glm::vec3 listen
               std::uniform_real_distribution<float>(0.95f, 1.05f)(rng);
     return e;
   }
+  if (cue.cue == Cue::ChestOpen || cue.cue == Cue::ChestClose) {
+    SoundEvent e = pick(cue.cue == Cue::ChestOpen ? Effect::ChestOpen : Effect::ChestClose);
+    e.pitch = wobble();
+    return e;
+  }
   const bool gate = cue.cue == Cue::GateOpen || cue.cue == Cue::GateClose;
   const bool open = cue.cue == Cue::DoorOpen || cue.cue == Cue::GateOpen;
 

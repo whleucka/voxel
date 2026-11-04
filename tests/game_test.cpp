@@ -2958,6 +2958,58 @@ TEST_CASE_FIXTURE(DoorGame, "a door swinging sounds once, from the doorway, for 
   CHECK(broke[0].cue == Cue::BlockBreak);
 }
 
+TEST_CASE_FIXTURE(EditGame, "a chest opens for the first to look in and shuts after the last") {
+  glm::ivec3 at_{5, ground + 1, 5};
+  place(at_, BlockType::CHEST);
+  const glm::vec3 lid = glm::vec3(at_) + glm::vec3(0.5f, 1.0f, 0.5f);
+  other.send(MovePlayer{{6.5f, ground + 1.0f, 8.5f}, 0.0f, 0.0f, false, false});
+  game.pump();
+  pollAll(other);
+
+  auto opened = cues(run(OpenContainer{at_}));
+  REQUIRE(opened.size() == 1u);
+  CHECK(opened[0] == SoundCue{Cue::ChestOpen, lid});
+  CHECK(cues(pollAll(other)) == opened); // everyone near hears it
+  CHECK(cues(run(OpenContainer{at_})).empty()); // already looking in
+
+  // A second viewer: no creak, and no knock until both have left.
+  other.send(OpenContainer{at_});
+  game.pump();
+  CHECK(cues(pollAll(conn)).empty());
+  CHECK(cues(run(CloseContainer{})).empty());
+  other.send(CloseContainer{});
+  game.pump();
+  auto shut = cues(pollAll(conn));
+  REQUIRE(shut.size() == 1u);
+  CHECK(shut[0] == SoundCue{Cue::ChestClose, lid});
+  CHECK(cues(run(CloseContainer{})).empty()); // nothing open
+
+  // Walking away shuts it too.
+  run(OpenContainer{at_});
+  moveTo({5.5f, ground + 1.0f, 15.5f});
+  game.tick();
+  shut = cues(pollAll(conn));
+  REQUIRE(shut.size() == 1u);
+  CHECK(shut[0].cue == Cue::ChestClose);
+
+  // Looking from one chest into another shuts the first.
+  moveTo({5.5f, ground + 1.0f, 8.5f});
+  glm::ivec3 next{6, ground + 1, 5};
+  place(next, BlockType::CHEST);
+  run(OpenContainer{at_});
+  auto moved = cues(run(OpenContainer{next}));
+  REQUIRE(moved.size() == 2u);
+  CHECK(moved[0] == SoundCue{Cue::ChestClose, lid});
+  CHECK(moved[1].cue == Cue::ChestOpen);
+
+  // A furnace has no lid.
+  glm::ivec3 oven{4, ground + 1, 5};
+  place(oven, BlockType::FURNACE);
+  run(CloseContainer{});
+  CHECK(cues(run(OpenContainer{oven})).empty());
+  CHECK(cues(run(CloseContainer{})).empty());
+}
+
 TEST_CASE_FIXTURE(DoorGame, "breaking a block sounds once, for everyone, with what it was") {
   moveTo({5.5f, ground + 1.0f, 8.5f});
   const glm::ivec3 spot = door;

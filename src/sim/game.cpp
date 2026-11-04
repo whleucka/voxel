@@ -1798,12 +1798,33 @@ void Game::apply(Client &client, const OpenContainer &cmd) {
   } else {
     return reject(client, "open: that isn't a furnace or a chest");
   }
+  if (ps->open_container != cmd.pos) {
+    if (ps->open_container) leaveContainer(*ps);
+    // The lid creaks open for the first to look in.
+    if (chestAt(cmd.pos) && chestViewers(cmd.pos) == 0)
+      broadcast(SoundCue{Cue::ChestOpen, glm::vec3(cmd.pos) + glm::vec3(0.5f, 1.0f, 0.5f)});
+  }
   ps->open_container = cmd.pos;
   sendContainer(client, cmd.pos);
 }
 
 void Game::apply(Client &client, const CloseContainer &) {
-  if (PlayerState *ps = playerFor(client)) ps->open_container.reset();
+  if (PlayerState *ps = playerFor(client); ps && ps->open_container) leaveContainer(*ps);
+}
+
+void Game::leaveContainer(PlayerState &ps) {
+  const glm::ivec3 pos = *ps.open_container;
+  ps.open_container.reset();
+  // A chest that's gone (broken) makes its own sound.
+  if (chestAt(pos) && chestViewers(pos) == 0)
+    broadcast(SoundCue{Cue::ChestClose, glm::vec3(pos) + glm::vec3(0.5f, 1.0f, 0.5f)});
+}
+
+int Game::chestViewers(glm::ivec3 pos) {
+  int n = 0;
+  for (Client &c : clients)
+    if (PlayerState *ps = playerFor(c); ps && ps->open_container == pos) ++n;
+  return n;
 }
 
 Furnace *Game::openFurnace(const PlayerState &ps) {
@@ -1843,7 +1864,7 @@ void Game::closeContainer(Client &client, PlayerState &ps) {
   ContainerView closed;
   closed.pos = *ps.open_container;
   closed.open = false;
-  ps.open_container.reset();
+  leaveContainer(ps);
   client.link->deliver(closed);
 }
 

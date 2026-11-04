@@ -242,6 +242,10 @@ private:
   // Every player looking into the furnace at `pos` gets its current state.
   void sendContainerToViewers(glm::ivec3 pos);
   void closeContainer(Client &client, PlayerState &ps);
+  // Stop looking in their open furnace or chest; a chest's lid shuts (with
+  // a sound) once nobody is looking in it.
+  void leaveContainer(PlayerState &ps);
+  int chestViewers(glm::ivec3 pos);
   // Eye-to-box distance check shared by hitting and feeding.
   bool inReachOf(const PlayerState &ps, const Entity &e) const;
   void releaseAnimalProducts();

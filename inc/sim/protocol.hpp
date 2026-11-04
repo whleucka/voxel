@@ -321,8 +321,8 @@ struct ContainerView {
 // A sound for everyone near `position` to hear. The client picks which
 // recording plays, so a cue only says what happened.
 enum class Cue : uint8_t { DoorOpen, DoorClose, GateOpen, GateClose, BlockBreak, BlockPlace,
-                           BoatPlace };
-inline constexpr Cue kLastCue = Cue::BoatPlace;
+                           BoatPlace, ChestOpen, ChestClose };
+inline constexpr Cue kLastCue = Cue::ChestClose;
 struct SoundCue {
   Cue cue = Cue::DoorOpen;
   glm::vec3 position{0.0f};
