@@ -23,6 +23,7 @@ Renderer::~Renderer() {
   if (cloud_vao) glDeleteVertexArrays(1, &cloud_vao);
   if (cloud_vbo) glDeleteBuffers(1, &cloud_vbo);
   if (cloud_ebo) glDeleteBuffers(1, &cloud_ebo);
+  if (cloud_shadow_tex) glDeleteTextures(1, &cloud_shadow_tex);
   if (shadow_fbo) glDeleteFramebuffers(1, &shadow_fbo);
   if (shadow_depth_tex) glDeleteTextures(1, &shadow_depth_tex);
   shadow_timer.shutdown();
@@ -540,6 +541,35 @@ void Renderer::rebuildCloudMesh(int camCX, int camCZ) {
           solid[at(lx, ly, lz)] = 1;
       }
 
+  // Cloud shadows: a column with cloud in any layer shades the ground. The
+  // outer ring stays clear, so clamp-to-edge sampling past the map is clear too.
+  cloud_shadow.dim = dim;
+  cloud_shadow.origin = glm::vec2(camCX - range - 1, camCZ - range - 1) * kCloudCell;
+  cloud_shadow.cell = kCloudCell;
+  cloud_shadow.base = yBase;
+  cloud_shadow.cover.assign(static_cast<size_t>(dim) * dim, 0);
+  for (int lz = 1; lz < dim - 1; ++lz)
+    for (int lx = 1; lx < dim - 1; ++lx)
+      for (int ly = 0; ly < layers; ++ly)
+        if (solid[at(lx, ly, lz)]) {
+          cloud_shadow.cover[static_cast<size_t>(lz) * dim + lx] = 255;
+          break;
+        }
+  if (!cloud_shadow_tex) {
+    glGenTextures(1, &cloud_shadow_tex);
+    glBindTexture(GL_TEXTURE_2D, cloud_shadow_tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  }
+  glBindTexture(GL_TEXTURE_2D, cloud_shadow_tex);
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // rows of odd width
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, dim, dim, 0, GL_RED, GL_UNSIGNED_BYTE,
+               cloud_shadow.cover.data());
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+  glBindTexture(GL_TEXTURE_2D, 0);
+
   std::vector<float>        verts;
   std::vector<unsigned int> indices;
   size_t estCells = static_cast<size_t>(dim) * dim * layers / 4;  // ~25% solid
@@ -637,12 +667,17 @@ void Renderer::drawClouds(const glm::mat4 &view, const glm::mat4 &projection,
                           const glm::vec3 &cameraPos, float timeOfDay,
                           float cloudTime)
 {
-  if (!g_settings.clouds_enabled) return;
+  if (!g_settings.clouds_enabled) {
+    cloud_shadow = CloudShadowMap{}; // no clouds, no cloud shadows
+    cloud_last_cx = INT_MIN;         // rebuild when they come back
+    return;
+  }
 
   // Clouds drift along +X. Rather than baking the offset into vertex positions
   // (which would force a full remesh every frame), the mesh lives in a static
   // grid space and the drift rides on the model matrix.
   const float drift = cloudTime * g_settings.cloud_speed * kCloudDrift;
+  cloud_drift = drift; // the next frame's terrain shades with it
 
   // Camera's cell in grid space — the mesh only needs rebuilding when this
   // changes, or when the band's shape settings are edited live.
@@ -770,6 +805,14 @@ void Renderer::useBlockShader(const glm::mat4 &view, const glm::mat4 &projection
   block_shader->setInt("uShadowMap", 1);
   block_shader->setMat4("uLightSpaceMatrix", light_space_matrix);
   block_shader->setBool("uShadowsEnabled", g_settings.shadows_enabled);
+  // Cloud shadows on unit 2 (see cloud_shadow.hpp).
+  glActiveTexture(GL_TEXTURE2);
+  glBindTexture(GL_TEXTURE_2D, cloud_shadow_tex);
+  block_shader->setInt("uCloudShadow", 2);
+  block_shader->setBool("uCloudShadows", !cloud_shadow.empty());
+  block_shader->setVec2("uCloudOrigin", cloud_shadow.origin - glm::vec2(cloud_drift, 0.0f));
+  block_shader->setFloat("uCloudSpan", cloud_shadow.span());
+  block_shader->setFloat("uCloudBase", cloud_shadow.base);
   glActiveTexture(GL_TEXTURE0);
 
   block_shader->setMat4("view", view);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "render/cloud_shadow.hpp"
 #include "chunk/chunk.hpp"
 #include "render/gpu_timer.hpp"
 #include "render/shader.hpp"
@@ -92,6 +93,10 @@ public:
   static glm::vec3 skyColor(float timeOfDay);
   static SceneLighting sceneLighting(float timeOfDay);
   TextureManager &getTextureManager() { return *texture_manager; }
+  // Where the clouds are, for their shadows (empty while clouds are off),
+  // and how far they've drifted along +x.
+  const CloudShadowMap &cloudShadow() const { return cloud_shadow; }
+  float cloudDrift() const { return cloud_drift; }
 
 private:
   void useBlockShader(const glm::mat4 &view, const glm::mat4 &projection,
@@ -127,6 +132,11 @@ private:
   float   cloud_last_height = -1.0f;
   int     cloud_last_thickness = -1;
   float   cloud_last_fog_end = -1.0f;   // drives the mesh radius
+  // Cloud shadows: the columns' coverage, kept on the CPU for entities and
+  // uploaded as a texture for blocks.
+  CloudShadowMap cloud_shadow;
+  GLuint  cloud_shadow_tex = 0;
+  float   cloud_drift = 0.0f;
 
   // Shadow map
   GLuint  shadow_fbo = 0;

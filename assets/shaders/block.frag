@@ -40,6 +40,25 @@ uniform float uWaterFogDensity;
 uniform sampler2DShadow uShadowMap;
 uniform bool uShadowsEnabled;
 
+// Cloud shadows: which columns hold cloud, mapped over the cloud grid. The
+// CPU twin is CloudShadowMap::shadeAt (cloud_shadow.hpp); keep them in step.
+uniform sampler2D uCloudShadow;
+uniform bool  uCloudShadows;
+uniform vec2  uCloudOrigin;  // world x,z of the map's corner, drift included
+uniform float uCloudSpan;    // the map's width in blocks
+uniform float uCloudBase;    // world y of the cloud band's underside
+
+// The share of direct sun that gets past the clouds to p (1 = all of it).
+float cloudShade(vec3 p) {
+    if (!uCloudShadows || uSunDir.y < 0.02) return 1.0;
+    float t = (uCloudBase - p.y) / uSunDir.y;
+    if (t < 0.0) return 1.0; // above the band
+    vec2 at = p.xz + uSunDir.xz * t;
+    float c = texture(uCloudShadow, (at - uCloudOrigin) / uCloudSpan).r;
+    c = smoothstep(0.3, 0.7, c);
+    return 1.0 - c * smoothstep(0.02, 0.2, uSunDir.y) * 0.85;
+}
+
 // ── Shadow calculation with PCF ─────────────────────────────────────────
 uniform mat4 uLightSpaceMatrix;
 
@@ -110,7 +129,7 @@ void main() {
 
     // Apply shadow: only the directional (sun) component is shadowed.
     // Ambient light is unaffected — shadowed areas still receive ambient.
-    float shadow = calcShadow();
+    float shadow = calcShadow() * cloudShade(vWorldPos);
     vec3  lighting = uAmbientColor + shadow * diffuse * uSunColor;
 
     // Sky light: day/night colour (uAmbient + sun) × spatial sky visibility.

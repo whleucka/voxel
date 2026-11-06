@@ -81,6 +81,10 @@ public:
   void flushPendingEdits();
 
   const RenderStats &getRenderStats() const { return renderer->getStats(); }
+  // The share of direct sun the clouds let through to `p` (cloud_shadow.hpp).
+  float cloudShadeAt(glm::vec3 p, glm::vec3 sun_dir) const {
+    return renderer->cloudShadow().shadeAt(p, sun_dir, renderer->cloudDrift());
+  }
   BlockType getBlockAt(const glm::vec3& worldPos) const;
   bool isSolidBlock(int bx, int by, int bz) const;
   // The solid boxes of the cell at `p` (cell space): blockBoxes, but a fence
