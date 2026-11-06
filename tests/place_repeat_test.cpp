@@ -33,23 +33,31 @@ TEST_CASE("a hold places one block per interval while the aim moves along") {
   CHECK(hold.update(0.15f, hitFace({2, 4, 0}, {0, 1, 0})));
 }
 
-TEST_CASE("a hold stays in the first block's layer: a floor doesn't become a pillar") {
-  PlaceRepeat hold(PlaceBlock{{0, 5, 0}, {0, -1, 0}});
-  // Aimed at the top of the block just placed: that would be y 6. Refused.
-  CHECK_FALSE(hold.update(1.0f, hitFace({0, 5, 0}, {0, 1, 0})));
-  // Its side is in the layer: the floor grows sideways.
-  auto side = hold.update(0.0f, hitFace({0, 5, 0}, {0, 0, 1}));
-  REQUIRE(side);
-  CHECK(side->pos == glm::ivec3(0, 5, 1));
-  CHECK(side->against == glm::ivec3(0, 0, -1));
+TEST_CASE("a hold keeps to the face it began on: walking backward lays a bridge") {
+  // Started on the -z side of the block at the edge (z 0): the first block at z -1.
+  PlaceRepeat hold(PlaceBlock{{0, 5, -1}, {0, 0, 1}});
+  // Backing up, aimed at the -z side of the newest block: the next one beyond it.
+  auto next = hold.update(1.0f, hitFace({0, 5, -1}, {0, 0, -1}));
+  REQUIRE(next);
+  CHECK(next->pos == glm::ivec3(0, 5, -2));
+  auto again = hold.update(1.0f, hitFace({0, 5, -2}, {0, 0, -1}));
+  REQUIRE(again);
+  CHECK(again->pos == glm::ivec3(0, 5, -3));
+  // Its top, or a side facing another way, isn't where this hold builds.
+  CHECK_FALSE(hold.update(1.0f, hitFace({0, 5, -3}, {0, 1, 0})));
+  CHECK_FALSE(hold.update(1.0f, hitFace({0, 5, -3}, {1, 0, 0})));
 }
 
-TEST_CASE("a wall hold keeps to the wall's plane") {
-  PlaceRepeat hold(PlaceBlock{{3, 5, 0}, {-1, 0, 0}}); // against a block's +x face
-  CHECK_FALSE(hold.update(1.0f, hitFace({3, 5, 0}, {1, 0, 0}))); // would stick out to x 4
-  auto up = hold.update(0.0f, hitFace({3, 5, 0}, {0, 1, 0}));
-  REQUIRE(up);
-  CHECK(up->pos == glm::ivec3(3, 6, 0));
+TEST_CASE("a hold begun on a top builds on tops") {
+  PlaceRepeat hold(PlaceBlock{{0, 5, 0}, {0, -1, 0}});
+  CHECK_FALSE(hold.update(1.0f, hitFace({0, 5, 0}, {0, 0, 1}))); // a side: no
+  auto top = hold.update(0.0f, hitFace({1, 4, 0}, {0, 1, 0}));
+  REQUIRE(top);
+  CHECK(top->pos == glm::ivec3(1, 5, 0));
+  // Tall grass is built over as if on the top below it.
+  auto grass = hold.update(1.0f, hitFace({2, 5, 0}, {1, 0, 0}, BlockType::TALL_GRASS));
+  REQUIRE(grass);
+  CHECK(grass->pos == glm::ivec3(2, 5, 0));
 }
 
 TEST_CASE("a due block waits for a good aim, and nothing repeats the last spot") {
