@@ -2,6 +2,7 @@
 
 #include "glad/glad.h"
 #include "player/player.hpp"
+#include "player/place_repeat.hpp"
 #include "render/camera_view.hpp"
 #include "render/camera.hpp"
 #include "audio/audio.hpp"
@@ -122,6 +123,9 @@ private:
   std::optional<Mining> mining;
   bool swinging = false; // this press hit a creature: holding it doesn't mine
   void updateMining(float dt);
+  // The held right button: keeps placing in the first block's layer.
+  std::optional<PlaceRepeat> place_repeat;
+  void updatePlacing(float dt);
   // The crafting panel's rows right now (inventory, discoveries, a table near).
   std::vector<CraftRow> craftingRowsNow();
   TitleMenu menu;
