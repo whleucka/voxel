@@ -482,6 +482,7 @@ void Engine::update() {
                                     along * 1.35f);
   }
   updateMining(delta_time);
+  updatePlacing(delta_time);
   {
     std::optional<MiningNow> now;
     if (mining && mining->breaking) now = MiningNow{mining->pos, mining->block};
@@ -1593,11 +1594,13 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
       engine->connection().send(UseItemOn{ray.block_pos});
     else if (!held.empty() && itemDef(held.id).food_heal > 0)
       engine->connection().send(EatItem{});
-    // Tall grass and the like are built over: the block goes in their place.
-    else if (ray.hit && isReplaceable(ray.block_type))
-      engine->connection().send(PlaceBlock{ray.block_pos, {0, -1, 0}});
-    else if (ray.hit)
-      engine->connection().send(PlaceBlock{ray.block_pos + ray.normal, -ray.normal});
+    // Build on the face aimed at (tall grass and the like are built over);
+    // holding the button keeps going (updatePlacing).
+    else if (ray.hit) {
+      PlaceBlock place = placementFor(ray);
+      engine->connection().send(place);
+      engine->place_repeat.emplace(place);
+    }
   }
 }
 
@@ -1679,6 +1682,23 @@ void Engine::updateMining(float dt) {
   }
 }
 
+void Engine::updatePlacing(float dt) {
+  if (!place_repeat) return;
+  bool holding = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS &&
+                 !player->isInventoryOpen() && !chat_open && !vitals_view.dead && !inBed() &&
+                 !riding() && !ImGui::GetIO().WantCaptureMouse &&
+                 !inventory_view[player->getSelectedHotbarSlot()].empty();
+  if (!holding) {
+    place_repeat.reset();
+    return;
+  }
+  const Camera &cam = player->getCamera();
+  std::optional<RaycastResult> ray = world().raycast(cam.position, cam.front, kPlayerReach);
+  // Things a click would use instead aren't built on (crouch to, as a click).
+  if (!ray->hit || (usedOnClick(ray->block_type) && !player->isCrouching())) ray.reset();
+  if (auto place = place_repeat->update(dt, ray)) connection().send(*place);
+}
+
 std::vector<CraftRow> Engine::craftingRowsNow() {
   Inventory inv;
   for (int i = 0; i < kInventorySlots; ++i) inv.set(i, inventory_view[i]);
@@ -1711,6 +1731,7 @@ void Engine::setInventoryOpen(bool open) {
 // The local Player mirrors the selection immediately (it picks the block to
 // place); the Game holds the authoritative copy.
 void Engine::selectSlot(int slot) {
+  if (slot != player->getSelectedHotbarSlot()) place_repeat.reset(); // a hold builds with one item
   player->setSelectedHotbarSlot(slot);
   connection().send(SelectSlot{slot});
 }
