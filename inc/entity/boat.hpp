@@ -10,10 +10,10 @@ class World;
 // A boat's position is the middle of its bottom, like an entity's feet, and
 // its yaw is an entity's (0 faces -Z, 90 faces +X).
 
-constexpr float kBoatMaxSpeed = 8.0f;     // blocks/s: faster than sprinting
+constexpr float kBoatMaxSpeed = 12.0f;    // blocks/s: well past sprinting
 constexpr float kBoatReverseSpeed = 2.0f; // backing up is slow
-constexpr float kBoatAccel = 8.0f;        // full speed in about a second
-constexpr float kBoatDrag = 8.0f;         // coasts to a stop in about a second
+constexpr float kBoatAccel = 12.0f;       // full speed in about a second
+constexpr float kBoatDrag = 12.0f;        // coasts to a stop in about a second
 constexpr float kBoatTurnSpeed = 120.0f;  // degrees/s, toward where the driver looks
 constexpr float kBoatDraft = 0.15f;       // the hull sits this far below the surface
 // Seats: 0 is the driver's, at the back; 1 is the passenger's, in front.
@@ -22,9 +22,9 @@ constexpr float kBoatSeatHeight = 0.26f;  // the seats' top, above the bottom
 constexpr float kBoatSeatOffset = 0.3f;   // each seat's distance from the middle
 constexpr float kSeatedEyeHeight = 0.85f; // a rider's eyes above the seat
 constexpr float kSeatedHeight = 1.1f;     // a rider's head, above the seat
-// The Game refuses a reported move longer than this (a frame at 8 b/s is
+// The Game refuses a reported move longer than this (a frame at 12 b/s is
 // a fraction of it; a lagging frame still fits).
-constexpr float kBoatMaxStep = 3.0f;
+constexpr float kBoatMaxStep = 4.0f;
 
 struct BoatState {
   glm::vec3 position{0.0f};

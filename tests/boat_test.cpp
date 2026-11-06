@@ -149,9 +149,9 @@ TEST_CASE_FIXTURE(Canal, "a boat floats at the surface and sits still") {
   CHECK(boat.speed == 0.0f);
 }
 
-TEST_CASE_FIXTURE(Canal, "W speeds up to 8 blocks a second and no more") {
+TEST_CASE_FIXTURE(Canal, "W speeds up to 12 blocks a second and no more") {
   drive(0.5f, ahead());
-  CHECK(boat.speed > 3.0f);
+  CHECK(boat.speed > 4.5f);
   CHECK(boat.speed < kBoatMaxSpeed);
   drive(1.0f, ahead());
   CHECK(boat.speed == doctest::Approx(kBoatMaxSpeed));
@@ -169,7 +169,7 @@ TEST_CASE_FIXTURE(Canal, "with no keys it coasts to a stop in about a second") {
 }
 
 TEST_CASE_FIXTURE(Canal, "S slows down, then backs up slowly") {
-  boat.position.x = 30.0f;
+  boat.position.x = 20.0f;
   drive(1.5f, ahead());
   drive(0.5f, {false, true, 90.0f});
   CHECK(boat.speed > 0.0f);
@@ -517,7 +517,7 @@ TEST_CASE_FIXTURE(Harbour, "a move too far or onto land is refused, and the boat
   EntityId boat = launch();
   board(a, ida, boat);
   const glm::vec3 from = boats()[0]->body.position;
-  for (glm::vec3 to : {from + glm::vec3(0, 0, 4.0f),               // too far at once
+  for (glm::vec3 to : {from + glm::vec3(0, 0, 5.0f),               // too far at once
                        glm::vec3(2.5f, kBase + 1.0f, 7.5f)}) {     // up onto the bank
     MovePlayer m = move(ida, {0, 0, 0});
     m.boat = boat;
