@@ -60,6 +60,7 @@ private:
   void drawBoxes(const std::vector<ModelBox> &model, glm::vec3 position, float yaw, bool moving,
                  double now, bool lying, uint8_t collar, float sit_drop, bool wagging) const;
   void setLight(const World &world, glm::vec3 position) const;
+  mutable glm::vec3 sun_dir{0.0f, 1.0f, 0.0f}; // from the last setScene, for cloud shade
   // `local` is applied before the box is placed (e.g. a leg's swing).
   void drawBox(const glm::mat4 &entity_model, glm::vec3 offset, glm::vec3 size,
                const glm::mat4 &local = glm::mat4(1.0f)) const;

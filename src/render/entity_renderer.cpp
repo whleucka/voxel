@@ -116,6 +116,7 @@ void EntityRenderer::setLight(const World &world, glm::vec3 position) const {
   glm::ivec3 cell = glm::ivec3(glm::floor(position + glm::vec3(0.0f, 0.5f, 0.0f)));
   shader->setFloat("uSkyLight", world.getSkyLightAt(cell) / 15.0f);
   shader->setFloat("uBlockLight", world.getBlockLightAt(cell) / 15.0f);
+  shader->setFloat("uCloudShade", world.cloudShadeAt(position + glm::vec3(0.0f, 0.5f, 0.0f), sun_dir));
 }
 
 void EntityRenderer::drawModel(const std::vector<ModelBox> &model, glm::vec3 position,
@@ -173,6 +174,8 @@ void EntityRenderer::setScene(const glm::mat4 &view, const glm::mat4 &projection
   shader->setMat4("view", view);
   shader->setMat4("projection", projection);
   shader->setVec3("uSunDir", light.sun_dir);
+  sun_dir = light.sun_dir;
+  shader->setFloat("uCloudShade", 1.0f); // until setLight finds the clouds
   shader->setVec3("uSunColor", light.sun_color);
   shader->setVec3("uAmbientColor", light.ambient);
   shader->setVec3("uFogColor", light.fog_color);

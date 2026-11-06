@@ -28,6 +28,7 @@ uniform float uBurn;        // 0..1 orange glow (set alight)
 uniform bool  uGlow;        // shine at full brightness, ignoring the light
 
 uniform vec3  uSunDir;
+uniform float uCloudShade;  // share of direct sun past the clouds, at the entity
 uniform vec3  uSunColor;
 uniform vec3  uAmbientColor;
 uniform vec3  uCameraPos;
@@ -73,7 +74,7 @@ void main() {
     else                           faceShade = 0.80;
 
     float diffuse = max(dot(vNormal, uSunDir), 0.0);
-    vec3  lighting = uAmbientColor + diffuse * uSunColor;
+    vec3  lighting = uAmbientColor + diffuse * uCloudShade * uSunColor;
     vec3  skyLit = lighting * mix(0.05, 1.0, uSkyLight);
     float bl = uBlockLight * uBlockLight * (3.0 - 2.0 * uBlockLight);
     vec3  lightLevel = max(skyLit, BLOCK_LIGHT_COLOR * bl);
