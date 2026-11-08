@@ -695,18 +695,38 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
   MeshBuffers buffers{vertices, indices, transparentVertices, transparentIndices};
 
+  // A slab or a stair in water: the water fills the half it leaves, as it
+  // would flow into an empty cell there (Game::waterFlowsInto): water over
+  // it, or beside it with something under it. Otherwise one put in the top
+  // layer of the sea leaves a dry pocket walled with water.
+  auto wet = [&](int x, int y, int z) {
+    if (!isHalfShape(area.block(x, y, z))) return false;
+    if (isLiquid(area.block(x, y + 1, z))) return true;
+    if (area.block(x, y - 1, z) == BlockType::AIR) return false;
+    for (const glm::ivec3 &s : kSides)
+      if (isLiquid(area.block(x + s.x, y, z + s.z))) return true;
+    return false;
+  };
+
   // Side faces. Water shows one toward open air (a cave pool's rim, a hole
   // dug in the sea) and toward a cell at the surface that doesn't fill its
-  // space (a slab, a stair, a plant), which is dry above whatever is in it.
-  // Never toward land or more water, nor toward such a cell under the
-  // surface (coral on the seabed would be boxed in), nor toward a chunk that
-  // hasn't loaded (it would wall off the sea at the edge of view until it did).
+  // space (a plant, a fence), which is dry above whatever is in it.
+  // Never toward land, more water or a slab in the water, nor toward such a
+  // cell under the surface (coral on the seabed would be boxed in), nor
+  // toward a chunk that hasn't loaded (it would wall off the sea at the edge
+  // of view until it did).
   auto sideShows = [&](BlockType type, int nx, int ny, int nz) {
     if (!isLiquid(type)) return shouldRenderFace(type, area.block(nx, ny, nz));
     BlockType n = area.block(nx, ny, nz, BlockType::WATER);
     if (n == BlockType::AIR) return true;
     if (isLiquid(n) || !shouldRenderFace(BlockType::STONE, n)) return false;
+    if (wet(nx, ny, nz)) return false;
     return !isLiquid(area.block(nx, ny + 1, nz, BlockType::WATER));
+  };
+  // Top faces: water's none under a slab in the water, which carries it on.
+  auto topShows = [&](BlockType type, int x, int y, int z) {
+    if (!shouldRenderFace(type, area.block(x, y + 1, z))) return false;
+    return !isLiquid(type) || !wet(x, y + 1, z);
   };
 
   // Front face (+Z)
@@ -835,7 +855,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           continue; // addDoor, addBed, addCrop
 
         BlockType neighbor = area.block(x, y + 1, z);
-        if (shouldRenderFace(type, neighbor)) {
+        if (topShows(type, x, y, z)) {
           const auto &tex = block_data.at(type);
           AO4 ao = computeFaceAO(area, x, y, z, Face::Top);
           uint8_t skyLight = area.skyLight(x, y + 1, z);
@@ -844,7 +864,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           int width = 1;
           while (x + width < kChunkWidth && !mask[z][x + width] &&
                  area.safeAt(x + width, y, z) == type &&
-                 shouldRenderFace(type, area.block(x + width, y + 1, z)) &&
+                 topShows(type, x + width, y, z) &&
                  area.skyLight(x + width, y + 1, z) == skyLight &&
                  area.blockLight(x + width, y + 1, z) == blockLight &&
                  computeFaceAO(area, x + width, y, z, Face::Top) == ao) {
@@ -857,7 +877,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
             for (int i = 0; i < width; ++i) {
               if (mask[z + depth][x + i] ||
                   area.safeAt(x + i, y, z + depth) != type ||
-                  !shouldRenderFace(type, area.block(x + i, y + 1, z + depth)) ||
+                  !topShows(type, x + i, y, z + depth) ||
                   area.skyLight(x + i, y + 1, z + depth) != skyLight ||
                   area.blockLight(x + i, y + 1, z + depth) != blockLight ||
                   computeFaceAO(area, x + i, y, z + depth, Face::Top) != ao) {
@@ -1085,9 +1105,24 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
         else if (isCake(type))
           addCake(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
                   area.skyLight(x, y, z), area.blockLight(x, y, z));
-        else if (isHalfShape(type))
+        else if (isHalfShape(type)) {
           addShape(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
                    area.skyLight(x, y, z), area.blockLight(x, y, z));
+          // In the top layer of the water, the surface runs on over it, seen
+          // from above and from under it. A top slab is the surface itself.
+          BlockType above = area.block(x, y + 1, z);
+          if (!isTopSlab(type) && !isLiquid(above) &&
+              shouldRenderFace(BlockType::WATER, above) && wet(x, y, z)) {
+            const BlockTexture &water = block_data.at(BlockType::WATER);
+            const AO4 noAO = {{3, 3, 3, 3}};
+            const uint8_t sky = area.skyLight(x, y + 1, z);
+            const uint8_t lit = area.blockLight(x, y + 1, z);
+            addQuad(buffers, x, y, z, 1, 1, water.top.x, water.top.y, Face::Top, chunkWorldX,
+                    chunkWorldZ, true, kCutoutNone, noAO, sky, lit);
+            addQuad(buffers, x, y + 1, z, 1, 1, water.bottom.x, water.bottom.y, Face::Bottom,
+                    chunkWorldX, chunkWorldZ, true, kCutoutNone, noAO, sky, lit);
+          }
+        }
         else if (isFence(type)) {
           BlockType around[4];
           for (int i = 0; i < 4; ++i)

@@ -32,6 +32,31 @@ std::multiset<int> waterFacesAt(World &world, glm::ivec3 cell) {
   return faces;
 }
 
+// How many of the blended mesh's faces of kind `face` lie on `cell`'s top
+// (Top or Bottom faces at y + 1) and cover it, merged faces included.
+int waterFacesOverTop(World &world, glm::ivec3 cell, int face) {
+  auto chunk = world.getChunk(0, 0);
+  REQUIRE(chunk);
+  ChunkMesh mesh;
+  TextureManager unused;
+  mesh.generateCPU(&world, *chunk, unused);
+  const auto &v = mesh.transparentVertexData();
+  int n = 0;
+  for (size_t i = 0; i + 3 < v.size(); i += 4) {
+    if ((v[i].faceId & 7) != face) continue;
+    glm::ivec3 lo(1 << 30), hi(-(1 << 30));
+    for (size_t k = i; k < i + 4; ++k) {
+      glm::ivec3 p = glm::ivec3(v[k].posX, v[k].posY, v[k].posZ) / int(kPosScale);
+      lo = glm::min(lo, p);
+      hi = glm::max(hi, p);
+    }
+    if (lo.y == cell.y + 1 && lo.x <= cell.x && hi.x > cell.x && lo.z <= cell.z &&
+        hi.z > cell.z)
+      ++n;
+  }
+  return n;
+}
+
 } // namespace
 
 TEST_CASE("a pool beside open air shows its sides; one walled in shows only its top") {
@@ -59,26 +84,40 @@ TEST_CASE("a pool beside open air shows its sides; one walled in shows only its 
   CHECK(faces.size() == 1);
 }
 
-TEST_CASE("sea water shows its side toward a slab at the surface, not toward seabed coral") {
+TEST_CASE("a slab in the sea's top layer leaves no dry pocket; seabed coral isn't walled") {
   World world;
   world.loadChunkSync(0, 0);
   fill(world, {0, kBase - 2, 0}, {15, kBase + 4, 15}, BlockType::AIR);
   fill(world, {2, kBase - 2, 2}, {12, kBase - 2, 12}, BlockType::STONE); // the seabed
   fill(world, {3, kBase - 1, 3}, {11, kBase, 11}, BlockType::WATER);     // two deep
 
-  // A slab in the top layer: dry above its half, so the water round it walls it.
+  // A slab in the top layer: the water fills the half it leaves, so none of
+  // the water round it walls it, nor the water under it.
   const glm::ivec3 slab{6, kBase, 6};
-  fill(world, slab, slab, BlockType::OAK_SLAB);
-  CHECK(waterFacesAt(world, slab + glm::ivec3(-1, 0, 0)).count(Face::Right) == 1);
-  CHECK(waterFacesAt(world, slab + glm::ivec3(1, 0, 0)).count(Face::Left) == 1);
-  CHECK(waterFacesAt(world, slab + glm::ivec3(0, 0, -1)).count(Face::Front) == 1);
-  CHECK(waterFacesAt(world, slab + glm::ivec3(0, 0, 1)).count(Face::Back) == 1);
+  for (BlockType b : {BlockType::OAK_SLAB, BlockType::OAK_TOP_SLAB}) {
+    CAPTURE(static_cast<int>(b));
+    fill(world, slab, slab, b);
+    CHECK(waterFacesAt(world, slab + glm::ivec3(-1, 0, 0)).count(Face::Right) == 0);
+    CHECK(waterFacesAt(world, slab + glm::ivec3(1, 0, 0)).count(Face::Left) == 0);
+    CHECK(waterFacesAt(world, slab + glm::ivec3(0, 0, -1)).count(Face::Front) == 0);
+    CHECK(waterFacesAt(world, slab + glm::ivec3(0, 0, 1)).count(Face::Back) == 0);
+    CHECK(waterFacesOverTop(world, slab - glm::ivec3(0, 1, 0), Face::Top) == 0);
+    // Over a bottom slab the surface runs on, both ways up; a top slab is it.
+    const int bottom = b == BlockType::OAK_SLAB ? 1 : 0;
+    CHECK(waterFacesOverTop(world, slab, Face::Top) == bottom);
+    CHECK(waterFacesOverTop(world, slab, Face::Bottom) == bottom);
+  }
   { // and no water corner is darkened by the slab beside it
     ChunkMesh mesh;
     TextureManager unused;
     mesh.generateCPU(&world, *world.getChunk(0, 0), unused);
     for (const BlockVertex &v : mesh.transparentVertexData()) CHECK((v.ao & 3) == 3);
   }
+
+  // A slab on the surface, over the water: the surface shows under it.
+  const glm::ivec3 dock{8, kBase + 1, 8};
+  fill(world, dock, dock, BlockType::OAK_SLAB);
+  CHECK(waterFacesOverTop(world, dock - glm::ivec3(0, 1, 0), Face::Top) == 1);
 
   // Coral on the seabed, water over it: no walls round it.
   const glm::ivec3 coral{9, kBase - 1, 9};
