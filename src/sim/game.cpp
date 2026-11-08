@@ -483,6 +483,7 @@ void Game::tick() {
   releaseAnimalProducts();
   burnEntities();
   tickFurnaces();
+  tickWater();
   if (tick_count % (1000 / kTickMs) == 0) growFarms(1000);
   mergeDroppedItems();
   pickUpDroppedItems();
@@ -872,8 +873,7 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
     ps->breaking.reset();
   }
 
-  world_.setBlockAt(cmd.pos, BlockType::AIR);
-  broadcast(BlockChanged{cmd.pos, BlockType::AIR});
+  clearBlock(cmd.pos);
   // One sound for what was hit; whatever falls with it is quiet.
   broadcast(SoundCue{Cue::BlockBreak, glm::vec3(cmd.pos) + 0.5f, target});
   spillFurnace(cmd.pos);
@@ -882,8 +882,7 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
   if (isDoor(target)) {
     glm::ivec3 other = cmd.pos + glm::ivec3(0, doorTop(target) ? -1 : 1, 0);
     if (isDoor(world_.getBlockAt(glm::vec3(other) + 0.5f))) {
-      world_.setBlockAt(other, BlockType::AIR);
-      broadcast(BlockChanged{other, BlockType::AIR});
+      clearBlock(other);
     }
     target = doorBlock(false, doorFacing(target), false);
   }
@@ -891,8 +890,7 @@ void Game::apply(Client &client, const BreakBlock &cmd) {
   if (isBed(target)) {
     glm::ivec3 other = bedOther(cmd.pos, target);
     if (isBed(world_.getBlockAt(glm::vec3(other) + 0.5f))) {
-      world_.setBlockAt(other, BlockType::AIR);
-      broadcast(BlockChanged{other, BlockType::AIR});
+      clearBlock(other);
     }
     target = bedBlock(bedColour(target), false, bedFacing(target));
   }
@@ -1071,8 +1069,7 @@ void Game::popDoorAbove(glm::ivec3 below) {
   if (!isDoor(b) || doorTop(b)) return;
   for (glm::ivec3 cell : {bottom, bottom + glm::ivec3(0, 1, 0)}) {
     if (!isDoor(world_.getBlockAt(glm::vec3(cell) + 0.5f))) continue;
-    world_.setBlockAt(cell, BlockType::AIR);
-    broadcast(BlockChanged{cell, BlockType::AIR});
+    clearBlock(cell);
   }
   if (rules().block_drops)
     dropItem({ItemId::WOODEN_DOOR, 1}, glm::vec3(bottom) + glm::vec3(0.5f, 0.3f, 0.5f),
@@ -1160,8 +1157,7 @@ void Game::popBedAbove(glm::ivec3 below) {
   if (!isBed(b)) return;
   for (glm::ivec3 half : {cell, bedOther(cell, b)}) {
     if (!isBed(world_.getBlockAt(glm::vec3(half) + 0.5f))) continue;
-    world_.setBlockAt(half, BlockType::AIR);
-    broadcast(BlockChanged{half, BlockType::AIR});
+    clearBlock(half);
   }
   if (rules().block_drops)
     dropItem({bedItem(bedColour(b)), 1}, glm::vec3(cell) + glm::vec3(0.5f, 0.3f, 0.5f),
@@ -1662,8 +1658,7 @@ void Game::popCropAbove(glm::ivec3 below) {
   const glm::ivec3 cell = below + kUp;
   const BlockType b = world_.getBlockAt(glm::vec3(cell) + 0.5f);
   if (!isCrop(b)) return;
-  world_.setBlockAt(cell, BlockType::AIR);
-  broadcast(BlockChanged{cell, BlockType::AIR});
+  clearBlock(cell);
   crops_.erase(cell);
   if (rules().block_drops)
     dropItem({seedFor(cropKind(b)), 1}, glm::vec3(cell) + glm::vec3(0.5f, 0.3f, 0.5f),
@@ -1682,9 +1677,12 @@ void Game::eatCake(Client &client, PlayerState &ps, glm::ivec3 pos) {
   if (ps.vitals.health() >= Vitals::kMax && ps.vitals.fedMs() >= Vitals::kMaxFedMs)
     return reject(client, "eat: not hungry");
   const int left = cakeSlices(world_.getBlockAt(glm::vec3(pos) + 0.5f)) - 1;
-  const BlockType now = left > 0 ? cakeBlock(left) : BlockType::AIR;
-  world_.setBlockAt(pos, now);
-  broadcast(BlockChanged{pos, now});
+  if (left > 0) {
+    world_.setBlockAt(pos, cakeBlock(left));
+    broadcast(BlockChanged{pos, cakeBlock(left)});
+  } else {
+    clearBlock(pos);
+  }
   ps.vitals.heal(kCakeSliceHeal);
   ps.vitals.feed(kCakeSliceHeal);
 }
@@ -1732,6 +1730,64 @@ void Game::useCompost(Client &client, PlayerState &ps, glm::ivec3 pos) {
   }
 }
 
+// ─── Water ─────────────────────────────────────────────────────────────
+
+namespace {
+constexpr int kWaterFlowMs = 250;    // a step of flowing water
+constexpr int kWaterStepCells = 128; // the most cells one step fills
+const glm::ivec3 kWaterSides[] = {{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}};
+} // namespace
+
+bool Game::waterFlowsInto(glm::ivec3 pos) const {
+  if (pos.y < 0 || pos.y >= kChunkHeight || !chunkLoaded(world_, pos)) return false;
+  auto at = [&](glm::ivec3 p) {
+    if (p.y < 0 || p.y >= kChunkHeight) return BlockType::AIR;
+    return world_.getBlockAt(glm::vec3(p) + 0.5f);
+  };
+  if (at(pos) != BlockType::AIR) return false;
+  if (isLiquid(at(pos + kUp))) return true;
+  // Sideways only where it has something to sit on: water levels out, but
+  // doesn't spread out across the air beside a waterfall.
+  if (at(pos - kUp) == BlockType::AIR) return false;
+  for (glm::ivec3 side : kWaterSides)
+    if (isLiquid(at(pos + side))) return true;
+  return false;
+}
+
+void Game::wakeWaterAround(glm::ivec3 pos) {
+  water_next_.insert(pos - kUp);
+  for (glm::ivec3 side : kWaterSides) water_next_.insert(pos + side);
+}
+
+void Game::clearBlock(glm::ivec3 pos) {
+  world_.setBlockAt(pos, BlockType::AIR);
+  // Under water, or at its edge: the water takes the cell straight back.
+  const BlockType now = waterFlowsInto(pos) ? BlockType::WATER : BlockType::AIR;
+  if (now == BlockType::WATER) {
+    world_.setBlockAt(pos, now);
+    wakeWaterAround(pos);
+  }
+  broadcast(BlockChanged{pos, now});
+}
+
+void Game::tickWater() {
+  if (water_next_.empty() || tick_count % (kWaterFlowMs / kTickMs) != 0) return;
+  std::vector<glm::ivec3> look;
+  for (auto it = water_next_.begin();
+       it != water_next_.end() && static_cast<int>(look.size()) < kWaterStepCells;)
+    look.push_back(*it), it = water_next_.erase(it);
+  // Judged as the world stood at the start of the step, so it moves one cell
+  // a step whichever order the cells come in.
+  std::vector<glm::ivec3> fill;
+  for (glm::ivec3 p : look)
+    if (waterFlowsInto(p)) fill.push_back(p);
+  for (glm::ivec3 p : fill) {
+    world_.setBlockAt(p, BlockType::WATER);
+    broadcast(BlockChanged{p, BlockType::WATER});
+  }
+  for (glm::ivec3 p : fill) wakeWaterAround(p);
+}
+
 void Game::popUnsupported(glm::ivec3 gone) {
   const BlockType ground = world_.getBlockAt(glm::vec3(gone) + 0.5f);
   const glm::ivec3 around[] = {{0, 1, 0}, {0, 0, -1}, {1, 0, 0}, {0, 0, 1}, {-1, 0, 0}};
@@ -1742,8 +1798,7 @@ void Game::popUnsupported(glm::ivec3 gone) {
     // Only what `gone` held up: the thing above, or a torch on its side.
     if (!needsSupport(b) || cell + supportOf(b) != gone) continue;
     if (growsOn(b, ground, isSolidGround(ground))) continue;
-    world_.setBlockAt(cell, BlockType::AIR);
-    broadcast(BlockChanged{cell, BlockType::AIR});
+    clearBlock(cell);
     crops_.erase(cell); // a picked bush's regrowing
     if (rules().block_drops)
       if (std::optional<ItemId> drop = dropOf(b))
