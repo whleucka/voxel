@@ -3,6 +3,7 @@
 #include "core/constants.hpp"
 #include "core/settings.hpp"
 #include "render/texture_manager.hpp"
+#include <chrono>
 #include <cmath>
 #include <climits>
 #include <vector>
@@ -853,6 +854,12 @@ void Renderer::drawTransparentChunks(const std::vector<Chunk *> &chunks, const g
   glDepthMask(GL_FALSE);
 
   block_shader->setFloat("uAlpha", 0.75f);
+  // The water's ripples run on their own clock, wrapped so the float keeps
+  // its precision (a hitch once an hour, too small to see).
+  static const auto kStart = std::chrono::steady_clock::now();
+  const double secs =
+      std::chrono::duration<double>(std::chrono::steady_clock::now() - kStart).count();
+  block_shader->setFloat("uTime", static_cast<float>(std::fmod(secs, 3600.0)));
   for (Chunk *chunk : chunks) {
     if (!chunk) continue;
     chunk->getMesh().renderTransparent();

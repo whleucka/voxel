@@ -154,7 +154,7 @@ public:
   bool tracksSoil(glm::ivec3 pos) const { return soil_.count(pos) > 0; }
 
   // Whether water is still spreading into what was emptied beside it.
-  bool waterFlowing() const { return !water_next_.empty(); }
+  bool waterFlowing() const { return !water_queue_.empty(); }
 
   // A Crafting Table close enough to an eye at `eye` to use: the rule the
   // Game checks crafts with, shared with the client's crafting panel.
@@ -369,12 +369,14 @@ private:
   // above, or from beside where the cell has something under it (the water
   // levels out, never rising above where it came from, and doesn't spread
   // across the air). Each cell it fills wakes the cells round it, which it
-  // flows into a step later, so it runs in rather than appearing at once.
+  // flows into a step later, a few cells a step: falling water first, then
+  // the lowest, so a flooded cave fills from the floor up, a layer at a time.
   void clearBlock(glm::ivec3 pos); // to air, or to water if it flows in now
   bool waterFlowsInto(glm::ivec3 pos) const;
   void wakeWaterAround(glm::ivec3 pos);
   void tickWater();
-  std::set<glm::ivec3, BlockLess> water_next_; // cells to look at next step
+  std::vector<glm::ivec3> water_queue_;          // cells to look at, oldest first
+  std::set<glm::ivec3, BlockLess> water_queued_; // the same, to queue each once
   // What breaking `b` gives, by the roll for one that's chancy (tall grass).
   std::optional<ItemId> dropOf(BlockType b);
   // A block placed on farmland packs it back into dirt.

@@ -21,6 +21,7 @@ uniform sampler2D uTexture;
 uniform float uAlpha;
 uniform vec3 uCameraPos;
 uniform bool uUnderwater;
+uniform float uTime;       // seconds, for the water's ripples
 
 // Directional lighting
 uniform vec3 uSunDir;        // normalized sun direction (points toward sun)
@@ -103,9 +104,46 @@ float calcShadow() {
     return shadow;
 }
 
+// ── Water ripples ────────────────────────────────────────────────────────
+// A few sine waves running across the surface in different directions. The
+// surface stays flat (the mesh doesn't move); only the way it takes the
+// light ripples: its tilt shades it and throws back glints of the sun.
+// Returns the slope of the surface (d height / d x, d height / d z) and, in
+// `height`, how high the ripples stand here (-1..1).
+vec2 rippleSlope(vec2 p, float t, out float height) {
+    const vec2  DIR[4]   = vec2[4](vec2(0.80, 0.60), vec2(-0.55, 0.83),
+                                   vec2(0.20, -0.98), vec2(-0.93, -0.37));
+    const float FREQ[4]  = float[4](1.9, 2.7, 4.3, 6.1);
+    const float SPEED[4] = float[4](1.3, 1.7, 2.3, 2.9);
+    const float AMP[4]   = float[4](0.030, 0.022, 0.012, 0.008);
+    vec2 slope = vec2(0.0);
+    height = 0.0;
+    for (int i = 0; i < 4; ++i) {
+        float phase = dot(DIR[i], p) * FREQ[i] + t * SPEED[i];
+        slope  += DIR[i] * FREQ[i] * AMP[i] * cos(phase);
+        height += sin(phase) * AMP[i];
+    }
+    height /= 0.072; // the sum of AMP: -1..1
+    return slope;
+}
+
 void main() {
+    // Water is the only thing drawn in the blended pass (uAlpha < 1).
+    bool  water    = uAlpha < 1.0;
+    bool  surface  = water && vNormal.y > 0.5;
+    vec3  N        = vNormal;
+    float ripple   = 0.0;
+    vec2  uvShift  = vec2(0.0);
+    if (water) {
+        vec2 slope = rippleSlope(vWorldPos.xz, uTime, ripple);
+        if (surface) N = normalize(vec3(-slope.x, 1.0, -slope.y));
+        // The tile drifts slowly and wobbles with the waves, so its pattern
+        // flows instead of sitting still.
+        uvShift = uTime * vec2(0.035, 0.022) + slope * 0.6;
+    }
+
     // ── Atlas sampling ────────────────────────────────────────────────────
-    vec2 tileUV  = fract(vBaseUV);
+    vec2 tileUV  = fract(vBaseUV + uvShift);
     vec2 atlasUV = vTileOffset + tileUV * vTileSpan;
     vec4 texColor = texture(uTexture, atlasUV);
 
@@ -125,7 +163,7 @@ void main() {
     else                            faceShade = 0.80; // front / back
 
     // ── Directional (sun/moon) diffuse ────────────────────────────────────
-    float diffuse = max(dot(vNormal, uSunDir), 0.0);
+    float diffuse = max(dot(N, uSunDir), 0.0);
 
     // Apply shadow: only the directional (sun) component is shadowed.
     // Ambient light is unaffected — shadowed areas still receive ambient.
@@ -146,6 +184,18 @@ void main() {
     vec3 lightLevel = max(skyLit, blockLit);
 
     vec3 finalColor = texColor.rgb * lightLevel * faceShade * vAO;
+
+    // Ripples: crests a touch brighter than troughs, and the sun glinting
+    // off the slopes that face it, only where sunlight reaches the water.
+    float glint = 0.0;
+    if (surface) {
+        finalColor *= 1.0 + 0.08 * ripple;
+        vec3 viewDir = normalize(uCameraPos - vWorldPos);
+        vec3 halfway = normalize(uSunDir + viewDir);
+        glint = pow(max(dot(N, halfway), 0.0), 90.0) * shadow * vSkyLight *
+                step(0.0, uSunDir.y);
+        finalColor += uSunColor * glint * 0.6;
+    }
 
     // ── Fog ───────────────────────────────────────────────────────────────
     float dist = length(vWorldPos - uCameraPos);
@@ -169,7 +219,7 @@ void main() {
     if (uAlpha < 1.0 && vNormal.y > -0.5) {
         // Fresnel: looking straight down → see-through; grazing angle → opaque
         vec3  viewDir = normalize(uCameraPos - vWorldPos);
-        float NdotV   = clamp(dot(vNormal, viewDir), 0.0, 1.0);
+        float NdotV   = clamp(dot(N, viewDir), 0.0, 1.0);
         float fresnel = pow(1.0 - NdotV, 2.5);
         finalAlpha = clamp(mix(uAlpha, 0.96, fresnel), 0.0, 1.0);
         // A side face is the wall of a hole: behind it is the whole sea, not
@@ -186,6 +236,7 @@ void main() {
         brightness = max(brightness * vSkyLight, bl);
         vec3  waterTint  = vec3(0.04, 0.26, 0.38) * brightness;
         finalColor = mix(finalColor, waterTint, 0.28 * brightness);
+        finalAlpha = max(finalAlpha, glint); // a glint isn't see-through
     }
 
     FragColor = vec4(finalColor, finalAlpha);

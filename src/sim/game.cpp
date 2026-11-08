@@ -1744,8 +1744,8 @@ void Game::useCompost(Client &client, PlayerState &ps, glm::ivec3 pos) {
 // ─── Water ─────────────────────────────────────────────────────────────
 
 namespace {
-constexpr int kWaterFlowMs = 250;    // a step of flowing water
-constexpr int kWaterStepCells = 128; // the most cells one step fills
+constexpr int kWaterFlowMs = 250; // a step of flowing water
+constexpr int kWaterStepCells = 8; // the most cells one step fills
 const glm::ivec3 kWaterSides[] = {{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}};
 } // namespace
 
@@ -1766,8 +1766,12 @@ bool Game::waterFlowsInto(glm::ivec3 pos) const {
 }
 
 void Game::wakeWaterAround(glm::ivec3 pos) {
-  water_next_.insert(pos - kUp);
-  for (glm::ivec3 side : kWaterSides) water_next_.insert(pos + side);
+  auto wake = [&](glm::ivec3 p) {
+    if (water_queued_.insert(p).second) water_queue_.push_back(p);
+  };
+  wake(pos - kUp);
+  for (glm::ivec3 side : kWaterSides) wake(pos + side);
+  wake(pos + kUp); // beside water, it has something under it now
 }
 
 void Game::clearBlock(glm::ivec3 pos) {
@@ -1782,21 +1786,33 @@ void Game::clearBlock(glm::ivec3 pos) {
 }
 
 void Game::tickWater() {
-  if (water_next_.empty() || tick_count % (kWaterFlowMs / kTickMs) != 0) return;
-  std::vector<glm::ivec3> look;
-  for (auto it = water_next_.begin();
-       it != water_next_.end() && static_cast<int>(look.size()) < kWaterStepCells;)
-    look.push_back(*it), it = water_next_.erase(it);
-  // Judged as the world stood at the start of the step, so it moves one cell
-  // a step whichever order the cells come in.
-  std::vector<glm::ivec3> fill;
-  for (glm::ivec3 p : look)
-    if (waterFlowsInto(p)) fill.push_back(p);
-  for (glm::ivec3 p : fill) {
-    world_.setBlockAt(p, BlockType::WATER);
-    broadcast(BlockChanged{p, BlockType::WATER});
+  if (water_queue_.empty() || tick_count % (kWaterFlowMs / kTickMs) != 0) return;
+  // Judged as the world stood at the start of the step, so it moves a cell a
+  // step whichever order the cells come in. What it can't flow into now is
+  // dropped: a cell beside it filling wakes it again.
+  std::vector<glm::ivec3> open;
+  for (glm::ivec3 p : water_queue_)
+    if (waterFlowsInto(p)) open.push_back(p);
+  water_queue_.clear();
+  water_queued_.clear();
+  // Falling water first, then the lowest cells, the longest waiting first.
+  auto falling = [&](glm::ivec3 p) {
+    return isLiquid(world_.getBlockAt(glm::vec3(p + kUp) + 0.5f));
+  };
+  std::stable_sort(open.begin(), open.end(), [&](glm::ivec3 a, glm::ivec3 b) {
+    const bool fa = falling(a), fb = falling(b);
+    if (fa != fb) return fa;
+    return a.y < b.y;
+  });
+  const size_t n = std::min(open.size(), static_cast<size_t>(kWaterStepCells));
+  for (size_t i = 0; i < n; ++i) {
+    world_.setBlockAt(open[i], BlockType::WATER);
+    broadcast(BlockChanged{open[i], BlockType::WATER});
   }
-  for (glm::ivec3 p : fill) wakeWaterAround(p);
+  // The rest wait their turn, ahead of what this step's water wakes.
+  for (size_t i = n; i < open.size(); ++i)
+    if (water_queued_.insert(open[i]).second) water_queue_.push_back(open[i]);
+  for (size_t i = 0; i < n; ++i) wakeWaterAround(open[i]);
 }
 
 void Game::popUnsupported(glm::ivec3 gone) {
