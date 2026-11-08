@@ -18,10 +18,12 @@
 // ground lays blocks on its top.
 
 // Where a block aimed at with `ray` would go: tall grass and the like are
-// built over, anything else gets the block on the face that was hit.
+// built over, anything else gets the block on the face that was hit. A side
+// hit in its upper half says so, for a slab to go in the top of its cell.
 inline PlaceBlock placementFor(const RaycastResult &ray) {
   if (isReplaceable(ray.block_type)) return PlaceBlock{ray.block_pos, {0, -1, 0}};
-  return PlaceBlock{ray.block_pos + ray.normal, -ray.normal};
+  const bool upper = ray.normal.y == 0 && ray.point.y - static_cast<float>(ray.block_pos.y) >= 0.5f;
+  return PlaceBlock{ray.block_pos + ray.normal, -ray.normal, upper};
 }
 
 // Blocks a click uses rather than builds on (crouch to build on them). A hold
@@ -37,7 +39,8 @@ public:
   static constexpr float kInterval = 0.2f; // seconds between held placements
 
   // A hold that began by placing `first`.
-  explicit PlaceRepeat(const PlaceBlock &first) : against_(first.against), last_(first.pos) {}
+  explicit PlaceRepeat(const PlaceBlock &first)
+      : against_(first.against), upper_(first.upper), last_(first.pos) {}
 
   // Time passes with the aim on `ray` (nullopt: aimed at nothing, or at
   // something not to build on). Returns the next block to place, once one is
@@ -51,11 +54,13 @@ public:
     if (next.against != against_ || next.pos == last_) return std::nullopt;
     timer_ = 0.0f;
     last_ = next.pos;
+    next.upper = upper_; // the whole hold's slabs go in the same half
     return next;
   }
 
 private:
   glm::ivec3 against_; // the face the first block went on (as PlaceBlock::against)
+  bool upper_;         // and the half of it (PlaceBlock::upper)
   glm::ivec3 last_;
   float timer_ = 0.0f;
 };

@@ -26,6 +26,7 @@ struct RaycastResult {
   glm::ivec3 normal{0};      // face normal (for placement: place at block_pos + normal)
   float distance = 0.0f;     // distance from ray origin to hit
   BlockType block_type = BlockType::AIR;
+  glm::vec3 point{0.0f};     // where the ray met the block's cell
 };
 
 // Orders chunks nearest the viewer first (by their columns' centres), so

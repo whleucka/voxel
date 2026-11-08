@@ -779,6 +779,7 @@ RaycastResult World::raycast(const glm::vec3& origin, const glm::vec3& direction
       result.block_pos = glm::ivec3(x, y, z);
       result.distance = distance;
       result.block_type = block;
+      result.point = o + dir * distance;
       return result;
     }
 

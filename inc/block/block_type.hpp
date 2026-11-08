@@ -116,8 +116,12 @@ enum class BlockType : uint8_t {
   OAK_FENCE, PINE_FENCE, PALM_FENCE, CHERRY_FENCE,
   FENCE_GATE_X_CLOSED, FENCE_GATE_X_OPEN, FENCE_GATE_Z_CLOSED, FENCE_GATE_Z_OPEN,
   LADDER_N, LADDER_E, LADDER_S, LADDER_W, // on the side of the block to its N, E, S, W
+  // Top slabs: a slab in the upper half of its cell, in the order of
+  // kShapeMaterial. Placed from the Slab item; never an item of their own.
+  OAK_TOP_SLAB, PINE_TOP_SLAB, PALM_TOP_SLAB, CHERRY_TOP_SLAB, COBBLESTONE_TOP_SLAB,
+  STONE_BRICK_TOP_SLAB, BRICK_TOP_SLAB, SANDSTONE_BRICK_TOP_SLAB, SNOW_BRICK_TOP_SLAB,
 };
 
 // The highest BlockType value. Update it when appending a type; a test in
 // tests/item_test.cpp fails if a named type exists past it.
-constexpr BlockType kLastBlockType = BlockType::LADDER_W;
+constexpr BlockType kLastBlockType = BlockType::SNOW_BRICK_TOP_SLAB;

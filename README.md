@@ -315,6 +315,12 @@ Make them at a Crafting Table from oak, pine, palm or cherry **planks**,
 *   A **slab** is half a block high. Walk onto it without jumping, or use a
     row of them for a porch or a low floor. Put a slab on top of the same
     kind of slab and the two become one full block.
+*   A slab goes in the **bottom half** of its space when you put it on top
+    of something, and in the **top half** when you put it under a block or
+    on the upper half of a block's side. Build a roof or a dock from
+    top-half slabs and whatever you put on it (a block, a fence, a torch)
+    sits flush on top. A top-half slab under the same kind of top-half slab
+    makes a full block too.
 *   A **stair** is two half steps. It goes down with its high side away
     from you, so walking forward goes up. Walk up a staircase without
     pressing jump. From behind or the sides it's a wall a block tall.

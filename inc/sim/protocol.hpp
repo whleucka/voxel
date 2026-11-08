@@ -59,6 +59,8 @@ struct BreakBlock { glm::ivec3 pos{0}; };
 struct PlaceBlock {
   glm::ivec3 pos{0};
   glm::ivec3 against{0, -1, 0};
+  // A side was clicked in its upper half: a slab goes in the top of its cell.
+  bool upper = false;
 };
 struct SelectSlot { int slot = 0; };
 struct Save {};

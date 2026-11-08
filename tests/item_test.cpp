@@ -36,7 +36,7 @@ TEST_CASE("every placeable block has an item that places it") {
         (isTorch(b) && b != BlockType::TORCH) || (isCake(b) && b != BlockType::CAKE_4) ||
         (isStair(b) && stairFacing(b) != DoorFacing::North) ||
         (isLadder(b) && b != BlockType::LADDER_N) ||
-        (isGate(b) && b != BlockType::FENCE_GATE_X_CLOSED))
+        (isGate(b) && b != BlockType::FENCE_GATE_X_CLOSED) || isTopSlab(b))
       continue;
     ItemId id = itemForBlock(b);
     CAPTURE(blockName(b));
@@ -147,7 +147,7 @@ TEST_CASE("every other block drops itself, and every drop is a valid item") {
     auto drop = dropFor(b);
     if (drop) CHECK(isValidItem(*drop));
     if (!special.count(b) && !isDoor(b) && !isBed(b) && !isCrop(b) && !isTorch(b) && !isCake(b) &&
-        !isStair(b) && !isLadder(b) && !isGate(b))
+        !isStair(b) && !isLadder(b) && !isGate(b) && !isTopSlab(b))
       CHECK(drop == itemForBlock(b));
   }
 }

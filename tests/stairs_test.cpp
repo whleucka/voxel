@@ -57,6 +57,26 @@ TEST_CASE("slab and stair block ids are pinned: saves store them as numbers") {
   CHECK(static_cast<int>(BlockType::OAK_STAIRS_N) == 182);
   CHECK(static_cast<int>(BlockType::SNOW_BRICK_STAIRS_W) == 217);
   CHECK(BlockType::SNOW_BRICK_STAIRS_W < kLastBlockType); // fences came after
+  CHECK(static_cast<int>(BlockType::OAK_TOP_SLAB) == 230);
+  CHECK(static_cast<int>(BlockType::SNOW_BRICK_TOP_SLAB) == 238);
+  CHECK(kLastBlockType == BlockType::SNOW_BRICK_TOP_SLAB);
+}
+
+TEST_CASE("a top slab is its slab in the other half: named, mined and dropped as the slab") {
+  for (int m = 0; m < kShapeMaterials; ++m) {
+    const BlockType top = topSlabBlock(m), slab = slabBlock(m);
+    CAPTURE(m);
+    CHECK(isSlab(top));
+    CHECK(isTopSlab(top));
+    CHECK_FALSE(isTopSlab(slab));
+    CHECK(shapeMaterialIndex(top) == m);
+    CHECK(shapeMaterial(top) == kShapeMaterial[m]);
+    CHECK(blockName(top) == blockName(slab));
+    CHECK(block_data.count(top) == 1);
+    // Never an item of its own: breaking one gives the slab.
+    CHECK_FALSE(isValidItem(itemForBlock(top)));
+    CHECK(dropFor(top) == itemForBlock(slab));
+  }
 }
 
 TEST_CASE("slabs and stairs are named, mined and coloured like their material") {
@@ -116,6 +136,29 @@ TEST_CASE("a slab fills the bottom half of its cell") {
   CHECK(boxes.box[0].lo == glm::vec3(0, 0, 0));
   CHECK(boxes.box[0].hi == glm::vec3(1, 0.5f, 1));
   CHECK(blockHeight(BlockType::STONE_BRICK_SLAB) == 0.5f);
+}
+
+TEST_CASE("a top slab fills the top half of its cell, flush with what's built on it") {
+  CellBoxes boxes = blockBoxes(BlockType::OAK_TOP_SLAB);
+  REQUIRE(boxes.count == 1);
+  CHECK(boxes.box[0].lo == glm::vec3(0, 0.5f, 0));
+  CHECK(boxes.box[0].hi == glm::vec3(1, 1, 1));
+  CHECK(blockHeight(BlockType::OAK_TOP_SLAB) == 1.0f);
+  // Its top is a full block's: a torch stands on it and a fence joins it.
+  CHECK(isSolidGround(BlockType::OAK_TOP_SLAB));
+  CHECK(fenceJoins(BlockType::OAK_TOP_SLAB, {1, 0, 0}));
+  CHECK_FALSE(isSolidGround(BlockType::OAK_SLAB));
+}
+
+TEST_CASE("you stand on a top slab a block up, and walk under it") {
+  Rig r;
+  r.set(8, kBase + 1, 6, BlockType::OAK_TOP_SLAB);
+  Player drop({8.5f, kBase + 4.0f, 6.5f});
+  steps(drop, r.world, 60);
+  CHECK(restsAt(drop.getPosition().y, kBase + 2.0f));
+  // Its lower half is open: nothing to stand on there.
+  CHECK_FALSE(insideBlock(BlockType::OAK_TOP_SLAB, {0.5f, 0.25f, 0.5f}));
+  CHECK(insideBlock(BlockType::OAK_TOP_SLAB, {0.5f, 0.75f, 0.5f}));
 }
 
 TEST_CASE("a stair is a slab with its upper step at the back, the way it faces") {

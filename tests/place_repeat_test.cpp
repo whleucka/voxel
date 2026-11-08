@@ -2,12 +2,16 @@
 #include "player/place_repeat.hpp"
 
 namespace {
-RaycastResult hitFace(glm::ivec3 pos, glm::ivec3 normal, BlockType b = BlockType::STONE) {
+RaycastResult hitFace(glm::ivec3 pos, glm::ivec3 normal, BlockType b = BlockType::STONE,
+                      float up = 0.25f) {
   RaycastResult r;
   r.hit = true;
   r.block_pos = pos;
   r.normal = normal;
   r.block_type = b;
+  // On the face, `up` of the way up the block.
+  r.point = glm::vec3(pos) + glm::vec3(0.5f) + glm::vec3(normal) * 0.5f;
+  if (normal.y == 0) r.point.y = static_cast<float>(pos.y) + up;
   return r;
 }
 } // namespace
@@ -19,6 +23,22 @@ TEST_CASE("placementFor: on the face hit, or over tall grass") {
   PlaceBlock g = placementFor(hitFace({2, 5, 0}, {1, 0, 0}, BlockType::TALL_GRASS));
   CHECK(g.pos == glm::ivec3(2, 5, 0));
   CHECK(g.against == glm::ivec3(0, -1, 0));
+}
+
+TEST_CASE("placementFor: a side hit above its middle is the upper half") {
+  CHECK(placementFor(hitFace({0, 4, 0}, {1, 0, 0}, BlockType::STONE, 0.75f)).upper);
+  CHECK_FALSE(placementFor(hitFace({0, 4, 0}, {1, 0, 0}, BlockType::STONE, 0.25f)).upper);
+  // A top or a bottom face has no half; the face says which.
+  CHECK_FALSE(placementFor(hitFace({0, 4, 0}, {0, 1, 0})).upper);
+  CHECK_FALSE(placementFor(hitFace({0, 4, 0}, {0, -1, 0})).upper);
+}
+
+TEST_CASE("a hold keeps to the half it began in") {
+  PlaceRepeat hold(PlaceBlock{{0, 5, -1}, {0, 0, 1}, true});
+  // Even aimed low on the next side, its slabs go in the top half.
+  auto next = hold.update(1.0f, hitFace({0, 5, -1}, {0, 0, -1}, BlockType::STONE, 0.25f));
+  REQUIRE(next);
+  CHECK(next->upper);
 }
 
 TEST_CASE("a hold places one block per interval while the aim moves along") {

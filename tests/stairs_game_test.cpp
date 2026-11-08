@@ -126,6 +126,57 @@ TEST_CASE("a slab placed against another's side goes beside it") {
   CHECK(y.at(beside) == BlockType::OAK_SLAB);
 }
 
+TEST_CASE("a slab put under a block goes in the top of its cell") {
+  Yard y;
+  const glm::ivec3 roof = kSpot + kUp * 2;
+  y.game.world().setBlockAt(roof, BlockType::STONE);
+  y.hold(BlockType::OAK_SLAB);
+  // Clicking the roof's underside aims at the cell below, against the roof.
+  CHECK(reason(y.place(roof - kUp, kUp)) == "");
+  CHECK(y.at(roof - kUp) == BlockType::OAK_TOP_SLAB);
+}
+
+TEST_CASE("a slab on a side goes in the half of it aimed at") {
+  Yard y;
+  y.hold(BlockType::OAK_SLAB, 2);
+  const glm::ivec3 low = kSpot, high = kSpot + glm::ivec3(1, 0, 0);
+  PlaceBlock upper{high, {-1, 0, 0}, true};
+  CHECK(reason(y.run(upper)) == "");
+  CHECK(y.at(high) == BlockType::OAK_TOP_SLAB);
+  CHECK(reason(y.place(low, {-1, 0, 0})) == "");
+  CHECK(y.at(low) == BlockType::OAK_SLAB);
+}
+
+TEST_CASE("a top slab under the same top slab makes the full block") {
+  Yard y;
+  const glm::ivec3 top = kSpot + kUp;
+  y.game.world().setBlockAt(top, BlockType::BRICK_TOP_SLAB);
+  y.hold(BlockType::BRICK_SLAB);
+  CHECK(reason(y.place(kSpot, kUp)) == "");
+  CHECK(y.at(top) == BlockType::BRICKS);
+  CHECK(y.at(kSpot) == BlockType::AIR);
+  CHECK(y.held() == 0);
+}
+
+TEST_CASE("a block built on a top slab sits flush on it") {
+  Yard y;
+  y.game.world().setBlockAt(kSpot, BlockType::OAK_TOP_SLAB);
+  y.hold(BlockType::OAK_FENCE);
+  CHECK(reason(y.place(kSpot + kUp)) == "");
+  CHECK(y.at(kSpot + kUp) == BlockType::OAK_FENCE);
+  // The fence's foot (the floor of its cell) is the slab's top.
+  CHECK(static_cast<float>(kSpot.y) + blockBoxes(y.at(kSpot)).box[0].hi.y ==
+        static_cast<float>((kSpot + kUp).y));
+}
+
+TEST_CASE("a top slab breaks like any block") {
+  Yard y;
+  y.game.world().setBlockAt(kSpot, BlockType::OAK_TOP_SLAB);
+  y.game.setMode(GameMode::Creative);
+  CHECK(reason(y.run(BreakBlock{kSpot})) == "");
+  CHECK(y.at(kSpot) == BlockType::AIR);
+}
+
 TEST_CASE("two slabs don't make a block round someone standing on them") {
   Yard y;
   const glm::ivec3 under_me(2, kBase + 1, 2);

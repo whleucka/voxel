@@ -49,6 +49,7 @@ inline float blockHeight(BlockType type) {
   return isFence(type) || isGate(type) ? kFenceHeight
          : isBed(type)  ? kBedHeight
          : isCake(type) ? kCakeHeight
+         : isTopSlab(type) ? 1.0f // its top is the cell's top
          : isSlab(type) || isStair(type) ? kSlabHeight
                                          : 1.0f;
 }
@@ -79,6 +80,7 @@ inline CellBoxes blockBoxes(BlockType type) {
                  ? DoorBox{{0, 0, kFenceRailLo}, {1, kFenceHeight, kFenceRailHi}}
                  : DoorBox{{kFenceRailLo, 0, 0}, {kFenceRailHi, kFenceHeight, 1}}},
             1};
+  if (isTopSlab(type)) return {{{{0, kSlabHeight, 0}, {1, 1, 1}}}, 1};
   CellBoxes boxes{{{{0, 0, 0}, {1, blockHeight(type), 1}}}, 1};
   if (isStair(type)) boxes.add(stairStep(stairFacing(type)));
   return boxes;
@@ -95,7 +97,7 @@ inline bool insideBlock(BlockType type, glm::vec3 local) {
 // A full, solid block that a torch, a mushroom or a cake can sit on.
 inline bool isSolidGround(BlockType type) {
   return blocksMovement(type) && blockHeight(type) == 1.0f && !isDoor(type) &&
-         !needsSupport(type) && !isHalfShape(type);
+         !needsSupport(type) && (!isHalfShape(type) || isTopSlab(type));
 }
 
 // Whether a fence reaches over to `neighbour`, a unit step `toward` away
@@ -495,5 +497,10 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = [] {
     d[static_cast<BlockType>(v)] = oak;
   for (int v = static_cast<int>(BlockType::LADDER_N); v <= static_cast<int>(BlockType::LADDER_W); ++v)
     d[static_cast<BlockType>(v)] = {kLadderTile, kLadderTile, kLadderTile};
+  for (int v = static_cast<int>(BlockType::OAK_TOP_SLAB);
+       v <= static_cast<int>(BlockType::SNOW_BRICK_TOP_SLAB); ++v) {
+    const BlockTexture material = d.at(shapeMaterial(static_cast<BlockType>(v)));
+    d[static_cast<BlockType>(v)] = material;
+  }
   return d;
 }();

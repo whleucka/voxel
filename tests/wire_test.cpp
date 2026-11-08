@@ -58,6 +58,7 @@ TEST_CASE("commands round-trip with real values") {
   roundTrip(BreakBlock{{-30000, 0, 30000}});
   roundTrip(PlaceBlock{{1, 255, -1}});
   roundTrip(PlaceBlock{{1, 70, -1}, {1, 0, 0}});
+  roundTrip(PlaceBlock{{1, 70, -1}, {1, 0, 0}, true});
   roundTrip(SelectSlot{9});
   roundTrip(MoveItems{39, 0, 64});
   roundTrip(GiveItem{ItemId::SWEET_PETALS, 999});
@@ -212,7 +213,7 @@ TEST_CASE("an oversized frame marks the stream bad") {
 
 TEST_CASE("the hello frame carries the protocol version") {
   CHECK(wire::readHello(wire::hello()) == wire::kProtocolVersion);
-  CHECK(wire::kProtocolVersion == 26);
+  CHECK(wire::kProtocolVersion == 27);
   auto other = wire::hello();
   other[4] = 99;
   CHECK(wire::readHello(other) == 99);

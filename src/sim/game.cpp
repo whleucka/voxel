@@ -967,11 +967,22 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
 
   BlockType placed = *block;
   glm::ivec3 pos = cmd.pos;
-  // A slab put on top of the same slab makes the two one full block.
+  // A slab goes in the top of its cell when put under a block, or on a side
+  // aimed at above its middle, so what's built on it sits flush.
   const glm::ivec3 under = cmd.pos - glm::ivec3(0, 1, 0);
-  if (isSlab(placed) && cmd.against == glm::ivec3(0, -1, 0) &&
+  const glm::ivec3 over = cmd.pos + glm::ivec3(0, 1, 0);
+  const bool top_slab = isSlab(placed) && (cmd.against == glm::ivec3(0, 1, 0) ||
+                                           (cmd.against.y == 0 && cmd.upper));
+  if (top_slab) placed = topSlabBlock(shapeMaterialIndex(placed));
+  // A slab put on top of the same slab, or a top slab under the same top
+  // slab, makes the two one full block.
+  if (isSlab(placed) && !top_slab && cmd.against == glm::ivec3(0, -1, 0) &&
       world_.getBlockAt(glm::vec3(under) + 0.5f) == placed) {
     pos = under;
+    placed = shapeMaterial(placed);
+  } else if (top_slab && cmd.against == glm::ivec3(0, 1, 0) &&
+             world_.getBlockAt(glm::vec3(over) + 0.5f) == placed) {
+    pos = over;
     placed = shapeMaterial(placed);
   } else {
     // Only air, liquid or grassy plants can be replaced.

@@ -6,7 +6,8 @@
 #include <string_view>
 
 // Slabs and stairs: half-block shapes of nine building materials. A slab
-// fills the bottom half of its cell; a stair is a slab with a half-block on
+// fills the bottom half of its cell, or the top half as a top slab (so what's
+// put on it sits flush); a stair is a slab with a half-block on
 // top at its back, the side its facing points to. Stairs keep their facing in
 // the type, as doors do: material * 4 + facing, from OAK_STAIRS_N.
 
@@ -18,15 +19,22 @@ constexpr BlockType kShapeMaterial[kShapeMaterials] = {
     BlockType::CHERRY_PLANKS, BlockType::COBBLESTONE, BlockType::STONE_BRICKS,
     BlockType::BRICKS,      BlockType::SANDSTONE_BRICKS, BlockType::SNOW_BRICKS};
 
-inline bool isSlab(BlockType b) { return b >= BlockType::OAK_SLAB && b <= BlockType::SNOW_BRICK_SLAB; }
+inline bool isTopSlab(BlockType b) {
+  return b >= BlockType::OAK_TOP_SLAB && b <= BlockType::SNOW_BRICK_TOP_SLAB;
+}
+// Either half: a bottom slab or a top slab.
+inline bool isSlab(BlockType b) {
+  return (b >= BlockType::OAK_SLAB && b <= BlockType::SNOW_BRICK_SLAB) || isTopSlab(b);
+}
 inline bool isStair(BlockType b) {
   return b >= BlockType::OAK_STAIRS_N && b <= BlockType::SNOW_BRICK_STAIRS_W;
 }
 inline bool isHalfShape(BlockType b) { return isSlab(b) || isStair(b); }
 
 inline int shapeMaterialIndex(BlockType b) {
-  return isSlab(b) ? static_cast<int>(b) - static_cast<int>(BlockType::OAK_SLAB)
-                   : (static_cast<int>(b) - static_cast<int>(BlockType::OAK_STAIRS_N)) / 4;
+  return isTopSlab(b) ? static_cast<int>(b) - static_cast<int>(BlockType::OAK_TOP_SLAB)
+         : isSlab(b)  ? static_cast<int>(b) - static_cast<int>(BlockType::OAK_SLAB)
+                      : (static_cast<int>(b) - static_cast<int>(BlockType::OAK_STAIRS_N)) / 4;
 }
 // The full block a slab or stair is made of.
 inline BlockType shapeMaterial(BlockType b) { return kShapeMaterial[shapeMaterialIndex(b)]; }
@@ -37,6 +45,9 @@ inline DoorFacing stairFacing(BlockType b) {
 
 inline BlockType slabBlock(int material) {
   return static_cast<BlockType>(static_cast<int>(BlockType::OAK_SLAB) + material);
+}
+inline BlockType topSlabBlock(int material) {
+  return static_cast<BlockType>(static_cast<int>(BlockType::OAK_TOP_SLAB) + material);
 }
 inline BlockType stairBlock(int material, DoorFacing facing) {
   return static_cast<BlockType>(static_cast<int>(BlockType::OAK_STAIRS_N) + material * 4 +

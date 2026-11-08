@@ -84,7 +84,7 @@ TEST_CASE("fence, gate and ladder block ids are pinned: saves store them as numb
   CHECK(static_cast<int>(BlockType::FENCE_GATE_Z_OPEN) == 225);
   CHECK(static_cast<int>(BlockType::LADDER_N) == 226);
   CHECK(static_cast<int>(BlockType::LADDER_W) == 229);
-  CHECK(kLastBlockType == BlockType::LADDER_W);
+  CHECK(BlockType::LADDER_W < kLastBlockType); // top slabs came after
 }
 
 TEST_CASE("fences, the gate and ladders are named, mined and dropped") {
