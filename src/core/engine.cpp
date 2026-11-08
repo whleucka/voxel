@@ -1696,7 +1696,7 @@ void Engine::updatePlacing(float dt) {
   std::optional<RaycastResult> ray = world().raycast(cam.position, cam.front, kPlayerReach);
   // Things a click would use instead aren't built on (crouch to, as a click).
   if (!ray->hit || (usedOnClick(ray->block_type) && !player->isCrouching())) ray.reset();
-  if (auto place = place_repeat->update(dt, ray)) connection().send(*place);
+  if (auto place = place_repeat->update(dt, ray, cam.position)) connection().send(*place);
 }
 
 std::vector<CraftRow> Engine::craftingRowsNow() {

@@ -36,20 +36,34 @@ inline bool usedOnClick(BlockType b) {
 
 class PlaceRepeat {
 public:
-  static constexpr float kInterval = 0.2f; // seconds between held placements
+  static constexpr float kInterval = 0.2f;     // seconds between held placements, walking
+  static constexpr float kMinInterval = 0.05f; // the quickest, flying flat out
+  static constexpr float kStride = 0.9f;       // blocks moved per placement, at most
 
   // A hold that began by placing `first`.
   explicit PlaceRepeat(const PlaceBlock &first)
       : against_(first.against), upper_(first.upper), last_(first.pos) {}
 
+  // Seconds between placements for a builder moving at `speed` blocks/s: a
+  // block about every block moved, so flying (three times a walk) doesn't
+  // outrun the row it's laying and leave gaps; a walk or less, kInterval.
+  static float intervalAt(float speed) {
+    return speed > 0.0f ? std::clamp(kStride / speed, kMinInterval, kInterval) : kInterval;
+  }
+
   // Time passes with the aim on `ray` (nullopt: aimed at nothing, or at
-  // something not to build on). Returns the next block to place, once one is
-  // due and the aim is on the same kind of face the hold began on. A due
-  // block waits for the aim rather than the clock, so sweeping onto a good
-  // spot places at once.
-  std::optional<PlaceBlock> update(float dt, const std::optional<RaycastResult> &ray) {
+  // something not to build on) and the builder's eye at `eye`. Returns the
+  // next block to place, once one is due and the aim is on the same kind of
+  // face the hold began on. A due block waits for the aim rather than the
+  // clock, so sweeping onto a good spot places at once.
+  std::optional<PlaceBlock> update(float dt, const std::optional<RaycastResult> &ray,
+                                   std::optional<glm::vec3> eye = std::nullopt) {
+    float speed = 0.0f;
+    if (eye && eye_ && dt > 0.0f) speed = glm::length(*eye - *eye_) / dt;
+    eye_ = eye;
+    const float interval = intervalAt(speed);
     timer_ = std::min(timer_ + dt, kInterval);
-    if (timer_ < kInterval || !ray || !ray->hit) return std::nullopt;
+    if (timer_ < interval || !ray || !ray->hit) return std::nullopt;
     PlaceBlock next = placementFor(*ray);
     if (next.against != against_ || next.pos == last_) return std::nullopt;
     timer_ = 0.0f;
@@ -63,4 +77,5 @@ private:
   bool upper_;         // and the half of it (PlaceBlock::upper)
   glm::ivec3 last_;
   float timer_ = 0.0f;
+  std::optional<glm::vec3> eye_; // where the eye was last update
 };

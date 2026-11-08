@@ -1,5 +1,6 @@
 #include "doctest/doctest.h"
 #include "player/place_repeat.hpp"
+#include "core/constants.hpp"
 
 namespace {
 RaycastResult hitFace(glm::ivec3 pos, glm::ivec3 normal, BlockType b = BlockType::STONE,
@@ -85,6 +86,26 @@ TEST_CASE("a due block waits for a good aim, and nothing repeats the last spot")
   CHECK_FALSE(hold.update(1.0f, std::nullopt));                       // aimed at nothing
   CHECK_FALSE(hold.update(0.0f, hitFace({0, 4, 0}, {0, 1, 0})));      // the first spot again
   CHECK(hold.update(0.0f, hitFace({1, 4, 0}, {0, 1, 0})));            // at once, no wait
+}
+
+TEST_CASE("a hold keeps up with a builder flying: a block about every block moved") {
+  CHECK(PlaceRepeat::intervalAt(0.0f) == PlaceRepeat::kInterval);
+  CHECK(PlaceRepeat::intervalAt(kPlayerMoveSpeed) == PlaceRepeat::kInterval);
+  const float fly = kPlayerMoveSpeed * 3.0f;
+  CHECK(PlaceRepeat::intervalAt(fly) * fly <= 1.0f); // no gap in the row
+  CHECK(PlaceRepeat::intervalAt(1000.0f) == PlaceRepeat::kMinInterval);
+
+  // Flying backward along a bridge at 13 blocks/s: one block every ~0.07 s.
+  PlaceRepeat hold(PlaceBlock{{0, 5, -1}, {0, 0, 1}});
+  const float dt = 0.07f;
+  glm::vec3 eye(0.5f, 6.6f, 2.0f);
+  CHECK_FALSE(hold.update(dt, std::nullopt, eye)); // the first frame has no speed yet
+  int placed = 0;
+  for (int z = -1; z > -6; --z) {
+    eye.z -= fly * dt;
+    if (hold.update(dt, hitFace({0, 5, z}, {0, 0, -1}), eye)) ++placed;
+  }
+  CHECK(placed == 5);
 }
 
 TEST_CASE("usedOnClick: doors and chests are used, plain blocks are built on") {
