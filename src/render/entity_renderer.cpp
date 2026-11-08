@@ -158,6 +158,7 @@ void EntityRenderer::drawBoxes(const std::vector<ModelBox> &model, glm::vec3 pos
     } else {
       // Legs (and arms) swing forward and back about the top of the box.
       glm::vec3 pivot = box.offset + glm::vec3(box.size.x * 0.5f, box.size.y, box.size.z * 0.5f);
+      if (box.pivot_y >= 0.0f) pivot.y = box.pivot_y;
       glm::mat4 local = glm::translate(glm::mat4(1.0f), pivot) *
                         glm::rotate(glm::mat4(1.0f), swing * box.swing, glm::vec3(1, 0, 0)) *
                         glm::translate(glm::mat4(1.0f), -pivot);

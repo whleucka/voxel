@@ -45,6 +45,9 @@ struct ModelBox {
   bool wag = false;       // tails: swing side to side about the box's front edge
   bool collar = false;    // pets: drawn in the pet's collar colour, and only once tamed
   bool collar_tag = false; // pets: in its own colour, and only once tamed
+  // Swinging boxes turn about this height (model space); below 0, about the
+  // box's own top. Lets a hand or shoe swing with the whole arm or leg.
+  float pivot_y = -1.0f;
 };
 
 // How a wagging tail (ModelBox::wag) moves, turned by `angle` radians.

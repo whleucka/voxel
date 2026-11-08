@@ -31,6 +31,29 @@ TEST_CASE("the player figure stands on its feet, about a player tall") {
   CHECK(swinging == 8); // legs, shoes, arms, hands
 }
 
+TEST_CASE("hands and shoes swing with their limbs, and don't overlap them") {
+  for (bool girl : {false, true}) {
+    PlayerLook look;
+    look.figure = girl ? kFigureGirl : 0;
+    auto model = playerModel(resolveLook(look, "Bea"));
+    auto pivot = [](const ModelBox &b) {
+      return b.pivot_y >= 0.0f ? b.pivot_y : b.offset.y + b.size.y;
+    };
+    for (const ModelBox &cuff : model) {
+      if (cuff.swing == 0 || cuff.pivot_y < 0.0f) continue; // the limbs themselves
+      int limbs = 0;
+      for (const ModelBox &limb : model) {
+        if (&limb == &cuff || limb.swing != cuff.swing || limb.pivot_y >= 0.0f) continue;
+        if (limb.offset.x != cuff.offset.x) continue;
+        ++limbs;
+        CHECK(pivot(cuff) == pivot(limb));           // same hinge
+        CHECK(limb.offset.y == cuff.offset.y + cuff.size.y); // limb starts where it ends
+      }
+      CHECK(limbs == 1);
+    }
+  }
+}
+
 namespace {
 int countColor(const std::vector<ModelBox> &model, glm::vec3 color) {
   int n = 0;

@@ -40,6 +40,15 @@ Build buildOf(const ResolvedLook &look) {
   return {0.25f, 0.24f, 0.26f, 0.52f, 0.40f, 0.14f};
 }
 
+// A hand or shoe on the end of a limb, swinging about the limb's top
+// (`pivot_y`) so it stays on the end of it. Limbs stop where these start:
+// overlapping boxes share faces, which flicker.
+ModelBox cuff(glm::vec3 offset, glm::vec3 size, glm::vec3 color, int swing, float pivot_y) {
+  ModelBox box{offset, size, color, swing};
+  box.pivot_y = pivot_y;
+  return box;
+}
+
 } // namespace
 
 std::vector<ModelBox> playerModel(const ResolvedLook &look) {
@@ -47,15 +56,15 @@ std::vector<ModelBox> playerModel(const ResolvedLook &look) {
   const Build b = buildOf(look);
   const float right_leg = -b.leg_x + b.leg_w + 0.02f;
   std::vector<ModelBox> m = {
-      {{-b.leg_x, 0.00f, -0.12f}, {b.leg_w, 0.75f, 0.24f}, pants, +1},  // legs
-      {{right_leg, 0.00f, -0.12f}, {b.leg_w, 0.75f, 0.24f}, pants, -1},
-      {{-b.leg_x, 0.00f, -0.14f}, {b.leg_w, 0.10f, 0.28f}, shoes, +1},  // shoes
-      {{right_leg, 0.00f, -0.14f}, {b.leg_w, 0.10f, 0.28f}, shoes, -1},
+      {{-b.leg_x, 0.10f, -0.12f}, {b.leg_w, 0.65f, 0.24f}, pants, +1},  // legs
+      {{right_leg, 0.10f, -0.12f}, {b.leg_w, 0.65f, 0.24f}, pants, -1},
+      cuff({-b.leg_x, 0.00f, -0.14f}, {b.leg_w, 0.10f, 0.28f}, shoes, +1, 0.75f), // shoes
+      cuff({right_leg, 0.00f, -0.14f}, {b.leg_w, 0.10f, 0.28f}, shoes, -1, 0.75f),
       {{-b.body_x, 0.75f, -0.13f}, {b.body_w, 0.65f, 0.26f}, look.shirt}, // body
-      {{-b.arm_x, 0.78f, -0.12f}, {b.arm_w, 0.62f, 0.24f}, look.shirt, -1}, // arms
-      {{b.body_x, 0.78f, -0.12f}, {b.arm_w, 0.62f, 0.24f}, look.shirt, +1},
-      {{-b.arm_x, 0.78f, -0.12f}, {b.arm_w, 0.12f, 0.24f}, look.skin, -1},  // hands
-      {{b.body_x, 0.78f, -0.12f}, {b.arm_w, 0.12f, 0.24f}, look.skin, +1},
+      {{-b.arm_x, 0.90f, -0.12f}, {b.arm_w, 0.50f, 0.24f}, look.shirt, -1}, // arms
+      {{b.body_x, 0.90f, -0.12f}, {b.arm_w, 0.50f, 0.24f}, look.shirt, +1},
+      cuff({-b.arm_x, 0.78f, -0.12f}, {b.arm_w, 0.12f, 0.24f}, look.skin, -1, 1.40f), // hands
+      cuff({b.body_x, 0.78f, -0.12f}, {b.arm_w, 0.12f, 0.24f}, look.skin, +1, 1.40f),
   };
   addHead(m, look, 1.40f);
   return m;
@@ -67,15 +76,15 @@ std::vector<ModelBox> seatedPlayerModel(const ResolvedLook &look) {
   const float right_leg = -b.leg_x + b.leg_w + 0.02f;
   // Everything above the hips sits 0.75 lower than standing.
   std::vector<ModelBox> m = {
-      {{-b.leg_x, 0.00f, -0.40f}, {b.leg_w, 0.24f, 0.52f}, pants},  // legs, out in front
-      {{right_leg, 0.00f, -0.40f}, {b.leg_w, 0.24f, 0.52f}, pants},
-      {{-b.leg_x, 0.00f, -0.48f}, {b.leg_w, 0.28f, 0.10f}, shoes},  // shoes
-      {{right_leg, 0.00f, -0.48f}, {b.leg_w, 0.28f, 0.10f}, shoes},
+      {{-b.leg_x, 0.00f, -0.38f}, {b.leg_w, 0.24f, 0.50f}, pants},  // legs, out in front
+      {{right_leg, 0.00f, -0.38f}, {b.leg_w, 0.24f, 0.50f}, pants},
+      cuff({-b.leg_x, 0.00f, -0.48f}, {b.leg_w, 0.28f, 0.10f}, shoes, 0, -1.0f), // shoes
+      cuff({right_leg, 0.00f, -0.48f}, {b.leg_w, 0.28f, 0.10f}, shoes, 0, -1.0f),
       {{-b.body_x, 0.00f, -0.13f}, {b.body_w, 0.65f, 0.26f}, look.shirt}, // body
-      {{-b.arm_x, 0.03f, -0.12f}, {b.arm_w, 0.62f, 0.24f}, look.shirt},   // arms
-      {{b.body_x, 0.03f, -0.12f}, {b.arm_w, 0.62f, 0.24f}, look.shirt},
-      {{-b.arm_x, 0.03f, -0.12f}, {b.arm_w, 0.12f, 0.24f}, look.skin},    // hands
-      {{b.body_x, 0.03f, -0.12f}, {b.arm_w, 0.12f, 0.24f}, look.skin},
+      {{-b.arm_x, 0.15f, -0.12f}, {b.arm_w, 0.50f, 0.24f}, look.shirt},   // arms
+      {{b.body_x, 0.15f, -0.12f}, {b.arm_w, 0.50f, 0.24f}, look.shirt},
+      cuff({-b.arm_x, 0.03f, -0.12f}, {b.arm_w, 0.12f, 0.24f}, look.skin, 0, -1.0f), // hands
+      cuff({b.body_x, 0.03f, -0.12f}, {b.arm_w, 0.12f, 0.24f}, look.skin, 0, -1.0f),
   };
   addHead(m, look, 0.65f);
   return m;
