@@ -1,6 +1,8 @@
 #include "doctest/doctest.h"
 #include "player/place_repeat.hpp"
 #include "core/constants.hpp"
+#include <set>
+#include <tuple>
 
 namespace {
 RaycastResult hitFace(glm::ivec3 pos, glm::ivec3 normal, BlockType b = BlockType::STONE,
@@ -113,4 +115,65 @@ TEST_CASE("usedOnClick: doors and chests are used, plain blocks are built on") {
   CHECK(usedOnClick(BlockType::CRAFTING_TABLE));
   CHECK_FALSE(usedOnClick(BlockType::STONE));
   CHECK_FALSE(usedOnClick(BlockType::OAK_PLANKS));
+}
+
+namespace {
+// Flies a builder backward off the end of a bridge, holding place, against a
+// Game that puts sent blocks in only on its 20 Hz tick. Returns the nearest
+// cell of an unbroken bridge (z 3 down to it), its far end being z 0.
+int flyBackBridging(float speed, float fps, float seconds) {
+  std::set<std::tuple<int, int, int>> cells;
+  for (int z = 0; z <= 3; ++z) cells.insert({0, 5, z});
+  auto solid = [&](glm::ivec3 c) { return cells.count({c.x, c.y, c.z}) > 0; };
+  auto cast = [&](glm::vec3 o, glm::vec3 d) -> std::optional<RaycastResult> {
+    std::optional<RaycastResult> best;
+    for (auto [x, y, z] : cells)
+      if (auto hit = rayIntoCell(o, d, kPlayerReach, {x, y, z});
+          hit && (!best || hit->distance < best->distance))
+        best = hit;
+    return best;
+  };
+  // Feet on the bridge's top (y 6), just past its end, facing back along it
+  // and looking down at its end's side.
+  glm::vec3 eye(0.5f, 7.62f, -0.7f);
+  const float pitch = glm::radians(70.0f);
+  const glm::vec3 front = glm::normalize(glm::vec3(0.0f, -std::sin(pitch), std::cos(pitch)));
+
+  std::vector<PlaceBlock> sent;
+  auto first = cast(eye, front);
+  REQUIRE(first);
+  PlaceBlock click = placementFor(*first);
+  sent.push_back(click);
+  PlaceRepeat hold(click);
+  hold.sent(click);
+
+  const float dt = 1.0f / fps;
+  float tick = 0.0f;
+  for (float t = 0.0f; t < seconds; t += dt) {
+    eye.z -= speed * dt;
+    for (const PlaceBlock &p : hold.sweep(dt, eye, front, kPlayerReach, cast)) sent.push_back(p);
+    if ((tick += dt) >= 0.05f) { // the Game's tick: what was sent goes in
+      tick -= 0.05f;
+      for (const PlaceBlock &p : sent)
+        if (glm::distance(eye, glm::vec3(p.pos) + 0.5f) <= kPlayerReach + 0.87f)
+          cells.insert({p.pos.x, p.pos.y, p.pos.z});
+      sent.clear();
+    }
+  }
+  int z = 3;
+  while (solid({0, 5, z - 1})) --z;
+  return z;
+}
+} // namespace
+
+TEST_CASE("flying backward holding place lays an unbroken bridge under the builder") {
+  for (float fps : {30.0f, 60.0f, 144.0f}) {
+    CAPTURE(fps);
+    const float fly = kPlayerMoveSpeed * 3.0f;
+    // Two seconds at ~13 blocks/s: ~26 blocks, the end within a couple of the builder.
+    CHECK(flyBackBridging(fly, fps, 2.0f) <= -24);
+    const float sprint_fly = kPlayerSprintSpeed * 5.0f;
+    CHECK(flyBackBridging(sprint_fly, fps, 1.0f) <= -25);
+    CHECK(flyBackBridging(kPlayerMoveSpeed, fps, 2.0f) <= -7); // walking pace
+  }
 }
