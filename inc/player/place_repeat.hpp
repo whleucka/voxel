@@ -139,12 +139,43 @@ public:
         if (auto hit = rayIntoCell(o, d, reach, p.pos);
             hit && (!ray || hit->distance < ray->distance))
           ray = hit;
+      if (auto row = rowAim(o, d, reach, ray)) ray = row;
       if (auto next = update(dt / static_cast<float>(steps), ray, o)) {
         pending_.push_back({next->pos, 0.0f});
         placed.push_back(*next);
       }
     }
     return placed;
+  }
+
+  static constexpr int kRowAhead = 4; // cells past a row's end its aim still extends it
+
+  // A hold laying a row (begun on a side) needn't be aimed exactly at the
+  // side of its newest block, which at a steep look is a sliver: aimed
+  // anywhere the row would go on to (through the empty cells past its end),
+  // or at the newest block's top once the eye has gone past its end, the
+  // aim counts as on that side. Nothing when `ray` already builds on the
+  // row's face, or the hold isn't a row.
+  std::optional<RaycastResult> rowAim(glm::vec3 o, glm::vec3 d, float reach,
+                                      const std::optional<RaycastResult> &ray) const {
+    if (against_.y != 0) return std::nullopt;
+    if (ray && ray->normal == -against_ && !isReplaceable(ray->block_type)) return std::nullopt;
+    const glm::ivec3 out = -against_; // the way the row grows
+    RaycastResult side;
+    side.hit = true;
+    side.block_pos = last_;
+    side.normal = out;
+    side.block_type = BlockType::STONE;
+    side.point = glm::vec3(last_) + 0.5f + glm::vec3(out) * 0.5f;
+    side.distance = glm::distance(o, side.point);
+    for (int k = 1; k <= kRowAhead; ++k)
+      if (auto through = rayIntoCell(o, d, reach, last_ + out * k);
+          through && (!ray || through->distance <= ray->distance))
+        return side;
+    const float past = glm::dot(o - (glm::vec3(last_) + 0.5f), glm::vec3(out));
+    if (ray && ray->block_pos == last_ && ray->normal == glm::ivec3(0, 1, 0) && past > 0.5f)
+      return side;
+    return std::nullopt;
   }
 
   // The first block of the hold was sent too: aim at it before it shows.
