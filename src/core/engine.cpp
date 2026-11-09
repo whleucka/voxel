@@ -1600,6 +1600,7 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
       PlaceBlock place = placementFor(ray);
       engine->connection().send(place);
       engine->place_repeat.emplace(place);
+      engine->place_repeat->sent(place);
     }
   }
 }
@@ -1693,10 +1694,15 @@ void Engine::updatePlacing(float dt) {
     return;
   }
   const Camera &cam = player->getCamera();
-  std::optional<RaycastResult> ray = world().raycast(cam.position, cam.front, kPlayerReach);
-  // Things a click would use instead aren't built on (crouch to, as a click).
-  if (!ray->hit || (usedOnClick(ray->block_type) && !player->isCrouching())) ray.reset();
-  if (auto place = place_repeat->update(dt, ray, cam.position)) connection().send(*place);
+  const bool crouching = player->isCrouching();
+  auto cast = [&](glm::vec3 origin, glm::vec3 dir) -> std::optional<RaycastResult> {
+    RaycastResult ray = world().raycast(origin, dir, kPlayerReach);
+    // Things a click would use instead aren't built on (crouch to, as a click).
+    if (!ray.hit || (usedOnClick(ray.block_type) && !crouching)) return std::nullopt;
+    return ray;
+  };
+  for (const PlaceBlock &place : place_repeat->sweep(dt, cam.position, cam.front, kPlayerReach, cast))
+    connection().send(place);
 }
 
 std::vector<CraftRow> Engine::craftingRowsNow() {
