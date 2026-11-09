@@ -1,6 +1,7 @@
 // Water in the Game: a block taken out of water leaves water, not air, and
 // water runs into the space a break opens beside or under it.
 #include "doctest/doctest.h"
+#include "item/item.hpp"
 #include "sim/game.hpp"
 #include "sim/local_connection.hpp"
 #include "test_util.hpp"
@@ -15,6 +16,7 @@ struct Pool {
   ScopedRenderDistance rd{0};
   Game game;
   LocalConnection a;
+  PlayerId id = 0;
 
   Pool() {
     game.spawner() = Spawner{};
@@ -24,6 +26,8 @@ struct Pool {
     game.pump();
     std::vector<Event> evs;
     a.poll(evs);
+    for (const Event &e : evs)
+      if (const auto *j = std::get_if<Joined>(&e)) id = j->id;
     game.world().loadChunkSync(0, 0);
     fill(game.world(), {0, kBase, 0}, {15, kBase, 15}, BlockType::STONE);
     fill(game.world(), {0, kBase + 1, 0}, {15, kBase + 12, 15}, BlockType::AIR);
@@ -74,6 +78,40 @@ TEST_CASE("a block broken away from water leaves air") {
   CHECK(p.at(cell) == BlockType::AIR);
   p.flow();
   CHECK(p.at(cell) == BlockType::AIR);
+}
+
+TEST_CASE("a block broken in a stack of slabs in water leaves water") {
+  Pool p;
+  // A slab on each side of the cell, and a top slab over it: no water
+  // touches it, but the half each slab beside it leaves is water, and flows in.
+  const glm::ivec3 cell{5, kBase + 1, 5};
+  for (glm::ivec3 s : {glm::ivec3(1, 0, 0), glm::ivec3(-1, 0, 0), glm::ivec3(0, 0, 1),
+                       glm::ivec3(0, 0, -1)})
+    p.set(cell + s, BlockType::OAK_SLAB);
+  p.set(cell + glm::ivec3(0, 1, 0), BlockType::OAK_TOP_SLAB);
+  p.set(cell, BlockType::OAK_PLANKS);
+  p.breakAt(cell);
+  CHECK(p.at(cell) == BlockType::WATER);
+
+}
+
+TEST_CASE("a slab put in water beside an air pocket lets the water in") {
+  Pool p;
+  // A pocket at the pool's edge, walled in, then a slab beside it in the water.
+  const glm::ivec3 pocket{5, kBase + 1, 5};
+  for (glm::ivec3 s : {glm::ivec3(1, 0, 0), glm::ivec3(-1, 0, 0), glm::ivec3(0, 0, 1),
+                       glm::ivec3(0, 0, -1)})
+    p.set(pocket + s, BlockType::DIRT);
+  p.set(pocket + glm::ivec3(0, 1, 0), BlockType::DIRT);
+  p.set(pocket, BlockType::AIR);
+  PlayerState &ps = *p.game.findPlayer(p.id);
+  ps.inventory.set(ps.selected_slot, {itemForBlock(BlockType::OAK_SLAB), 1});
+  p.set(pocket + glm::ivec3(1, 0, 0), BlockType::WATER);
+  p.a.send(PlaceBlock{pocket + glm::ivec3(1, 0, 0), {0, -1, 0}});
+  p.game.pump();
+  REQUIRE(p.at(pocket + glm::ivec3(1, 0, 0)) == BlockType::OAK_SLAB);
+  p.flow();
+  CHECK(p.at(pocket) == BlockType::WATER);
 }
 
 TEST_CASE("water runs into a trench dug from it, a cell a step") {

@@ -1,6 +1,7 @@
 #include "sim/game.hpp"
 #include "block/block_data.hpp"
 #include "block/door.hpp"
+#include "block/water_fill.hpp"
 #include "biome/biome_manager.hpp"
 #include "biome/plants.hpp"
 #include "item/farming.hpp"
@@ -1024,6 +1025,9 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
   broadcast(BlockChanged{pos, placed});
   broadcast(SoundCue{Cue::BlockPlace, glm::vec3(pos) + 0.5f, placed});
   packSoilUnder(pos);
+  // A slab or a stair in water holds water in the half it leaves, which flows
+  // on into any air beside it.
+  if (isHalfShape(placed)) wakeWaterAround(pos);
   if (*block == BlockType::FURNACE) furnaces_[pos] = Furnace{};
   if (*block == BlockType::CHEST) chests_[pos] = Chest{};
   if (rules().consume_blocks) {
@@ -1758,10 +1762,13 @@ bool Game::waterFlowsInto(glm::ivec3 pos) const {
   if (at(pos) != BlockType::AIR) return false;
   if (isLiquid(at(pos + kUp))) return true;
   // Sideways only where it has something to sit on: water levels out, but
-  // doesn't spread out across the air beside a waterfall.
+  // doesn't spread out across the air beside a waterfall. From water, or from
+  // the half a slab or a stair in water leaves (as the mesh draws it), so a
+  // cell walled in by a stack of slabs in the sea fills.
   if (at(pos - kUp) == BlockType::AIR) return false;
+  auto blockAt = [&](int x, int y, int z) { return at({x, y, z}); };
   for (glm::ivec3 side : kWaterSides)
-    if (isLiquid(at(pos + side))) return true;
+    if (holdsWater(blockAt, pos.x + side.x, pos.y, pos.z + side.z)) return true;
   return false;
 }
 

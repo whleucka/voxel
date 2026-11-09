@@ -114,6 +114,18 @@ TEST_CASE("a slab in the sea's top layer leaves no dry pocket; seabed coral isn'
     for (const BlockVertex &v : mesh.transparentVertexData()) CHECK((v.ao & 3) == 3);
   }
 
+  // A slab in the top layer with something on it: no surface over it, under a
+  // full block or a wet top slab.
+  const glm::ivec3 under{7, kBase - 1, 7};
+  fill(world, under, under, BlockType::OAK_SLAB);
+  for (BlockType over : {BlockType::OAK_PLANKS, BlockType::OAK_TOP_SLAB}) {
+    CAPTURE(static_cast<int>(over));
+    fill(world, under + glm::ivec3(0, 1, 0), under + glm::ivec3(0, 1, 0), over);
+    CHECK(waterFacesOverTop(world, under, Face::Top) == 0);
+    CHECK(waterFacesOverTop(world, under, Face::Bottom) == 0);
+  }
+  fill(world, under, under + glm::ivec3(0, 1, 0), BlockType::WATER);
+
   // A slab on the surface, over the water: the surface shows under it.
   const glm::ivec3 dock{8, kBase + 1, 8};
   fill(world, dock, dock, BlockType::OAK_SLAB);

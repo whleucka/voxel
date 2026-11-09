@@ -1,5 +1,6 @@
 #include "chunk/chunk_mesh.hpp"
 #include "block/block_data.hpp"
+#include "block/water_fill.hpp"
 #include "chunk/chunk.hpp"
 #include "core/constants.hpp"
 #include "world/world.hpp"
@@ -695,17 +696,14 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
 
   MeshBuffers buffers{vertices, indices, transparentVertices, transparentIndices};
 
-  // A slab or a stair in water: the water fills the half it leaves, as it
-  // would flow into an empty cell there (Game::waterFlowsInto): water over
-  // it, or beside it with something under it. Otherwise one put in the top
-  // layer of the sea leaves a dry pocket walled with water.
-  auto wet = [&](int x, int y, int z) {
-    if (!isHalfShape(area.block(x, y, z))) return false;
-    if (isLiquid(area.block(x, y + 1, z))) return true;
-    if (area.block(x, y - 1, z) == BlockType::AIR) return false;
-    for (const glm::ivec3 &s : kSides)
-      if (isLiquid(area.block(x + s.x, y, z + s.z))) return true;
-    return false;
+  // A slab or a stair in water: the water fills the half it leaves
+  // (halfShapeWet, as the Game has it). Otherwise one put in the top layer of
+  // the sea would leave a dry pocket walled with water.
+  auto blockAt = [&](int x, int y, int z) { return area.block(x, y, z); };
+  auto wet = [&](int x, int y, int z) { return halfShapeWet(blockAt, x, y, z); };
+  // Water there: a liquid, or the half a slab or a stair in water leaves.
+  auto watery = [&](int x, int y, int z, BlockType unloaded = BlockType::AIR) {
+    return isLiquid(area.block(x, y, z, unloaded)) || wet(x, y, z);
   };
 
   // Side faces. Water shows one toward open air (a cave pool's rim, a hole
@@ -721,7 +719,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
     if (n == BlockType::AIR) return true;
     if (isLiquid(n) || !shouldRenderFace(BlockType::STONE, n)) return false;
     if (wet(nx, ny, nz)) return false;
-    return !isLiquid(area.block(nx, ny + 1, nz, BlockType::WATER));
+    return !watery(nx, ny + 1, nz, BlockType::WATER);
   };
   // Top faces: water's none under a slab in the water, which carries it on.
   auto topShows = [&](BlockType type, int x, int y, int z) {
@@ -1109,10 +1107,12 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
           addShape(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
                    area.skyLight(x, y, z), area.blockLight(x, y, z));
           // In the top layer of the water, the surface runs on over it, seen
-          // from above and from under it. A top slab is the surface itself.
+          // from above and from under it. A top slab is the surface itself,
+          // and under water (or a slab or a stair in it) or a block there's
+          // no surface.
           BlockType above = area.block(x, y + 1, z);
-          if (!isTopSlab(type) && !isLiquid(above) &&
-              shouldRenderFace(BlockType::WATER, above) && wet(x, y, z)) {
+          if (!isTopSlab(type) && !watery(x, y + 1, z) &&
+              shouldRenderFace(BlockType::STONE, above) && wet(x, y, z)) {
             const BlockTexture &water = block_data.at(BlockType::WATER);
             const AO4 noAO = {{3, 3, 3, 3}};
             const uint8_t sky = area.skyLight(x, y + 1, z);
