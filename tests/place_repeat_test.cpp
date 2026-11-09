@@ -121,7 +121,10 @@ namespace {
 // Flies a builder backward off the end of a bridge, holding place, against a
 // Game that puts sent blocks in only on its 20 Hz tick. Returns the nearest
 // cell of an unbroken bridge (z 3 down to it), its far end being z 0.
-int flyBackBridging(float speed, float fps, float seconds) {
+// `pitch` is how far down the builder looks (degrees); `wobble` sways the aim
+// up and down and side to side by that much, as a hand on a mouse does.
+int flyBackBridging(float speed, float fps, float seconds, float pitch_deg = 70.0f,
+                    float wobble_deg = 0.0f) {
   std::set<std::tuple<int, int, int>> cells;
   for (int z = 0; z <= 3; ++z) cells.insert({0, 5, z});
   auto solid = [&](glm::ivec3 c) { return cells.count({c.x, c.y, c.z}) > 0; };
@@ -135,9 +138,15 @@ int flyBackBridging(float speed, float fps, float seconds) {
   };
   // Feet on the bridge's top (y 6), just past its end, facing back along it
   // and looking down at its end's side.
-  glm::vec3 eye(0.5f, 7.62f, -0.7f);
-  const float pitch = glm::radians(70.0f);
-  const glm::vec3 front = glm::normalize(glm::vec3(0.0f, -std::sin(pitch), std::cos(pitch)));
+  // Far enough past it that the first click hits the end's side at its middle.
+  glm::vec3 eye(0.5f, 7.62f, -2.12f / std::tan(glm::radians(pitch_deg)));
+  auto look = [&](float t) {
+    const float pitch = glm::radians(pitch_deg + wobble_deg * std::sin(t * 7.3f));
+    const float yaw = glm::radians(wobble_deg * std::sin(t * 4.1f + 1.0f));
+    return glm::normalize(glm::vec3(std::cos(pitch) * std::sin(yaw), -std::sin(pitch),
+                                    std::cos(pitch) * std::cos(yaw)));
+  };
+  glm::vec3 front = look(0.0f);
 
   std::vector<PlaceBlock> sent;
   auto first = cast(eye, front);
@@ -151,6 +160,7 @@ int flyBackBridging(float speed, float fps, float seconds) {
   float tick = 0.0f;
   for (float t = 0.0f; t < seconds; t += dt) {
     eye.z -= speed * dt;
+    front = look(t + dt);
     for (const PlaceBlock &p : hold.sweep(dt, eye, front, kPlayerReach, cast)) sent.push_back(p);
     if ((tick += dt) >= 0.05f) { // the Game's tick: what was sent goes in
       tick -= 0.05f;
@@ -176,4 +186,33 @@ TEST_CASE("flying backward holding place lays an unbroken bridge under the build
     CHECK(flyBackBridging(sprint_fly, fps, 1.0f) <= -25);
     CHECK(flyBackBridging(kPlayerMoveSpeed, fps, 2.0f) <= -7); // walking pace
   }
+}
+
+TEST_CASE("flying backward, the row keeps going though the aim wanders off the end's side") {
+  const float fly = kPlayerMoveSpeed * 3.0f;
+  for (float pitch : {50.0f, 60.0f, 70.0f, 80.0f})
+    for (float wobble : {0.0f, 5.0f, 10.0f}) {
+      CAPTURE(pitch);
+      CAPTURE(wobble);
+      CHECK(flyBackBridging(fly, 60.0f, 2.0f, pitch, wobble) <= -24);
+    }
+}
+
+TEST_CASE("a row's aim: past its end counts, a hold on tops has no row") {
+  PlaceRepeat row(PlaceBlock{{0, 5, -1}, {0, 0, 1}}); // a row growing toward -z
+  const glm::vec3 eye(0.5f, 7.6f, -3.0f);
+  // Looking down into the empty cells past the end: as if at the end's side.
+  auto aim = row.rowAim(eye, glm::normalize(glm::vec3(0.0f, -1.0f, 0.3f)), kPlayerReach,
+                        std::nullopt);
+  REQUIRE(aim);
+  CHECK(aim->block_pos == glm::ivec3(0, 5, -1));
+  CHECK(aim->normal == glm::ivec3(0, 0, -1));
+  // Looking up at the sky: no.
+  CHECK_FALSE(row.rowAim(eye, glm::vec3(0, 1, 0), kPlayerReach, std::nullopt));
+  // Already on the end's side: left as it is.
+  CHECK_FALSE(row.rowAim(eye, glm::vec3(0, 0, 1), kPlayerReach, hitFace({0, 5, -1}, {0, 0, -1})));
+
+  PlaceRepeat tops(PlaceBlock{{0, 5, 0}, {0, -1, 0}});
+  CHECK_FALSE(tops.rowAim(eye, glm::normalize(glm::vec3(0.0f, -1.0f, 0.3f)), kPlayerReach,
+                          std::nullopt));
 }
