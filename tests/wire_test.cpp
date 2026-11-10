@@ -74,6 +74,7 @@ TEST_CASE("events round-trip with real values") {
   roundTrip(BlockChanged{{-1, 100, -1}, BlockType::GLOWSTONE});
   roundTrip(BlockChanged{{3, 64, -7}, kLastBlockType});
   roundTrip(BlocksChanged{{{{-1, 100, -1}, BlockType::AIR}, {{3, 64, -7}, kLastBlockType}}});
+  roundTrip(Exploded{{8.5f, 195.49f, -8.5f}});
   roundTrip(SoundCue{Cue::DoorOpen, {5.5f, 65.0f, -3.5f}});
   roundTrip(SoundCue{kLastCue, {0.0f, 0.0f, 0.0f}});
   roundTrip(SoundCue{Cue::BlockBreak, {1.5f, 70.5f, -2.5f}, kLastBlockType});

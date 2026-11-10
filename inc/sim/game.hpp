@@ -80,6 +80,13 @@ public:
   static constexpr float kTntHop = 4.0f;           // up, as it's lit
   static constexpr float kTntNudge = 0.4f;         // and a little to one side
   static constexpr int kMaxBlastsPerTick = 4;      // more wait for the next tick
+  static constexpr float kBlastRadius = 3.0f;      // every block this close breaks
+  static constexpr float kBlastEdge = 4.0f;        // and fewer and fewer out to here
+  static constexpr float kBlastReach = 7.0f;       // hurt and shoved within this
+  static constexpr int kBlastDamage = 12;          // at the centre, down to 0 at the reach
+  static constexpr float kBlastShove = 14.0f;      // blocks/s away, at the centre
+  static constexpr float kBlastLift = 6.0f;        // and up
+  static constexpr int kShovedMs = 600;            // creatures don't steer while thrown
 
   Game(); // registers natural spawning (animals and enemies)
 
