@@ -7,7 +7,11 @@
 #include "render/renderer.hpp"
 #include "world/world_save.hpp"
 #include "util/lock.hpp"
+#include <algorithm>
 #include <cmath>
+#include <limits>
+#include <map>
+#include <set>
 #include <glm/fwd.hpp>
 #include <memory>
 
@@ -360,25 +364,30 @@ std::vector<ChunkKey> World::spreadBorderLight(const ChunkKey &origin) {
   return changed;
 }
 
-bool World::emitterInReach(const glm::ivec3 &pos) const {
+bool World::emitterInReach(const glm::ivec3 &pos) const { return emitterInReach(pos, pos); }
+
+bool World::emitterInReach(const glm::ivec3 &lo, const glm::ivec3 &hi) const {
   constexpr int kReach = 14; // the brightest light (15) fades out within this
-  const int y0 = std::max(0, pos.y - kReach), y1 = std::min(kChunkHeight - 1, pos.y + kReach);
-  const int cx0 = static_cast<int>(std::floor(float(pos.x - kReach) / kChunkWidth));
-  const int cx1 = static_cast<int>(std::floor(float(pos.x + kReach) / kChunkWidth));
-  const int cz0 = static_cast<int>(std::floor(float(pos.z - kReach) / kChunkDepth));
-  const int cz1 = static_cast<int>(std::floor(float(pos.z + kReach) / kChunkDepth));
+  const int y0 = std::max(0, lo.y - kReach), y1 = std::min(kChunkHeight - 1, hi.y + kReach);
+  const int cx0 = static_cast<int>(std::floor(float(lo.x - kReach) / kChunkWidth));
+  const int cx1 = static_cast<int>(std::floor(float(hi.x + kReach) / kChunkWidth));
+  const int cz0 = static_cast<int>(std::floor(float(lo.z - kReach) / kChunkDepth));
+  const int cz1 = static_cast<int>(std::floor(float(hi.z + kReach) / kChunkDepth));
+  // Steps from v to the nearest of lo..hi along one axis.
+  auto gap = [](int v, int a, int b) { return v < a ? a - v : v > b ? v - b : 0; };
   for (int cx = cx0; cx <= cx1; ++cx)
     for (int cz = cz0; cz <= cz1; ++cz) {
       auto c = getChunk(cx, cz);
       if (!c || !c->hasEmitters()) continue;
       const int bx = cx * kChunkWidth, bz = cz * kChunkDepth;
-      const int x0 = std::max(0, pos.x - kReach - bx), x1 = std::min(kChunkWidth - 1, pos.x + kReach - bx);
-      const int z0 = std::max(0, pos.z - kReach - bz), z1 = std::min(kChunkDepth - 1, pos.z + kReach - bz);
+      const int x0 = std::max(0, lo.x - kReach - bx), x1 = std::min(kChunkWidth - 1, hi.x + kReach - bx);
+      const int z0 = std::max(0, lo.z - kReach - bz), z1 = std::min(kChunkDepth - 1, hi.z + kReach - bz);
       for (int y = y0; y <= y1; ++y)
         for (int z = z0; z <= z1; ++z)
           for (int x = x0; x <= x1; ++x) {
             uint8_t emit = blockLightEmission(c->at(x, y, z));
-            int d = std::abs(bx + x - pos.x) + std::abs(y - pos.y) + std::abs(bz + z - pos.z);
+            if (emit == 0) continue;
+            int d = gap(bx + x, lo.x, hi.x) + gap(y, lo.y, hi.y) + gap(bz + z, lo.z, hi.z);
             if (emit > d) return true;
           }
     }
@@ -541,6 +550,83 @@ void World::setBlockAt(const glm::ivec3& worldPos, BlockType type) {
     if (lz == 0)              rebuildChunk(cx, cz - 1);
     if (lz == kChunkDepth-1)  rebuildChunk(cx, cz + 1);
   }
+}
+
+void World::setBlocks(std::span<const BlockEdit> list) {
+  struct Touched {
+    std::shared_ptr<Chunk> chunk;
+    bool west = false, east = false, north = false, south = false; // edits on its edges
+  };
+  std::map<std::pair<int, int>, Touched> touched;
+  bool emitter_involved = false;
+  glm::ivec3 lo(std::numeric_limits<int>::max()), hi(std::numeric_limits<int>::min());
+
+  for (const BlockEdit &e : list) {
+    if (e.pos.y < 0 || e.pos.y >= kChunkHeight) continue;
+    const int cx = static_cast<int>(std::floor(static_cast<float>(e.pos.x) / kChunkWidth));
+    const int cz = static_cast<int>(std::floor(static_cast<float>(e.pos.z) / kChunkDepth));
+    auto it = touched.find({cx, cz});
+    if (it == touched.end()) {
+      auto chunk = getChunk(cx, cz);
+      if (!chunk) continue;
+      it = touched.emplace(std::pair{cx, cz}, Touched{chunk}).first;
+    }
+    Touched &t = it->second;
+    const int lx = e.pos.x - cx * kChunkWidth, lz = e.pos.z - cz * kChunkDepth;
+    BlockType old;
+    {
+      std::lock_guard lock(t.chunk->data_mutex);
+      old = t.chunk->at(lx, e.pos.y, lz);
+      t.chunk->at(lx, e.pos.y, lz) = e.type;
+      t.chunk->adjustEmitterCount((blockLightEmission(e.type) > 0 ? 1 : 0) -
+                                  (blockLightEmission(old) > 0 ? 1 : 0));
+    }
+    {
+      uint32_t idx = lx + kChunkWidth * (lz + kChunkDepth * e.pos.y);
+      std::lock_guard lk(edits_mutex);
+      edits[{cx, cz}][idx] = static_cast<uint8_t>(e.type);
+    }
+    emitter_involved |= blockLightEmission(e.type) > 0 || blockLightEmission(old) > 0;
+    t.west |= lx == 0;
+    t.east |= lx == kChunkWidth - 1;
+    t.north |= lz == 0;
+    t.south |= lz == kChunkDepth - 1;
+    lo = glm::min(lo, e.pos);
+    hi = glm::max(hi, e.pos);
+  }
+  if (touched.empty()) return;
+
+  for (auto &[key, t] : touched) {
+    std::lock_guard lock(t.chunk->data_mutex);
+    t.chunk->computeSkyLight();
+  }
+  // Light that may have to go down: relight round the edits, as setBlockAt
+  // does for one. relightBlockRegion covers what's within reach of its
+  // centre, so a spread-out batch is relit a block at a time.
+  if (emitter_involved || emitterInReach(lo, hi)) {
+    constexpr int kOneRegion = 14;
+    const glm::ivec3 extent = hi - lo;
+    if (std::max({extent.x, extent.y, extent.z}) <= kOneRegion) {
+      relightBlockRegion(lo + extent / 2);
+    } else {
+      for (const BlockEdit &e : list) relightBlockRegion(e.pos);
+    }
+    return;
+  }
+  std::set<std::pair<int, int>> rebuild;
+  for (auto &[key, t] : touched) {
+    {
+      std::lock_guard lock(t.chunk->data_mutex);
+      t.chunk->computeBlockLight();
+    }
+    for (const ChunkKey &k : spreadBorderLight({key.first, key.second})) rebuild.insert({k.x, k.z});
+    rebuild.insert(key);
+    if (t.west) rebuild.insert({key.first - 1, key.second});
+    if (t.east) rebuild.insert({key.first + 1, key.second});
+    if (t.north) rebuild.insert({key.first, key.second - 1});
+    if (t.south) rebuild.insert({key.first, key.second + 1});
+  }
+  for (const auto &[cx, cz] : rebuild) rebuildChunk(cx, cz);
 }
 
 void sortNearestFirst(std::vector<Chunk *> &chunks, const glm::vec3 &viewer) {
@@ -893,6 +979,20 @@ void World::applyEdit(const glm::ivec3 &pos, BlockType type) {
     edits[{cx, cz}][idx] = static_cast<uint8_t>(type);
   }
   pending_edits.push_back({pos, type});
+}
+
+void World::applyEdits(std::span<const BlockEdit> list) {
+  std::vector<BlockEdit> loaded;
+  for (const BlockEdit &e : list) {
+    if (e.pos.y < 0 || e.pos.y >= kChunkHeight) continue;
+    int cx = static_cast<int>(std::floor(static_cast<float>(e.pos.x) / kChunkWidth));
+    int cz = static_cast<int>(std::floor(static_cast<float>(e.pos.z) / kChunkDepth));
+    if (getChunk(cx, cz))
+      loaded.push_back(e);
+    else
+      applyEdit(e.pos, e.type); // recorded for when it loads
+  }
+  setBlocks(loaded);
 }
 
 void World::flushPendingEdits() {

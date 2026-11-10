@@ -73,6 +73,7 @@ TEST_CASE("events round-trip with real values") {
   roundTrip(Joined{5, {1, 2, 3}, 10.0f, -20.0f, 7, false, GameMode::Creative});
   roundTrip(BlockChanged{{-1, 100, -1}, BlockType::GLOWSTONE});
   roundTrip(BlockChanged{{3, 64, -7}, kLastBlockType});
+  roundTrip(BlocksChanged{{{{-1, 100, -1}, BlockType::AIR}, {{3, 64, -7}, kLastBlockType}}});
   roundTrip(SoundCue{Cue::DoorOpen, {5.5f, 65.0f, -3.5f}});
   roundTrip(SoundCue{kLastCue, {0.0f, 0.0f, 0.0f}});
   roundTrip(SoundCue{Cue::BlockBreak, {1.5f, 70.5f, -2.5f}, kLastBlockType});
@@ -213,7 +214,7 @@ TEST_CASE("an oversized frame marks the stream bad") {
 
 TEST_CASE("the hello frame carries the protocol version") {
   CHECK(wire::readHello(wire::hello()) == wire::kProtocolVersion);
-  CHECK(wire::kProtocolVersion == 27);
+  CHECK(wire::kProtocolVersion == 28);
   auto other = wire::hello();
   other[4] = 99;
   CHECK(wire::readHello(other) == 99);

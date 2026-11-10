@@ -222,6 +222,8 @@ struct Riding {
 struct TimeSync { float time_of_day = 0.0f; float time_scale = 1.0f; };
 
 struct BlockChanged { glm::ivec3 pos{0}; BlockType type = BlockType::AIR; };
+// Many blocks at once (an explosion's crater), applied as one batch.
+struct BlocksChanged { std::vector<BlockEdit> edits; };
 // Another player joined or left (never sent about yourself).
 struct PlayerJoined { PlayerId id = 0; std::string name; };
 struct PlayerLeft { PlayerId id = 0; };
@@ -348,4 +350,4 @@ using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            Welcome, TimeSync, Disconnected, KnownItems,
                            ContainerView, ToolBroke, Caught, SleepState, Notice,
                            ChatMessage, Waypoints, Riding, MapPlayers,
-                           SoundCue, JournalState>;
+                           SoundCue, JournalState, BlocksChanged>;
