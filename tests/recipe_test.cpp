@@ -260,3 +260,24 @@ TEST_CASE("6 of a material make 4 stairs, and 3 make 6 slabs, at a table") {
     }
   }
 }
+
+TEST_CASE("TNT: five coal or charcoal and four sand, at a table") {
+  const Recipe &tnt = recipeMaking(block(BlockType::TNT));
+  CHECK(tnt.makes.count == 1);
+  CHECK(tnt.needs_table);
+  for (ItemId fuel : {ItemId::COAL, ItemId::CHARCOAL}) {
+    Inventory inv;
+    inv.set(0, {fuel, 5});
+    inv.set(1, {block(BlockType::SAND), 4});
+    CHECK(timesAffordable(tnt, inv) == 1);
+    auto after = craftOnce(tnt, inv);
+    REQUIRE(after);
+    CHECK(count(*after, block(BlockType::TNT)) == 1);
+    CHECK(count(*after, fuel) == 0);
+    CHECK(count(*after, block(BlockType::SAND)) == 0);
+  }
+  Inventory short_sand;
+  short_sand.set(0, {ItemId::COAL, 5});
+  short_sand.set(1, {block(BlockType::SAND), 3});
+  CHECK(timesAffordable(tnt, short_sand) == 0);
+}

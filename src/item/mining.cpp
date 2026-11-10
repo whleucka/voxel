@@ -35,6 +35,8 @@ Toughness toughness(BlockType b) {
     case CRAFTING_TABLE: case CHEST:
       return {true, 3000, ToolKind::Axe};
 
+    case TNT: // picked up at once, as in Bedrock
+      return {true, 0};
     case CACTUS:
       return {true, 400, ToolKind::Axe};
     case PINK_CORAL: case BLUE_CORAL: case YELLOW_CORAL: case SNOW_BRICKS:

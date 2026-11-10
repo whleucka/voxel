@@ -725,6 +725,71 @@ def ladder(rng):
     return img
 
 
+TNT_RED = (200, 46, 40)
+TNT_PAPER = (232, 224, 204)
+# "TNT" in a 5-high pixel font, drawn at 2x across the side's paper band.
+TNT_LETTERS = {
+    "T": ["###", ".#.", ".#.", ".#.", ".#."],
+    "N": ["#..#", "##.#", "#.##", "#..#", "#..#"],
+}
+
+
+def tnt_sticks(px, rng, y0, y1):
+    """Red sticks side by side, with dark seams between them."""
+    for y in range(y0, y1):
+        for x in range(TILE):
+            seam = x % 8 == 0
+            px[x, y] = shade(TNT_RED, rng.randint(-10, 6) - (46 if seam else 0)) + (255,)
+
+
+def tnt_side(rng):
+    """Red sticks with a paper band round the middle saying TNT."""
+    img = new_tile()
+    px = pixels(img)
+    tnt_sticks(px, rng, 0, TILE)
+    for y in range(10, 22):
+        for x in range(TILE):
+            edge = y in (10, 21)
+            px[x, y] = shade(TNT_PAPER, rng.randint(-8, 4) - (40 if edge else 0)) + (255,)
+    x0 = 4
+    for ch in "TNT":
+        for row, line in enumerate(TNT_LETTERS[ch]):
+            for col, on in enumerate(line):
+                if on != "#":
+                    continue
+                for dy in range(2):
+                    for dx in range(2):
+                        px[x0 + col * 2 + dx, 11 + row * 2 + dy] = (36, 30, 28, 255)
+        x0 += len(TNT_LETTERS[ch][0]) * 2 + 2
+    return img
+
+
+def tnt_top(rng):
+    """The sticks' ends seen from above, with the fuse sticking up in the middle."""
+    img = new_tile()
+    px = pixels(img)
+    for y in range(TILE):
+        for x in range(TILE):
+            ring = (x % 8 in (0, 7)) or (y % 8 in (0, 7))
+            px[x, y] = shade(TNT_RED, rng.randint(-10, 6) - (40 if ring else 0)) + (255,)
+    d = ImageDraw.Draw(img)
+    d.ellipse([12, 12, 19, 19], fill=(60, 52, 48, 255))
+    d.rectangle([15, 13, 16, 18], fill=(150, 140, 130, 255))
+    d.point((15, 13), fill=(250, 200, 80, 255))
+    return img
+
+
+def tnt_bottom(rng):
+    """The sticks' ends from below: no fuse."""
+    img = new_tile()
+    px = pixels(img)
+    for y in range(TILE):
+        for x in range(TILE):
+            ring = (x % 8 in (0, 7)) or (y % 8 in (0, 7))
+            px[x, y] = shade(TNT_RED, rng.randint(-10, 6) - (40 if ring else 0) - 12) + (255,)
+    return img
+
+
 def cake_top(rng):
     img = new_tile()
     px = pixels(img)
@@ -838,6 +903,9 @@ TILES = [
     ("snow_bricks",         lambda r: bricks((236, 242, 248), (190, 204, 220), r,
                                              h=16, bevel=True)),
     ("ladder",              ladder),
+    ("tnt_side",            tnt_side),
+    ("tnt_top",             tnt_top),
+    ("tnt_bottom",          tnt_bottom),
 ]
 
 

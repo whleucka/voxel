@@ -78,6 +78,7 @@ std::optional<StepSet> listedStepSurface(BlockType b) {
   case BlockType::BLUE_BLOCK:
   case BlockType::PURPLE_BLOCK:
   case BlockType::PINK_BLOCK:
+  case BlockType::TNT: // paper and sand
     return StepSet::Cloth;
   default:
     // The ranges above never get here; a new block does, and the test that
