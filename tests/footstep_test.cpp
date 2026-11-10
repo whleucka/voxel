@@ -344,7 +344,7 @@ TEST_CASE("audio: every effect recording ships and decodes") {
     REQUIRE(paths[e].size() == static_cast<std::size_t>(kEffectVariants[e]));
     files.insert(paths[e].begin(), paths[e].end());
   }
-  CHECK(files.size() == 74u); // 25 footsteps (dirt shares grass's), 6 door, 35 mining, 8 chest
+  CHECK(files.size() == 78u); // 25 footsteps (dirt shares grass's), 6 door, 35 mining, 8 chest, 4 TNT
   // Each surface sounds like itself: no two step sets share recordings,
   // except dirt, which is grass's pitched down.
   for (std::size_t a = 0; a < kStepSetCount; ++a)
@@ -575,4 +575,32 @@ TEST_CASE("a chest creaks open and knocks shut, where it stands") {
     CHECK(e->pitch <= 1.05f);
   }
   CHECK_FALSE(cues.sound({Cue::ChestOpen, {40, 64, 0}}, here)); // too far to hear
+}
+
+TEST_CASE("TNT fizzes where it was lit, and its boom carries three times as far") {
+  CueSounds cues(5);
+  const glm::vec3 tnt{3.5f, 65.0f, 2.5f}, here{0, 64, 0};
+  auto fizz = cues.sound({Cue::TntFuse, tnt}, here);
+  REQUIRE(fizz);
+  CHECK(fizz->effect == Effect::Fuse);
+  CHECK(fizz->positional);
+  CHECK(fizz->position == tnt);
+
+  auto boom = cues.boom(tnt, here);
+  REQUIRE(boom);
+  CHECK(boom->effect == Effect::Boom);
+  CHECK(boom->positional);
+  CHECK(boom->hearing == CueSounds::kBoomHearing);
+  // Heard well past where a fizz is lost, but not forever.
+  const glm::vec3 far = here + glm::vec3(40, 0, 0);
+  CHECK_FALSE(cues.sound({Cue::TntFuse, far}, here));
+  CHECK(cues.boom(far, here));
+  CHECK_FALSE(cues.boom(here + glm::vec3(CueSounds::kBoomHearing + 1, 0, 0), here));
+  // No two booms in a row the same.
+  int last = cues.boom(tnt, here)->variant;
+  for (int i = 0; i < 20; ++i) {
+    auto b = cues.boom(tnt, here);
+    CHECK(b->variant != last);
+    last = b->variant;
+  }
 }

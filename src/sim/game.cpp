@@ -522,6 +522,15 @@ void Game::tick() {
   if (!save_dir.empty() && tick_count % kAutosaveTicks == 0) save();
 }
 
+namespace {
+// Lit TNT blinks white four times a second, and faster in its last second.
+bool tntFlash(const Entity &e) {
+  if (e.kind != EntityKind::LitTnt) return false;
+  const int period = e.fuse_ms > 1000 ? 250 : 100;
+  return e.fuse_ms % period < period / 2;
+}
+} // namespace
+
 void Game::sendEntitySnapshots() {
   for (Client &client : clients) {
     PlayerState *ps = playerFor(client);
@@ -533,7 +542,7 @@ void Game::sendEntitySnapshots() {
       snap.entities.push_back({id, e.kind, e.body.position, e.yaw, e.item.id,
                                e.hurt_ms > 0, e.happy_ms > 0, e.burning_ms > 0, e.owner,
                                e.biting, false, static_cast<uint8_t>(e.pet ? e.pet->collar : 0),
-                               e.pet && (e.pet->sitting || !e.follow)});
+                               e.pet && (e.pet->sitting || !e.follow), tntFlash(e)});
     }
     for (const auto &[pid, other] : players) {
       if (pid == ps->id || other.vitals.dead()) continue;

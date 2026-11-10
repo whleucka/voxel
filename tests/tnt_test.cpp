@@ -478,3 +478,30 @@ TEST_CASE("creatures that can be hit are hurt; pets and animals are only thrown"
   // The dropped ruby is flung, not destroyed.
   CHECK(r.dropped(ItemId::RUBY) == 1);
 }
+
+TEST_CASE("lit TNT blinks white in snapshots, faster in its last second") {
+  Range r;
+  r.set(kSpot, BlockType::TNT);
+  r.light(kSpot);
+  auto flashes = [&](int ticks) {
+    int on = 0, changes = 0;
+    bool last = false;
+    for (int i = 0; i < ticks; ++i) {
+      bool flash = false;
+      for (const Event &e : r.ticks(1))
+        if (const auto *snap = std::get_if<EntitySnapshot>(&e))
+          for (const EntityView &v : snap->entities)
+            if (v.kind == EntityKind::LitTnt) flash = v.flash;
+      on += flash;
+      changes += flash != last;
+      last = flash;
+    }
+    return std::pair{on, changes};
+  };
+  auto early = flashes(20); // the first second
+  CHECK(early.first > 0);
+  CHECK(early.first < 20);
+  flashes(kFuseTicks - 40);
+  auto late = flashes(19); // the last second, before it goes
+  CHECK(late.second > early.second);
+}

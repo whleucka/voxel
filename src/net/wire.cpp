@@ -141,7 +141,7 @@ template <class IO> void fields(IO &io, ItemStack &m) { io(m.id, m.count, m.wear
 template <class IO> void fields(IO &io, BlockEdit &m) { io(m.pos, m.type); }
 template <class IO> void fields(IO &io, EntityView &m) {
   io(m.id, m.kind, m.position, m.yaw, m.item, m.hurt, m.happy, m.burning, m.owner, m.biting,
-     m.collar, m.sitting);
+     m.collar, m.sitting, m.flash);
 }
 template <class IO> void fields(IO &io, PlayerLook &m) {
   io(m.figure, m.shirt, m.hair, m.skin, m.eyes);

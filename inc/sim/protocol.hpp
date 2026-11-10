@@ -275,6 +275,7 @@ struct EntityView {
   bool moving = false;        // set client-side by the interpolator
   uint8_t collar = 0;         // pets: 1..8 a collar colour (0: a stray, none)
   bool sitting = false;       // pets: sitting, or waiting for their owner
+  bool flash = false;         // lit TNT: blinking white
 };
 
 // Another living player, as a client draws them.

@@ -25,6 +25,7 @@ uniform float uSkyLight;    // 0..1 at the entity
 uniform float uBlockLight;  // 0..1 at the entity
 uniform float uHurt;        // 0..1 red tint
 uniform float uBurn;        // 0..1 orange glow (set alight)
+uniform float uFlash;       // 0..1 white (lit TNT blinking)
 uniform bool  uGlow;        // shine at full brightness, ignoring the light
 
 uniform vec3  uSunDir;
@@ -82,6 +83,7 @@ void main() {
     vec3 color = base * lightLevel * faceShade;
     color = mix(color, vec3(0.75, 0.04, 0.04) * max(lightLevel, vec3(0.25)), uHurt);
     color = mix(color, vec3(1.0, 0.55, 0.12), uBurn); // fire lights itself
+    color = mix(color, vec3(1.0), uFlash);
     if (uGlow) color = base; // glowing eyes: unlit, so they read in the dark
 
     float dist = length(vWorldPos - uCameraPos);

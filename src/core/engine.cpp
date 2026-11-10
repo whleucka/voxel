@@ -483,6 +483,7 @@ void Engine::update() {
   }
   updateMining(delta_time);
   updatePlacing(delta_time);
+  blast_effects.update(delta_time);
   {
     std::optional<MiningNow> now;
     if (mining && mining->breaking) now = MiningNow{mining->pos, mining->block};
@@ -657,6 +658,11 @@ void Engine::handleEvents() {
     else if (const auto *knocked = std::get_if<KnockedBack>(&ev); knocked && player) {
       player->knock(knocked->velocity);
     }
+    else if (const auto *boom = std::get_if<Exploded>(&ev); boom && player) {
+      const glm::vec3 ear = player->getCamera().position;
+      if (auto sound = cue_sounds.boom(boom->position, ear)) audio.play(*sound, g_settings.sfx_volume);
+      blast_effects.blast(boom->position, ear);
+    }
     else if (const auto *cue = std::get_if<SoundCue>(&ev); cue && player) {
       if (auto sound = cue_sounds.sound(*cue, player->getCamera().position))
         audio.play(*sound, g_settings.sfx_volume);
@@ -710,7 +716,9 @@ void Engine::render() {
         if (!ray.hit) return std::nullopt;
         return ray.distance;
       });
-  glm::mat4 view = cameraViewMatrix(view_pos, camera.front, camera.up, shown_view);
+  // A blast close by shakes the view (only the view: aim stays put).
+  glm::mat4 view = cameraViewMatrix(view_pos + blast_effects.shakeOffset(), camera.front, camera.up,
+                                    shown_view);
   glm::mat4 proj = glm::perspective(
       glm::radians(g_settings.fov),                  // field of view from settings
       (float)win_width / (float)win_height,           // aspect ratio
@@ -762,6 +770,9 @@ void Engine::render() {
                    entity_renderer.draw(entity_views, drawn_players, world(), view, proj,
                                         view_pos, player->isUnderwater(),
                                         session->clock().fractionOfDay(), now, player_id, hand);
+                   entity_renderer.drawPuff(blast_effects.cubes(), world(), view, proj, view_pos,
+                                            player->isUnderwater(),
+                                            session->clock().fractionOfDay());
                  });
 
   // Frame the block under the crosshair, while there's a crosshair to aim,

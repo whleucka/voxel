@@ -188,6 +188,28 @@ void EntityRenderer::setScene(const glm::mat4 &view, const glm::mat4 &projection
   shader->setBool("uUnderwater", underwater);
   shader->setInt("uAtlas", 0);
   shader->setBool("uGlow", false);
+  shader->setFloat("uFlash", 0.0f);
+}
+
+void EntityRenderer::drawPuff(const std::vector<BlastEffects::Cube> &cubes, const World &world,
+                              const glm::mat4 &view, const glm::mat4 &projection,
+                              glm::vec3 camera_pos, bool underwater, float time_of_day) {
+  if (!shader || cubes.empty()) return;
+  setScene(view, projection, camera_pos, underwater, time_of_day);
+  glBindVertexArray(vao);
+  shader->setInt("uMode", 0);
+  shader->setFloat("uHurt", 0.0f);
+  shader->setFloat("uBurn", 0.0f);
+  for (const BlastEffects::Cube &c : cubes) {
+    const float s = c.sizeNow();
+    if (s <= 0.0f) continue;
+    setLight(world, c.position);
+    shader->setBool("uGlow", c.glow);
+    shader->setVec3("uColor", c.color);
+    drawBox(glm::translate(glm::mat4(1.0f), c.position), glm::vec3(-s / 2), glm::vec3(s));
+  }
+  shader->setBool("uGlow", false);
+  glBindVertexArray(0);
 }
 
 void EntityRenderer::resizePreview(int width, int height) {
@@ -270,6 +292,7 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities,
     setLight(world, e.position);
     shader->setFloat("uHurt", e.hurt ? 0.55f : 0.0f);
     shader->setFloat("uBurn", e.burning ? 0.45f : 0.0f);
+    shader->setFloat("uFlash", e.flash ? 0.7f : 0.0f);
 
     if (e.kind == EntityKind::DroppedItem) {
       if (!isValidItem(e.item)) continue;
@@ -319,6 +342,28 @@ void EntityRenderer::draw(const std::vector<EntityView> &entities,
       continue;
     }
 
+    if (e.kind == EntityKind::LitTnt) {
+      // The TNT block itself, blinking white.
+      const EntityTypeDef &tnt = entityType(e.kind);
+      const BlockTexture &tiles = block_data.at(BlockType::TNT);
+      glBindTexture(GL_TEXTURE_2D, block_tex);
+      shader->setInt("uMode", 1);
+      shader->setFloat("uTileSpan", 1.0f / kBlockAtlasTiles);
+      shader->setVec3("uColor", glm::vec3(1.0f));
+      auto tile = [&](const char *name, glm::ivec2 t) {
+        glm::vec2 uv = glm::vec2(t) / float(kBlockAtlasTiles);
+        glUniform2fv(glGetUniformLocation(shader->ID, name), 1, &uv[0]);
+      };
+      tile("uTileTop", tiles.top);
+      tile("uTileSide", tiles.side);
+      tile("uTileBottom", tiles.bottom);
+      shader->setVec3("uCellLo", glm::vec3(0.0f));
+      shader->setVec3("uCellHi", glm::vec3(1.0f));
+      drawBox(glm::translate(glm::mat4(1.0f), e.position), {-tnt.half_width, 0.0f, -tnt.half_width},
+              {2 * tnt.half_width, tnt.height, 2 * tnt.half_width});
+      shader->setFloat("uFlash", 0.0f);
+      continue;
+    }
     const EntityTypeDef &def = entityType(e.kind);
     if (e.kind == EntityKind::Bobber) {
       // It rides the ripples, and dips under when something bites.

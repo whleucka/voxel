@@ -34,6 +34,11 @@ EntitySnapshot richSnapshot() {
   s.tick = 123456;
   s.entities = {{7, EntityKind::Gloomling, {-1.5f, 64.25f, 1e6f}, 270.0f, ItemId::NONE, true, false},
                 {8, EntityKind::DroppedItem, {0, 0, 0}, 0.0f, ItemId::DIAMOND, false, true}};
+  EntityView tnt;
+  tnt.id = 9;
+  tnt.kind = EntityKind::LitTnt;
+  tnt.flash = true;
+  s.entities.push_back(tnt);
   s.players = {{2, "Bea", {-100.5f, 70.0f, 3.0f}, -45.0f, 12.5f, true},
                {3, "kid_2-b", {0, 0, 0}, 0.0f, 0.0f, false, true}};
   return s;

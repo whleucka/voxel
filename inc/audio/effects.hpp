@@ -17,14 +17,15 @@ enum class Effect : uint8_t {
   MineStone, // hits and breaks: the break is pitched down
   HitWood, BreakWood, HitGlass, BreakGlass, HitSoft, BreakSoft,
   ChestOpen, ChestClose,
+  Boom, Fuse, // TNT (tools/gen_tnt_sounds.py)
 };
-inline constexpr std::size_t kEffectCount = 17;
+inline constexpr std::size_t kEffectCount = 19;
 
 // How many recordings each effect has. Dirt shares grass's, a little lower
 // (see effectPaths and FootstepDirector).
 inline constexpr std::array<int, kEffectCount> kEffectVariants = {5, 5, 5, 5, 5, 5, 2, 4,
                                                                   5,  5,  5,  5,  5,  5,  5,
-                                                                  3,  5};
+                                                                  3,  5,  3,  1};
 
 inline Effect stepEffect(StepSet s) { return static_cast<Effect>(s); }
 
@@ -45,6 +46,7 @@ struct SoundEvent {
   bool positional = false;  // false: played as if at the listener
   float volume = 1.0f;      // before the effects volume
   float pitch = 1.0f;
+  float hearing = 0.0f;     // heard out to here; 0: CueSounds::kHearing
 };
 
 // A random recording of `e`, never `last` again (when it has more than one).
@@ -65,6 +67,9 @@ public:
 
   // Nothing for a cue too far away to hear.
   std::optional<SoundEvent> sound(const SoundCue &cue, glm::vec3 listener);
+  // An explosion: heard much further off than other cues.
+  static constexpr float kBoomHearing = 48.0f;
+  std::optional<SoundEvent> boom(glm::vec3 at, glm::vec3 listener);
 
 private:
   std::array<int, kEffectCount> last = lastNone();

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "render/blast_effects.hpp"
 #include "render/renderer.hpp"
 #include "render/shader.hpp"
 #include "entity/entity_type.hpp"
@@ -31,6 +32,11 @@ public:
             const World &world, const glm::mat4 &view, const glm::mat4 &projection,
             glm::vec3 camera_pos, bool underwater, float time_of_day, double now,
             PlayerId self = 0, glm::vec3 self_hand = glm::vec3(0.0f));
+
+  // An explosion's puff of cubes (see BlastEffects).
+  void drawPuff(const std::vector<BlastEffects::Cube> &cubes, const World &world,
+                const glm::mat4 &view, const glm::mat4 &projection, glm::vec3 camera_pos,
+                bool underwater, float time_of_day);
 
   // A character slowly turning in the noon light, on a clear background, for
   // the Character page. Returns the texture it's in. Needs no world.
