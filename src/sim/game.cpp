@@ -204,7 +204,22 @@ bool Game::save() {
       pets.push_back({static_cast<uint16_t>(e.kind), e.body.position, e.yaw, e.pet->host,
                       e.pet->name, e.pet->collar, e.pet->sitting});
 
-  if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits()) ||
+  // A lit TNT is saved as the block, unlit, in the cell it's in: nothing
+  // goes off on loading, and nothing is lost.
+  WorldEdits edits = world_.snapshotEdits();
+  for (const auto &[id, e] : entities_.all()) {
+    if (e.kind != EntityKind::LitTnt) continue;
+    const glm::ivec3 cell(glm::floor(e.body.position + glm::vec3(0.0f, 0.5f, 0.0f)));
+    if (cell.y < 0 || cell.y >= kChunkHeight) continue;
+    const BlockType there = world_.getBlockAt(glm::vec3(cell) + 0.5f);
+    if (there != BlockType::AIR && !isLiquid(there)) continue; // somewhere better is taken
+    const int cx = static_cast<int>(std::floor(static_cast<float>(cell.x) / kChunkWidth));
+    const int cz = static_cast<int>(std::floor(static_cast<float>(cell.z) / kChunkDepth));
+    const uint32_t idx = (cell.x - cx * kChunkWidth) +
+                         kChunkWidth * ((cell.z - cz * kChunkDepth) + kChunkDepth * cell.y);
+    edits[{cx, cz}][idx] = static_cast<uint8_t>(BlockType::TNT);
+  }
+  if (!WorldSave::save(save_dir, level, pd, edits) ||
       !WorldSave::saveFurnaces(save_dir, furnaces) ||
       !WorldSave::saveChests(save_dir, chests) ||
       !WorldSave::saveFarms(save_dir, farms) ||
@@ -476,6 +491,7 @@ void Game::tick() {
   catchUpPets();
   tickBoats();
   tickFishing();
+  tickTnt();
   removeEnemies();
   enemyAttacks();
   prickPlayers();
@@ -1514,6 +1530,10 @@ void Game::apply(Client &client, const UseItemOn &cmd) {
   // A ripe bush is picked and a cake eaten, whatever's in hand.
   const BlockType target = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
   const ItemId held = ps->inventory.slot(ps->selected_slot).id;
+  if (target == BlockType::TNT && held == itemForBlock(BlockType::TORCH)) {
+    if (!lightTnt(cmd.pos, kTntFuseMs)) reject(client, "use: too many things about");
+    return;
+  }
   if (target == BlockType::BERRY_BUSH) return pickBerries(client, *ps, cmd.pos);
   if (isCake(target)) return eatCake(client, *ps, cmd.pos);
   if (held == ItemId::COMPOST) return useCompost(client, *ps, cmd.pos);
@@ -2550,6 +2570,47 @@ void Game::enemyAttacks() {
     }
   }
 }
+
+// ─── TNT ───────────────────────────────────────────────────────────────
+
+bool Game::lightTnt(glm::ivec3 pos, int fuse_ms) {
+  auto id = entities_.spawn(EntityKind::LitTnt, glm::vec3(pos) + glm::vec3(0.5f, 0.0f, 0.5f));
+  if (!id) return false;
+  Entity *e = entities_.find(*id);
+  e->fuse_ms = fuse_ms;
+  // A little hop as it's lit, as in Bedrock, a touch to one side.
+  const float a = std::uniform_real_distribution<float>(0.0f, 6.2831853f)(rng_);
+  e->body.velocity = {std::cos(a) * kTntNudge, kTntHop, std::sin(a) * kTntNudge};
+  clearBlock(pos);
+  popDoorAbove(pos);
+  popBedAbove(pos);
+  popCropAbove(pos);
+  popUnsupported(pos);
+  broadcast(SoundCue{Cue::TntFuse, glm::vec3(pos) + 0.5f});
+  return true;
+}
+
+void Game::tickTnt() {
+  std::vector<EntityId> burnt;
+  for (auto &[id, e] : entities_.all()) {
+    if (e.kind != EntityKind::LitTnt) continue;
+    e.fuse_ms -= kTickMs;
+    if (e.fuse_ms <= 0) burnt.push_back(id);
+  }
+  for (EntityId id : burnt) {
+    const Entity &e = *entities_.find(id);
+    const glm::vec3 centre = e.body.position + glm::vec3(0.0f, e.body.height / 2, 0.0f);
+    blasts_.push_back({centre, isLiquid(world_.getBlockAt(centre))});
+    entities_.remove(id);
+  }
+  for (int n = 0; n < kMaxBlastsPerTick && !blasts_.empty(); ++n) {
+    const Blast blast = blasts_.front();
+    blasts_.pop_front();
+    explode(blast);
+  }
+}
+
+void Game::explode(const Blast &) {}
 
 // ─── Boats ─────────────────────────────────────────────────────────────
 

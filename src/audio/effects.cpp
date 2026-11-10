@@ -92,6 +92,7 @@ std::optional<SoundEvent> CueSounds::sound(const SoundCue &cue, glm::vec3 listen
     e.pitch = wobble();
     return e;
   }
+  if (cue.cue == Cue::TntFuse) return std::nullopt;
   const bool gate = cue.cue == Cue::GateOpen || cue.cue == Cue::GateClose;
   const bool open = cue.cue == Cue::DoorOpen || cue.cue == Cue::GateOpen;
 

@@ -61,6 +61,7 @@ void EntityStore::tick(const World &world, Rng &rng, std::span<const glm::vec3> 
     e.happy_ms = std::max(0, e.happy_ms - kTickMs);
     e.product_delay_ms = std::max(0, e.product_delay_ms - kTickMs);
     e.attack_cooldown_ms = std::max(0, e.attack_cooldown_ms - kTickMs);
+    e.shoved_ms = std::max(0, e.shoved_ms - kTickMs);
 
     // Boats stay where they were left, and only the Game moves them.
     if (def.vehicle) continue;
@@ -69,7 +70,8 @@ void EntityStore::tick(const World &world, Rng &rng, std::span<const glm::vec3> 
       gone.push_back(id);
       continue;
     }
-    if (!e.pet && !players.empty()) {
+    // Lit TNT goes off wherever it is, so it's never tidied away.
+    if (!e.pet && e.kind != EntityKind::LitTnt && !players.empty()) {
       float nearest = kDespawnDistance + 1.0f;
       for (const glm::vec3 &p : players)
         nearest = std::min(nearest, glm::distance(p, e.body.position));
@@ -90,8 +92,8 @@ void EntityStore::tick(const World &world, Rng &rng, std::span<const glm::vec3> 
       }
     }
 
-    // A freshly hit creature is knocked back, not steering.
-    if (e.brain && e.hurt_ms == 0) {
+    // A freshly hit or shoved creature is knocked back, not steering.
+    if (e.brain && e.hurt_ms == 0 && e.shoved_ms == 0) {
       Intent in = e.brain->think(e, ctx);
       e.yaw = in.yaw;
       float speed = def.walk_speed * (def.enemy ? hostile_speed : 1.0f);

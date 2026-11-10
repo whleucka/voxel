@@ -1557,6 +1557,10 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     else if (ray.hit && (isDoor(ray.block_type) || isGate(ray.block_type)) &&
              !player->isCrouching())
       engine->connection().send(UseDoor{ray.block_pos});
+    // Light TNT with a torch (crouch to put the torch on it instead).
+    else if (ray.hit && !player->isCrouching() && ray.block_type == BlockType::TNT &&
+             held.id == itemForBlock(BlockType::TORCH))
+      engine->connection().send(UseItemOn{ray.block_pos});
     // Pick berries or eat a slice of cake (crouch to place against it instead).
     else if (ray.hit && !player->isCrouching() &&
              (isBerryBush(ray.block_type) || isCake(ray.block_type)))
@@ -1695,10 +1699,11 @@ void Engine::updatePlacing(float dt) {
   }
   const Camera &cam = player->getCamera();
   const bool crouching = player->isCrouching();
+  const ItemId held_id = inventory_view[player->getSelectedHotbarSlot()].id;
   auto cast = [&](glm::vec3 origin, glm::vec3 dir) -> std::optional<RaycastResult> {
     RaycastResult ray = world().raycast(origin, dir, kPlayerReach);
     // Things a click would use instead aren't built on (crouch to, as a click).
-    if (!ray.hit || (usedOnClick(ray.block_type) && !crouching)) return std::nullopt;
+    if (!ray.hit || (usedOnClick(ray.block_type, held_id) && !crouching)) return std::nullopt;
     return ray;
   };
   for (const PlaceBlock &place : place_repeat->sweep(dt, cam.position, cam.front, kPlayerReach, cast))

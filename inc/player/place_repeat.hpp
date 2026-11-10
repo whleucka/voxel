@@ -38,6 +38,11 @@ inline bool usedOnClick(BlockType b) {
          b == BlockType::FURNACE_LIT || b == BlockType::CHEST || b == BlockType::TREASURE_CHEST;
 }
 
+// The same, counting what's held: a torch lights TNT.
+inline bool usedOnClick(BlockType b, ItemId held) {
+  return usedOnClick(b) || (b == BlockType::TNT && held == itemForBlock(BlockType::TORCH));
+}
+
 // Where a ray from `origin` along `dir` (unit) enters the cell at `cell`
 // within `reach`, as a hit on it; nothing if it misses or starts inside.
 inline std::optional<RaycastResult> rayIntoCell(glm::vec3 origin, glm::vec3 dir, float reach,

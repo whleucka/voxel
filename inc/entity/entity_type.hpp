@@ -32,6 +32,7 @@ enum class EntityKind : uint16_t {
   Boat = 16,        // ridden on water
   Puppy = 17,       // pets: tamed with treats, then follow their owner
   Kitten = 18,
+  LitTnt = 19,      // a lit TNT block: falls, flashes, then explodes (the Game moves it on)
 };
 
 // One cuboid of a box model, in blocks, relative to the entity's feet
