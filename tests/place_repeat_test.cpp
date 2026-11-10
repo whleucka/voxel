@@ -115,6 +115,10 @@ TEST_CASE("usedOnClick: doors and chests are used, plain blocks are built on") {
   CHECK(usedOnClick(BlockType::CRAFTING_TABLE));
   CHECK_FALSE(usedOnClick(BlockType::STONE));
   CHECK_FALSE(usedOnClick(BlockType::OAK_PLANKS));
+  // TNT is used only with a torch in hand: anything else builds on it.
+  CHECK(usedOnClick(BlockType::TNT, itemForBlock(BlockType::TORCH)));
+  CHECK_FALSE(usedOnClick(BlockType::TNT, itemForBlock(BlockType::STONE)));
+  CHECK_FALSE(usedOnClick(BlockType::TNT));
 }
 
 namespace {

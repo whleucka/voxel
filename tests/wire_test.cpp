@@ -34,6 +34,11 @@ EntitySnapshot richSnapshot() {
   s.tick = 123456;
   s.entities = {{7, EntityKind::Gloomling, {-1.5f, 64.25f, 1e6f}, 270.0f, ItemId::NONE, true, false},
                 {8, EntityKind::DroppedItem, {0, 0, 0}, 0.0f, ItemId::DIAMOND, false, true}};
+  EntityView tnt;
+  tnt.id = 9;
+  tnt.kind = EntityKind::LitTnt;
+  tnt.flash = true;
+  s.entities.push_back(tnt);
   s.players = {{2, "Bea", {-100.5f, 70.0f, 3.0f}, -45.0f, 12.5f, true},
                {3, "kid_2-b", {0, 0, 0}, 0.0f, 0.0f, false, true}};
   return s;
@@ -73,6 +78,8 @@ TEST_CASE("events round-trip with real values") {
   roundTrip(Joined{5, {1, 2, 3}, 10.0f, -20.0f, 7, false, GameMode::Creative});
   roundTrip(BlockChanged{{-1, 100, -1}, BlockType::GLOWSTONE});
   roundTrip(BlockChanged{{3, 64, -7}, kLastBlockType});
+  roundTrip(BlocksChanged{{{{-1, 100, -1}, BlockType::AIR}, {{3, 64, -7}, kLastBlockType}}});
+  roundTrip(Exploded{{8.5f, 195.49f, -8.5f}});
   roundTrip(SoundCue{Cue::DoorOpen, {5.5f, 65.0f, -3.5f}});
   roundTrip(SoundCue{kLastCue, {0.0f, 0.0f, 0.0f}});
   roundTrip(SoundCue{Cue::BlockBreak, {1.5f, 70.5f, -2.5f}, kLastBlockType});
@@ -213,7 +220,7 @@ TEST_CASE("an oversized frame marks the stream bad") {
 
 TEST_CASE("the hello frame carries the protocol version") {
   CHECK(wire::readHello(wire::hello()) == wire::kProtocolVersion);
-  CHECK(wire::kProtocolVersion == 27);
+  CHECK(wire::kProtocolVersion == 28);
   auto other = wire::hello();
   other[4] = 99;
   CHECK(wire::readHello(other) == 99);

@@ -204,7 +204,22 @@ bool Game::save() {
       pets.push_back({static_cast<uint16_t>(e.kind), e.body.position, e.yaw, e.pet->host,
                       e.pet->name, e.pet->collar, e.pet->sitting});
 
-  if (!WorldSave::save(save_dir, level, pd, world_.snapshotEdits()) ||
+  // A lit TNT is saved as the block, unlit, in the cell it's in: nothing
+  // goes off on loading, and nothing is lost.
+  WorldEdits edits = world_.snapshotEdits();
+  for (const auto &[id, e] : entities_.all()) {
+    if (e.kind != EntityKind::LitTnt) continue;
+    const glm::ivec3 cell(glm::floor(e.body.position + glm::vec3(0.0f, 0.5f, 0.0f)));
+    if (cell.y < 0 || cell.y >= kChunkHeight) continue;
+    const BlockType there = world_.getBlockAt(glm::vec3(cell) + 0.5f);
+    if (there != BlockType::AIR && !isLiquid(there)) continue; // somewhere better is taken
+    const int cx = static_cast<int>(std::floor(static_cast<float>(cell.x) / kChunkWidth));
+    const int cz = static_cast<int>(std::floor(static_cast<float>(cell.z) / kChunkDepth));
+    const uint32_t idx = (cell.x - cx * kChunkWidth) +
+                         kChunkWidth * ((cell.z - cz * kChunkDepth) + kChunkDepth * cell.y);
+    edits[{cx, cz}][idx] = static_cast<uint8_t>(BlockType::TNT);
+  }
+  if (!WorldSave::save(save_dir, level, pd, edits) ||
       !WorldSave::saveFurnaces(save_dir, furnaces) ||
       !WorldSave::saveChests(save_dir, chests) ||
       !WorldSave::saveFarms(save_dir, farms) ||
@@ -476,6 +491,7 @@ void Game::tick() {
   catchUpPets();
   tickBoats();
   tickFishing();
+  tickTnt();
   removeEnemies();
   enemyAttacks();
   prickPlayers();
@@ -506,6 +522,15 @@ void Game::tick() {
   if (!save_dir.empty() && tick_count % kAutosaveTicks == 0) save();
 }
 
+namespace {
+// Lit TNT blinks white four times a second, and faster in its last second.
+bool tntFlash(const Entity &e) {
+  if (e.kind != EntityKind::LitTnt) return false;
+  const int period = e.fuse_ms > 1000 ? 250 : 100;
+  return e.fuse_ms % period < period / 2;
+}
+} // namespace
+
 void Game::sendEntitySnapshots() {
   for (Client &client : clients) {
     PlayerState *ps = playerFor(client);
@@ -517,7 +542,7 @@ void Game::sendEntitySnapshots() {
       snap.entities.push_back({id, e.kind, e.body.position, e.yaw, e.item.id,
                                e.hurt_ms > 0, e.happy_ms > 0, e.burning_ms > 0, e.owner,
                                e.biting, false, static_cast<uint8_t>(e.pet ? e.pet->collar : 0),
-                               e.pet && (e.pet->sitting || !e.follow)});
+                               e.pet && (e.pet->sitting || !e.follow), tntFlash(e)});
     }
     for (const auto &[pid, other] : players) {
       if (pid == ps->id || other.vitals.dead()) continue;
@@ -1514,6 +1539,10 @@ void Game::apply(Client &client, const UseItemOn &cmd) {
   // A ripe bush is picked and a cake eaten, whatever's in hand.
   const BlockType target = world_.getBlockAt(glm::vec3(cmd.pos) + 0.5f);
   const ItemId held = ps->inventory.slot(ps->selected_slot).id;
+  if (target == BlockType::TNT && held == itemForBlock(BlockType::TORCH)) {
+    if (!lightTnt(cmd.pos, kTntFuseMs)) reject(client, "use: too many things about");
+    return;
+  }
   if (target == BlockType::BERRY_BUSH) return pickBerries(client, *ps, cmd.pos);
   if (isCake(target)) return eatCake(client, *ps, cmd.pos);
   if (held == ItemId::COMPOST) return useCompost(client, *ps, cmd.pos);
@@ -2549,6 +2578,180 @@ void Game::enemyAttacks() {
       if (ps->vitals.dead()) break;
     }
   }
+}
+
+// ─── TNT ───────────────────────────────────────────────────────────────
+
+bool Game::lightTnt(glm::ivec3 pos, int fuse_ms) {
+  auto id = entities_.spawn(EntityKind::LitTnt, glm::vec3(pos) + glm::vec3(0.5f, 0.0f, 0.5f));
+  if (!id) return false;
+  Entity *e = entities_.find(*id);
+  e->fuse_ms = fuse_ms;
+  // A little hop as it's lit, as in Bedrock, a touch to one side.
+  const float a = std::uniform_real_distribution<float>(0.0f, 6.2831853f)(rng_);
+  e->body.velocity = {std::cos(a) * kTntNudge, kTntHop, std::sin(a) * kTntNudge};
+  clearBlock(pos);
+  popDoorAbove(pos);
+  popBedAbove(pos);
+  popCropAbove(pos);
+  popUnsupported(pos);
+  broadcast(SoundCue{Cue::TntFuse, glm::vec3(pos) + 0.5f});
+  return true;
+}
+
+void Game::tickTnt() {
+  std::vector<EntityId> burnt;
+  for (auto &[id, e] : entities_.all()) {
+    if (e.kind != EntityKind::LitTnt) continue;
+    e.fuse_ms -= kTickMs;
+    if (e.fuse_ms <= 0) burnt.push_back(id);
+  }
+  for (EntityId id : burnt) {
+    const Entity &e = *entities_.find(id);
+    const glm::vec3 centre = e.body.position + glm::vec3(0.0f, e.body.height / 2, 0.0f);
+    blasts_.push_back({centre, isLiquid(world_.getBlockAt(centre))});
+    entities_.remove(id);
+  }
+  for (int n = 0; n < kMaxBlastsPerTick && !blasts_.empty(); ++n) {
+    const Blast blast = blasts_.front();
+    blasts_.pop_front();
+    explode(blast);
+  }
+}
+
+void Game::explode(const Blast &blast) {
+  const glm::vec3 centre = blast.centre;
+  broadcast(Exploded{centre});
+  std::uniform_real_distribution<float> roll(0.0f, 1.0f);
+
+  // ── The crater ── (none in water). Each block within the radius breaks,
+  // and past it, out to the edge, fewer and fewer: a rough ball.
+  std::vector<glm::ivec3> cleared;
+  std::vector<glm::ivec3> fuses; // TNT caught in it, lit
+  std::map<ItemId, int> drops;
+  const bool drop = rules().block_drops;
+  auto addDrop = [&](ItemStack s) {
+    if (!s.empty()) drops[s.id] += s.count;
+  };
+  if (!blast.in_water) {
+    std::set<glm::ivec3, BlockLess> taken;
+    const int reach = static_cast<int>(std::ceil(kBlastEdge));
+    const glm::ivec3 c(glm::floor(centre));
+    auto at = [&](glm::ivec3 p) { return world_.getBlockAt(glm::vec3(p) + 0.5f); };
+    for (int dy = -reach; dy <= reach; ++dy)
+      for (int dz = -reach; dz <= reach; ++dz)
+        for (int dx = -reach; dx <= reach; ++dx) {
+          const glm::ivec3 p = c + glm::ivec3(dx, dy, dz);
+          if (p.y < 0 || p.y >= kChunkHeight || !chunkLoaded(world_, p)) continue;
+          const float d = glm::distance(glm::vec3(p) + 0.5f, centre);
+          if (d > kBlastEdge) continue;
+          if (d > kBlastRadius && roll(rng_) > (kBlastEdge - d) / (kBlastEdge - kBlastRadius))
+            continue;
+          BlockType b = at(p);
+          // Air, water, bedrock and the treasure chest hold.
+          if (!toughness(b).breakable || taken.count(p)) continue;
+          if (b == BlockType::TNT) {
+            fuses.push_back(p);
+            continue;
+          }
+          taken.insert(p);
+          cleared.push_back(p);
+          // A door or a bed goes as a whole and drops one, as when it's broken.
+          if (isDoor(b) || isBed(b)) {
+            const glm::ivec3 other = isDoor(b) ? p + glm::ivec3(0, doorTop(b) ? -1 : 1, 0)
+                                               : bedOther(p, b);
+            const BlockType ob = at(other);
+            if ((isDoor(b) && isDoor(ob)) || (isBed(b) && isBed(ob))) {
+              if (!taken.insert(other).second) continue; // its other half dropped it
+              cleared.push_back(other);
+            }
+            b = isDoor(b) ? doorBlock(false, doorFacing(b), false)
+                          : bedBlock(bedColour(b), false, bedFacing(b));
+          }
+          if (!drop) continue;
+          if (isCrop(b)) {
+            for (const ItemStack &got : harvest(b, rng_)) addDrop(got);
+          } else if (auto d_item = dropOf(b)) {
+            addDrop({*d_item, 1}); // no pickaxe needed: the blast digs it
+          }
+        }
+  }
+  if (!cleared.empty()) {
+    std::vector<BlockEdit> edits;
+    edits.reserve(cleared.size());
+    for (glm::ivec3 p : cleared) edits.push_back({p, BlockType::AIR});
+    world_.setBlocks(edits);
+    broadcast(BlocksChanged{std::move(edits)});
+    for (glm::ivec3 p : cleared) {
+      crops_.erase(p);
+      soil_.erase(p);
+      spillFurnace(p);
+      spillChest(p);
+      // Water round the crater flows in, as into any emptied cell.
+      if (water_queued_.insert(p).second) water_queue_.push_back(p);
+    }
+    // What the crater held up pops off (a torch on its rim, a plant above).
+    for (glm::ivec3 p : cleared) {
+      popDoorAbove(p);
+      popBedAbove(p);
+      popCropAbove(p);
+      popUnsupported(p);
+    }
+  }
+
+  // ── Hurting and shoving ── more the closer, nothing past the reach.
+  auto push = [&](glm::vec3 middle) -> std::optional<std::pair<float, glm::vec3>> {
+    const float d = glm::distance(middle, centre);
+    if (d >= kBlastReach) return std::nullopt;
+    const float f = 1.0f - d / kBlastReach;
+    const glm::vec3 away = d > 1e-3f ? (middle - centre) / d : glm::vec3(0, 1, 0);
+    return std::pair{f, away * (kBlastShove * f) + glm::vec3(0.0f, kBlastLift * f, 0.0f)};
+  };
+  for (Client &client : clients) {
+    PlayerState *ps = playerFor(client);
+    if (!ps || ps->vitals.dead()) continue;
+    auto hit = push(ps->position + glm::vec3(0.0f, ps->height() / 2, 0.0f));
+    if (!hit) continue;
+    if (rules().damage) {
+      const int damage = static_cast<int>(std::lround(kBlastDamage * hit->first));
+      if (damage > 0) {
+        ps->vitals.damage(damage);
+        ps->hurt_by = "was blown up by TNT";
+      }
+    }
+    if (!ps->riding) client.link->deliver(KnockedBack{hit->second});
+  }
+  std::vector<EntityId> dead;
+  for (auto &[id, e] : entities_.all()) {
+    if (e.kind == EntityKind::Bobber || isVehicle(e.kind)) continue; // the Game moves them
+    auto hit = push(e.body.position + glm::vec3(0.0f, e.body.height / 2, 0.0f));
+    if (!hit) continue;
+    e.body.velocity += hit->second;
+    e.body.on_ground = false;
+    e.shoved_ms = kShovedMs;
+    // Only what can be hit is hurt: animals and pets are just thrown.
+    const int damage = static_cast<int>(std::lround(kBlastDamage * hit->first));
+    if (entityType(e.kind).max_health > 0 && damage > 0) {
+      e.health -= damage;
+      e.hurt_ms = kHurtFlashMs;
+      if (e.health <= 0) dead.push_back(id);
+    }
+  }
+  for (EntityId id : dead) killEntity(id);
+
+  // ── The drops ── fly out of the crater, a stack of each kind.
+  std::uniform_real_distribution<float> side(-3.0f, 3.0f), up(3.0f, 6.0f);
+  for (const auto &[item, total] : drops)
+    for (int left = total; left > 0;) {
+      const int n = std::min<int>(left, itemDef(item).max_stack);
+      dropItem({item, static_cast<uint16_t>(n)}, centre, {side(rng_), up(rng_), side(rng_)},
+               kBreakDropDelayMs);
+      left -= n;
+    }
+
+  // ── TNT caught in it ── goes off a moment later.
+  std::uniform_int_distribution<int> fuse(kChainFuseMinMs / kTickMs, kChainFuseMaxMs / kTickMs);
+  for (glm::ivec3 p : fuses) lightTnt(p, fuse(rng_) * kTickMs);
 }
 
 // ─── Boats ─────────────────────────────────────────────────────────────

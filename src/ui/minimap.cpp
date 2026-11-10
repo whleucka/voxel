@@ -114,6 +114,7 @@ glm::u8vec4 mapColour(BlockType type) {
     case B::YELLOW_CORAL: return rgb(240, 210, 60);
     case B::SANDSTONE_BRICKS: return rgb(206, 186, 128);
     case B::SNOW_BRICKS: return rgb(230, 236, 244);
+    case B::TNT: return rgb(206, 50, 44);
     default: return rgb(128, 128, 132); // stone, ores, cobble and the rest
   }
 }

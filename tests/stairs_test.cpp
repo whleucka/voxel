@@ -59,7 +59,7 @@ TEST_CASE("slab and stair block ids are pinned: saves store them as numbers") {
   CHECK(BlockType::SNOW_BRICK_STAIRS_W < kLastBlockType); // fences came after
   CHECK(static_cast<int>(BlockType::OAK_TOP_SLAB) == 230);
   CHECK(static_cast<int>(BlockType::SNOW_BRICK_TOP_SLAB) == 238);
-  CHECK(kLastBlockType == BlockType::SNOW_BRICK_TOP_SLAB);
+  CHECK(BlockType::SNOW_BRICK_TOP_SLAB < kLastBlockType); // TNT came after
 }
 
 TEST_CASE("a top slab is its slab in the other half: named, mined and dropped as the slab") {

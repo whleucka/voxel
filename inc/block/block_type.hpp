@@ -120,8 +120,9 @@ enum class BlockType : uint8_t {
   // kShapeMaterial. Placed from the Slab item; never an item of their own.
   OAK_TOP_SLAB, PINE_TOP_SLAB, PALM_TOP_SLAB, CHERRY_TOP_SLAB, COBBLESTONE_TOP_SLAB,
   STONE_BRICK_TOP_SLAB, BRICK_TOP_SLAB, SANDSTONE_BRICK_TOP_SLAB, SNOW_BRICK_TOP_SLAB,
+  TNT, // lit with a torch: it becomes a LitTnt entity, then explodes
 };
 
 // The highest BlockType value. Update it when appending a type; a test in
 // tests/item_test.cpp fails if a named type exists past it.
-constexpr BlockType kLastBlockType = BlockType::SNOW_BRICK_TOP_SLAB;
+constexpr BlockType kLastBlockType = BlockType::TNT;

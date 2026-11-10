@@ -222,6 +222,10 @@ struct Riding {
 struct TimeSync { float time_of_day = 0.0f; float time_scale = 1.0f; };
 
 struct BlockChanged { glm::ivec3 pos{0}; BlockType type = BlockType::AIR; };
+// Many blocks at once (an explosion's crater), applied as one batch.
+struct BlocksChanged { std::vector<BlockEdit> edits; };
+// Something blew up here: the client plays the boom, the puff and the shake.
+struct Exploded { glm::vec3 position{0.0f}; };
 // Another player joined or left (never sent about yourself).
 struct PlayerJoined { PlayerId id = 0; std::string name; };
 struct PlayerLeft { PlayerId id = 0; };
@@ -271,6 +275,7 @@ struct EntityView {
   bool moving = false;        // set client-side by the interpolator
   uint8_t collar = 0;         // pets: 1..8 a collar colour (0: a stray, none)
   bool sitting = false;       // pets: sitting, or waiting for their owner
+  bool flash = false;         // lit TNT: blinking white
 };
 
 // Another living player, as a client draws them.
@@ -333,8 +338,8 @@ struct ContainerView {
 // A sound for everyone near `position` to hear. The client picks which
 // recording plays, so a cue only says what happened.
 enum class Cue : uint8_t { DoorOpen, DoorClose, GateOpen, GateClose, BlockBreak, BlockPlace,
-                           BoatPlace, ChestOpen, ChestClose };
-inline constexpr Cue kLastCue = Cue::ChestClose;
+                           BoatPlace, ChestOpen, ChestClose, TntFuse };
+inline constexpr Cue kLastCue = Cue::TntFuse;
 struct SoundCue {
   Cue cue = Cue::DoorOpen;
   glm::vec3 position{0.0f};
@@ -348,4 +353,4 @@ using Event = std::variant<Joined, BlockChanged, PlayerJoined, PlayerLeft,
                            Welcome, TimeSync, Disconnected, KnownItems,
                            ContainerView, ToolBroke, Caught, SleepState, Notice,
                            ChatMessage, Waypoints, Riding, MapPlayers,
-                           SoundCue, JournalState>;
+                           SoundCue, JournalState, BlocksChanged, Exploded>;

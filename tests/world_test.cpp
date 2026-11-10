@@ -407,3 +407,93 @@ TEST_CASE("chunks are drawn nearest the viewer first") {
   sortNearestFirst(chunks, {8.0f, 70.0f, 8.0f}); // the middle of (0, 0)
   CHECK(chunks == std::vector<Chunk *>{&near, &behind, &mid_north, &far_east});
 }
+
+namespace {
+
+// A ball of `type` round `centre`, as an explosion's crater is.
+std::vector<BlockEdit> ball(glm::ivec3 centre, int r, BlockType type) {
+  std::vector<BlockEdit> out;
+  for (int dy = -r; dy <= r; ++dy)
+    for (int dz = -r; dz <= r; ++dz)
+      for (int dx = -r; dx <= r; ++dx)
+        if (dx * dx + dy * dy + dz * dz <= r * r) out.push_back({centre + glm::ivec3(dx, dy, dz), type});
+  return out;
+}
+
+} // namespace
+
+TEST_CASE("setBlocks leaves the same blocks, light and edits as setBlockAt one by one") {
+  // Across a chunk border, beside a lamp, in the ground and the air above it.
+  auto build = [](World &world) {
+    for (int x = -1; x <= 1; ++x)
+      for (int z = -1; z <= 1; ++z) world.loadChunkSync(x, z);
+  };
+  World one, many;
+  build(one);
+  build(many);
+  const int y = topSolidY(one, 0, 4);
+  REQUIRE(y > 4);
+  const glm::ivec3 lamp{-3, y + 1, 4};
+  one.setBlockAt(lamp, BlockType::GLOWSTONE);
+  many.setBlockAt(lamp, BlockType::GLOWSTONE);
+
+  const std::vector<BlockEdit> crater = ball({0, y, 4}, 3, BlockType::AIR);
+  for (const BlockEdit &e : crater) one.setBlockAt(e.pos, e.type);
+  many.setBlocks(crater);
+
+  for (int x = -10; x <= 10; ++x)
+    for (int z = -6; z <= 14; ++z)
+      for (int dy = -8; dy <= 8; ++dy) {
+        const glm::ivec3 p{x, y + dy, z};
+        CAPTURE(p);
+        REQUIRE(many.getBlockAt(glm::vec3(p) + 0.5f) == one.getBlockAt(glm::vec3(p) + 0.5f));
+        REQUIRE(many.getSkyLightAt(p) == one.getSkyLightAt(p));
+        REQUIRE(many.getBlockLightAt(p) == one.getBlockLightAt(p));
+      }
+  CHECK(many.editList().size() == one.editList().size());
+  CHECK(many.editAt({0, y, 4}) == BlockType::AIR);
+}
+
+TEST_CASE("setBlocks drops edits to chunks that aren't loaded; applyEdits keeps them") {
+  World world;
+  world.loadChunkSync(0, 0);
+  const int y = kChunkHeight - 3;
+  const std::vector<BlockEdit> list = {{{2, y, 2}, BlockType::STONE},
+                                       {{kChunkWidth + 2, y, 2}, BlockType::STONE}, // unloaded
+                                       {{2, -1, 2}, BlockType::STONE}};             // below the world
+  world.setBlocks(list);
+  CHECK(world.getBlockAt(glm::vec3(2.5f, y + 0.5f, 2.5f)) == BlockType::STONE);
+  CHECK_FALSE(world.editAt({kChunkWidth + 2, y, 2}));
+
+  World guest;
+  guest.loadChunkSync(0, 0);
+  guest.applyEdits(list);
+  CHECK(guest.getBlockAt(glm::vec3(2.5f, y + 0.5f, 2.5f)) == BlockType::STONE);
+  guest.loadChunkSync(1, 0);
+  guest.flushPendingEdits();
+  CHECK(guest.getBlockAt(glm::vec3(kChunkWidth + 2.5f, y + 0.5f, 2.5f)) == BlockType::STONE);
+}
+
+TEST_CASE("light after batched craters by lights matches one flood") {
+  ScopedRenderDistance rd{0};
+  Settings saved = g_settings;
+  g_settings.world_seed = 12345;
+  g_settings.noise_offset = noiseOffsetFor(12345);
+  g_settings.worldgen = worldgen::kCaves;
+  {
+    World world;
+    const int cx0 = -43, cz0 = -43, n = 7;
+    for (int i = 0; i < n; ++i)
+      for (int j = 0; j < n; ++j) world.loadChunkSync(cx0 + i, cz0 + j);
+    std::mt19937 rng(9);
+    const int lo = (cx0 + 2) * kChunkWidth, span = 3 * kChunkWidth;
+    for (int k = 0; k < 40; ++k) {
+      const glm::ivec3 c{lo + int(rng() % span), 20 + int(rng() % 100),
+                         (cz0 + 2) * kChunkDepth + int(rng() % span)};
+      if (k % 3 == 0) world.setBlockAt(c + glm::ivec3(4, 0, 0), BlockType::GLOWSTONE);
+      world.setBlocks(ball(c, 3, k % 5 == 0 ? BlockType::STONE : BlockType::AIR));
+    }
+    checkInnerLightMatches(world, cx0, cz0, n, 2);
+  }
+  g_settings = saved;
+}

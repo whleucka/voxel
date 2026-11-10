@@ -483,6 +483,7 @@ void Engine::update() {
   }
   updateMining(delta_time);
   updatePlacing(delta_time);
+  blast_effects.update(delta_time);
   {
     std::optional<MiningNow> now;
     if (mining && mining->breaking) now = MiningNow{mining->pos, mining->block};
@@ -657,6 +658,11 @@ void Engine::handleEvents() {
     else if (const auto *knocked = std::get_if<KnockedBack>(&ev); knocked && player) {
       player->knock(knocked->velocity);
     }
+    else if (const auto *boom = std::get_if<Exploded>(&ev); boom && player) {
+      const glm::vec3 ear = player->getCamera().position;
+      if (auto sound = cue_sounds.boom(boom->position, ear)) audio.play(*sound, g_settings.sfx_volume);
+      blast_effects.blast(boom->position, ear);
+    }
     else if (const auto *cue = std::get_if<SoundCue>(&ev); cue && player) {
       if (auto sound = cue_sounds.sound(*cue, player->getCamera().position))
         audio.play(*sound, g_settings.sfx_volume);
@@ -710,7 +716,9 @@ void Engine::render() {
         if (!ray.hit) return std::nullopt;
         return ray.distance;
       });
-  glm::mat4 view = cameraViewMatrix(view_pos, camera.front, camera.up, shown_view);
+  // A blast close by shakes the view (only the view: aim stays put).
+  glm::mat4 view = cameraViewMatrix(view_pos + blast_effects.shakeOffset(), camera.front, camera.up,
+                                    shown_view);
   glm::mat4 proj = glm::perspective(
       glm::radians(g_settings.fov),                  // field of view from settings
       (float)win_width / (float)win_height,           // aspect ratio
@@ -762,6 +770,9 @@ void Engine::render() {
                    entity_renderer.draw(entity_views, drawn_players, world(), view, proj,
                                         view_pos, player->isUnderwater(),
                                         session->clock().fractionOfDay(), now, player_id, hand);
+                   entity_renderer.drawPuff(blast_effects.cubes(), world(), view, proj, view_pos,
+                                            player->isUnderwater(),
+                                            session->clock().fractionOfDay());
                  });
 
   // Frame the block under the crosshair, while there's a crosshair to aim,
@@ -1557,6 +1568,10 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
     else if (ray.hit && (isDoor(ray.block_type) || isGate(ray.block_type)) &&
              !player->isCrouching())
       engine->connection().send(UseDoor{ray.block_pos});
+    // Light TNT with a torch (crouch to put the torch on it instead).
+    else if (ray.hit && !player->isCrouching() && ray.block_type == BlockType::TNT &&
+             held.id == itemForBlock(BlockType::TORCH))
+      engine->connection().send(UseItemOn{ray.block_pos});
     // Pick berries or eat a slice of cake (crouch to place against it instead).
     else if (ray.hit && !player->isCrouching() &&
              (isBerryBush(ray.block_type) || isCake(ray.block_type)))
@@ -1695,10 +1710,11 @@ void Engine::updatePlacing(float dt) {
   }
   const Camera &cam = player->getCamera();
   const bool crouching = player->isCrouching();
+  const ItemId held_id = inventory_view[player->getSelectedHotbarSlot()].id;
   auto cast = [&](glm::vec3 origin, glm::vec3 dir) -> std::optional<RaycastResult> {
     RaycastResult ray = world().raycast(origin, dir, kPlayerReach);
     // Things a click would use instead aren't built on (crouch to, as a click).
-    if (!ray.hit || (usedOnClick(ray.block_type) && !crouching)) return std::nullopt;
+    if (!ray.hit || (usedOnClick(ray.block_type, held_id) && !crouching)) return std::nullopt;
     return ray;
   };
   for (const PlaceBlock &place : place_repeat->sweep(dt, cam.position, cam.front, kPlayerReach, cast))

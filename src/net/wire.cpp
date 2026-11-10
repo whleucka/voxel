@@ -141,7 +141,7 @@ template <class IO> void fields(IO &io, ItemStack &m) { io(m.id, m.count, m.wear
 template <class IO> void fields(IO &io, BlockEdit &m) { io(m.pos, m.type); }
 template <class IO> void fields(IO &io, EntityView &m) {
   io(m.id, m.kind, m.position, m.yaw, m.item, m.hurt, m.happy, m.burning, m.owner, m.biting,
-     m.collar, m.sitting);
+     m.collar, m.sitting, m.flash);
 }
 template <class IO> void fields(IO &io, PlayerLook &m) {
   io(m.figure, m.shirt, m.hair, m.skin, m.eyes);
@@ -210,6 +210,8 @@ template <class IO> void fields(IO &io, KnownItems &m) { io(m.ids); }
 template <class IO> void fields(IO &io, ToolBroke &m) { io(m.item); }
 template <class IO> void fields(IO &io, Caught &m) { io(m.item); }
 template <class IO> void fields(IO &io, JournalState &m) { io(m.deeds, m.met, m.stamps); }
+template <class IO> void fields(IO &io, BlocksChanged &m) { io(m.edits); }
+template <class IO> void fields(IO &io, Exploded &m) { io(m.position); }
 template <class IO> void fields(IO &io, SleepState &m) {
   io(m.in_bed, m.bed, m.sleepers, m.living);
 }

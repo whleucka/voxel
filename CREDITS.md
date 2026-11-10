@@ -21,6 +21,9 @@ From the RPG Audio pack by Kenney (www.kenney.nl)
 Licensed under Creative Commons Zero (CC0 1.0)  
 https://creativecommons.org/publicdomain/zero/1.0/
 
+**TNT's fuse and boom** (`assets/sound-effects/tnt/`)  
+Made for this game by `tools/gen_tnt_sounds.py` (no recordings used).
+
 **Mining, placing, footsteps and chests shutting** (`assets/sound-effects/impact/`)  
 From the Impact Sounds pack by Kenney (www.kenney.nl)  
 Licensed under Creative Commons Zero (CC0 1.0)  

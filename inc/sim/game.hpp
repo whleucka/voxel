@@ -73,6 +73,20 @@ public:
   static constexpr int kPrickDamage = 1;
   static constexpr int kPrickCooldownMs = 1000;
   static constexpr float kPrickRange = 0.05f;      // gap between player and cactus
+  // TNT
+  static constexpr int kTntFuseMs = 4000;          // lit with a torch
+  static constexpr int kChainFuseMinMs = 500;      // lit by another blast
+  static constexpr int kChainFuseMaxMs = 1500;
+  static constexpr float kTntHop = 4.0f;           // up, as it's lit
+  static constexpr float kTntNudge = 0.4f;         // and a little to one side
+  static constexpr int kMaxBlastsPerTick = 4;      // more wait for the next tick
+  static constexpr float kBlastRadius = 3.0f;      // every block this close breaks
+  static constexpr float kBlastEdge = 4.0f;        // and fewer and fewer out to here
+  static constexpr float kBlastReach = 7.0f;       // hurt and shoved within this
+  static constexpr int kBlastDamage = 12;          // at the centre, down to 0 at the reach
+  static constexpr float kBlastShove = 14.0f;      // blocks/s away, at the centre
+  static constexpr float kBlastLift = 6.0f;        // and up
+  static constexpr int kShovedMs = 600;            // creatures don't steer while thrown
 
   Game(); // registers natural spawning (animals and enemies)
 
@@ -152,6 +166,9 @@ public:
   // and whether farmland is known to the Game.
   std::optional<int> cropTimeLeft(glm::ivec3 pos) const;
   bool tracksSoil(glm::ivec3 pos) const { return soil_.count(pos) > 0; }
+
+  // Explosions waiting their turn (at most kMaxBlastsPerTick go off a tick).
+  size_t pendingBlasts() const { return blasts_.size(); }
 
   // Whether water is still spreading into what was emptied beside it.
   bool waterFlowing() const { return !water_queue_.empty(); }
@@ -351,6 +368,17 @@ private:
   void pickBerries(Client &client, PlayerState &ps, glm::ivec3 pos);
   void eatCake(Client &client, PlayerState &ps, glm::ivec3 pos);
   void useCompost(Client &client, PlayerState &ps, glm::ivec3 pos);
+  // TNT: the block at `pos` becomes a lit TNT entity with this fuse (false,
+  // and nothing changes, if the entity cap is reached). Fuses burn down each
+  // tick, and the explosions they set off go off in turn.
+  bool lightTnt(glm::ivec3 pos, int fuse_ms);
+  void tickTnt();
+  struct Blast {
+    glm::vec3 centre{0.0f};
+    bool in_water = false; // goes off in water: no blocks break
+  };
+  std::deque<Blast> blasts_;
+  void explode(const Blast &blast);
   // A cactus touching a living player pricks them, at most once a second.
   void prickPlayers();
   void plant(Client &client, PlayerState &ps, glm::ivec3 pos);

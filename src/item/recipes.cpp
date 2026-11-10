@@ -111,6 +111,9 @@ const std::vector<Recipe> &recipes() {
     // bricks for the sand and snow, compost from leaves, and food.
     list.push_back(anywhere({block(BlockType::TORCH), 4},
                             {{{ItemId::COAL, ItemId::CHARCOAL}, 1}, {{ItemId::STICKS}, 1}}));
+    // TNT: Bedrock's five and four, with coal for the gunpowder.
+    list.push_back(atTable({block(BlockType::TNT), 1},
+                           {{{ItemId::COAL, ItemId::CHARCOAL}, 5}, {{block(BlockType::SAND)}, 4}}));
     list.push_back(atTable({block(BlockType::SANDSTONE_BRICKS), 4},
                            {{{block(BlockType::SANDSTONE)}, 4}}));
     list.push_back(atTable({block(BlockType::SNOW_BRICKS), 4}, {{{block(BlockType::SNOW)}, 4}}));

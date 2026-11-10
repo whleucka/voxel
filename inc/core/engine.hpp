@@ -48,6 +48,7 @@ private:
   FootstepDirector footsteps;
   CueSounds cue_sounds; // the Game's SoundCues
   MiningSounds mining_sounds;
+  BlastEffects blast_effects; // explosions' puffs and camera shake
   void updateMusic();
   // Our steps and other players' nearby, from this frame's positions.
   void updateFootsteps();

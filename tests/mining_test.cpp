@@ -70,7 +70,7 @@ TEST_CASE("every breakable block breaks in a sensible time") {
     CAPTURE(v);
     int ms = breakMs(b, ItemId::NONE);
     if (ms < 0) continue;
-    if (isCrop(b) || isPlant(b) || isTorch(b) || isCake(b)) { // picked at once
+    if (isCrop(b) || isPlant(b) || isTorch(b) || isCake(b) || b == BlockType::TNT) { // picked at once
       CHECK(ms == 0);
       continue;
     }

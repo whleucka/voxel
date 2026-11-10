@@ -27,6 +27,7 @@
 - **Fishing:** make a rod, cast it, and reel in when the bobber dips. Cook your catch, or find treasure ([more below](#fishing)).
 - **Pets:** tame a stray Puppy or Kitten with three treats, and it wears a collar, follows you everywhere and sits when you ask ([more below](#pets)).
 - **Boats:** make a boat from planks, put it on the water and sail it, with a friend in the front seat ([more below](#boats)).
+- **TNT:** craft it from coal and sand, light it with a torch, and stand back ([more below](#tnt)).
 - **Farming:** till soil with a hoe, plant wheat, carrots and strawberries, keep them watered, and harvest them for food ([more below](#farming)).
 - **Tools and weapons:** pickaxes, axes, shovels, swords and hoes from wood to diamond; mining takes time and the best ore needs the best picks ([more below](#tools-and-weapons)).
 - **Creative mode:** fly, build without running out, and pick from every block, including planks, bricks, glass, eight bright colors and lamps.
@@ -402,6 +403,27 @@ Hit an empty boat to pick it up again. Boats never break, and a boat you
 leave stays where you left it, even after you quit. Quit while you're in one
 and you'll be back in your seat when you return.
 
+## TNT
+
+Make **TNT** at a Crafting Table from 5 coal or charcoal and 4 sand. Place it
+like any block, then right-click it while holding a **torch** to light it
+(the torch isn't used up). Crouch to put the torch on it instead. Breaking
+TNT just gives it back; it never goes off by itself.
+
+Lit TNT hops up, fizzes and flashes white, faster near the end, and
+explodes four seconds later. The blast blows a rough crater about 7 blocks
+across, and every block in it pops out as its item, so blasting ore gives
+you the ore even without the right pickaxe (in creative nothing drops).
+Bedrock, water and treasure chests hold. TNT that goes off underwater breaks
+no blocks.
+
+It hurts anyone close by, up to 6 hearts right beside it and nothing past 7
+blocks, and throws everyone and everything back. From full health you'll
+survive one, but not two. Pets and friendly animals are only thrown, never
+hurt. Other TNT caught in a blast lights and goes off a moment later, so a
+row goes off one after another. Save and quit with TNT lit and it'll be
+back as a TNT block, unlit.
+
 ## Pets
 
 Stray **Puppies** wander the plains and mountains, and stray **Kittens**
@@ -539,8 +561,8 @@ players' steps come from where they are, up to 16 blocks away. Doors creak
 open and thud shut, and fence gates sound lighter; everyone within 16 blocks
 hears them. Mining chips away with a sound for stone, wood, glass or soft
 blocks, and everyone nearby hears a block break or go down, along with
-tilling, planting and launching a boat. Effects follow the Effects
-slider, or `sfx-volume`.
+tilling, planting and launching a boat. Lit TNT fizzes, and its boom
+carries 48 blocks. Effects follow the Effects slider, or `sfx-volume`.
 
 ## Contributing
 

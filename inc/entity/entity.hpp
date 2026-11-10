@@ -52,6 +52,11 @@ struct Entity {
   uint32_t owner = 0;  // the PlayerId fishing with it
   bool biting = false; // dipped under: reel in now
 
+  // Lit TNT only: until it explodes
+  int fuse_ms = 0;
+  // Thrown by an explosion: its brain doesn't steer until this runs out.
+  int shoved_ms = 0;
+
   // Dropped items only
   ItemStack item;
   int pickup_delay_ms = 0;

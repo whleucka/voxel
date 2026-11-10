@@ -31,6 +31,8 @@ EffectPaths effectPaths(const std::string &dir) {
       case Effect::BreakSoft: std::snprintf(name, sizeof name, "impact/impactSoft_heavy_%03d.ogg", v); break;
       case Effect::ChestOpen: std::snprintf(name, sizeof name, "rpg/creak%d.ogg", v + 1); break;
       case Effect::ChestClose: std::snprintf(name, sizeof name, "impact/impactWood_light_%03d.ogg", v); break;
+      case Effect::Boom: std::snprintf(name, sizeof name, "tnt/boom_%03d.ogg", v); break;
+      case Effect::Fuse: std::snprintf(name, sizeof name, "tnt/fuse_%03d.ogg", v); break;
       case Effect::StepGrass:
       case Effect::StepDirt: std::snprintf(name, sizeof name, "impact/footstep_grass_%03d.ogg", v); break;
       case Effect::StepStone: std::snprintf(name, sizeof name, "impact/footstep_concrete_%03d.ogg", v); break;
@@ -221,7 +223,7 @@ void Audio::play(const SoundEvent &event, float volume) {
     ma_sound_set_position(&v.sound, event.position.x, event.position.y, event.position.z);
     ma_sound_set_attenuation_model(&v.sound, ma_attenuation_model_linear);
     ma_sound_set_min_distance(&v.sound, 1.0f);
-    ma_sound_set_max_distance(&v.sound, CueSounds::kHearing);
+    ma_sound_set_max_distance(&v.sound, event.hearing > 0.0f ? event.hearing : CueSounds::kHearing);
   } else {
     ma_sound_set_spatialization_enabled(&v.sound, MA_FALSE);
   }

@@ -296,6 +296,7 @@ inline std::string_view blockName(BlockType type) {
     case BlockType::PINK_BLOCK:    return "Pink Block";
     case BlockType::GLOW_CRYSTAL:  return "Glow Crystal";
     case BlockType::CRAFTING_TABLE: return "Crafting Table";
+    case BlockType::TNT:           return "TNT";
     case BlockType::FURNACE:       return "Furnace";
     case BlockType::FURNACE_LIT:   return "Lit Furnace";
     case BlockType::CHEST:         return "Chest";
@@ -376,6 +377,9 @@ inline const glm::ivec2 kCakeCutTile = tileAfterCrops(23);
 inline const glm::ivec2 kSandstoneBricksTile = tileAfterCrops(24);
 inline const glm::ivec2 kSnowBricksTile = tileAfterCrops(25);
 inline const glm::ivec2 kLadderTile = tileAfterCrops(26);
+inline const glm::ivec2 kTntSideTile = tileAfterCrops(27);
+inline const glm::ivec2 kTntTopTile = tileAfterCrops(28);
+inline const glm::ivec2 kTntBottomTile = tileAfterCrops(29);
 
 // Shown flat in a slot (the plant's own picture), not as a little cube.
 inline bool hasFlatIcon(BlockType type) { return isPlant(type) || isTorch(type) || isLadder(type); }
@@ -478,6 +482,8 @@ static robin_hood::unordered_map<BlockType, BlockTexture> block_data = [] {
   d[BlockType::SANDSTONE_BRICKS] = {kSandstoneBricksTile, kSandstoneBricksTile,
                                     kSandstoneBricksTile};
   d[BlockType::SNOW_BRICKS] = {kSnowBricksTile, kSnowBricksTile, kSnowBricksTile};
+  // A fuse on top, a plain bottom, and the label round the sides.
+  d[BlockType::TNT] = {kTntTopTile, kTntBottomTile, kTntSideTile};
   // Slabs and stairs wear their material's tiles.
   for (int v = static_cast<int>(BlockType::OAK_SLAB);
        v <= static_cast<int>(BlockType::SNOW_BRICK_STAIRS_W); ++v) {

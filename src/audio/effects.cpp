@@ -92,6 +92,7 @@ std::optional<SoundEvent> CueSounds::sound(const SoundCue &cue, glm::vec3 listen
     e.pitch = wobble();
     return e;
   }
+  if (cue.cue == Cue::TntFuse) return pick(Effect::Fuse);
   const bool gate = cue.cue == Cue::GateOpen || cue.cue == Cue::GateClose;
   const bool open = cue.cue == Cue::DoorOpen || cue.cue == Cue::GateOpen;
 
@@ -103,6 +104,19 @@ std::optional<SoundEvent> CueSounds::sound(const SoundCue &cue, glm::vec3 listen
   e.positional = true;
   e.volume = gate ? kGateVolume : 1.0f;
   e.pitch = (gate ? kGatePitch : 1.0f) * std::uniform_real_distribution<float>(0.95f, 1.05f)(rng);
+  return e;
+}
+
+std::optional<SoundEvent> CueSounds::boom(glm::vec3 at, glm::vec3 listener) {
+  if (glm::distance(at, listener) > kBoomHearing) return std::nullopt;
+  SoundEvent e;
+  e.effect = Effect::Boom;
+  int &prev = last[static_cast<std::size_t>(e.effect)];
+  e.variant = prev = pickVariant(e.effect, prev, rng);
+  e.position = at;
+  e.positional = true;
+  e.hearing = kBoomHearing;
+  e.pitch = std::uniform_real_distribution<float>(0.9f, 1.05f)(rng);
   return e;
 }
 

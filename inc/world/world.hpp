@@ -92,6 +92,12 @@ public:
   // with the rails its neighbours give it.
   CellBoxes boxesAt(glm::ivec3 p) const;
   void setBlockAt(const glm::ivec3& worldPos, BlockType type);
+  // Many blocks at once (an explosion's crater): the same as setBlockAt on
+  // each, but every chunk touched is relit and remeshed once, not once per
+  // block. Edits to chunks that aren't loaded are dropped, as setBlockAt's.
+  void setBlocks(std::span<const BlockEdit> list);
+  // applyEdit for many at once, batched as setBlocks. Main thread only.
+  void applyEdits(std::span<const BlockEdit> list);
 
   // Light levels (0-15) at a world block position — used by the debug panel.
   uint8_t getSkyLightAt(const glm::ivec3& worldPos) const;
@@ -116,6 +122,8 @@ private:
   std::vector<ChunkKey> spreadBorderLight(const ChunkKey &origin);
   // True if some emitter is close enough to shine on `pos`.
   bool emitterInReach(const glm::ivec3 &pos) const;
+  // The same for anywhere in the box from `lo` to `hi` (inclusive).
+  bool emitterInReach(const glm::ivec3 &lo, const glm::ivec3 &hi) const;
   void preloadChunks();
   bool isChunkInFrustum(const glm::vec4 planes[6], const glm::vec3 &min, const glm::vec3 &max);
   std::vector<glm::ivec2> generateSpiralOrder(int radius);

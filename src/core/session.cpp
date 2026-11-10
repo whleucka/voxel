@@ -98,6 +98,8 @@ void Session::poll(std::vector<Event> &out) {
       client_clock.scale = t->time_scale;
     } else if (const auto *b = std::get_if<BlockChanged>(&ev)) {
       client_world->applyEdit(b->pos, b->type);
+    } else if (const auto *bs = std::get_if<BlocksChanged>(&ev)) {
+      client_world->applyEdits(bs->edits);
     }
   }
 }

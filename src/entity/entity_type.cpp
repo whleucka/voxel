@@ -502,6 +502,10 @@ EntityTypeDef makeBoat() {
 }
 const EntityTypeDef kBoat = makeBoat();
 
+// A whole block, drawn with the TNT tiles; it falls but has no brain, and
+// the Game counts its fuse down.
+const EntityTypeDef kLitTnt{"TNT", 0.49f, 0.98f, 0, 0, 0.0f, {}, nullptr, {}, {}};
+
 const EntityTypeDef kGloomling = makeGloomling();
 const EntityTypeDef kThornCrawler = makeThornCrawler();
 const EntityTypeDef kCaveGrumble = makeCaveGrumble();
@@ -541,7 +545,8 @@ bool isValidEntityKind(EntityKind kind) {
     case EntityKind::Mummy:
     case EntityKind::Boat:
     case EntityKind::Puppy:
-    case EntityKind::Kitten:       return true;
+    case EntityKind::Kitten:
+    case EntityKind::LitTnt:       return true;
   }
   return false;
 }
@@ -577,6 +582,7 @@ const EntityTypeDef &entityType(EntityKind kind) {
     case EntityKind::Boat:         return kBoat;
     case EntityKind::Puppy:        return kPuppy;
     case EntityKind::Kitten:       return kKitten;
+    case EntityKind::LitTnt:       return kLitTnt;
   }
   return kTestCreature;
 }

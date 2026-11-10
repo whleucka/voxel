@@ -1,6 +1,7 @@
 #include "doctest/doctest.h"
 #include "block/block_data.hpp"
 #include "item/item.hpp"
+#include "item/mining.hpp"
 #include <algorithm>
 #include <map>
 #include <set>
@@ -145,6 +146,19 @@ TEST_CASE("the crafting table is a plain solid block that drops itself") {
   CHECK(skyLightOpacity(BlockType::CRAFTING_TABLE) == 15);
   CHECK_FALSE(isCutout(BlockType::CRAFTING_TABLE));
   CHECK(dropFor(BlockType::CRAFTING_TABLE) == itemForBlock(BlockType::CRAFTING_TABLE));
+}
+
+TEST_CASE("TNT is a plain solid block, picked up at once, that drops itself") {
+  CHECK(static_cast<int>(BlockType::TNT) == 239); // saves store it as a number
+  CHECK(blockName(BlockType::TNT) == "TNT");
+  CHECK(skyLightOpacity(BlockType::TNT) == 15);
+  CHECK_FALSE(isCutout(BlockType::TNT));
+  CHECK(dropFor(BlockType::TNT) == itemForBlock(BlockType::TNT));
+  CHECK(breakMs(BlockType::TNT, ItemId::NONE) == 0);
+  CHECK(block_data.at(BlockType::TNT).top == kTntTopTile);
+  CHECK(block_data.at(BlockType::TNT).side == kTntSideTile);
+  const auto &palette = paletteItems();
+  CHECK(std::find(palette.begin(), palette.end(), itemForBlock(BlockType::TNT)) != palette.end());
 }
 
 TEST_CASE("a lit furnace glows, drops a furnace and is never an item") {
