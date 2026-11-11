@@ -373,6 +373,7 @@ void Engine::startSession(std::unique_ptr<Session> s) {
   player.reset();
   player_id = 0;
   respawn_count = 0;
+  move_rate.reset();
   last_rejection.clear();
   inventory_view = {};
   vitals_view = {Vitals::kMax, Vitals::kMax, Vitals::kMax, true, false};
@@ -506,7 +507,7 @@ void Engine::update() {
     move.boat_position = my_boat.position;
     move.boat_yaw = my_boat.yaw;
   }
-  connection().send(move);
+  if (move_rate.due(glfwGetTime())) connection().send(move);
   session->follow(player->getPosition());
   if (g_settings.show_minimap) minimap.update(world(), player->getPosition(), delta_time);
   moving.reset();

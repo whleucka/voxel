@@ -1,4 +1,5 @@
 #pragma once
+#include "net/send_rate.hpp"
 
 #include "glad/glad.h"
 #include "player/player.hpp"
@@ -54,6 +55,7 @@ private:
   void updateFootsteps();
   PlayerId player_id = 0;
   uint32_t respawn_count = 0;     // echoed in MovePlayer; see Respawned
+  SendRate move_rate{60.0};       // MovePlayer pace, whatever the frame rate
   std::unique_ptr<Player> player; // the local player; created on Joined
   std::string last_rejection;     // latest CommandRejected, for the debug panel
   Inventory::Slots inventory_view{}; // the Game's latest InventoryContents
