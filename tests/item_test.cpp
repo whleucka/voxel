@@ -52,7 +52,7 @@ TEST_CASE("every placeable block has an item that places it") {
 
 TEST_CASE("the material items are defined with unique item-atlas tiles") {
   auto mats = materials();
-  CHECK(mats.size() == 81);
+  CHECK(mats.size() == 83);
 
   std::set<std::pair<int, int>> tiles;
   for (ItemId id : mats) {
@@ -63,7 +63,8 @@ TEST_CASE("the material items are defined with unique item-atlas tiles") {
     CHECK(def.name != "Unknown");
     bool single = usesOf(id) > 0 || id == ItemId::SOGGY_BOOT || id == ItemId::BOAT;
     const bool sixteen =
-        id == ItemId::TREASURE_KEY || id == ItemId::WOODEN_DOOR || isBedItem(id);
+        id == ItemId::TREASURE_KEY || id == ItemId::WOODEN_DOOR || isBedItem(id) ||
+        id == ItemId::EGG;
     CHECK(def.max_stack == (single ? 1 : sixteen ? 16 : 64));
     CHECK_FALSE(def.places.has_value());
     CHECK(def.icon.atlas == ItemIcon::Atlas::Item);
@@ -225,7 +226,7 @@ TEST_CASE("split takes up to n") {
   CHECK(split(empty, 5) == ItemStack{});
 }
 
-TEST_CASE("berries, sweet petals, fish, crops, stew and cookies are the only food") {
+TEST_CASE("berries, sweet petals, fish, crops, stew, cookies and fried eggs are the only food") {
   CHECK(itemDef(ItemId::BERRIES).food_heal == 4);
   CHECK(itemDef(ItemId::SWEET_PETALS).food_heal == 6);
   for (uint16_t v = 1; v <= static_cast<uint16_t>(kLastMaterialItem); ++v) {
@@ -234,6 +235,7 @@ TEST_CASE("berries, sweet petals, fish, crops, stew and cookies are the only foo
     if (id >= ItemId::RAW_PEBBLEFISH && id <= ItemId::COOKED_GLOWFIN) continue;
     if (id == ItemId::BREAD || id == ItemId::CARROT || id == ItemId::STRAWBERRY) continue;
     if (id == ItemId::MUSHROOM_STEW || id == ItemId::BERRY_COOKIE) continue;
+    if (id == ItemId::FRIED_EGG) continue;
     CAPTURE(itemDef(id).name);
     CHECK(itemDef(id).food_heal == 0);
   }

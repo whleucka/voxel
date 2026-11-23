@@ -2346,7 +2346,14 @@ void Game::releaseAnimalProducts() {
   for (auto &[id, e] : entities_.all()) {
     if (!e.product_pending || e.product_delay_ms > 0) continue;
     e.product_pending = false;
-    out.push_back({entityType(e.kind).animal->product,
+    const AnimalDef &animal = *entityType(e.kind).animal;
+    ItemStack gift = animal.product;
+    if (!animal.other_products.empty()) {
+      const auto n = static_cast<int>(animal.other_products.size());
+      const int pick = std::uniform_int_distribution<int>(0, n)(rng_);
+      if (pick > 0) gift.id = animal.other_products[pick - 1];
+    }
+    out.push_back({gift,
                    e.body.position + glm::vec3(0.0f, e.body.height * 0.6f, 0.0f)});
   }
   // Spawn after iterating: dropItem adds to the store being walked.

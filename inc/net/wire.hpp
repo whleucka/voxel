@@ -16,7 +16,7 @@
 //          values; strings are u16 length + bytes.
 namespace wire {
 
-constexpr uint16_t kProtocolVersion = 29; // 29: lit TNT flashes (EntityView.flash)
+constexpr uint16_t kProtocolVersion = 30; // 30: Chickens and Pigs (EntityKind 20, 21)
 constexpr uint32_t kMaxFrame = 4 * 1024 * 1024;
 
 std::vector<uint8_t> encode(const Command &cmd);

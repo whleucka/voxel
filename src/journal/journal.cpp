@@ -27,7 +27,8 @@ bool isJournalCreature(EntityKind k) {
     case EntityKind::Woolly: case EntityKind::Bunny: case EntityKind::ShellTurtle:
     case EntityKind::BlossomDeer: case EntityKind::Puppy: case EntityKind::Kitten:
     case EntityKind::Gloomling: case EntityKind::ThornCrawler: case EntityKind::Zombie:
-    case EntityKind::Mummy: case EntityKind::CaveGrumble:
+    case EntityKind::Mummy: case EntityKind::CaveGrumble: case EntityKind::Chicken:
+    case EntityKind::Pig:
       return true;
     default:
       return false;
@@ -62,6 +63,8 @@ const std::vector<Entry> &entries() {
       {Creatures, EntityKind::Bunny, "Plains and cherry groves. Hop hop!", 1},
       {Creatures, EntityKind::ShellTurtle, "Tropical beaches. Likes palm leaves.", 2},
       {Creatures, EntityKind::BlossomDeer, "Cherry groves, among the pink trees.", 3},
+      {Creatures, EntityKind::Chicken, "Plains and tropical islands. Loves seeds.", 11},
+      {Creatures, EntityKind::Pig, "Plains and mountains. Crazy for carrots.", 12},
       {Creatures, EntityKind::Puppy, "A stray on the plains or mountains.", 4},
       {Creatures, EntityKind::Kitten, "A stray on plains, cherry groves or sand.", 5},
       {Creatures, EntityKind::Gloomling, "Hops about at night. Careful!", 6},

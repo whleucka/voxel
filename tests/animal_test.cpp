@@ -109,9 +109,30 @@ TEST_CASE("a hopper jumps while walking on flat ground") {
 // ─── Animal definitions and spawning ───────────────────────────────────
 
 #include "biome/biome_manager.hpp"
+#include "block/crop.hpp"
 #include "entity/animals.hpp"
+#include "item/farming.hpp"
 
-TEST_CASE("the four animals are friendly, sized and fed") {
+namespace {
+
+// Something a survival player can get: a block that drops itself, or what a
+// ripe crop gives (its produce and seeds; tilling grass turns up seeds too).
+bool survivalFood(ItemId food) {
+  if (auto b = itemDef(food).places) return dropFor(*b) == food;
+  std::mt19937 rng{5};
+  for (int v = 1; v < 256; ++v) {
+    auto b = static_cast<BlockType>(v);
+    if (!isCrop(b)) continue;
+    for (int i = 0; i < 20; ++i)
+      for (const ItemStack &s : harvest(b, rng))
+        if (s.id == food) return true;
+  }
+  return false;
+}
+
+} // namespace
+
+TEST_CASE("the animals are friendly, sized and fed") {
   for (EntityKind k : kAnimalKinds) {
     const EntityTypeDef &d = entityType(k);
     CAPTURE(d.name);
@@ -120,22 +141,27 @@ TEST_CASE("the four animals are friendly, sized and fed") {
     CHECK(d.walk_speed > 0.0f);
     CHECK(d.brain);
     REQUIRE_FALSE(d.animal->eats.empty());
-    // Food is something a survival player can get: a block that drops itself.
     for (ItemId food : d.animal->eats) {
-      REQUIRE(itemDef(food).places.has_value());
-      CHECK(dropFor(*itemDef(food).places) == food);
+      CAPTURE(itemDef(food).name);
+      CHECK(survivalFood(food));
     }
     CHECK(isValidItem(d.animal->product.id));
+    for (ItemId other : d.animal->other_products) CHECK(isValidItem(other));
     CHECK_FALSE(d.animal->biomes.empty());
     CHECK_FALSE(d.animal->ground.empty());
     int swinging = 0;
     for (const ModelBox &b : d.model) swinging += b.swing != 0;
-    CHECK(swinging == 4);
+    CHECK(swinging == (k == EntityKind::Chicken ? 2 : 4)); // a chicken has two legs
   }
   CHECK_FALSE(isAnimal(EntityKind::TestCreature));
   CHECK_FALSE(isAnimal(EntityKind::DroppedItem));
   CHECK(entityType(EntityKind::Bunny).animal->product.id == ItemId::BERRIES);
   CHECK(entityType(EntityKind::BlossomDeer).animal->product.id == ItemId::SWEET_PETALS);
+  CHECK(entityType(EntityKind::Chicken).animal->product.id == ItemId::EGG);
+  const AnimalDef &pig = *entityType(EntityKind::Pig).animal;
+  CHECK(pig.eats == std::vector<ItemId>{ItemId::CARROT});
+  CHECK(pig.product.id == itemForBlock(BlockType::BROWN_MUSHROOM));
+  CHECK(pig.other_products == std::vector<ItemId>{itemForBlock(BlockType::RED_MUSHROOM)});
 }
 
 TEST_CASE("each animal spawns only in its biome, on its ground, by day") {

@@ -30,6 +30,7 @@ TEST_CASE("what smelts into what, and what burns") {
   CHECK(smeltResult(ItemId::RAW_IRON) == ItemId::IRON_INGOT);
   CHECK(smeltResult(ItemId::RAW_COPPER) == ItemId::COPPER_INGOT);
   CHECK(smeltResult(ItemId::RAW_GOLD) == ItemId::GOLD_INGOT);
+  CHECK(smeltResult(ItemId::EGG) == ItemId::FRIED_EGG);
   CHECK(smeltResult(block(BlockType::SAND)) == block(BlockType::GLASS));
   CHECK(smeltResult(block(BlockType::COBBLESTONE)) == block(BlockType::STONE));
   CHECK(smeltResult(block(BlockType::SANDSTONE)) == block(BlockType::BRICKS));

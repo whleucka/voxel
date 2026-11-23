@@ -95,11 +95,13 @@ enum class ItemId : uint16_t {
   COMPOST,           // grows a crop a stage, or sprouts plants on grass or sand
   MUSHROOM_STEW,
   BERRY_COOKIE,
+  EGG,               // a Chicken's thank-you
+  FRIED_EGG,
   // Append only: the numeric value is persisted in inventory saves.
 };
 
 constexpr ItemId kFirstMaterialItem = ItemId::COAL;
-constexpr ItemId kLastMaterialItem = ItemId::BERRY_COOKIE;
+constexpr ItemId kLastMaterialItem = ItemId::FRIED_EGG;
 
 struct ItemIcon {
   enum class Atlas : uint8_t { Block, Item };
