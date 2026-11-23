@@ -33,6 +33,8 @@ enum class EntityKind : uint16_t {
   Puppy = 17,       // pets: tamed with treats, then follow their owner
   Kitten = 18,
   LitTnt = 19,      // a lit TNT block: falls, flashes, then explodes (the Game moves it on)
+  Chicken = 20,     // more friendly animals
+  Pig = 21,
 };
 
 // One cuboid of a box model, in blocks, relative to the entity's feet
@@ -67,6 +69,9 @@ struct AnimalDef {
   // Pets: a stray becomes yours after this many treats (`eats`). 0: not a
   // pet. Pets give nothing back, so their product is empty.
   int tame_treats = 0;
+  // Gifts it may give instead of `product`: each fed animal picks one of
+  // product.id and these with an even chance (a Pig's two mushrooms).
+  std::vector<ItemId> other_products = {};
 };
 
 // Night and cave creatures: they chase players and hurt them on contact.
@@ -134,8 +139,9 @@ inline bool isFish(EntityKind kind) {
   return isValidEntityKind(kind) && entityType(kind).fish.has_value();
 }
 
-constexpr EntityKind kAnimalKinds[] = {EntityKind::Woolly, EntityKind::Bunny,
-                                       EntityKind::ShellTurtle, EntityKind::BlossomDeer};
+constexpr EntityKind kAnimalKinds[] = {EntityKind::Woolly,      EntityKind::Bunny,
+                                       EntityKind::ShellTurtle, EntityKind::BlossomDeer,
+                                       EntityKind::Chicken,     EntityKind::Pig};
 constexpr EntityKind kEnemyKinds[] = {EntityKind::Gloomling, EntityKind::ThornCrawler,
                                       EntityKind::CaveGrumble, EntityKind::Zombie,
                                       EntityKind::Mummy};

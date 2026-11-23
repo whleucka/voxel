@@ -8,7 +8,7 @@
 TEST_CASE("journal pages list the spec's entries") {
   SeenItems none;
   JournalProgress j;
-  CHECK(pageCount(JournalPage::Creatures, none, j).total == 11);
+  CHECK(pageCount(JournalPage::Creatures, none, j).total == 13);
   CHECK(pageCount(JournalPage::Fish, none, j).total == 4);
   CHECK(pageCount(JournalPage::GemsOres, none, j).total == 7);
   CHECK(pageCount(JournalPage::Plants, none, j).total == 17);

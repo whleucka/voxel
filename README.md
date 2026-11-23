@@ -13,7 +13,7 @@
 - **Wild plants:** every biome grows its own flowers, ferns, mushrooms, cactus, berry bushes or coral. Flowers make the dyes, and there are torches, stew, cookies and a cake to share ([more below](#wild-plants)).
 - **Survival:** break blocks to collect them and place them to build. Watch your health, stamina and breath, and dig for coal, iron, copper, gold, emerald, ruby and diamond.
 - **Creatures:**
-  - Friendly Woollies, Bunnies, Shell Turtles and Blossom Deer. Feed them and they give you something back: a Woolly eats any leaves and gives you wool.
+  - Friendly Woollies, Bunnies, Shell Turtles, Blossom Deer, Chickens and Pigs. Feed them and they give you something back: a Woolly eats any leaves and gives you wool, a Chicken eats wheat seeds and lays an egg (cook it in a furnace for a Fried Egg), and a Pig eats a carrot and digs up a mushroom.
   - At night, Gloomlings, Thorn Crawlers and Zombies come out, Mummies shuffle through the desert (and stay after sunrise), and Cave Grumbles lurk in the dark underground.
   - Pebblefish, Sunfin and glowing Glowfin swim in lakes, the sea and cave pools.
 - **Journal:** press **J** for your own book of side quests, with a stamp and a gift for each one you finish, and a collection of every creature, fish, gem and plant, each a "???" with a clue until you find it ([more below](#journal)).

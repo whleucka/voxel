@@ -1669,6 +1669,80 @@ TEST_CASE_FIXTURE(FeedGame, "a woolly eats any leaves") {
   }
 }
 
+namespace {
+
+// FeedGame with a Chicken or Pig in the woolly's place, and the player
+// holding `food` (a plain item, not a block).
+struct FarmAnimalGame : FeedGame {
+  EntityId swap(EntityKind kind, ItemId food, uint16_t count) {
+    game.entities().remove(woolly);
+    auto a = game.entities().spawn(kind, spot);
+    REQUIRE(a);
+    woolly = *a;
+    run(GiveItem{food, count});
+    for (int i = 0; i < kHotbarSlots; ++i)
+      if (inventory().slot(i).id == food) run(SelectSlot{i});
+    return woolly;
+  }
+  // Feeds once, lets the gift pop out, and says what it was.
+  ItemId feedOnce() {
+    REQUIRE_FALSE(rejected(run(InteractEntity{woolly})));
+    for (int t = 0; t < 12; ++t) {
+      game.advance(0.1f);
+      pollAll(conn);
+      animal()->body.position = spot; // grazers wander: keep it in reach
+      for (const auto &[eid, e] : game.entities().all())
+        if (e.kind == EntityKind::DroppedItem) {
+          ItemId got = e.item.id;
+          game.entities().remove(eid);
+          return got;
+        }
+    }
+    return ItemId::NONE;
+  }
+};
+
+} // namespace
+
+TEST_CASE_FIXTURE(FarmAnimalGame, "a chicken eats seeds and lays an egg") {
+  swap(EntityKind::Chicken, ItemId::WHEAT_SEEDS, 2);
+  REQUIRE(held() == 2);
+  const int eggs = countOf(inventory(), ItemId::EGG);
+  ItemId got = feedOnce();
+  CHECK(held() == 1);
+  CHECK((got == ItemId::EGG || countOf(inventory(), ItemId::EGG) == eggs + 1));
+  CHECK(rejected(run(InteractEntity{woolly}))); // not hungry yet
+  CHECK(held() == 1);
+}
+
+TEST_CASE_FIXTURE(FarmAnimalGame, "a pig eats carrots and digs up both kinds of mushroom") {
+  swap(EntityKind::Pig, ItemId::CARROT, 40);
+  const ItemId brown = itemForBlock(BlockType::BROWN_MUSHROOM),
+               red = itemForBlock(BlockType::RED_MUSHROOM);
+  int browns = 0, reds = 0;
+  for (int i = 0; i < 30; ++i) {
+    const int b0 = countOf(inventory(), brown), r0 = countOf(inventory(), red);
+    ItemId got = feedOnce();
+    if (got == ItemId::NONE) // the player, close by, grabbed it
+      got = countOf(inventory(), brown) > b0 ? brown
+            : countOf(inventory(), red) > r0 ? red : ItemId::NONE;
+    CHECK((got == brown || got == red));
+    browns += got == brown;
+    reds += got == red;
+    animal()->fed_cooldown_ms = 0;
+  }
+  CHECK(browns > 0);
+  CHECK(reds > 0);
+  CHECK(held() == 10);
+}
+
+TEST_CASE_FIXTURE(FarmAnimalGame, "farm animals refuse the wrong food") {
+  swap(EntityKind::Pig, ItemId::WHEAT_SEEDS, 1);
+  CHECK(rejected(run(InteractEntity{woolly})));
+  swap(EntityKind::Chicken, ItemId::CARROT, 1);
+  CHECK(rejected(run(InteractEntity{woolly})));
+}
+
 TEST_CASE_FIXTURE(FeedGame, "animals refuse the wrong food or an empty hand") {
   hold(BlockType::STONE);
   CHECK(rejected(run(InteractEntity{woolly})));

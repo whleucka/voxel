@@ -215,6 +215,55 @@ EntityTypeDef makeBlossomDeer() {
   return d;
 }
 
+EntityTypeDef makeChicken() {
+  const glm::vec3 feather{0.97f, 0.96f, 0.92f}, wing{0.88f, 0.86f, 0.80f},
+      red{0.88f, 0.18f, 0.16f}, beak{0.98f, 0.76f, 0.20f}, leg{0.95f, 0.58f, 0.18f};
+  EntityTypeDef d{"Chicken", 0.2f, 0.7f, 0, 0, 2.0f, {}, makeGrazer, {}, {}};
+  d.model = {
+      {{-0.16f, 0.22f, -0.18f}, {0.32f, 0.28f, 0.40f}, feather},      // body
+      {{-0.11f, 0.42f, -0.32f}, {0.22f, 0.24f, 0.18f}, feather},      // head
+      {{-0.05f, 0.50f, -0.40f}, {0.10f, 0.06f, 0.08f}, beak},
+      {{-0.03f, 0.41f, -0.36f}, {0.06f, 0.09f, 0.04f}, red},          // wattle
+      {{-0.03f, 0.66f, -0.30f}, {0.06f, 0.07f, 0.14f}, red},          // comb
+      {{-0.09f, 0.56f, -0.325f}, {0.04f, 0.04f, 0.01f}, kEyeBlack},   // eyes
+      {{0.05f, 0.56f, -0.325f}, {0.04f, 0.04f, 0.01f}, kEyeBlack},
+      {{-0.18f, 0.27f, -0.12f}, {0.02f, 0.18f, 0.28f}, wing},         // wings
+      {{0.16f, 0.27f, -0.12f}, {0.02f, 0.18f, 0.28f}, wing},
+      {{-0.08f, 0.40f, 0.20f}, {0.16f, 0.16f, 0.06f}, feather},       // tail
+      {{-0.09f, 0.00f, -0.02f}, {0.05f, 0.22f, 0.05f}, leg, +1},      // two legs
+      {{0.04f, 0.00f, -0.02f}, {0.05f, 0.22f, 0.05f}, leg, -1},
+  };
+  // Seeds: tilling grass turns them up, and wheat gives them back.
+  d.animal = AnimalDef{{ItemId::WHEAT_SEEDS}, {ItemId::EGG, 1},
+                       {BiomeType::PLAINS, BiomeType::TROPICAL},
+                       {BlockType::GRASS, BlockType::SAND}};
+  return d;
+}
+
+EntityTypeDef makePig() {
+  const glm::vec3 pink{0.95f, 0.66f, 0.68f}, dark{0.84f, 0.52f, 0.56f},
+      snout{0.98f, 0.78f, 0.78f}, nostril{0.45f, 0.22f, 0.25f};
+  EntityTypeDef d{"Pig", 0.4f, 0.9f, 0, 0, 1.6f, {}, makeGrazer, {}, {}};
+  d.model = {
+      {{-0.32f, 0.28f, -0.44f}, {0.64f, 0.46f, 0.88f}, pink},          // body
+      {{-0.24f, 0.36f, -0.74f}, {0.48f, 0.42f, 0.32f}, pink},          // head
+      {{-0.12f, 0.42f, -0.80f}, {0.24f, 0.15f, 0.06f}, snout},
+      {{-0.08f, 0.47f, -0.805f}, {0.05f, 0.05f, 0.01f}, nostril},
+      {{0.03f, 0.47f, -0.805f}, {0.05f, 0.05f, 0.01f}, nostril},
+      {{-0.17f, 0.63f, -0.745f}, {0.06f, 0.06f, 0.01f}, kEyeBlack},    // eyes
+      {{0.11f, 0.63f, -0.745f}, {0.06f, 0.06f, 0.01f}, kEyeBlack},
+      {{-0.25f, 0.72f, -0.78f}, {0.13f, 0.05f, 0.14f}, dark},          // floppy ears
+      {{0.12f, 0.72f, -0.78f}, {0.13f, 0.05f, 0.14f}, dark},
+      {{-0.03f, 0.56f, 0.44f}, {0.06f, 0.12f, 0.06f}, dark, 0, false, true}, // curly tail
+  };
+  addLegs(d.model, 0.30f, -0.38f, 0.38f, {0.16f, 0.28f, 0.16f}, dark);
+  d.animal = AnimalDef{{ItemId::CARROT}, {itemForBlock(BlockType::BROWN_MUSHROOM), 1},
+                       {BiomeType::PLAINS, BiomeType::MOUNTAIN},
+                       {BlockType::GRASS, BlockType::SNOW, BlockType::SNOW_DIRT}};
+  d.animal->other_products = {itemForBlock(BlockType::RED_MUSHROOM)}; // it digs one up
+  return d;
+}
+
 // ─── Pets ──────────────────────────────────────────────────────────────
 // Strays wander until tamed; then they follow their owner (PetBrain). The
 // collar box only shows once a pet has an owner.
@@ -518,6 +567,8 @@ const EntityTypeDef kShellTurtle = makeShellTurtle();
 const EntityTypeDef kBlossomDeer = makeBlossomDeer();
 const EntityTypeDef kPuppy = makePuppy();
 const EntityTypeDef kKitten = makeKitten();
+const EntityTypeDef kChicken = makeChicken();
+const EntityTypeDef kPig = makePig();
 
 // White, red, orange, yellow, green, blue, purple, pink: the beds' colours.
 constexpr glm::vec3 kCollars[kCollarColours] = {
@@ -546,7 +597,9 @@ bool isValidEntityKind(EntityKind kind) {
     case EntityKind::Boat:
     case EntityKind::Puppy:
     case EntityKind::Kitten:
-    case EntityKind::LitTnt:       return true;
+    case EntityKind::LitTnt:
+    case EntityKind::Chicken:
+    case EntityKind::Pig:          return true;
   }
   return false;
 }
@@ -583,6 +636,8 @@ const EntityTypeDef &entityType(EntityKind kind) {
     case EntityKind::Puppy:        return kPuppy;
     case EntityKind::Kitten:       return kKitten;
     case EntityKind::LitTnt:       return kLitTnt;
+    case EntityKind::Chicken:      return kChicken;
+    case EntityKind::Pig:          return kPig;
   }
   return kTestCreature;
 }
