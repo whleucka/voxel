@@ -7,7 +7,10 @@ on:
 
 jobs:
   gcc:
-    runs-on: ubuntu-latest
+    # Pinned: on ubuntu-26.04 (the new ubuntu-latest) one golden worldgen hash
+    # differs, apparently a floating-point difference in its toolchain. The
+    # hashes guard against terrain changing on the same machine.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
