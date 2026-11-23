@@ -421,19 +421,40 @@ struct BoxTiles {
   glm::ivec2 top, bottom, front, back, right, left;
 };
 
+// Each face's light, by light step (-x, +x, -y, +y, -z, +z; see
+// kLightStepCount): usually all the cell's own.
+struct BoxLight {
+  uint8_t sky[kLightStepCount];
+  uint8_t block[kLightStepCount];
+  BoxLight(uint8_t s, uint8_t b) {
+    std::fill(std::begin(sky), std::end(sky), s);
+    std::fill(std::begin(block), std::end(block), b);
+  }
+};
+
 // A box inside a cell (doors, beds): all six faces, lit by the cell itself
-// (light gets into the cell, since these don't fill it) and without AO.
-// Corners go in the order addQuad uses for each face, so the winding matches.
+// (light gets into the cell, since these don't fill it) unless `lit` says
+// otherwise, and without AO. Corners go in the order addQuad uses for each
+// face, so the winding matches.
 void addBox(MeshBuffers &buffers, glm::vec3 lo, glm::vec3 hi, const BoxTiles &tiles,
-            uint8_t cutout, int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight,
-            uint8_t blockLight) {
+            uint8_t cutout, int16_t chunkWorldX, int16_t chunkWorldZ, const BoxLight &lit) {
   const uint8_t cutoutBits = static_cast<uint8_t>((cutout & 0x3) << 6);
-  const uint8_t light = static_cast<uint8_t>(cutoutBits | ((skyLight & 0xF) << 2) | 3);
 
   auto face = [&](Face f, glm::ivec2 tile, const std::array<glm::vec3, 4> &corners) {
+    int step = 0;
+    switch (f) {
+      case Face::Left:   step = 0; break;
+      case Face::Right:  step = 1; break;
+      case Face::Bottom: step = 2; break;
+      case Face::Top:    step = 3; break;
+      case Face::Back:   step = 4; break;
+      case Face::Front:  step = 5; break;
+    }
+    const uint8_t light =
+        static_cast<uint8_t>(cutoutBits | ((lit.sky[step] & 0xF) << 2) | 3);
     unsigned int start = static_cast<unsigned int>(buffers.vertices.size());
     const uint8_t faceId =
-        static_cast<uint8_t>(static_cast<uint8_t>(f) | ((blockLight & 0xF) << 3));
+        static_cast<uint8_t>(static_cast<uint8_t>(f) | ((lit.block[step] & 0xF) << 3));
     const uint8_t uv[4][2] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
     for (int i = 0; i < 4; ++i)
       buffers.vertices.push_back({packPos(corners[i].x), packPos(corners[i].y),
@@ -459,10 +480,40 @@ void addBox(MeshBuffers &buffers, glm::vec3 lo, glm::vec3 hi, const BoxTiles &ti
        {{{lo.x, hi.y, hi.z}, {lo.x, hi.y, lo.z}, {lo.x, lo.y, lo.z}, {lo.x, lo.y, hi.z}}});
 }
 
+void addBox(MeshBuffers &buffers, glm::vec3 lo, glm::vec3 hi, const BoxTiles &tiles,
+            uint8_t cutout, int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight,
+            uint8_t blockLight) {
+  addBox(buffers, lo, hi, tiles, cutout, chunkWorldX, chunkWorldZ, BoxLight(skyLight, blockLight));
+}
+
+// Light for a box of a door, slab or stair (`box`, in cell space): a face on a
+// side the block covers (lightWalls) is lit from the cell beyond it, since no
+// light crosses that side; so a closed door is dark outside a lit room, and a
+// slab roof's top is lit by the sky. Other faces are lit by the cell's own.
+template <class LightAt>
+BoxLight wallLight(BlockType type, const DoorBox &box, uint8_t sky, uint8_t lit,
+                   LightAt &&beyond) {
+  BoxLight out(sky, lit);
+  const uint8_t walls = lightWalls(type);
+  for (int d = 0; d < kLightStepCount; ++d) {
+    const int axis = d / 2;
+    const bool onSide = d % 2 ? box.hi[axis] >= 1.0f : box.lo[axis] <= 0.0f;
+    if (!((walls >> d) & 1) || !onSide) continue;
+    glm::ivec3 step(0);
+    step[axis] = d % 2 ? 1 : -1;
+    const auto [s, b] = beyond(step);
+    out.sky[d] = s;
+    out.block[d] = b;
+  }
+  return out;
+}
+
 // A door: its panel, a thin box. The two big faces wear the half's tile; the
 // thin edges, the edge tile.
+template <class LightAt>
 void addDoor(MeshBuffers &buffers, int x, int y, int z, BlockType type,
-             int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight) {
+             int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight,
+             LightAt &&beyond) {
   const DoorBox box = doorPanel(type);
   const glm::vec3 lo = glm::vec3(x, y, z) + box.lo, hi = glm::vec3(x, y, z) + box.hi;
   const BlockTexture &tex = block_data.at(type);
@@ -470,7 +521,7 @@ void addDoor(MeshBuffers &buffers, int x, int y, int z, BlockType type,
   auto tileFor = [&](float w) { return w > 0.5f ? tex.side : tex.top; };
   const glm::ivec2 xs = tileFor(size.x), zs = tileFor(size.z);
   addBox(buffers, lo, hi, {tex.top, tex.bottom, xs, xs, zs, zs}, cutoutClass(type),
-         chunkWorldX, chunkWorldZ, skyLight, blockLight);
+         chunkWorldX, chunkWorldZ, wallLight(type, box, skyLight, blockLight, beyond));
 }
 
 // A bed half: a wooden frame with a blanket on it, and at the head a pillow
@@ -574,14 +625,16 @@ void addCake(MeshBuffers &buffers, int x, int y, int z, BlockType type,
 
 // A slab or a stair: its solid boxes (blockBoxes), in its material's tiles.
 // A half-height side shows the whole tile, squeezed, as a bed's does.
+template <class LightAt>
 void addShape(MeshBuffers &buffers, int x, int y, int z, BlockType type,
-              int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight) {
+              int16_t chunkWorldX, int16_t chunkWorldZ, uint8_t skyLight, uint8_t blockLight,
+              LightAt &&beyond) {
   const BlockTexture &tex = block_data.at(type);
   const BoxTiles tiles{tex.top, tex.bottom, tex.side, tex.side, tex.side, tex.side};
   const glm::vec3 cell(x, y, z);
   for (const DoorBox &box : blockBoxes(type))
     addBox(buffers, cell + box.lo, cell + box.hi, tiles, kCutoutNone, chunkWorldX, chunkWorldZ,
-           skyLight, blockLight);
+           wallLight(type, box, skyLight, blockLight, beyond));
 }
 
 // A fence: a post, and two rails out to each side it joins (`around`, the
@@ -1085,9 +1138,14 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
     for (int z = 0; z < kChunkDepth; ++z)
       for (int x = 0; x < kChunkWidth; ++x) {
         BlockType type = area.at(x, y, z);
+        // The light in the cell a step away, for a door's or slab's covered sides.
+        auto beyond = [&](glm::ivec3 s) {
+          return std::pair<uint8_t, uint8_t>{area.skyLight(x + s.x, y + s.y, z + s.z),
+                                             area.blockLight(x + s.x, y + s.y, z + s.z)};
+        };
         if (isDoor(type))
           addDoor(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
-                  area.skyLight(x, y, z), area.blockLight(x, y, z));
+                  area.skyLight(x, y, z), area.blockLight(x, y, z), beyond);
         else if (isBed(type))
           addBed(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
                  area.skyLight(x, y, z), area.blockLight(x, y, z));
@@ -1105,7 +1163,7 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
                   area.skyLight(x, y, z), area.blockLight(x, y, z));
         else if (isHalfShape(type)) {
           addShape(buffers, x, y, z, type, chunkWorldX, chunkWorldZ,
-                   area.skyLight(x, y, z), area.blockLight(x, y, z));
+                   area.skyLight(x, y, z), area.blockLight(x, y, z), beyond);
           // In the top layer of the water, the surface runs on over it, seen
           // from above and from under it. A top slab is the surface itself,
           // and under water (or a slab or a stair in it) or a block there's

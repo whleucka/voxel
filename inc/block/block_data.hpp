@@ -234,6 +234,60 @@ inline uint8_t skyLightOpacity(BlockType type) {
   return kSkyLightOpacity[static_cast<uint8_t>(type)];
 }
 
+// Light's six steps, in the order every flood takes them: -x, +x, -y, +y,
+// -z, +z. A step's opposite is d ^ 1.
+constexpr int kLightStepCount = 6;
+
+// The sides of its cell that a block covers edge to edge, one bit per step
+// (bit d: the side light leaves by when stepping d). Light gets into a door,
+// slab or stair cell (they don't fill it, so they're lit from inside the cell)
+// but can't cross these sides: a closed door's panel, a slab's or a stair's
+// full faces. So a lamp in a house stays in, as light on the far side of a
+// wall should. Open doors cover nothing.
+inline uint8_t lightWallsOf(BlockType type) {
+  CellBoxes boxes;
+  if (isDoor(type)) {
+    if (doorOpen(type)) return 0;
+    boxes.add(doorPanel(type));
+  } else if (isHalfShape(type)) {
+    boxes = blockBoxes(type);
+  } else {
+    return 0;
+  }
+  uint8_t walls = 0;
+  constexpr int kGrid = 8; // the faces' edges are on halves and sixteenths: fine enough
+  for (int d = 0; d < kLightStepCount; ++d) {
+    const int axis = d / 2, u = (axis + 1) % 3, v = (axis + 2) % 3;
+    const bool high = d % 2 == 1;
+    bool covered = true;
+    for (int i = 0; i < kGrid && covered; ++i)
+      for (int j = 0; j < kGrid && covered; ++j) {
+        const float pu = (i + 0.5f) / kGrid, pv = (j + 0.5f) / kGrid;
+        bool hit = false;
+        for (const DoorBox &b : boxes)
+          hit |= (high ? b.hi[axis] >= 1.0f : b.lo[axis] <= 0.0f) && b.lo[u] <= pu &&
+                 pu <= b.hi[u] && b.lo[v] <= pv && pv <= b.hi[v];
+        covered = hit;
+      }
+    if (covered) walls |= static_cast<uint8_t>(1u << d);
+  }
+  return walls;
+}
+
+inline const std::array<uint8_t, 256> kLightWalls = [] {
+  std::array<uint8_t, 256> t{};
+  for (int i = 0; i < 256; ++i) t[i] = lightWallsOf(static_cast<BlockType>(i));
+  return t;
+}();
+
+inline uint8_t lightWalls(BlockType type) { return kLightWalls[static_cast<uint8_t>(type)]; }
+
+// Whether light can step d from a cell of `from` into a cell of `to`: neither
+// covers the side between them. (Opacity is the floods' other check.)
+inline bool lightCrosses(BlockType from, BlockType to, int d) {
+  return !((lightWalls(from) >> d) & 1) && !((lightWalls(to) >> (d ^ 1)) & 1);
+}
+
 // Light a block emits on its own, 0 (none) .. 15 (max, like glowstone).
 // Emissive blocks seed the block-light BFS in Chunk::computeBlockLight().
 inline uint8_t blockLightEmission(BlockType type) {

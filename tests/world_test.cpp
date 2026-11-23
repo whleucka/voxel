@@ -262,18 +262,20 @@ struct ReferenceLight {
             at(x, y, z) = e;
             q.push({x, y, z});
           }
-    const glm::ivec3 steps[] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    // In the floods' step order (see kLightStepCount).
+    const glm::ivec3 steps[] = {{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}};
     while (!q.empty()) {
       glm::ivec3 p = q.front();
       q.pop();
       uint8_t l = at(p.x, p.y, p.z);
-      for (glm::ivec3 s : steps) {
-        glm::ivec3 n = p + s;
+      for (int dir = 0; dir < kLightStepCount; ++dir) {
+        glm::ivec3 n = p + steps[dir];
         if (n.x < x0 || n.x >= x0 + w || n.z < z0 || n.z >= z0 + d || n.y < 0 ||
             n.y >= kChunkHeight)
           continue;
         uint8_t op = skyLightOpacity(block(n.x, n.y, n.z));
         if (op >= 15 || l <= 1 + op) continue;
+        if (!lightCrosses(block(p.x, p.y, p.z), block(n.x, n.y, n.z), dir)) continue;
         uint8_t nl = static_cast<uint8_t>(l - 1 - op);
         if (nl > at(n.x, n.y, n.z)) {
           at(n.x, n.y, n.z) = nl;
