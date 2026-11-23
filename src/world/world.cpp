@@ -420,6 +420,19 @@ void World::relightBlockRegion(const glm::ivec3 &pos) {
   };
   const size_t cells = static_cast<size_t>(kSide) * kSide * H;
   std::vector<uint8_t> light(cells, 0);
+  // Per cell, its opacity; or for a door, slab or stair (see-through, so
+  // opacity 0), kWalled and the sides it covers (lightWalls). One table
+  // lookup a cell: filling the box is most of an edit's cost.
+  constexpr uint8_t kWalled = 0x40;
+  static const std::array<uint8_t, 256> kCellCode = [] {
+    std::array<uint8_t, 256> t{};
+    for (int i = 0; i < 256; ++i) {
+      const auto b = static_cast<BlockType>(i);
+      const uint8_t walls = lightWalls(b);
+      t[i] = walls ? static_cast<uint8_t>(kWalled | walls) : skyLightOpacity(b);
+    }
+    return t;
+  }();
   std::vector<uint8_t> opacity(cells, 15); // unloaded chunks are opaque
   std::vector<uint32_t> queue;
 
@@ -441,7 +454,7 @@ void World::relightBlockRegion(const glm::ivec3 &pos) {
       const BlockType *blocks = c->blockData();
       overlap(i, j, [&](int lx, int y, int lz, size_t k) {
         BlockType b = blocks[lx + kChunkWidth * (lz + kChunkDepth * y)];
-        opacity[k] = skyLightOpacity(b);
+        opacity[k] = kCellCode[static_cast<uint8_t>(b)];
         if (!emitters) return;
         if (uint8_t emit = blockLightEmission(b)) {
           light[k] = emit;
@@ -456,6 +469,7 @@ void World::relightBlockRegion(const glm::ivec3 &pos) {
     const size_t k = queue[head];
     const uint8_t l = light[k];
     if (l <= 1) continue;
+    const uint8_t here = opacity[k] & kWalled ? opacity[k] : 0;
     const int bx = static_cast<int>(k % kSide);
     const int bz = static_cast<int>(k / kSide % kSide);
     const int by = static_cast<int>(k / (static_cast<size_t>(kSide) * kSide));
@@ -463,7 +477,12 @@ void World::relightBlockRegion(const glm::ivec3 &pos) {
     for (int d = 0; d < 6; ++d) {
       if (!open[d]) continue;
       const size_t n = k + step[d];
-      const uint8_t op = opacity[n];
+      uint8_t op = opacity[n];
+      if ((here >> d) & 1) continue;           // out through a covered side
+      if (op & kWalled) {
+        if ((op >> (d ^ 1)) & 1) continue;     // in through one
+        op = 0;
+      }
       if (op >= 15) continue;
       const uint8_t cost = 1 + op;
       if (l <= cost) continue;

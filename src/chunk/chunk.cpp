@@ -103,10 +103,12 @@ void Chunk::computeSkyLight() {
         BlockType b = at(x, y, z);
         uint8_t opacity = skyLightOpacity(b);
         if (opacity >= 15) break; // fully opaque — stop column
+        if (lightWalls(b) & (1u << 3)) break; // its top is covered: a top slab
         if (opacity > 0) {
           light = (light > opacity) ? light - opacity : 0;
         }
         skylight[x + kChunkWidth * (z + kChunkDepth * y)] = light;
+        if (lightWalls(b) & (1u << 2)) break; // its bottom is: a slab roof
       }
     }
   }
@@ -165,12 +167,14 @@ static constexpr int DZ[6] = {0, 0, 0, 0, -1, 1};
 
 bool Chunk::brightensNeighbour(const std::vector<uint8_t> &light, int x, int y, int z) const {
   const uint8_t l = light[x + kChunkWidth * (z + kChunkDepth * y)];
+  const BlockType here = at(x, y, z);
   for (int d = 0; d < 6; ++d) {
     int nx = x + DX[d], ny = y + DY[d], nz = z + DZ[d];
     if (nx < 0 || nx >= kChunkWidth || ny < 0 || ny >= kChunkHeight ||
         nz < 0 || nz >= kChunkDepth) continue;
-    uint8_t opacity = skyLightOpacity(at(nx, ny, nz));
-    if (opacity >= 15) continue;
+    const BlockType there = at(nx, ny, nz);
+    uint8_t opacity = skyLightOpacity(there);
+    if (opacity >= 15 || !lightCrosses(here, there, d)) continue;
     uint8_t cost = 1 + opacity;
     if (l > cost && l - cost > light[nx + kChunkWidth * (nz + kChunkDepth * ny)]) return true;
   }
@@ -184,15 +188,18 @@ void Chunk::floodLight(std::vector<uint8_t> &light, LightQueue &queue) {
               y = i / (kChunkWidth * kChunkDepth);
     uint8_t l = light[i];
     if (l <= 1) continue;
+    const BlockType here = at(x, y, z);
 
     for (int d = 0; d < 6; ++d) {
       int nx = x + DX[d], ny = y + DY[d], nz = z + DZ[d];
       if (nx < 0 || nx >= kChunkWidth || ny < 0 || ny >= kChunkHeight ||
           nz < 0 || nz >= kChunkDepth) continue;
 
-      // Opaque blocks stop light; semi-transparent ones cost extra.
-      uint8_t opacity = skyLightOpacity(at(nx, ny, nz));
-      if (opacity >= 15) continue;
+      // Opaque blocks stop light; semi-transparent ones cost extra; a door's
+      // panel or a slab's full face stops it crossing that side.
+      const BlockType there = at(nx, ny, nz);
+      uint8_t opacity = skyLightOpacity(there);
+      if (opacity >= 15 || !lightCrosses(here, there, d)) continue;
 
       uint8_t cost = 1 + opacity;
       uint8_t newLight = (l > cost) ? static_cast<uint8_t>(l - cost) : 0;
@@ -216,12 +223,18 @@ glm::ivec2 Chunk::faceCell(int face, int i) {
   }
 }
 
+// A border face (0 -x, 1 +x, 2 -z, 3 +z) as the light step through it.
+static int faceStep(int face) { return face < 2 ? face : face + 2; }
+
 Chunk::BorderLight Chunk::borderLight(int face) const {
   BorderLight out;
+  const unsigned side = 1u << faceStep(face);
   for (int y = 0; y < kChunkHeight; ++y)
     for (int i = 0; i < kChunkWidth; ++i) {
       glm::ivec2 c = faceCell(face, i);
-      out[i + kChunkWidth * y] = getBlockLight(c.x, y, c.y);
+      // None leaves through a door's panel or a slab's full face on this side.
+      out[i + kChunkWidth * y] =
+          (lightWalls(at(c.x, y, c.y)) & side) ? 0 : getBlockLight(c.x, y, c.y);
     }
   return out;
 }
@@ -233,8 +246,9 @@ bool Chunk::acceptBorderLight(int face, const BorderLight &incoming) {
       uint8_t from = incoming[i + kChunkWidth * y];
       if (from <= 1) continue;
       glm::ivec2 c = faceCell(face, i);
-      uint8_t opacity = skyLightOpacity(at(c.x, y, c.y));
-      if (opacity >= 15) continue;
+      const BlockType b = at(c.x, y, c.y);
+      uint8_t opacity = skyLightOpacity(b);
+      if (opacity >= 15 || (lightWalls(b) & (1u << faceStep(face)))) continue;
       uint8_t cost = 1 + opacity;
       if (from <= cost) continue;
       uint8_t light = static_cast<uint8_t>(from - cost);
