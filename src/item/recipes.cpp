@@ -126,6 +126,8 @@ const std::vector<Recipe> &recipes() {
                             {{block(BlockType::BROWN_MUSHROOM)}, 1}}));
     list.push_back(atTable({ItemId::BERRY_COOKIE, 4},
                            {{{ItemId::WHEAT}, 2}, {{ItemId::BERRIES}, 1}}));
+    list.push_back(atTable({ItemId::PANCAKES, 2},
+                           {{{ItemId::WHEAT}, 1}, {{ItemId::EGG}, 1}, {{ItemId::MILK}, 1}}));
     list.push_back(atTable({block(BlockType::CAKE_4), 1},
                            {{{ItemId::WHEAT}, 3}, {{ItemId::STRAWBERRY}, 2},
                             {{ItemId::SWEET_PETALS}, 1}}));

@@ -97,11 +97,13 @@ enum class ItemId : uint16_t {
   BERRY_COOKIE,
   EGG,               // a Chicken's thank-you
   FRIED_EGG,
+  MILK,              // a Cow's thank-you
+  PANCAKES,
   // Append only: the numeric value is persisted in inventory saves.
 };
 
 constexpr ItemId kFirstMaterialItem = ItemId::COAL;
-constexpr ItemId kLastMaterialItem = ItemId::FRIED_EGG;
+constexpr ItemId kLastMaterialItem = ItemId::PANCAKES;
 
 struct ItemIcon {
   enum class Atlas : uint8_t { Block, Item };

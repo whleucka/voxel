@@ -44,6 +44,8 @@ void registerAnimalSpawns(Spawner &spawner) {
                    canSpawn<EntityKind::Chicken>});
   spawner.addRule({EntityKind::Pig, kAnimalsPerPlayer, kAnimalSpawnIntervalMs,
                    canSpawn<EntityKind::Pig>});
+  spawner.addRule({EntityKind::Cow, kAnimalsPerPlayer, kAnimalSpawnIntervalMs,
+                   canSpawn<EntityKind::Cow>});
   spawner.addRule({EntityKind::Puppy, kStraysPerPlayer, kStraySpawnIntervalMs,
                    canSpawn<EntityKind::Puppy>});
   spawner.addRule({EntityKind::Kitten, kStraysPerPlayer, kStraySpawnIntervalMs,

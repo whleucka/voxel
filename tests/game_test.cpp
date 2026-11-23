@@ -1736,10 +1736,20 @@ TEST_CASE_FIXTURE(FarmAnimalGame, "a pig eats carrots and digs up both kinds of 
   CHECK(held() == 10);
 }
 
+TEST_CASE_FIXTURE(FarmAnimalGame, "a cow eats wheat and gives milk") {
+  swap(EntityKind::Cow, ItemId::WHEAT, 1);
+  const int milk = countOf(inventory(), ItemId::MILK);
+  ItemId got = feedOnce();
+  CHECK((got == ItemId::MILK || countOf(inventory(), ItemId::MILK) == milk + 1));
+  CHECK(held() == 0);
+}
+
 TEST_CASE_FIXTURE(FarmAnimalGame, "farm animals refuse the wrong food") {
   swap(EntityKind::Pig, ItemId::WHEAT_SEEDS, 1);
   CHECK(rejected(run(InteractEntity{woolly})));
   swap(EntityKind::Chicken, ItemId::CARROT, 1);
+  CHECK(rejected(run(InteractEntity{woolly})));
+  swap(EntityKind::Cow, ItemId::CARROT, 1);
   CHECK(rejected(run(InteractEntity{woolly})));
 }
 
