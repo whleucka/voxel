@@ -220,6 +220,14 @@ TEST_CASE("torches, bricks, compost and the plant foods") {
   CHECK(itemDef(ItemId::BERRY_COOKIE).food_heal == 2);
 }
 
+TEST_CASE("pancakes take a chicken's egg and a cow's milk") {
+  CHECK(made(ItemId::PANCAKES, {{ItemId::WHEAT, 1}, {ItemId::EGG, 1}, {ItemId::MILK, 1}}) == 2);
+  CHECK(itemDef(ItemId::PANCAKES).food_heal == 6);
+  CHECK(itemDef(ItemId::MILK).food_heal == 4);
+  CHECK(usedBySomething(ItemId::EGG));
+  CHECK(usedBySomething(ItemId::MILK));
+}
+
 TEST_CASE("nothing new is a dead end: every plant and find is used for something") {
   // In a recipe...
   for (BlockType b : {BlockType::POPPY, BlockType::BUTTERCUP, BlockType::CORNFLOWER,

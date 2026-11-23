@@ -151,13 +151,19 @@ TEST_CASE("the animals are friendly, sized and fed") {
     CHECK_FALSE(d.animal->ground.empty());
     int swinging = 0;
     for (const ModelBox &b : d.model) swinging += b.swing != 0;
-    CHECK(swinging == (k == EntityKind::Chicken ? 2 : 4)); // a chicken has two legs
+    // A chicken has two legs; hooves (socks) swing with their legs.
+    const int legs = k == EntityKind::Chicken ? 2 : 4;
+    CHECK(swinging > 0);
+    CHECK(swinging % legs == 0);
+    CHECK(swinging <= 2 * legs);
   }
   CHECK_FALSE(isAnimal(EntityKind::TestCreature));
   CHECK_FALSE(isAnimal(EntityKind::DroppedItem));
   CHECK(entityType(EntityKind::Bunny).animal->product.id == ItemId::BERRIES);
   CHECK(entityType(EntityKind::BlossomDeer).animal->product.id == ItemId::SWEET_PETALS);
   CHECK(entityType(EntityKind::Chicken).animal->product.id == ItemId::EGG);
+  CHECK(entityType(EntityKind::Cow).animal->eats == std::vector<ItemId>{ItemId::WHEAT});
+  CHECK(entityType(EntityKind::Cow).animal->product.id == ItemId::MILK);
   const AnimalDef &pig = *entityType(EntityKind::Pig).animal;
   CHECK(pig.eats == std::vector<ItemId>{ItemId::CARROT});
   CHECK(pig.product.id == itemForBlock(BlockType::BROWN_MUSHROOM));

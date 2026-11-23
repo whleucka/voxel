@@ -93,6 +93,8 @@ constexpr std::array<Material, kMaterialCount> kMaterials = {{
     {"Berry Cookie", 2},
     {"Egg", 0, 16},
     {"Fried Egg", 5},
+    {"Milk", 4, 16},
+    {"Pancakes", 6},
 }};
 constexpr int kItemAtlasCols = 8;
 

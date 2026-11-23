@@ -35,6 +35,7 @@ enum class EntityKind : uint16_t {
   LitTnt = 19,      // a lit TNT block: falls, flashes, then explodes (the Game moves it on)
   Chicken = 20,     // more friendly animals
   Pig = 21,
+  Cow = 22,
 };
 
 // One cuboid of a box model, in blocks, relative to the entity's feet
@@ -141,7 +142,8 @@ inline bool isFish(EntityKind kind) {
 
 constexpr EntityKind kAnimalKinds[] = {EntityKind::Woolly,      EntityKind::Bunny,
                                        EntityKind::ShellTurtle, EntityKind::BlossomDeer,
-                                       EntityKind::Chicken,     EntityKind::Pig};
+                                       EntityKind::Chicken,     EntityKind::Pig,
+                                       EntityKind::Cow};
 constexpr EntityKind kEnemyKinds[] = {EntityKind::Gloomling, EntityKind::ThornCrawler,
                                       EntityKind::CaveGrumble, EntityKind::Zombie,
                                       EntityKind::Mummy};

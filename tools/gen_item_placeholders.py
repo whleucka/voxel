@@ -435,6 +435,27 @@ def fried_egg():
     return img
 
 
+def milk():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rectangle([13, 3, 19, 6], fill=(150, 110, 70, 255), outline=(90, 62, 34, 255))     # cork
+    d.rectangle([12, 7, 20, 11], fill=(210, 232, 240, 255), outline=(120, 150, 165, 255)) # neck
+    d.rounded_rectangle([7, 10, 25, 29], radius=4, fill=(250, 250, 248, 255),
+                        outline=(120, 150, 165, 255))                                     # milk
+    d.rectangle([10, 13, 12, 25], fill=(255, 255, 255, 255))                              # shine
+    return img
+
+
+def pancakes():
+    img = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    for y in (22, 17, 12):                                                                # a stack
+        d.ellipse([3, y, 29, y + 8], fill=(226, 170, 92, 255), outline=(150, 96, 40, 255))
+    d.ellipse([5, 12, 27, 18], fill=(236, 186, 110, 255))
+    d.rectangle([13, 10, 19, 14], fill=(255, 236, 140, 255), outline=(200, 170, 60, 255))  # butter
+    return img
+
+
 FISHING = [fishing_rod] + [fish(*c, cooked=cooked) for c in FISH for cooked in (False, True)] + [soggy_boot]
 
 # Animal products, crafted and smelted items, after the shape-based
@@ -444,7 +465,7 @@ DRAWN = [wool, berries, shell, petals, sticks,
          ingot((214, 120, 64), (120, 60, 28), (246, 170, 120)),     # copper
          ingot((240, 200, 60), (150, 110, 20), (255, 236, 140)),    # gold
          charcoal] + TOOLS + FISHING + [treasure_key, wooden_door] + [bed(c) for c in BED_COLOURS] + FARMING + [boat] + [
-         compost, mushroom_stew, berry_cookie, egg, fried_egg]
+         compost, mushroom_stew, berry_cookie, egg, fried_egg, milk, pancakes]
 
 
 def main():

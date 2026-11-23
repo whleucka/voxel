@@ -264,6 +264,41 @@ EntityTypeDef makePig() {
   return d;
 }
 
+EntityTypeDef makeCow() {
+  const glm::vec3 white{0.96f, 0.95f, 0.92f}, black{0.12f, 0.11f, 0.11f},
+      muzzle{0.95f, 0.70f, 0.70f}, nostril{0.45f, 0.24f, 0.26f}, horn{0.92f, 0.88f, 0.74f},
+      udder{0.97f, 0.68f, 0.72f};
+  EntityTypeDef d{"Cow", 0.4f, 1.3f, 0, 0, 1.5f, {}, makeGrazer, {}, {}};
+  d.model = {
+      {{-0.36f, 0.55f, -0.50f}, {0.72f, 0.56f, 1.00f}, white},         // body
+      {{0.36f, 0.70f, -0.30f}, {0.02f, 0.30f, 0.34f}, black},          // patches
+      {{-0.38f, 0.70f, -0.32f}, {0.02f, 0.32f, 0.34f}, black},
+      {{-0.38f, 0.60f, 0.20f}, {0.02f, 0.24f, 0.22f}, black},
+      {{0.36f, 0.62f, 0.22f}, {0.02f, 0.22f, 0.20f}, black},
+      {{-0.20f, 1.11f, -0.40f}, {0.34f, 0.02f, 0.36f}, black},
+      {{-0.12f, 0.45f, 0.08f}, {0.24f, 0.10f, 0.20f}, udder},          // udder
+      {{-0.24f, 0.80f, -0.82f}, {0.48f, 0.42f, 0.34f}, white},         // head
+      {{-0.235f, 0.98f, -0.825f}, {0.20f, 0.22f, 0.02f}, black},       // head patch
+      {{-0.16f, 0.80f, -0.90f}, {0.32f, 0.18f, 0.08f}, muzzle},
+      {{-0.11f, 0.89f, -0.905f}, {0.06f, 0.05f, 0.01f}, nostril},
+      {{0.05f, 0.89f, -0.905f}, {0.06f, 0.05f, 0.01f}, nostril},
+      {{0.10f, 1.06f, -0.825f}, {0.07f, 0.07f, 0.01f}, kEyeBlack},     // eyes
+      {{-0.17f, 1.06f, -0.825f}, {0.07f, 0.07f, 0.01f}, kEyeBlack},
+      {{-0.32f, 1.14f, -0.66f}, {0.10f, 0.06f, 0.08f}, white},         // ears
+      {{0.22f, 1.14f, -0.66f}, {0.10f, 0.06f, 0.08f}, white},
+      {{-0.22f, 1.22f, -0.70f}, {0.06f, 0.10f, 0.06f}, horn},          // horns
+      {{0.16f, 1.22f, -0.70f}, {0.06f, 0.10f, 0.06f}, horn},
+      {{-0.03f, 0.62f, 0.50f}, {0.06f, 0.46f, 0.05f}, white, 0, false, true}, // tail
+      {{-0.045f, 0.56f, 0.495f}, {0.09f, 0.12f, 0.06f}, black},        // its tuft
+  };
+  addLegs(d.model, 0.34f, -0.44f, 0.46f, {0.18f, 0.55f, 0.18f}, white);
+  addSocks(d.model, 0.34f, -0.44f, 0.46f, {0.18f, 0.55f, 0.18f}, 0.10f, black); // hooves
+  // Wheat: farm it from seeds that tilling grass turns up.
+  d.animal = AnimalDef{{ItemId::WHEAT}, {ItemId::MILK, 1},
+                       {BiomeType::PLAINS, BiomeType::CHERRY}, {BlockType::GRASS}};
+  return d;
+}
+
 // ─── Pets ──────────────────────────────────────────────────────────────
 // Strays wander until tamed; then they follow their owner (PetBrain). The
 // collar box only shows once a pet has an owner.
@@ -569,6 +604,7 @@ const EntityTypeDef kPuppy = makePuppy();
 const EntityTypeDef kKitten = makeKitten();
 const EntityTypeDef kChicken = makeChicken();
 const EntityTypeDef kPig = makePig();
+const EntityTypeDef kCow = makeCow();
 
 // White, red, orange, yellow, green, blue, purple, pink: the beds' colours.
 constexpr glm::vec3 kCollars[kCollarColours] = {
@@ -599,7 +635,8 @@ bool isValidEntityKind(EntityKind kind) {
     case EntityKind::Kitten:
     case EntityKind::LitTnt:
     case EntityKind::Chicken:
-    case EntityKind::Pig:          return true;
+    case EntityKind::Pig:
+    case EntityKind::Cow:          return true;
   }
   return false;
 }
@@ -638,6 +675,7 @@ const EntityTypeDef &entityType(EntityKind kind) {
     case EntityKind::LitTnt:       return kLitTnt;
     case EntityKind::Chicken:      return kChicken;
     case EntityKind::Pig:          return kPig;
+    case EntityKind::Cow:          return kCow;
   }
   return kTestCreature;
 }
