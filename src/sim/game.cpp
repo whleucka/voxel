@@ -1044,6 +1044,8 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
   // What's walked through can go where someone stands.
   if (blocksMovement(placed) && overlapsAnyPlayer(pos))
     return reject(client, "place: inside a player");
+  if (blocksMovement(placed) && overlapsCreature(pos))
+    return reject(client, "place: something is there");
   if (overlapsBoat(pos)) return reject(client, "place: a boat is there");
 
   world_.setBlockAt(pos, placed);
@@ -1088,6 +1090,7 @@ void Game::placeDoor(Client &client, PlayerState &ps, glm::ivec3 pos) {
       return reject(client, "place: no room for a door");
     if (overlapsAnyPlayer(cell)) return reject(client, "place: inside a player");
     if (overlapsBoat(cell)) return reject(client, "place: a boat is there");
+    if (overlapsCreature(cell)) return reject(client, "place: something is there");
   }
   BlockType below = world_.getBlockAt(glm::vec3(pos) + glm::vec3(0.5f, -0.5f, 0.5f));
   if (!blocksMovement(below) || isDoor(below) || isBed(below))
@@ -1171,6 +1174,7 @@ void Game::placeBed(Client &client, PlayerState &ps, glm::ivec3 pos) {
       return reject(client, "place: no room for a bed");
     if (overlapsAnyPlayer(cell)) return reject(client, "place: inside a player");
     if (overlapsBoat(cell)) return reject(client, "place: a boat is there");
+    if (overlapsCreature(cell)) return reject(client, "place: something is there");
     BlockType below = world_.getBlockAt(glm::vec3(cell) + glm::vec3(0.5f, -0.5f, 0.5f));
     if (!blocksMovement(below) || isDoor(below) || isBed(below))
       return reject(client, "place: a bed needs ground under it");
@@ -2835,6 +2839,21 @@ bool Game::overlapsBoat(const glm::ivec3 &block) const {
   const auto cube = std::pair(glm::vec3(block), glm::vec3(block) + 1.0f);
   for (const auto &[id, e] : entities_.all())
     if (e.kind == EntityKind::Boat && boxesOverlap(cube, boatBox(e.body.position))) return true;
+  return false;
+}
+
+bool Game::overlapsCreature(const glm::ivec3 &block) const {
+  const auto cube = std::pair(glm::vec3(block), glm::vec3(block) + 1.0f);
+  for (const auto &[id, e] : entities_.all()) {
+    // Items and floats are walked through; boats have their own check.
+    if (e.kind == EntityKind::DroppedItem || e.kind == EntityKind::Bobber ||
+        e.kind == EntityKind::Boat)
+      continue;
+    const glm::vec3 half(e.body.half_width, 0.0f, e.body.half_width);
+    const auto box = std::pair(e.body.position - half,
+                               e.body.position + half + glm::vec3(0.0f, e.body.height, 0.0f));
+    if (boxesOverlap(cube, box)) return true;
+  }
   return false;
 }
 
