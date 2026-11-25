@@ -85,6 +85,14 @@ public:
   const uint8_t *blockLightData() const { return blocklight.data(); }
 
   ChunkMesh &getMesh() { return mesh; }
+  // The world-space box its uploaded faces fill, for culling; false if it has
+  // none to draw. Main thread.
+  bool drawnBounds(glm::vec3 &min, glm::vec3 &max) const {
+    if (!mesh.isUploaded() || mesh.minY() > mesh.maxY()) return false;
+    min = {pos.x * kChunkWidth, mesh.minY(), pos.y * kChunkDepth};
+    max = {(pos.x + 1) * kChunkWidth, mesh.maxY(), (pos.y + 1) * kChunkDepth};
+    return true;
+  }
   glm::mat4 getModelMatrix() const;
   glm::ivec2 getPos() const { return pos; }
 

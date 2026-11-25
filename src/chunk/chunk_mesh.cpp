@@ -1195,6 +1195,15 @@ void ChunkMesh::generateCPU(World *world, const Chunk &chunk,
                     area.skyLight(x, y, z), area.blockLight(x, y, z));
       }
 
+  int16_t lo = INT16_MAX, hi = INT16_MIN;
+  for (const auto *list : {&vertices, &transparentVertices})
+    for (const BlockVertex &v : *list) {
+      lo = std::min(lo, v.posY);
+      hi = std::max(hi, v.posY);
+    }
+  cpu_min_y = lo / kPosScale;
+  cpu_max_y = hi / kPosScale;
+
   cpuReady = !vertices.empty() || !transparentVertices.empty();
 }
 
@@ -1273,6 +1282,8 @@ void ChunkMesh::upload() {
   // time after this point.
   opaque_index_count      = static_cast<GLsizei>(indices.size());
   transparent_index_count = static_cast<GLsizei>(transparentIndices.size());
+  gpu_min_y = cpu_min_y;
+  gpu_max_y = cpu_max_y;
   gpuUploaded = true;
 }
 

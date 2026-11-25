@@ -304,12 +304,9 @@ void Renderer::shadowPass(
   glm::vec4 lightPlanes[6];
   extractFrustumPlanes(light_space_matrix, lightPlanes);
 
-  for (auto &[key, chunk] : chunks) {
-    if (!chunk) continue;
-    glm::vec3 min = {key.x * kChunkWidth, 0.0f, key.z * kChunkDepth};
-    glm::vec3 max = {(key.x + 1) * kChunkWidth,
-                     static_cast<float>(kChunkHeight),
-                     (key.z + 1) * kChunkDepth};
+  for (const auto &[key, chunk] : chunks) {
+    glm::vec3 min, max;
+    if (!chunk || !chunk->drawnBounds(min, max)) continue;
     if (!aabbInFrustum(lightPlanes, min, max)) continue;
     chunk->getMesh().renderOpaque();
     ++stats.shadow_chunks_drawn;
