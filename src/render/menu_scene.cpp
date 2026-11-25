@@ -72,7 +72,7 @@ void MenuScene::surveyLap() {
     glm::vec3 p = orbitAt(centre, kOrbitPeriod * i / kSamples).eye;
     int cx = static_cast<int>(std::floor(p.x / kChunkWidth));
     int cz = static_cast<int>(std::floor(p.z / kChunkDepth));
-    if (!world->getChunk(cx, cz)) continue;
+    if (!world->hasChunk(cx, cz)) continue;
     int x = static_cast<int>(std::floor(p.x)), z = static_cast<int>(std::floor(p.z));
     for (int y = kChunkHeight - 1; y >= 0; --y)
       if (world->isSolidBlock(x, y, z)) {

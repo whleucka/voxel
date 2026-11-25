@@ -246,7 +246,7 @@ void World::preloadChunks() {
       int cx = center.x + offset.x;
       int cz = center.y + offset.y;
 
-      if (!getChunk(cx, cz)) addChunk(cx, cz);
+      if (!hasChunk(cx, cz)) addChunk(cx, cz);
     }
   }
 }
@@ -279,7 +279,7 @@ void World::updateLoadedChunks() {
 
       keep.insert({cx, cz});
 
-      if (!getChunk(cx, cz) && chunksAdded < kMaxChunksPerFrame) {
+      if (!hasChunk(cx, cz) && chunksAdded < kMaxChunksPerFrame) {
         addChunk(cx, cz);
         ++chunksAdded;
       }
@@ -757,6 +757,19 @@ size_t World::getChunkCount() const {
   return chunks.size();
 }
 
+bool World::hasChunk(int x, int z) const {
+  ReadLock lock(chunks_mutex);
+  return findChunkLocked(x, z) != nullptr;
+}
+
+namespace {
+int floorDiv16(int v) { return v >> 4; } // arithmetic shift: floors negatives
+static_assert(kChunkWidth == 16 && kChunkDepth == 16, "floorDiv16 assumes 16-wide chunks");
+} // namespace
+
+// These read under the map's lock without copying the chunk's shared_ptr:
+// the chunk can't be unloaded while the lock is held, and they're called
+// thousands of times a tick (physics, paths, spawning).
 BlockType World::getBlockAt(const glm::vec3& worldPos) const {
   int bx = static_cast<int>(std::floor(worldPos.x));
   int by = static_cast<int>(std::floor(worldPos.y));
@@ -766,18 +779,15 @@ BlockType World::getBlockAt(const glm::vec3& worldPos) const {
     return BlockType::AIR;
   }
 
-  int cx = static_cast<int>(std::floor(static_cast<float>(bx) / kChunkWidth));
-  int cz = static_cast<int>(std::floor(static_cast<float>(bz) / kChunkDepth));
+  int cx = floorDiv16(bx);
+  int cz = floorDiv16(bz);
 
-  auto chunk = getChunk(cx, cz);
+  ReadLock lock(chunks_mutex);
+  const Chunk *chunk = findChunkLocked(cx, cz);
   if (!chunk) {
     return BlockType::AIR;
   }
-
-  int lx = bx - cx * kChunkWidth;
-  int lz = bz - cz * kChunkDepth;
-
-  return chunk->safeAt(lx, by, lz);
+  return chunk->at(bx - cx * kChunkWidth, by, bz - cz * kChunkDepth);
 }
 
 bool World::isSolidBlock(int bx, int by, int bz) const {
@@ -796,18 +806,20 @@ CellBoxes World::boxesAt(glm::ivec3 p) const {
 
 uint8_t World::getSkyLightAt(const glm::ivec3 &p) const {
   if (p.y < 0 || p.y >= kChunkHeight) return 15;
-  int cx = static_cast<int>(std::floor(static_cast<float>(p.x) / kChunkWidth));
-  int cz = static_cast<int>(std::floor(static_cast<float>(p.z) / kChunkDepth));
-  auto chunk = getChunk(cx, cz);
+  int cx = floorDiv16(p.x);
+  int cz = floorDiv16(p.z);
+  ReadLock lock(chunks_mutex);
+  const Chunk *chunk = findChunkLocked(cx, cz);
   if (!chunk) return 0;
   return chunk->safeSkyLight(p.x - cx * kChunkWidth, p.y, p.z - cz * kChunkDepth);
 }
 
 uint8_t World::getBlockLightAt(const glm::ivec3 &p) const {
   if (p.y < 0 || p.y >= kChunkHeight) return 0;
-  int cx = static_cast<int>(std::floor(static_cast<float>(p.x) / kChunkWidth));
-  int cz = static_cast<int>(std::floor(static_cast<float>(p.z) / kChunkDepth));
-  auto chunk = getChunk(cx, cz);
+  int cx = floorDiv16(p.x);
+  int cz = floorDiv16(p.z);
+  ReadLock lock(chunks_mutex);
+  const Chunk *chunk = findChunkLocked(cx, cz);
   if (!chunk) return 0;
   return chunk->safeBlockLight(p.x - cx * kChunkWidth, p.y, p.z - cz * kChunkDepth);
 }
@@ -984,7 +996,7 @@ void World::applyEdit(const glm::ivec3 &pos, BlockType type) {
   if (pos.y < 0 || pos.y >= kChunkHeight) return;
   int cx = static_cast<int>(std::floor(static_cast<float>(pos.x) / kChunkWidth));
   int cz = static_cast<int>(std::floor(static_cast<float>(pos.z) / kChunkDepth));
-  if (getChunk(cx, cz)) {
+  if (hasChunk(cx, cz)) {
     setBlockAt(pos, type);
     return;
   }
@@ -1006,7 +1018,7 @@ void World::applyEdits(std::span<const BlockEdit> list) {
     if (e.pos.y < 0 || e.pos.y >= kChunkHeight) continue;
     int cx = static_cast<int>(std::floor(static_cast<float>(e.pos.x) / kChunkWidth));
     int cz = static_cast<int>(std::floor(static_cast<float>(e.pos.z) / kChunkDepth));
-    if (getChunk(cx, cz))
+    if (hasChunk(cx, cz))
       loaded.push_back(e);
     else
       applyEdit(e.pos, e.type); // recorded for when it loads
@@ -1018,7 +1030,7 @@ void World::flushPendingEdits() {
   std::erase_if(pending_edits, [&](const BlockEdit &e) {
     int cx = static_cast<int>(std::floor(static_cast<float>(e.pos.x) / kChunkWidth));
     int cz = static_cast<int>(std::floor(static_cast<float>(e.pos.z) / kChunkDepth));
-    if (!getChunk(cx, cz)) return false;
+    if (!hasChunk(cx, cz)) return false;
     if (getBlockAt(glm::vec3(e.pos) + 0.5f) != e.type) setBlockAt(e.pos, e.type);
     return true;
   });

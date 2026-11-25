@@ -989,7 +989,7 @@ void Game::apply(Client &client, const PlaceBlock &cmd) {
   // An unloaded cell reads as AIR but World::setBlockAt would drop the edit.
   int cx = static_cast<int>(std::floor(static_cast<float>(cmd.pos.x) / kChunkWidth));
   int cz = static_cast<int>(std::floor(static_cast<float>(cmd.pos.z) / kChunkDepth));
-  if (!world_.getChunk(cx, cz)) return reject(client, "place: chunk not loaded");
+  if (!world_.hasChunk(cx, cz)) return reject(client, "place: chunk not loaded");
 
   BlockType placed = *block;
   glm::ivec3 pos = cmd.pos;
@@ -1078,7 +1078,7 @@ void Game::placeDoor(Client &client, PlayerState &ps, glm::ivec3 pos) {
   if (!inReach(ps, pos)) return reject(client, "place: out of reach");
   int cx = static_cast<int>(std::floor(static_cast<float>(pos.x) / kChunkWidth));
   int cz = static_cast<int>(std::floor(static_cast<float>(pos.z) / kChunkDepth));
-  if (!world_.getChunk(cx, cz)) return reject(client, "place: chunk not loaded");
+  if (!world_.hasChunk(cx, cz)) return reject(client, "place: chunk not loaded");
 
   // Two clear cells, standing on something solid.
   const glm::ivec3 top = pos + glm::ivec3(0, 1, 0);
@@ -1163,7 +1163,7 @@ void Game::placeBed(Client &client, PlayerState &ps, glm::ivec3 pos) {
   for (glm::ivec3 cell : {pos, head}) {
     int cx = static_cast<int>(std::floor(static_cast<float>(cell.x) / kChunkWidth));
     int cz = static_cast<int>(std::floor(static_cast<float>(cell.z) / kChunkDepth));
-    if (!world_.getChunk(cx, cz)) return reject(client, "place: chunk not loaded");
+    if (!world_.hasChunk(cx, cz)) return reject(client, "place: chunk not loaded");
   }
   for (glm::ivec3 cell : {pos, head}) {
     const BlockType existing = world_.getBlockAt(glm::vec3(cell) + 0.5f);
@@ -1223,7 +1223,7 @@ bool Game::bedStillAt(glm::ivec3 foot) const {
   // A bed only ever comes from an edit, so an unloaded chunk's edits know.
   int cx = static_cast<int>(std::floor(static_cast<float>(foot.x) / kChunkWidth));
   int cz = static_cast<int>(std::floor(static_cast<float>(foot.z) / kChunkDepth));
-  BlockType b = world_.getChunk(cx, cz) ? world_.getBlockAt(glm::vec3(foot) + 0.5f)
+  BlockType b = world_.hasChunk(cx, cz) ? world_.getBlockAt(glm::vec3(foot) + 0.5f)
                                         : world_.editAt(foot).value_or(BlockType::AIR);
   return isBed(b) && !bedHead(b);
 }
@@ -1522,7 +1522,7 @@ constexpr glm::ivec3 kUp{0, 1, 0};
 bool chunkLoaded(const World &world, glm::ivec3 pos) {
   int cx = static_cast<int>(std::floor(static_cast<float>(pos.x) / kChunkWidth));
   int cz = static_cast<int>(std::floor(static_cast<float>(pos.z) / kChunkDepth));
-  return world.getChunk(cx, cz) != nullptr;
+  return world.hasChunk(cx, cz);
 }
 } // namespace
 

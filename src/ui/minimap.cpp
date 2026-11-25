@@ -122,7 +122,7 @@ glm::u8vec4 mapColour(BlockType type) {
 bool underRock(const World &world, glm::vec3 feet) {
   const glm::ivec3 head(glm::floor(feet + glm::vec3(0.0f, kPlayerEyeHeight, 0.0f)));
   // Not loaded yet: nothing is known, least of all that it's a cave.
-  if (!world.getChunk(floorDiv(head.x, kChunkWidth), floorDiv(head.z, kChunkDepth))) return false;
+  if (!world.hasChunk(floorDiv(head.x, kChunkWidth), floorDiv(head.z, kChunkDepth))) return false;
   if (world.getBlockAt(glm::vec3(head) + 0.5f) == BlockType::WATER) return false;
   return world.getSkyLightAt(head) <= kCaveSkyLight;
 }
