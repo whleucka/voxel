@@ -23,6 +23,12 @@ struct PlayerInput {
   bool fly_down = false;
 };
 
+// The player's friction, tuned so it feels as it did at ~180 fps when it
+// was applied once a frame: a walk stops in about 0.15 blocks. A hit fades
+// slower, so it carries about 0.7 blocks, the same on every computer.
+constexpr float kPlayerFrictionRate = 180.0f;
+constexpr float kKnockbackFrictionRate = 60.0f;
+
 class Player {
 public:
   Player(glm::vec3 start_pos);
@@ -86,7 +92,7 @@ private:
   int climb_input = -1;
 
   // Physics state (shared rules with entities)
-  PhysicsBody body;
+  PhysicsBody body{.friction_rate = kPlayerFrictionRate};
 
   // Camera
   Camera camera;

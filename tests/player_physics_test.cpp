@@ -90,7 +90,7 @@ TEST_CASE("jumping while walking climbs a one-block ledge") {
   PlayerInput in = forward();
   in.jump = true;
   steps(p, r.world, 60, in);
-  expect(p, {8.5f, 202.49556f, 2.183002f}, {0.0f, 6.133333f, -3.66945f}, false);
+  expect(p, {8.5f, 202.49556f, 2.183002f}, {0.0f, 6.133333f, -2.651178f}, false);
 }
 
 TEST_CASE("water slows a fall") {
@@ -110,9 +110,9 @@ TEST_CASE("friction stops horizontal motion") {
   Player p({8.5f, kBase + 1.0f, 8.5f});
   steps(p, r.world, 5);
   steps(p, r.world, 3, forward());
-  expect(p, {8.5f, 201.0f, 8.28415f}, {0.0f, 0.0f, -3.66945f}, true);
+  expect(p, {8.5f, 201.0f, 8.28415f}, {0.0f, 0.0f, -2.651178f}, true);
   steps(p, r.world, 30);
-  expect(p, {8.5f, 201.0f, 7.879545f}, {0.0f, 0.0f, -0.028001f}, true);
+  expect(p, {8.5f, 201.0f, 8.169971f}, {0.0f, 0.0f, 0.0f}, true);
 }
 
 TEST_CASE("crouching lowers the player and slows walking") {
@@ -122,7 +122,7 @@ TEST_CASE("crouching lowers the player and slows walking") {
   PlayerInput in = forward();
   in.crouch = true;
   steps(p, r.world, 30, in);
-  expect(p, {8.5f, 201.0f, 9.852493f}, {0.0f, 0.0f, -1.10075f}, true);
+  expect(p, {8.5f, 201.0f, 9.852493f}, {0.0f, 0.0f, -0.795292f}, true);
   CHECK(p.getEyePosition().y == doctest::Approx(202.27f));
 }
 
@@ -142,6 +142,76 @@ TEST_CASE("a knock pushes the player, and input waits a moment to steer") {
 
   steps(p, r.world, 30, forward()); // well past the steer delay
   CHECK(p.getVelocity().z < 0.0f);
+}
+
+namespace {
+
+// Where the player comes to rest along z after `setup`, run at `fps` with
+// frames that wobble +-30% in length (a busy machine's frame times).
+template <class Setup> float restingZ(float fps, Setup setup) {
+  Rig r;
+  Player p({8.5f, kBase + 1.0f, 8.5f});
+  for (int i = 0; i < 30; ++i) { p.processKeyboard(kDt, {}); p.update(kDt, &r.world); }
+  REQUIRE(p.isOnGround());
+  setup(p, r.world, fps);
+  uint32_t seed = 7;
+  for (float t = 0.0f; t < 3.0f;) {
+    seed = seed * 1664525u + 1013904223u;
+    float dt = (1.0f / fps) * (0.7f + 0.6f * static_cast<float>(seed >> 8) / 16777216.0f);
+    p.processKeyboard(dt, {});
+    p.update(dt, &r.world);
+    t += dt;
+  }
+  return p.getPosition().z;
+}
+
+} // namespace
+
+TEST_CASE("a hit carries the player as far at any frame rate") {
+  auto knocked = [](Player &p, World &, float) { p.knock({0.0f, 5.0f, 7.0f}); };
+  const float at60 = restingZ(60.0f, knocked) - 8.5f;
+  CHECK(at60 > 0.5f); // a real shove, not a nudge
+  CHECK(at60 < 1.2f);
+  for (float fps : {20.0f, 30.0f, 144.0f, 180.0f, 240.0f}) {
+    CAPTURE(fps);
+    CHECK(restingZ(fps, knocked) - 8.5f == doctest::Approx(at60).epsilon(0.1));
+  }
+}
+
+TEST_CASE("letting go of a walk stops as quickly at any frame rate") {
+  auto walk = [](Player &p, World &w, float fps) {
+    for (int i = 0; i < static_cast<int>(fps / 2); ++i) {
+      p.processKeyboard(1.0f / fps, forward());
+      p.update(1.0f / fps, &w);
+    }
+  };
+  // Measured from where the walk ended: walk at fps, then let go.
+  auto slide = [&](float fps) {
+    float walked = restingZ(fps, [&](Player &p, World &w, float f) {
+      walk(p, w, f);
+    });
+    Rig r;
+    Player p({8.5f, kBase + 1.0f, 8.5f});
+    for (int i = 0; i < 30; ++i) { p.processKeyboard(kDt, {}); p.update(kDt, &r.world); }
+    walk(p, r.world, fps);
+    return p.getPosition().z - walked; // how far it slid past the last step
+  };
+  const float at60 = slide(60.0f);
+  CHECK(at60 > 0.05f);
+  CHECK(at60 < 0.25f); // crisp: about what 180 fps felt like
+  for (float fps : {30.0f, 144.0f, 180.0f, 240.0f}) {
+    CAPTURE(fps);
+    CHECK(slide(fps) == doctest::Approx(at60).epsilon(0.15));
+  }
+}
+
+TEST_CASE("an entity's friction over one tick is unchanged") {
+  PhysicsBody b;
+  b.position = {8.5f, kBase + 50.0f, 8.5f};
+  b.velocity = {4.0f, 0.0f, -2.0f};
+  b.move(0.05f, nullptr);
+  CHECK(b.velocity.x == 4.0f * 0.85f);
+  CHECK(b.velocity.z == -2.0f * 0.85f);
 }
 
 TEST_CASE("fly mode ignores knocks") {

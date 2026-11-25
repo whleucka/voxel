@@ -25,6 +25,7 @@ void Player::respawnAt(glm::vec3 pos) {
   body.position = pos;
   body.velocity = glm::vec3(0.0f);
   body.on_ground = false;
+  body.friction_rate = kPlayerFrictionRate;
   camera.position = getEyePosition();
 }
 
@@ -44,6 +45,7 @@ void Player::knock(glm::vec3 velocity) {
   body.velocity.z += velocity.z;
   body.velocity.y = std::max(body.velocity.y, velocity.y);
   body.on_ground = false;
+  body.friction_rate = kKnockbackFrictionRate; // until it fades or they steer
   knockback_left = kKnockbackSteerDelay;
 }
 
@@ -82,6 +84,9 @@ void Player::update(float dt, World* world) {
     body.velocity = glm::vec3(0.0f); // flying has no momentum
   } else {
     body.move(dt, world);
+    // A knock is spent once it has faded out.
+    if (body.velocity.x == 0.0f && body.velocity.z == 0.0f)
+      body.friction_rate = kPlayerFrictionRate;
   }
   camera.position = getEyePosition();
 }
@@ -148,6 +153,7 @@ void Player::processKeyboard(float /*dt*/, const PlayerInput& input) {
     wish_dir = glm::normalize(wish_dir);
     body.velocity.x = wish_dir.x * speed;
     body.velocity.z = wish_dir.z * speed;
+    body.friction_rate = kPlayerFrictionRate; // steering again: a knock is over
   }
 
   // Jump

@@ -22,6 +22,11 @@ struct PhysicsBody {
   // can step up off the top as if on the ground.
   bool climbing = false;
 
+  // Horizontal friction takes off a set share of speed every
+  // 1/friction_rate seconds, however long the frames are, so a body slows the
+  // same at any frame rate. Entities tick at 20 Hz, their natural rate.
+  float friction_rate = 20.0f;
+
   bool on_ground = false;
   bool underwater = false;       // eyes in liquid
   bool at_water_surface = false; // feet in liquid, eyes above it
