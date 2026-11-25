@@ -46,7 +46,7 @@ constexpr float kPlayerWaterJumpStrength = 2.5f; // swim-up velocity
 constexpr float kGravityForce = -28.0f;        // gravity acceleration
 constexpr float kWaterGravityMultiplier = 0.15f; // reduced gravity in water
 constexpr float kTerminalVelocity = -60.0f;    // max fall speed
-constexpr float kWaterDrag = 0.8f;             // water velocity damping per frame
+constexpr float kWaterDrag = 0.8f;             // speed kept in water per 1/friction_rate s
 
 // Interaction
 constexpr float kPlayerReach = 5.0f;           // block interaction reach distance

@@ -56,7 +56,11 @@ void PhysicsBody::move(float dt, const World *world) {
 
   // Apply horizontal friction (stop quickly when keys released)
   if (glides && !on_ground && !inWater()) return;
-  float friction = underwater ? kWaterDrag : 0.85f;
+  constexpr float kGroundFriction = 0.85f; // speed kept per 1/friction_rate s
+  const float per_step = underwater ? kWaterDrag : kGroundFriction;
+  const float steps = dt * friction_rate;
+  // One whole step (an entity's tick) is per_step exactly, as it always was.
+  const float friction = steps == 1.0f ? per_step : std::pow(per_step, steps);
   velocity.x *= friction;
   velocity.z *= friction;
 
