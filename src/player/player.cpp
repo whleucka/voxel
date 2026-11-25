@@ -62,7 +62,7 @@ void Player::update(float dt, World* world) {
     glm::vec3 p = body.position;
     int cx = static_cast<int>(std::floor(p.x / kChunkWidth));
     int cz = static_cast<int>(std::floor(p.z / kChunkDepth));
-    if (!world->getChunk(cx, cz)) {
+    if (!world->hasChunk(cx, cz)) {
       body.velocity = glm::vec3(0.0f);
       camera.position = getEyePosition();
       return;

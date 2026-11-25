@@ -20,9 +20,18 @@ struct ChunkKey {
   }
 };
 
+// Both coordinates packed into one word, then mixed. (x ^ z << 1 gave the
+// ~1250 chunks in view only ~90 distinct hashes, so lookups probed long runs.)
 struct ChunkKeyHash {
   std::size_t operator()(const ChunkKey &k) const noexcept {
-    return (std::hash<int>()(k.x) ^ (std::hash<int>()(k.z) << 1));
+    uint64_t h = (static_cast<uint64_t>(static_cast<uint32_t>(k.x)) << 32) |
+                 static_cast<uint32_t>(k.z);
+    h ^= h >> 33; // murmur3's finaliser
+    h *= 0xff51afd7ed558ccdULL;
+    h ^= h >> 33;
+    h *= 0xc4ceb9fe1a85ec53ULL;
+    h ^= h >> 33;
+    return static_cast<std::size_t>(h);
   }
 };
 

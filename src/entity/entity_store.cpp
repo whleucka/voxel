@@ -9,7 +9,7 @@ namespace {
 bool chunkLoaded(const World &world, glm::vec3 p) {
   int cx = static_cast<int>(std::floor(p.x / kChunkWidth));
   int cz = static_cast<int>(std::floor(p.z / kChunkDepth));
-  return world.getChunk(cx, cz) != nullptr;
+  return world.hasChunk(cx, cz);
 }
 
 } // namespace

@@ -60,6 +60,8 @@ public:
   void loadChunkSync(int x, int z);
   std::shared_ptr<Chunk> getChunk(int x, int z);
   std::shared_ptr<const Chunk> getChunk(int x, int z) const;
+  // Whether the chunk is loaded; cheaper than getChunk (no shared_ptr copy).
+  bool hasChunk(int x, int z) const;
   size_t getChunkCount() const;
 
   // ─── Persistence ─────────────────────────────────────────────────────────
@@ -109,6 +111,11 @@ public:
                         float max_distance, bool liquids = false) const;
 
 private:
+  // The chunk at (x, z), or null. The caller holds chunks_mutex.
+  const Chunk *findChunkLocked(int x, int z) const {
+    auto it = chunks.find({x, z});
+    return it == chunks.end() ? nullptr : it->second.get();
+  }
   void populateChunk(Chunk &chunk, const ChunkKey &key);
   void rebuildChunk(int cx, int cz);
   // Cross-chunk block-light: recompute the light within reach of an edit at

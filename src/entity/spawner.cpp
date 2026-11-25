@@ -14,7 +14,7 @@ namespace {
 bool columnLoaded(const World &world, int x, int z) {
   int cx = static_cast<int>(std::floor(static_cast<float>(x) / kChunkWidth));
   int cz = static_cast<int>(std::floor(static_cast<float>(z) / kChunkDepth));
-  return world.getChunk(cx, cz) != nullptr;
+  return world.hasChunk(cx, cz);
 }
 
 } // namespace

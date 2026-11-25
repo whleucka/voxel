@@ -2,6 +2,7 @@
 #include "block/block_type.hpp"
 #include "core/constants.hpp"
 #include "core/settings.hpp"
+#include "util/cell_perlin.hpp"
 #include "util/noise.hpp"
 #include "util/worldgen_rng.hpp"
 #include <glm/fwd.hpp>
@@ -66,6 +67,8 @@ void Biome::fillWater(Chunk &chunk) {
 void Biome::generateMinerals(Chunk &chunk) {
   glm::vec2 pos = chunk.getPos();
   const bool pockets = g_settings.worldgen >= worldgen::kPockets;
+  // glm::perlin exactly, reusing a noise cell's gradients down the column.
+  CellPerlin perlin;
 
   for (int x = 0; x < kChunkWidth; ++x) {
     for (int z = 0; z < kChunkDepth; ++z) {
@@ -73,7 +76,7 @@ void Biome::generateMinerals(Chunk &chunk) {
         BlockType &block = chunk.at(x, y, z);
 
         if (block == BlockType::STONE) {
-          float n = glm::perlin(glm::vec3(
+          float n = perlin(glm::vec3(
             (pos.x * kChunkWidth + x + g_settings.noise_offset.x) * 0.05f,
             y * 0.05f,
             (pos.y * kChunkDepth + z + g_settings.noise_offset.y) * 0.05f
