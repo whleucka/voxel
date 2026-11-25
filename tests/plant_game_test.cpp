@@ -141,6 +141,22 @@ TEST_CASE_FIXTURE(Garden, "a flower can go where someone stands: it's walked thr
   CHECK(reason(run(PlaceBlock{feet + glm::ivec3(0, 1, 0)})) == "place: inside a player");
 }
 
+TEST_CASE_FIXTURE(Garden, "a block can't bury an animal, but a flower can go under one") {
+  const glm::ivec3 cell = kGrass + kUp;
+  auto pig = game.entities().spawn(EntityKind::Pig, glm::vec3(cell) + glm::vec3(0.5f, 0.0f, 0.5f));
+  REQUIRE(pig);
+  hold(BlockType::DIRT);
+  CHECK(reason(run(PlaceBlock{cell})) == "place: something is there");
+  CHECK(at(cell) == BlockType::AIR);
+  hold(BlockType::POPPY);
+  CHECK(reason(run(PlaceBlock{cell})).empty());
+  // A dropped item is no creature: it doesn't get in the way.
+  game.entities().remove(*pig);
+  game.entities().spawn(EntityKind::DroppedItem, glm::vec3(cell + kUp) + glm::vec3(0.5f, 0.0f, 0.5f));
+  hold(BlockType::DIRT);
+  CHECK(reason(run(PlaceBlock{cell + kUp})).empty());
+}
+
 TEST_CASE_FIXTURE(Garden, "cactus, dead bushes and shells go on sand; mushrooms on any solid block") {
   hold(BlockType::CACTUS, 2);
   CHECK(reason(run(PlaceBlock{kGrass + kUp})) == "place: it can't go there");

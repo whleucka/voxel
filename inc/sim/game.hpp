@@ -225,6 +225,9 @@ private:
   void pickUpBoat(Client &client, PlayerState &ps, EntityId id);
   PlayerState *riderIn(EntityId boat, int seat);
   bool overlapsBoat(const glm::ivec3 &block) const;
+  // A creature (animal, pet, enemy, fish, lit TNT) stands in the block's
+  // cell: a solid block there would bury it.
+  bool overlapsCreature(const glm::ivec3 &block) const;
   // Every rider of the boat goes to their seat on it.
   void seatRiders(const Entity &boat);
   // Out of the boat, standing beside it.
